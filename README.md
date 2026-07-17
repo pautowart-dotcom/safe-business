@@ -37,23 +37,52 @@ npm run dev
 - `ecosystem.config.js` — конфиг PM2 для backend
 - `nginx.conf` — reverse proxy: `/` → статика frontend, `/api` → backend на порту 4000
 
-### Шаги развёртывания на сервере
+### Загрузка кода на сервер — вариант A: scp (архив)
+
+Репозиторий уже инициализирован (`git init` в корне проекта), секреты (`.env*`, кроме `.env.example`) в git не попадают.
+Готовый архив только из закоммиченных файлов: `safe-business-deploy.tar.gz` (пересобрать после новых коммитов: `git archive --format=tar.gz -o safe-business-deploy.tar.gz HEAD`).
 
 ```bash
-# 1. Скопировать код на сервер (с локальной машины)
-rsync -av --exclude node_modules --exclude dist ./ root@104.171.137.253:/var/www/safe-business/
+# 1. Скопировать архив на сервер
+scp safe-business-deploy.tar.gz root@104.171.137.253:/root/
 
-# 2. Зайти на сервер
+# 2. Зайти на сервер и распаковать
 ssh root@104.171.137.253
+mkdir -p /var/www/safe-business
+tar -xzf /root/safe-business-deploy.tar.gz -C /var/www/safe-business
 
-# 3. Провижининг (один раз)
+# 3. Отдельно скопировать backend/.env (продакшн-секреты не входят в архив!)
+#    выполнить с локальной машины:
+scp backend/.env.production root@104.171.137.253:/var/www/safe-business/backend/.env
+```
+
+### Загрузка кода на сервер — вариант B: git push
+
+```bash
+# 1. На сервере: создать голый репозиторий с хуком автодеплоя
+ssh root@104.171.137.253
+git init --bare /var/www/safe-business.git
+cat > /var/www/safe-business.git/hooks/post-receive <<'HOOK'
+#!/bin/bash
+GIT_WORK_TREE=/var/www/safe-business git checkout -f master
+HOOK
+chmod +x /var/www/safe-business.git/hooks/post-receive
+mkdir -p /var/www/safe-business
+
+# 2. С локальной машины: добавить remote и запушить
+git remote add production root@104.171.137.253:/var/www/safe-business.git
+git push production master
+
+# 3. Скопировать backend/.env (продакшн-секреты не хранятся в git)
+scp backend/.env.production root@104.171.137.253:/var/www/safe-business/backend/.env
+```
+
+### Провижининг и запуск (общий для обоих вариантов)
+
+```bash
+ssh root@104.171.137.253
 cd /var/www/safe-business
 DB_PASSWORD='<пароль из backend/.env.production>' bash deploy/provision.sh
-
-# 4. Положить backend/.env (продакшн-версию) на сервер
-cp /var/www/safe-business/backend/.env.production /var/www/safe-business/backend/.env
-
-# 5. Развернуть приложение
 bash deploy/deploy.sh
 ```
 
