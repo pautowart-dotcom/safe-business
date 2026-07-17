@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const EMPTY_FORM = { name: '', category: '', unit: 'шт', quantity: 0, min_threshold: 0, price_per_unit: 0 };
+const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: 0, lowStockThreshold: 0 };
 
 export default function Supplies() {
   const { isOwner } = useAuth();
@@ -11,18 +11,19 @@ export default function Supplies() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [moveTarget, setMoveTarget] = useState(null);
-  const [moveForm, setMoveForm] = useState({ type: 'out', quantity: '', note: '' });
+  const [moveType, setMoveType] = useState('deduct');
+  const [moveQuantity, setMoveQuantity] = useState('');
 
   function load() {
     setLoading(true);
-    api.get('/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
+    api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, []);
 
   async function handleCreate(e) {
     e.preventDefault();
-    await api.post('/supplies', form);
+    await api.post('/modules/supplies', form);
     setForm(EMPTY_FORM);
     setShowForm(false);
     load();
@@ -30,18 +31,19 @@ export default function Supplies() {
 
   async function handleDelete(id) {
     if (!confirm('Удалить позицию склада?')) return;
-    await api.delete(`/supplies/${id}`);
+    await api.delete(`/modules/supplies/${id}`);
     load();
   }
 
   function openMove(supply, type) {
     setMoveTarget(supply);
-    setMoveForm({ type, quantity: '', note: '' });
+    setMoveType(type);
+    setMoveQuantity('');
   }
 
   async function handleMove(e) {
     e.preventDefault();
-    await api.post(`/supplies/${moveTarget.id}/transactions`, moveForm);
+    await api.post(`/modules/supplies/${moveTarget.id}/${moveType}`, { quantity: Number(moveQuantity) });
     setMoveTarget(null);
     load();
   }
@@ -60,33 +62,28 @@ export default function Supplies() {
           <thead>
             <tr>
               <th>Название</th>
-              <th>Категория</th>
               <th>Остаток</th>
               <th>Минимум</th>
-              <th>Цена/ед.</th>
+              <th>Ссылка на товар</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {supplies.map((s) => {
-              const low = Number(s.quantity) <= Number(s.min_threshold);
-              return (
-                <tr key={s.id} className={low ? 'row-warn' : ''}>
-                  <td>{s.name} {low && <span className="badge badge-cancelled">мало</span>}</td>
-                  <td>{s.category || '—'}</td>
-                  <td>{Number(s.quantity)} {s.unit}</td>
-                  <td>{Number(s.min_threshold)} {s.unit}</td>
-                  <td>{Number(s.price_per_unit).toLocaleString('ru-RU')} ₽</td>
-                  <td className="row-actions">
-                    <button className="btn btn-sm" onClick={() => openMove(s, 'out')}>Списать</button>
-                    {isOwner && <button className="btn btn-sm btn-success" onClick={() => openMove(s, 'in')}>Приход</button>}
-                    {isOwner && <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>✕</button>}
-                  </td>
-                </tr>
-              );
-            })}
+            {supplies.map((s) => (
+              <tr key={s.id} className={s.low_stock ? 'row-warn' : ''}>
+                <td>{s.name} {s.low_stock && <span className="badge badge-cancelled">мало</span>}</td>
+                <td>{Number(s.quantity)} {s.unit}</td>
+                <td>{Number(s.low_stock_threshold)} {s.unit}</td>
+                <td>{s.product_url ? <a className="link" href={s.product_url} target="_blank" rel="noreferrer">Открыть</a> : '—'}</td>
+                <td className="row-actions">
+                  <button className="btn btn-sm" onClick={() => openMove(s, 'deduct')}>Списать</button>
+                  {isOwner && <button className="btn btn-sm btn-success" onClick={() => openMove(s, 'receive')}>Приход</button>}
+                  {isOwner && <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>✕</button>}
+                </td>
+              </tr>
+            ))}
             {supplies.length === 0 && (
-              <tr><td colSpan={6} className="empty-hint">Склад пуст</td></tr>
+              <tr><td colSpan={5} className="empty-hint">Склад пуст</td></tr>
             )}
           </tbody>
         </table>
@@ -101,12 +98,12 @@ export default function Supplies() {
               <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </label>
             <label className="field">
-              <span>Категория</span>
-              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-            </label>
-            <label className="field">
               <span>Единица измерения</span>
               <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+            </label>
+            <label className="field">
+              <span>Ссылка на товар</span>
+              <input type="url" placeholder="https://..." value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} />
             </label>
             <label className="field">
               <span>Начальный остаток</span>
@@ -114,11 +111,7 @@ export default function Supplies() {
             </label>
             <label className="field">
               <span>Минимальный остаток</span>
-              <input type="number" min="0" value={form.min_threshold} onChange={(e) => setForm({ ...form, min_threshold: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Цена за единицу (₽)</span>
-              <input type="number" min="0" value={form.price_per_unit} onChange={(e) => setForm({ ...form, price_per_unit: e.target.value })} />
+              <input type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
             </label>
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Отмена</button>
@@ -131,14 +124,10 @@ export default function Supplies() {
       {moveTarget && (
         <div className="modal-backdrop" onClick={() => setMoveTarget(null)}>
           <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleMove}>
-            <h3>{moveForm.type === 'in' ? 'Приход' : 'Списание'}: {moveTarget.name}</h3>
+            <h3>{moveType === 'receive' ? 'Приход' : 'Списание'}: {moveTarget.name}</h3>
             <label className="field">
               <span>Количество ({moveTarget.unit})</span>
-              <input required type="number" min="0.01" step="0.01" value={moveForm.quantity} onChange={(e) => setMoveForm({ ...moveForm, quantity: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Примечание</span>
-              <input value={moveForm.note} onChange={(e) => setMoveForm({ ...moveForm, note: e.target.value })} />
+              <input required type="number" min="0.01" step="0.01" value={moveQuantity} onChange={(e) => setMoveQuantity(e.target.value)} />
             </label>
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setMoveTarget(null)}>Отмена</button>

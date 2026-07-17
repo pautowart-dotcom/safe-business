@@ -185,3 +185,36 @@ p { margin: 0 0 0.5rem; color: var(--text-muted); }
 .auth-card { background: var(--surface); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
 .auth-subtitle { text-align: center; margin-bottom: 1.5rem; }
 .auth-card .btn-primary { width: 100%; margin-top: 0.5rem; }
+
+/* Модуль "Безопасность" */
+.zone-pill { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem; }
+.zone-green { background: #ecfdf3; color: var(--success); }
+.zone-yellow { background: #fffbeb; color: var(--warn); }
+.zone-red { background: #fef2f2; color: var(--danger); }
+
+.risk-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 6px; font-weight: 700; font-size: 0.78rem; }
+.risk-critical { background: #fef2f2; color: #c0392b; }
+.risk-high { background: #fff7ed; color: #e67e22; }
+.risk-medium { background: #fffbeb; color: #b7950b; }
+.risk-low { background: #ecfdf3; color: var(--success); }
+
+.progress-track { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; margin-bottom: 1.5rem; }
+.progress-fill { height: 100%; background: var(--primary); transition: width 0.2s ease; }
+
+.option-list { display: flex; flex-direction: column; gap: 0.6rem; margin: 1.25rem 0; }
+.option-btn {
+  text-align: left; padding: 0.85rem 1rem; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--surface); cursor: pointer; font-size: 0.95rem; font-family: inherit;
+}
+.option-btn:hover { border-color: var(--primary); background: #faf5ff; }
+
+.segment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem; margin-bottom: 1.5rem; }
+.segment-btn { padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 0.95rem; text-align: center; }
+.segment-btn:hover, .segment-btn.selected { border-color: var(--primary); background: #faf5ff; }
+.segment-btn.selected { border-width: 2px; font-weight: 600; }
+
+.violation-card { border-left: 4px solid var(--border); }
+.violation-card.risk-critical-border { border-left-color: #c0392b; }
+.violation-card.risk-high-border { border-left-color: #e67e22; }
+.violation-card.risk-medium-border { border-left-color: #b7950b; }
+.violation-card.risk-low-border { border-left-color: var(--success); }

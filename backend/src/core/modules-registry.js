@@ -1,0 +1,39 @@
+// Единый реестр модулей маркетплейса. Каждый модуль добавляет сюда одну запись
+// по мере реализации (см. modules/*) — это единственное место, где ядро "узнаёт"
+// о существовании модуля. company_modules решает, включён ли он для конкретной компании.
+const pool = require('../db/pool');
+
+const REGISTRY = [];
+
+function registerModule({ key, name, description, icon, category, backendBasePath, frontendEntry, router }) {
+  REGISTRY.push({ key, name, description, icon, category, backendBasePath, frontendEntry, router });
+}
+
+async function syncModulesTable() {
+  for (const m of REGISTRY) {
+    await pool.query(
+      `INSERT INTO modules (key, name, description, icon, category, backend_base_path, frontend_entry)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (key) DO UPDATE SET
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         icon = EXCLUDED.icon,
+         category = EXCLUDED.category,
+         backend_base_path = EXCLUDED.backend_base_path,
+         frontend_entry = EXCLUDED.frontend_entry`,
+      [m.key, m.name, m.description, m.icon, m.category, m.backendBasePath, m.frontendEntry]
+    );
+  }
+}
+
+function mountModules(app) {
+  for (const m of REGISTRY) {
+    if (m.router) app.use(m.backendBasePath, m.router);
+  }
+}
+
+function studioOsBundleKeys() {
+  return REGISTRY.filter((m) => m.category === 'studio-os').map((m) => m.key);
+}
+
+module.exports = { REGISTRY, registerModule, syncModulesTable, mountModules, studioOsBundleKeys };

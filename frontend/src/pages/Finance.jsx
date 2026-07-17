@@ -1,148 +1,245 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 
-const EMPTY_FORM = { type: 'income', amount: '', category: '', description: '', occurred_at: '' };
-const CATEGORY_PRESETS = {
-  income: ['Услуги', 'Продажа товаров', 'Прочее'],
-  expense: ['Расходники', 'Аренда', 'Зарплата', 'Реклама', 'Коммунальные услуги', 'Прочее'],
-};
+const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '' };
+const EMPTY_RECURRING_FORM = { name: '', kind: 'fixed', amount: '' };
 
 export default function Finance() {
-  const [transactions, setTransactions] = useState([]);
+  const [period, setPeriod] = useState('month');
   const [summary, setSummary] = useState(null);
+  const [expenses, setExpenses] = useState([]);
+  const [recurring, setRecurring] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [range, setRange] = useState(defaultRange());
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseForm, setExpenseForm] = useState(EMPTY_EXPENSE_FORM);
+  const [showRecurringForm, setShowRecurringForm] = useState(false);
+  const [recurringForm, setRecurringForm] = useState(EMPTY_RECURRING_FORM);
 
   function load() {
     setLoading(true);
-    Promise.all([
-      api.get('/finance', { params: range }),
-      api.get('/finance/summary', { params: range }),
-    ])
-      .then(([tx, sum]) => {
-        setTransactions(tx.data);
-        setSummary(sum.data);
+    api
+      .get('/modules/finance/summary', { params: { period } })
+      .then((res) => {
+        setSummary(res.data);
+        return api.get('/modules/finance/expenses', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } });
       })
+      .then((res) => setExpenses(res.data))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [range]);
+  useEffect(load, [period]);
+  useEffect(() => {
+    api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
+  }, []);
 
-  function openCreate(type) {
-    setForm({ ...EMPTY_FORM, type });
-    setShowForm(true);
-  }
-
-  async function handleSubmit(e) {
+  async function handleExpenseSubmit(e) {
     e.preventDefault();
-    await api.post('/finance', form);
-    setShowForm(false);
+    await api.post('/modules/finance/expenses', expenseForm);
+    setExpenseForm(EMPTY_EXPENSE_FORM);
+    setShowExpenseForm(false);
     load();
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Удалить операцию?')) return;
-    await api.delete(`/finance/${id}`);
+  async function handleDeleteExpense(id) {
+    if (!confirm('Удалить расход?')) return;
+    await api.delete(`/modules/finance/expenses/${id}`);
     load();
   }
+
+  async function handleRecurringSubmit(e) {
+    e.preventDefault();
+    await api.post('/modules/finance/recurring-expenses', recurringForm);
+    setRecurringForm(EMPTY_RECURRING_FORM);
+    setShowRecurringForm(false);
+    api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
+  }
+
+  async function toggleRecurring(item) {
+    await api.patch(`/modules/finance/recurring-expenses/${item.id}`, { active: !item.active });
+    api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
+  }
+
+  async function handleDeleteRecurring(id) {
+    if (!confirm('Удалить статью расходов?')) return;
+    await api.delete(`/modules/finance/recurring-expenses/${id}`);
+    api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
+  }
+
+  const totalExpenses = summary
+    ? summary.masterSalaries + summary.fixedExpenses + summary.percentExpenses + summary.variableExpenses
+    : 0;
 
   return (
     <div>
       <div className="page-header">
         <h1>Финансы</h1>
         <div className="row-actions">
-          <button className="btn btn-success" onClick={() => openCreate('income')}>+ Доход</button>
-          <button className="btn btn-danger" onClick={() => openCreate('expense')}>+ Расход</button>
+          <button className="btn btn-danger" onClick={() => setShowExpenseForm(true)}>+ Расход</button>
         </div>
       </div>
 
       <div className="filters-row">
-        <label className="field-inline">
-          <span>С</span>
-          <input type="date" value={range.from?.slice(0, 10) || ''} onChange={(e) => setRange({ ...range, from: e.target.value ? `${e.target.value}T00:00:00` : undefined })} />
-        </label>
-        <label className="field-inline">
-          <span>По</span>
-          <input type="date" value={range.to?.slice(0, 10) || ''} onChange={(e) => setRange({ ...range, to: e.target.value ? `${e.target.value}T23:59:59` : undefined })} />
-        </label>
+        {[['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц']].map(([key, label]) => (
+          <button key={key} className={'chip' + (period === key ? ' chip-active' : '')} onClick={() => setPeriod(key)}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {summary && (
-        <div className="grid grid-3">
-          <div className="stat-card stat-success">
-            <div className="stat-value">{Number(summary.income).toLocaleString('ru-RU')} ₽</div>
-            <div className="stat-label">Доход</div>
-          </div>
-          <div className="stat-card stat-danger">
-            <div className="stat-value">{Number(summary.expense).toLocaleString('ru-RU')} ₽</div>
-            <div className="stat-label">Расход</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value">{Number(summary.profit).toLocaleString('ru-RU')} ₽</div>
-            <div className="stat-label">Прибыль</div>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
+      {loading || !summary ? (
         <div className="page-loading">Загрузка...</div>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Дата</th>
-              <th>Тип</th>
-              <th>Категория</th>
-              <th>Сумма</th>
-              <th>Описание</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((t) => (
-              <tr key={t.id}>
-                <td>{new Date(t.occurred_at).toLocaleDateString('ru-RU')}</td>
-                <td><span className={`badge badge-${t.type === 'income' ? 'completed' : 'cancelled'}`}>{t.type === 'income' ? 'Доход' : 'Расход'}</span></td>
-                <td>{t.category}</td>
-                <td>{Number(t.amount).toLocaleString('ru-RU')} ₽</td>
-                <td>{t.description || '—'}</td>
-                <td><button className="btn btn-sm btn-danger" onClick={() => handleDelete(t.id)}>✕</button></td>
-              </tr>
-            ))}
-            {transactions.length === 0 && (
-              <tr><td colSpan={6} className="empty-hint">Операций не найдено</td></tr>
-            )}
-          </tbody>
-        </table>
+        <>
+          <div className="grid grid-3">
+            <div className="stat-card stat-success">
+              <div className="stat-value">{summary.revenue.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Выручка</div>
+            </div>
+            <div className="stat-card stat-danger">
+              <div className="stat-value">{totalExpenses.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Расходы</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{summary.netProfit.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Чистая прибыль</div>
+            </div>
+          </div>
+
+          <div className="grid grid-4" style={{ marginTop: '0.5rem' }}>
+            <div className="stat-card">
+              <div className="stat-value">{summary.masterSalaries.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Зарплаты мастеров</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{summary.fixedExpenses.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Постоянные расходы</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{summary.percentExpenses.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Процентные расходы</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{summary.variableExpenses.toLocaleString('ru-RU')} ₽</div>
+              <div className="stat-label">Переменные расходы</div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: '1.5rem' }}>
+            <div className="card-header"><h3>Заработок по мастерам</h3></div>
+            <table className="table">
+              <thead>
+                <tr><th>Мастер</th><th>Визитов</th><th>Выручка</th><th>Заработок</th></tr>
+              </thead>
+              <tbody>
+                {summary.byMaster.map((m) => (
+                  <tr key={m.masterMembershipId}>
+                    <td>{m.masterName || '—'}</td>
+                    <td>{m.visitsCount}</td>
+                    <td>{m.revenue.toLocaleString('ru-RU')} ₽</td>
+                    <td>{m.earnings.toLocaleString('ru-RU')} ₽</td>
+                  </tr>
+                ))}
+                {summary.byMaster.length === 0 && <tr><td colSpan={4} className="empty-hint">Нет данных за период</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card" style={{ marginTop: '1.5rem' }}>
+            <div className="card-header"><h3>Переменные расходы за период</h3></div>
+            <table className="table">
+              <thead>
+                <tr><th>Дата</th><th>Название</th><th>Сумма</th><th></th></tr>
+              </thead>
+              <tbody>
+                {expenses.map((e) => (
+                  <tr key={e.id}>
+                    <td>{new Date(e.occurred_at).toLocaleDateString('ru-RU')}</td>
+                    <td>{e.name}</td>
+                    <td>{Number(e.amount).toLocaleString('ru-RU')} ₽</td>
+                    <td><button className="btn btn-sm btn-danger" onClick={() => handleDeleteExpense(e.id)}>✕</button></td>
+                  </tr>
+                ))}
+                {expenses.length === 0 && <tr><td colSpan={4} className="empty-hint">Расходов не найдено</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
-      {showForm && (
-        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <h3>{form.type === 'income' ? 'Новый доход' : 'Новый расход'}</h3>
+      <div className="card" style={{ marginTop: '1.5rem' }}>
+        <div className="card-header">
+          <h3>Постоянные и процентные расходы</h3>
+          <button className="btn btn-sm" onClick={() => setShowRecurringForm(true)}>+ Статья расходов</button>
+        </div>
+        <p className="page-subtitle">Аренда, сервисы, налог УСН, эквайринг — списываются автоматически при расчёте прибыли</p>
+        <table className="table">
+          <thead>
+            <tr><th>Название</th><th>Тип</th><th>Сумма</th><th>Активна</th><th></th></tr>
+          </thead>
+          <tbody>
+            {recurring.map((r) => (
+              <tr key={r.id}>
+                <td>{r.name}</td>
+                <td>{r.kind === 'fixed' ? 'Фикс. ₽/мес' : '% от выручки'}</td>
+                <td>{Number(r.amount).toLocaleString('ru-RU')}{r.kind === 'percent' ? '%' : ' ₽'}</td>
+                <td>
+                  <button className={`btn btn-sm ${r.active ? 'btn-success' : ''}`} onClick={() => toggleRecurring(r)}>
+                    {r.active ? 'Активна' : 'Отключена'}
+                  </button>
+                </td>
+                <td><button className="btn btn-sm btn-danger" onClick={() => handleDeleteRecurring(r.id)}>✕</button></td>
+              </tr>
+            ))}
+            {recurring.length === 0 && <tr><td colSpan={5} className="empty-hint">Статей расходов пока нет</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {showExpenseForm && (
+        <div className="modal-backdrop" onClick={() => setShowExpenseForm(false)}>
+          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleExpenseSubmit}>
+            <h3>Новый переменный расход</h3>
             <label className="field">
-              <span>Сумма (₽)</span>
-              <input required type="number" min="0" step="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              <span>Название</span>
+              <input required value={expenseForm.name} onChange={(e) => setExpenseForm({ ...expenseForm, name: e.target.value })} />
             </label>
             <label className="field">
-              <span>Категория</span>
-              <input required list="category-options" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-              <datalist id="category-options">
-                {CATEGORY_PRESETS[form.type].map((c) => <option key={c} value={c} />)}
-              </datalist>
+              <span>Сумма (₽)</span>
+              <input required type="number" min="0" step="1" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} />
             </label>
             <label className="field">
               <span>Дата</span>
-              <input type="date" value={form.occurred_at} onChange={(e) => setForm({ ...form, occurred_at: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Описание</span>
-              <textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <input type="date" value={expenseForm.occurredAt} onChange={(e) => setExpenseForm({ ...expenseForm, occurredAt: e.target.value })} />
             </label>
             <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Отмена</button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowExpenseForm(false)}>Отмена</button>
+              <button type="submit" className="btn btn-primary">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showRecurringForm && (
+        <div className="modal-backdrop" onClick={() => setShowRecurringForm(false)}>
+          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleRecurringSubmit}>
+            <h3>Новая статья расходов</h3>
+            <label className="field">
+              <span>Название</span>
+              <input required value={recurringForm.name} onChange={(e) => setRecurringForm({ ...recurringForm, name: e.target.value })} />
+            </label>
+            <label className="field">
+              <span>Тип</span>
+              <select value={recurringForm.kind} onChange={(e) => setRecurringForm({ ...recurringForm, kind: e.target.value })}>
+                <option value="fixed">Фиксированная сумма в месяц (₽)</option>
+                <option value="percent">Процент от выручки (%)</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>{recurringForm.kind === 'fixed' ? 'Сумма в месяц (₽)' : 'Процент от выручки (%)'}</span>
+              <input required type="number" min="0" step="0.01" value={recurringForm.amount} onChange={(e) => setRecurringForm({ ...recurringForm, amount: e.target.value })} />
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowRecurringForm(false)}>Отмена</button>
               <button type="submit" className="btn btn-primary">Сохранить</button>
             </div>
           </form>
@@ -150,10 +247,4 @@ export default function Finance() {
       )}
     </div>
   );
-}
-
-function defaultRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  return { from: from.toISOString().slice(0, 19), to: undefined };
 }

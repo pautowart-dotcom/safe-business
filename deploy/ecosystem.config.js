@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'safe-business-api',
       cwd: '/var/www/safe-business/backend',
-      script: 'src/index.js',
+      script: 'src/server.js',
       instances: 1,
       exec_mode: 'fork',
       env: {

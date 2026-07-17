@@ -11,10 +11,10 @@ cd "$APP_DIR/backend"
 npm install --omit=dev
 
 echo "== Применение миграций БД =="
-node src/migrate.js
+node src/db/migrate.js
 
-echo "== Заполнение начальных данных (владелец) =="
-node src/seed.js || true
+echo "== Заполнение начальных данных (Super Admin) =="
+node src/db/seed.js || true
 
 echo "== Сборка frontend =="
 cd "$APP_DIR/frontend"
