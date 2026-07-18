@@ -123,6 +123,18 @@ export function AuthProvider({ children }) {
     clearSession();
   }
 
+  // Принять приглашение по токену (страница /invite/:token). Бэкенд отвечает
+  // тем же base-токеном, что и login/register, поэтому дальше — тот же шаг
+  // selectCompany(companyId), что и при обычном входе с одной компанией.
+  async function acceptInvite({ token, name, email, password }) {
+    const res = await api.post('/auth/accept-invite', { token, name, email, password });
+    localStorage.setItem('token', res.data.token);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    setUser(res.data.user);
+    setCurrentCompany(null);
+    await selectCompany(res.data.companyId);
+  }
+
   // Открывает выбор компании заново (кнопка "Сменить компанию" в
   // настройках) — переиспользует тот же экран выбора, что и при логине.
   async function switchCompany() {
@@ -145,6 +157,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         logout,
+        acceptInvite,
         isOwner: currentCompany?.role === 'owner',
         isSuperAdmin: !!user?.is_super_admin,
       }}

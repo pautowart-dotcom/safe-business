@@ -180,6 +180,24 @@ router.post(
   })
 );
 
+router.get(
+  '/invite/:token',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT m.role, m.invited_email, c.name AS company_name
+       FROM memberships m
+       JOIN companies c ON c.id = m.company_id
+       WHERE m.invite_token = $1 AND m.invite_status = 'pending'`,
+      [req.params.token]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Приглашение не найдено или уже использовано' });
+    }
+    const invite = rows[0];
+    res.json({ role: invite.role, invitedEmail: invite.invited_email, companyName: invite.company_name });
+  })
+);
+
 router.post(
   '/accept-invite',
   asyncHandler(async (req, res) => {

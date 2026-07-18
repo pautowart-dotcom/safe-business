@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { PrivateRoute } from './components/PrivateRoute.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
+import AcceptInvite from './pages/AcceptInvite.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clients from './pages/Clients.jsx';
 import Visits from './pages/Visits.jsx';
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/invite/:token" element={<AcceptInvite />} />
       <Route
         path="/"
         element={

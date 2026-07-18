@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Btn, Field, TextInput, C, F } from '../ui/components.jsx';
 
-function AuthShell({ children }) {
+export function AuthShell({ children }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
