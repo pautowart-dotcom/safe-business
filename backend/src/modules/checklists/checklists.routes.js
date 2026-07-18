@@ -223,7 +223,7 @@ router.get(
     where += ` AND cm.mark_date = $${params.length}`;
 
     const { rows } = await pool.query(
-      `SELECT cm.id, cm.item_id, ci.label, ci.template_id, cm.membership_id, u.name AS master_name,
+      `SELECT cm.id, cm.item_id, ci.label, ci.template_id, cm.membership_id, u.name AS master_name, m.role AS member_role,
               cm.mark_date, cm.checked, cm.checked_at
        FROM checklist_marks cm
        JOIN checklist_items ci ON ci.id = cm.item_id
@@ -237,12 +237,14 @@ router.get(
   })
 );
 
-// Отметка выполнения пункта — только мастер, только за себя (README:
-// "отметка выполнения своих чек-листов"). Один мастер — один пункт — один
-// день = одна запись (UNIQUE в схеме), повторная отметка просто обновляет её.
+// Отметка выполнения пункта — мастер или владелец, только за себя (README:
+// "отметка выполнения своих чек-листов"; владелец тоже может отмечать —
+// например, сам открывает/закрывает смену — чтобы это было видно в истории
+// с его именем и ролью). Один участник — один пункт — один день = одна
+// запись (UNIQUE в схеме), повторная отметка просто обновляет её.
 router.post(
   '/items/:itemId/mark',
-  requireRole('master'),
+  requireRole('master', 'owner'),
   asyncHandler(async (req, res) => {
     const checked = req.body.checked !== false;
     const date = req.body.date || new Date().toISOString().slice(0, 10);

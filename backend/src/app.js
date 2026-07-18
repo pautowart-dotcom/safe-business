@@ -3,6 +3,7 @@ const cors = require('cors');
 require('./modules');
 const { authRoutes, platformRouter } = require('./platform');
 const { mountModules } = require('./core/modules-registry');
+const { UPLOADS_DIR } = require('./core/uploads');
 
 function buildApp() {
   const app = express();
@@ -13,6 +14,9 @@ function buildApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/platform', platformRouter);
+  // Под /api/, чтобы отдавалось через тот же nginx/vite-прокси, что и
+  // остальной бэкенд — без отдельного правила проксирования.
+  app.use('/api/uploads', express.static(UPLOADS_DIR));
   mountModules(app);
 
   app.use((req, res) => {
@@ -22,6 +26,9 @@ function buildApp() {
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     console.error(err);
+    if (err.name === 'MulterError' || err.message === 'Файл должен быть изображением') {
+      return res.status(400).json({ error: err.message === 'File too large' ? 'Файл слишком большой (максимум 8 МБ)' : err.message });
+    }
     res.status(err.status || 500).json({ error: err.message || 'Внутренняя ошибка сервера' });
   });
 

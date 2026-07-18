@@ -4,6 +4,11 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Card, BackBtn, Field, TextInput, TextArea, Btn, Icon, C } from '../ui/components.jsx';
 
 const EMPTY_FORM = { name: '', description: '', items: [''] };
+const ROLE_LABELS = { owner: 'владелец', master: 'мастер' };
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function Checklists() {
   const { isOwner } = useAuth();
@@ -131,6 +136,11 @@ export default function Checklists() {
       {visibleTemplates.map((template) => {
         const doneCount = template.items.filter((item) => marksForItem(item.id).length > 0).length;
         const pct = template.items.length > 0 ? Math.round((doneCount / template.items.length) * 100) : 0;
+        const allMarksToday = template.items
+          .flatMap((item) => marksForItem(item.id))
+          .sort((a, b) => new Date(a.checked_at) - new Date(b.checked_at));
+        const firstMark = allMarksToday[0];
+        const lastMark = doneCount === template.items.length && template.items.length > 0 ? allMarksToday[allMarksToday.length - 1] : null;
         return (
           <Card key={template.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -147,10 +157,22 @@ export default function Checklists() {
 
             {isOwner ? (
               <div>
+                {firstMark && (
+                  <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
+                    Начало: {firstMark.master_name || '—'} ({ROLE_LABELS[firstMark.member_role] || firstMark.member_role}) · {formatTime(firstMark.checked_at)}
+                    {lastMark && (
+                      <>
+                        {' · '}Завершено: {lastMark.master_name || '—'} ({ROLE_LABELS[lastMark.member_role] || lastMark.member_role}) · {formatTime(lastMark.checked_at)}
+                      </>
+                    )}
+                  </div>
+                )}
                 {template.items.map((item, i) => (
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < template.items.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                     <span style={{ fontSize: 14 }}>{item.label}</span>
-                    <span style={{ fontSize: 12, color: C.subtle }}>{marksForItem(item.id).map((m) => m.master_name).join(', ') || 'не отмечено'}</span>
+                    <span style={{ fontSize: 12, color: C.subtle }}>
+                      {marksForItem(item.id).map((m) => `${m.master_name} (${ROLE_LABELS[m.member_role] || m.member_role}), ${formatTime(m.checked_at)}`).join(' · ') || 'не отмечено'}
+                    </span>
                   </div>
                 ))}
               </div>

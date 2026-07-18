@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, C } from '../ui/components.jsx';
+import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, Icon, C } from '../ui/components.jsx';
 
 function nowLocal() {
   const d = new Date();
@@ -17,6 +17,57 @@ const EMPTY_FORM = {
 
 function money(v) {
   return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
+}
+
+// Ячейка загрузки фото — как в reference/studio_os_mvp.tsx (пунктирная
+// рамка → камера → отмеченное состояние), но с реальной загрузкой файла
+// на сервер вместо мокового переключателя.
+function PhotoUploadCell({ label, url, onUploaded }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const data = new FormData();
+      data.append('photo', file);
+      const res = await api.post('/modules/visits/photos', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      onUploaded(res.data.url);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось загрузить фото');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} />
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{
+          border: `1.5px ${url ? 'solid' : 'dashed'} ${url ? C.green : C.border}`,
+          borderRadius: 12, padding: 16, textAlign: 'center', cursor: 'pointer',
+          background: url ? C.greenBg : C.surface,
+        }}
+      >
+        {url ? (
+          <img src={url} alt={`Фото ${label}`} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
+        ) : (
+          <Icon name="camera" size={22} color={C.subtle} />
+        )}
+        <div style={{ fontSize: 12, color: url ? C.green : C.subtle, marginTop: 8, fontWeight: url ? 600 : 400 }}>
+          {uploading ? 'Загрузка...' : `Фото ${label}${url ? ' ✓' : ''}`}
+        </div>
+      </div>
+      {error && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>{error}</div>}
+    </div>
+  );
 }
 
 export default function Visits() {
@@ -207,11 +258,11 @@ export default function Visits() {
             </div>
           )}
 
-          <Field label="Фото до">
-            <TextInput type="url" placeholder="Ссылка на фото до" value={form.photoBeforeUrl} onChange={(e) => setForm({ ...form, photoBeforeUrl: e.target.value })} />
-          </Field>
-          <Field label="Фото после">
-            <TextInput type="url" placeholder="Ссылка на фото после" value={form.photoAfterUrl} onChange={(e) => setForm({ ...form, photoAfterUrl: e.target.value })} />
+          <Field label="Фото">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} />
+              <PhotoUploadCell label="после" url={form.photoAfterUrl} onUploaded={(url) => setForm({ ...form, photoAfterUrl: url })} />
+            </div>
           </Field>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
