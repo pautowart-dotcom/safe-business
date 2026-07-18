@@ -7,7 +7,7 @@ async function start() {
   const app = buildApp();
   const port = process.env.PORT || 4000;
   app.listen(port, () => {
-    console.log(`Платформа Studio OS запущена на порту ${port}`);
+    console.log(`Платформа «Безопасный бизнес» запущена на порту ${port}`);
   });
 }
 

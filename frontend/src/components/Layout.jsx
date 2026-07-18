@@ -56,7 +56,7 @@ export default function Layout() {
       <div style={{ padding: '16px 20px 12px', background: C.bg, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {isHome ? (
           <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-            Studio OS · {currentCompany?.name}
+            Безопасный бизнес · {currentCompany?.name}
           </div>
         ) : (
           <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
