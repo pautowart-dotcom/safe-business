@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Card, BackBtn, Field, TextInput, Btn, Badge, Icon, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: 0, lowStockThreshold: 0 };
+const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0' };
 
 export default function Supplies() {
   const { isOwner } = useAuth();
@@ -11,8 +12,6 @@ export default function Supplies() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [moveTarget, setMoveTarget] = useState(null);
-  const [moveType, setMoveType] = useState('deduct');
-  const [moveQuantity, setMoveQuantity] = useState('');
 
   function load() {
     setLoading(true);
@@ -21,8 +20,8 @@ export default function Supplies() {
 
   useEffect(load, []);
 
-  async function handleCreate(e) {
-    e.preventDefault();
+  async function handleCreate() {
+    if (!form.name.trim()) return;
     await api.post('/modules/supplies', form);
     setForm(EMPTY_FORM);
     setShowForm(false);
@@ -35,106 +34,75 @@ export default function Supplies() {
     load();
   }
 
-  function openMove(supply, type) {
-    setMoveTarget(supply);
-    setMoveType(type);
-    setMoveQuantity('');
+  async function adjust(id, type, delta) {
+    await api.post(`/modules/supplies/${id}/${type}`, { quantity: delta });
+    load();
   }
 
-  async function handleMove(e) {
-    e.preventDefault();
-    await api.post(`/modules/supplies/${moveTarget.id}/${moveType}`, { quantity: Number(moveQuantity) });
-    setMoveTarget(null);
-    load();
+  if (showForm) {
+    return (
+      <div>
+        <BackBtn onClick={() => setShowForm(false)} />
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Новый расходник</div>
+        <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Гель-лак Kodi" /></Field>
+        <Field label="Начальный остаток"><TextInput type="number" min="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="5" /></Field>
+        <Field label="Минимум (порог)"><TextInput type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} placeholder="2" /></Field>
+        <Field label="Единица"><TextInput value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="шт" /></Field>
+        <Field label="Ссылка на товар"><TextInput type="url" value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} placeholder="https://..." /></Field>
+        <Btn onClick={handleCreate}>Добавить</Btn>
+      </div>
+    );
   }
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Расходники</h1>
-        {isOwner && <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Новая позиция</button>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Склад расходников</div>
+        {isOwner && (
+          <button onClick={() => setShowForm(true)} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>
+        )}
       </div>
 
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Остаток</th>
-              <th>Минимум</th>
-              <th>Ссылка на товар</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {supplies.map((s) => (
-              <tr key={s.id} className={s.low_stock ? 'row-warn' : ''}>
-                <td>{s.name} {s.low_stock && <span className="badge badge-cancelled">мало</span>}</td>
-                <td>{Number(s.quantity)} {s.unit}</td>
-                <td>{Number(s.low_stock_threshold)} {s.unit}</td>
-                <td>{s.product_url ? <a className="link" href={s.product_url} target="_blank" rel="noreferrer">Открыть</a> : '—'}</td>
-                <td className="row-actions">
-                  <button className="btn btn-sm" onClick={() => openMove(s, 'deduct')}>Списать</button>
-                  {isOwner && <button className="btn btn-sm btn-success" onClick={() => openMove(s, 'receive')}>Приход</button>}
-                  {isOwner && <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>✕</button>}
-                </td>
-              </tr>
-            ))}
-            {supplies.length === 0 && (
-              <tr><td colSpan={5} className="empty-hint">Склад пуст</td></tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      {showForm && (
-        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleCreate}>
-            <h3>Новая позиция склада</h3>
-            <label className="field">
-              <span>Название</span>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Единица измерения</span>
-              <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Ссылка на товар</span>
-              <input type="url" placeholder="https://..." value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Начальный остаток</span>
-              <input type="number" min="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Минимальный остаток</span>
-              <input type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {moveTarget && (
-        <div className="modal-backdrop" onClick={() => setMoveTarget(null)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleMove}>
-            <h3>{moveType === 'receive' ? 'Приход' : 'Списание'}: {moveTarget.name}</h3>
-            <label className="field">
-              <span>Количество ({moveTarget.unit})</span>
-              <input required type="number" min="0.01" step="0.01" value={moveQuantity} onChange={(e) => setMoveQuantity(e.target.value)} />
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setMoveTarget(null)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Подтвердить</button>
-            </div>
-          </form>
-        </div>
+        <Card style={{ padding: 0 }}>
+          {supplies.map((s, i) => {
+            const low = s.low_stock;
+            return (
+              <div key={s.id} style={{ padding: '14px 16px', borderBottom: i < supplies.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: low ? C.red : C.green, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
+                      <div style={{ fontSize: 12, color: C.subtle }}>мин. {Number(s.low_stock_threshold)} {s.unit}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {low && <Badge color={C.red} bg={C.redBg}>Мало</Badge>}
+                    <div style={{ fontSize: 16, fontWeight: 800, color: low ? C.red : C.primary }}>{Number(s.quantity)} {s.unit}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {isOwner && (
+                    <button onClick={() => adjust(s.id, 'receive', 1)} style={{ background: C.greenBg, border: `1px solid ${C.green}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.green, cursor: 'pointer', fontWeight: 600 }}>+ Пришло</button>
+                  )}
+                  <button onClick={() => adjust(s.id, 'deduct', 1)} style={{ background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.red, cursor: 'pointer', fontWeight: 600 }}>− Списать</button>
+                  {s.product_url && (
+                    <a href={s.product_url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.secondary, textDecoration: 'none' }}>
+                      <Icon name="link" size={12} color={C.secondary} />Купить
+                    </a>
+                  )}
+                  {isOwner && (
+                    <button onClick={() => handleDelete(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12, marginLeft: 'auto' }}>Удалить</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {supplies.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Склад пуст</div>}
+        </Card>
       )}
     </div>
   );

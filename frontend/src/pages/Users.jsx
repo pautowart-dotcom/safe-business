@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '', branchId: '' };
 
@@ -10,8 +11,10 @@ export default function Users() {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM);
   const [inviteUrl, setInviteUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ payoutPercent: '', branchId: '' });
+  const [confirmDel, setConfirmDel] = useState(null);
 
   function load() {
     setLoading(true);
@@ -23,8 +26,7 @@ export default function Users() {
     api.get('/platform/branches').then((res) => setBranches(res.data));
   }, []);
 
-  async function handleInvite(e) {
-    e.preventDefault();
+  async function handleInvite() {
     const { data } = await api.post('/platform/memberships/invite', inviteForm);
     setInviteUrl(data.inviteUrl);
     setInviteForm(EMPTY_INVITE_FORM);
@@ -37,128 +39,127 @@ export default function Users() {
     setEditForm({ payoutPercent: member.payout_percent || '', branchId: member.branch_id || '' });
   }
 
-  async function handleEditSubmit(e) {
-    e.preventDefault();
+  async function handleEditSubmit() {
     await api.patch(`/platform/memberships/${editing.id}`, editForm);
     setEditing(null);
     load();
   }
 
   async function handleRemove(id) {
-    if (!confirm('Удалить сотрудника из компании?')) return;
     await api.delete(`/platform/memberships/${id}`);
+    setConfirmDel(null);
     load();
   }
 
   if (loading) return <div className="page-loading">Загрузка...</div>;
 
+  if (showInviteForm) {
+    return (
+      <div>
+        <BackBtn onClick={() => setShowInviteForm(false)} />
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Пригласить сотрудника</div>
+        <Field label="Роль">
+          <Select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
+            <option value="master">Мастер</option>
+            <option value="owner">Владелец</option>
+          </Select>
+        </Field>
+        <Field label="Email приглашённого">
+          <TextInput type="email" value={inviteForm.invitedEmail} onChange={(e) => setInviteForm({ ...inviteForm, invitedEmail: e.target.value })} />
+        </Field>
+        {inviteForm.role === 'master' && (
+          <Field label="% выплаты от суммы визита">
+            <TextInput type="number" min="0" max="100" value={inviteForm.payoutPercent} onChange={(e) => setInviteForm({ ...inviteForm, payoutPercent: e.target.value })} />
+          </Field>
+        )}
+        <Field label="Филиал">
+          <Select value={inviteForm.branchId} onChange={(e) => setInviteForm({ ...inviteForm, branchId: e.target.value })}>
+            <option value="">Не указан</option>
+            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </Select>
+        </Field>
+        <Btn onClick={handleInvite}>Создать приглашение</Btn>
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div>
+        <BackBtn onClick={() => setEditing(null)} />
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Изменить условия: {editing.user_name || editing.invited_email}</div>
+        <Field label="% выплаты от суммы визита">
+          <TextInput type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
+        </Field>
+        <Field label="Филиал">
+          <Select value={editForm.branchId} onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}>
+            <option value="">Не указан</option>
+            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </Select>
+        </Field>
+        <Btn onClick={handleEditSubmit}>Сохранить</Btn>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div className="page-header">
-        <h1>Сотрудники</h1>
-        <button className="btn btn-primary" onClick={() => setShowInviteForm(true)}>+ Пригласить</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Команда</div>
+        <button onClick={() => setShowInviteForm(true)} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Пригласить</button>
       </div>
 
-      <table className="table">
-        <thead>
-          <tr><th>Имя</th><th>Email</th><th>Роль</th><th>% выплаты</th><th>Филиал</th><th>Статус</th><th></th></tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.id}>
-              <td>{m.user_name || '—'}</td>
-              <td>{m.user_email || m.invited_email || '—'}</td>
-              <td>{m.role === 'owner' ? 'Владелец' : 'Мастер'}</td>
-              <td>{m.role === 'master' ? (m.payout_percent != null ? `${m.payout_percent}%` : 'не задан') : '—'}</td>
-              <td>{branches.find((b) => b.id === m.branch_id)?.name || '—'}</td>
-              <td>
-                <span className={`badge badge-${m.invite_status === 'active' ? 'completed' : 'planned'}`}>
-                  {m.invite_status === 'active' ? 'Активен' : 'Ожидает приглашения'}
-                </span>
-              </td>
-              <td className="row-actions">
-                {m.role === 'master' && <button className="btn btn-sm" onClick={() => openEdit(m)}>Изменить</button>}
-                {m.role === 'master' && <button className="btn btn-sm btn-danger" onClick={() => handleRemove(m.id)}>Удалить</button>}
-              </td>
-            </tr>
-          ))}
-          {members.length === 0 && <tr><td colSpan={7} className="empty-hint">Сотрудников пока нет</td></tr>}
-        </tbody>
-      </table>
-
-      {showInviteForm && (
-        <div className="modal-backdrop" onClick={() => setShowInviteForm(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleInvite}>
-            <h3>Пригласить сотрудника</h3>
-            <label className="field">
-              <span>Роль</span>
-              <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
-                <option value="master">Мастер</option>
-                <option value="owner">Владелец</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>Email приглашённого</span>
-              <input type="email" value={inviteForm.invitedEmail} onChange={(e) => setInviteForm({ ...inviteForm, invitedEmail: e.target.value })} />
-            </label>
-            {inviteForm.role === 'master' && (
-              <label className="field">
-                <span>% выплаты от суммы визита</span>
-                <input type="number" min="0" max="100" value={inviteForm.payoutPercent} onChange={(e) => setInviteForm({ ...inviteForm, payoutPercent: e.target.value })} />
-              </label>
-            )}
-            <label className="field">
-              <span>Филиал</span>
-              <select value={inviteForm.branchId} onChange={(e) => setInviteForm({ ...inviteForm, branchId: e.target.value })}>
-                <option value="">Не указан</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowInviteForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Создать приглашение</button>
-            </div>
-          </form>
-        </div>
+      {inviteUrl && (
+        <Card style={{ borderColor: C.primary + '33' }}>
+          <ST>Ссылка-приглашение</ST>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>Отправьте сотруднику. После перехода он присоединится к компании.</div>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', fontSize: 13, color: C.secondary, marginBottom: 12, wordBreak: 'break-all' }}>{inviteUrl}</div>
+          <Btn
+            onClick={() => { navigator.clipboard?.writeText(inviteUrl); setCopied(true); setTimeout(() => { setCopied(false); setInviteUrl(''); }, 1200); }}
+            variant={copied ? 'green' : 'primary'}
+          >
+            {copied ? '✓ Скопировано!' : 'Скопировать ссылку'}
+          </Btn>
+        </Card>
       )}
 
-      {inviteUrl && (
-        <div className="modal-backdrop" onClick={() => setInviteUrl('')}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Приглашение создано</h3>
-            <p>Отправьте эту ссылку сотруднику — по ней он присоединится к компании.</p>
-            <p className="notes-block">{inviteUrl}</p>
-            <div className="modal-actions">
-              <button className="btn btn-primary" onClick={() => { navigator.clipboard?.writeText(inviteUrl); setInviteUrl(''); }}>
-                Скопировать и закрыть
-              </button>
+      <Card>
+        <ST>Сотрудники · {members.length}</ST>
+        {members.map((m, i, arr) => (
+          <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Avatar letter={(m.user_name || m.invited_email || '?')[0].toUpperCase()} size={40} />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{m.user_name || m.invited_email || 'Приглашение отправлено'}</div>
+                <div style={{ fontSize: 12, color: C.subtle }}>
+                  {m.role === 'owner' ? 'Владелец' : 'Мастер'}
+                  {m.role === 'master' && m.payout_percent != null && ` · ${m.payout_percent}% от чека`}
+                  {branches.find((b) => b.id === m.branch_id) && ` · ${branches.find((b) => b.id === m.branch_id).name}`}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Badge color={m.invite_status === 'active' ? C.green : C.subtle} bg={m.invite_status === 'active' ? C.greenBg : C.surface}>
+                {m.invite_status === 'active' ? 'Активен' : 'Ожидает'}
+              </Badge>
+              {m.role === 'master' && (
+                confirmDel === m.id ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Btn small variant="red" onClick={() => handleRemove(m.id)}>Удалить</Btn>
+                    <Btn small variant="secondary" onClick={() => setConfirmDel(null)}>Отмена</Btn>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={() => openEdit(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.secondary }}>Изменить</button>
+                    <button onClick={() => setConfirmDel(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.red }}>Удалить</button>
+                  </>
+                )
+              )}
             </div>
           </div>
-        </div>
-      )}
-
-      {editing && (
-        <div className="modal-backdrop" onClick={() => setEditing(null)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleEditSubmit}>
-            <h3>Изменить условия: {editing.user_name || editing.invited_email}</h3>
-            <label className="field">
-              <span>% выплаты от суммы визита</span>
-              <input type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Филиал</span>
-              <select value={editForm.branchId} onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}>
-                <option value="">Не указан</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
-            </div>
-          </form>
-        </div>
-      )}
+        ))}
+        {members.length === 0 && <div className="empty-hint">Сотрудников пока нет</div>}
+      </Card>
     </div>
   );
 }

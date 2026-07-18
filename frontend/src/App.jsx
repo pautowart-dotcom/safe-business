@@ -11,6 +11,9 @@ import Checklists from './pages/Checklists.jsx';
 import Knowledge from './pages/Knowledge.jsx';
 import Security from './pages/Security.jsx';
 import Users from './pages/Users.jsx';
+import Settings from './pages/Settings.jsx';
+import Feedback from './pages/Feedback.jsx';
+import More from './pages/More.jsx';
 
 export default function App() {
   return (
@@ -27,26 +30,36 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="clients" element={<Clients />} />
         <Route path="visits" element={<Visits />} />
+        <Route path="finance" element={<Finance />} />
+        <Route path="supplies" element={<Supplies />} />
+        <Route path="shift" element={<Checklists />} />
+        <Route path="knowledge" element={<Knowledge />} />
         <Route
-          path="finance"
+          path="security"
           element={
             <PrivateRoute ownerOnly>
-              <Finance />
+              <Security />
             </PrivateRoute>
           }
         />
-        <Route path="supplies" element={<Supplies />} />
-        <Route path="checklists" element={<Checklists />} />
-        <Route path="knowledge" element={<Knowledge />} />
-        <Route path="security" element={<Security />} />
         <Route
-          path="users"
+          path="team"
           element={
             <PrivateRoute ownerOnly>
               <Users />
             </PrivateRoute>
           }
         />
+        <Route
+          path="feedback"
+          element={
+            <PrivateRoute ownerOnly>
+              <Feedback />
+            </PrivateRoute>
+          }
+        />
+        <Route path="settings" element={<Settings />} />
+        <Route path="more" element={<More />} />
       </Route>
     </Routes>
   );

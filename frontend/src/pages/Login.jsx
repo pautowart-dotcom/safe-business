@@ -1,12 +1,78 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Btn, Field, TextInput, C, F } from '../ui/components.jsx';
+
+function AuthShell({ children }) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Studio OS</div>
+        <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Безопасный бизнес</div>
+      </div>
+      <div style={{ width: '100%', maxWidth: 390 }}>{children}</div>
+    </div>
+  );
+}
+
+function CompanyPicker({ companies, onPick, error }) {
+  return (
+    <AuthShell>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Выберите компанию</div>
+      {error && <div className="alert alert-error">{error}</div>}
+      {companies.map((c) => (
+        <div
+          key={c.companyId}
+          onClick={() => onPick(c.companyId)}
+          style={{ background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 20, marginBottom: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{c.companyName}</div>
+          <span style={{ fontSize: 22, color: C.border }}>›</span>
+        </div>
+      ))}
+    </AuthShell>
+  );
+}
+
+function CreateCompanyForm({ onCreate }) {
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await onCreate(name.trim());
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось создать компанию');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AuthShell>
+      <form onSubmit={submit}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Название компании</div>
+        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 24 }}>Будет отображаться в вашем кабинете. Позже можно добавить ещё одну.</div>
+        {error && <div className="alert alert-error">{error}</div>}
+        <Field>
+          <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Студия на Тверской" />
+        </Field>
+        <Btn type="submit" disabled={submitting || !name.trim()}>{submitting ? 'Создаём...' : 'Начать работу'}</Btn>
+      </form>
+    </AuthShell>
+  );
+}
 
 export default function Login() {
-  const { user, currentCompany, pendingCompanies, selectCompany, login } = useAuth();
+  const { user, currentCompany, pendingCompanies, needsCompany, selectCompany, createCompany, login } = useAuth();
   const location = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,30 +82,22 @@ export default function Login() {
     return <Navigate to={location.state?.from || '/'} replace />;
   }
 
+  // Ни одной компании ещё нет (например, первый вход Super Admin) —
+  // раньше здесь был тупик "нет доступа", теперь можно завести компанию
+  // прямо тут (docs/task-frontend-v2.md, приоритетный баг).
+  if (user && needsCompany) {
+    return <CreateCompanyForm onCreate={createCompany} />;
+  }
+
   // Компаний несколько — нужно спросить, с какой работать, прежде чем
   // пускать дальше (иначе первый же запрос модуля получит 401).
   if (user && pendingCompanies) {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <div className="brand brand-center">
-            <span className="brand-icon">🛡</span>
-            <span>Безопасный бизнес</span>
-          </div>
-          <p className="auth-subtitle">Выберите компанию</p>
-          {error && <div className="alert alert-error">{error}</div>}
-          {pendingCompanies.map((c) => (
-            <button
-              key={c.companyId}
-              className="btn btn-primary"
-              style={{ width: '100%', marginBottom: '0.5rem' }}
-              onClick={() => selectCompany(c.companyId).catch((err) => setError(err.response?.data?.error || 'Не удалось выбрать компанию'))}
-            >
-              {c.companyName}
-            </button>
-          ))}
-        </div>
-      </div>
+      <CompanyPicker
+        companies={pendingCompanies}
+        error={error}
+        onPick={(id) => selectCompany(id).catch((err) => setError(err.response?.data?.error || 'Не удалось выбрать компанию'))}
+      />
     );
   }
 
@@ -48,10 +106,9 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password);
-      // Дальше решает состояние: если компания выбралась автоматически
-      // (она одна), сработает редирект выше; если их несколько — покажется
-      // выбор выше же, без навигации отсюда.
+      await login(emailRef.current.value, passwordRef.current.value);
+      // Дальше решает состояние: выбор компании автоматом/вручную/создание —
+      // без явной навигации отсюда.
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось войти');
     } finally {
@@ -60,26 +117,17 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <div className="brand brand-center">
-          <span className="brand-icon">🛡</span>
-          <span>Безопасный бизнес</span>
-        </div>
-        <p className="auth-subtitle">Платформа для студий маникюра</p>
+    <AuthShell>
+      <form onSubmit={handleSubmit}>
         {error && <div className="alert alert-error">{error}</div>}
-        <label className="field">
-          <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label className="field">
-          <span>Пароль</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        <button className="btn btn-primary" type="submit" disabled={submitting}>
-          {submitting ? 'Входим...' : 'Войти'}
-        </button>
+        <Field label="Email">
+          <TextInput ref={emailRef} type="email" required />
+        </Field>
+        <Field label="Пароль">
+          <TextInput ref={passwordRef} type="password" required />
+        </Field>
+        <Btn type="submit" disabled={submitting}>{submitting ? 'Входим...' : 'Войти'}</Btn>
       </form>
-    </div>
+    </AuthShell>
   );
 }

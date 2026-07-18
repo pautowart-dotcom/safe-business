@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Card, ST, BackBtn, Field, TextInput, TextArea, Select, Btn, C } from '../ui/components.jsx';
 
 const EMPTY_ARTICLE_FORM = { title: '', content: '', sectionId: '' };
-const EMPTY_SECTION_FORM = { name: '' };
 
 export default function Knowledge() {
   const { isOwner } = useAuth();
@@ -15,7 +15,7 @@ export default function Knowledge() {
   const [articleForm, setArticleForm] = useState(EMPTY_ARTICLE_FORM);
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [showSectionForm, setShowSectionForm] = useState(false);
-  const [sectionForm, setSectionForm] = useState(EMPTY_SECTION_FORM);
+  const [sectionName, setSectionName] = useState('');
 
   function load() {
     setLoading(true);
@@ -42,8 +42,8 @@ export default function Knowledge() {
     setShowArticleForm(true);
   }
 
-  async function handleArticleSubmit(e) {
-    e.preventDefault();
+  async function handleArticleSubmit() {
+    if (!articleForm.title.trim() || !articleForm.content.trim()) return;
     if (editingArticleId) {
       await api.patch(`/modules/knowledge/articles/${editingArticleId}`, articleForm);
     } else {
@@ -60,10 +60,10 @@ export default function Knowledge() {
     load();
   }
 
-  async function handleSectionSubmit(e) {
-    e.preventDefault();
-    await api.post('/modules/knowledge/sections', sectionForm);
-    setSectionForm(EMPTY_SECTION_FORM);
+  async function handleSectionSubmit() {
+    if (!sectionName.trim()) return;
+    await api.post('/modules/knowledge/sections', { name: sectionName.trim() });
+    setSectionName('');
     setShowSectionForm(false);
     load();
   }
@@ -74,6 +74,42 @@ export default function Knowledge() {
     load();
   }
 
+  if (loading) return <div className="page-loading">Загрузка...</div>;
+
+  if (selected) {
+    return (
+      <div>
+        <BackBtn onClick={() => setSelected(null)} />
+        <ST>{sections.find((s) => s.id === selected.section_id)?.name}</ST>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{selected.title}</div>
+        <Card><div style={{ fontSize: 15, color: C.secondary, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{selected.content}</div></Card>
+        {isOwner && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <Btn small onClick={() => openEditArticle(selected)}>Редактировать</Btn>
+            <Btn small variant="secondary" onClick={() => handleDeleteArticle(selected.id)}>Удалить</Btn>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (showArticleForm) {
+    return (
+      <div>
+        <BackBtn onClick={() => setShowArticleForm(false)} />
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingArticleId ? 'Редактировать статью' : 'Новая статья'}</div>
+        <Field label="Раздел">
+          <Select value={articleForm.sectionId} onChange={(e) => setArticleForm({ ...articleForm, sectionId: e.target.value })}>
+            {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Заголовок"><TextInput value={articleForm.title} onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })} placeholder="Название статьи" /></Field>
+        <Field label="Содержание"><TextArea style={{ minHeight: 160 }} value={articleForm.content} onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })} placeholder="Текст статьи..." /></Field>
+        <Btn onClick={handleArticleSubmit}>Сохранить</Btn>
+      </div>
+    );
+  }
+
   const query = search.trim().toLowerCase();
   const visibleSections = sections
     .map((s) => ({ ...s, articles: query ? s.articles.filter((a) => a.title.toLowerCase().includes(query)) : s.articles }))
@@ -81,96 +117,41 @@ export default function Knowledge() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>База знаний</h1>
-        {isOwner && (
-          <div className="row-actions">
-            <button className="btn btn-ghost" onClick={() => setShowSectionForm(true)}>+ Раздел</button>
-            <button className="btn btn-primary" onClick={openCreateArticle} disabled={sections.length === 0}>+ Новая статья</button>
-          </div>
-        )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>База знаний</div>
+        {isOwner && <button onClick={openCreateArticle} disabled={sections.length === 0} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>}
       </div>
+      {isOwner && !showSectionForm && <div style={{ marginBottom: 12 }}><Btn small variant="secondary" onClick={() => setShowSectionForm(true)}>+ Новый раздел</Btn></div>}
+      {isOwner && showSectionForm && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <TextInput autoFocus placeholder="Название раздела" value={sectionName} onChange={(e) => setSectionName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSectionSubmit(); }} />
+          <Btn small onClick={handleSectionSubmit}>Создать</Btn>
+        </div>
+      )}
+      {!isOwner && (
+        <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.subtle }}>Редактирование доступно только владельцу студии</div>
+      )}
 
-      <input className="search-input" placeholder="Поиск по статьям" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <TextInput placeholder="Поиск по статьям" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 16 }} />
 
-      {loading ? (
-        <div className="page-loading">Загрузка...</div>
-      ) : (
-        visibleSections.map((section) => (
-          <div key={section.id} style={{ marginBottom: '1.5rem' }}>
-            <div className="card-header">
-              <h3>{section.name}</h3>
-              {isOwner && <button className="btn btn-sm btn-ghost" onClick={() => handleDeleteSection(section.id)}>Удалить раздел</button>}
-            </div>
-            <div className="grid grid-3">
-              {section.articles.map((a) => (
-                <div className="card card-clickable" key={a.id} onClick={() => openArticle(a.id)}>
-                  <h3>{a.title}</h3>
-                  <p className="page-subtitle">Обновлено {new Date(a.updated_at).toLocaleDateString('ru-RU')}</p>
-                </div>
-              ))}
-              {section.articles.length === 0 && <p className="empty-hint">Статей в разделе пока нет</p>}
-            </div>
+      {visibleSections.map((section) => (
+        <div key={section.id} style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <ST>{section.name}</ST>
+            {isOwner && <button onClick={() => handleDeleteSection(section.id)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 11, cursor: 'pointer' }}>Удалить раздел</button>}
           </div>
-        ))
-      )}
-      {!loading && visibleSections.length === 0 && <p className="empty-hint">Ничего не найдено</p>}
-
-      {selected && (
-        <div className="modal-backdrop" onClick={() => setSelected(null)}>
-          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{selected.title}</h2>
-            <div className="article-content">{selected.content}</div>
-            <div className="modal-actions">
-              {isOwner && <button className="btn btn-sm btn-danger" onClick={() => handleDeleteArticle(selected.id)}>Удалить</button>}
-              {isOwner && <button className="btn btn-sm" onClick={() => openEditArticle(selected)}>Редактировать</button>}
-              <button className="btn btn-ghost" onClick={() => setSelected(null)}>Закрыть</button>
-            </div>
-          </div>
+          <Card style={{ padding: 0 }}>
+            {section.articles.map((a, i, arr) => (
+              <div key={a.id} onClick={() => openArticle(a.id)} style={{ padding: '14px 16px', cursor: 'pointer', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 15 }}>{a.title}</span>
+                <span style={{ fontSize: 20, color: C.border }}>›</span>
+              </div>
+            ))}
+            {section.articles.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: C.subtle, fontSize: 13 }}>Статей в разделе пока нет</div>}
+          </Card>
         </div>
-      )}
-
-      {showArticleForm && (
-        <div className="modal-backdrop" onClick={() => setShowArticleForm(false)}>
-          <form className="modal modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={handleArticleSubmit}>
-            <h3>{editingArticleId ? 'Редактировать статью' : 'Новая статья'}</h3>
-            <label className="field">
-              <span>Раздел</span>
-              <select value={articleForm.sectionId} onChange={(e) => setArticleForm({ ...articleForm, sectionId: e.target.value })}>
-                {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </label>
-            <label className="field">
-              <span>Заголовок</span>
-              <input required value={articleForm.title} onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Содержание</span>
-              <textarea required rows={10} value={articleForm.content} onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })} />
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowArticleForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {showSectionForm && (
-        <div className="modal-backdrop" onClick={() => setShowSectionForm(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSectionSubmit}>
-            <h3>Новый раздел</h3>
-            <label className="field">
-              <span>Название</span>
-              <input required value={sectionForm.name} onChange={(e) => setSectionForm({ name: e.target.value })} />
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowSectionForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
-            </div>
-          </form>
-        </div>
-      )}
+      ))}
+      {visibleSections.length === 0 && <div className="empty-hint">Ничего не найдено</div>}
     </div>
   );
 }

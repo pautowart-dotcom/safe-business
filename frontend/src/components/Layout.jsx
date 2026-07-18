@@ -1,51 +1,89 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import Icon from '../ui/Icon.jsx';
+import { C, F, MAX_WIDTH } from '../ui/theme.js';
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Дашборд', end: true },
-  { to: '/clients', label: 'Клиенты' },
-  { to: '/visits', label: 'Визиты' },
-  { to: '/finance', label: 'Финансы', ownerOnly: true },
-  { to: '/supplies', label: 'Расходники' },
-  { to: '/checklists', label: 'Чек-листы' },
-  { to: '/knowledge', label: 'База знаний' },
-  { to: '/security', label: 'Безопасность' },
-  { to: '/users', label: 'Сотрудники', ownerOnly: true },
+const OWNER_NAV = [
+  { to: '/', label: 'Главная', icon: 'home', end: true },
+  { to: '/clients', label: 'Клиенты', icon: 'clients' },
+  { to: '/visits', label: 'Визиты', icon: 'visit' },
+  { to: '/finance', label: 'Финансы', icon: 'finance' },
+  { to: '/more', label: 'Ещё', icon: 'more' },
 ];
 
+const MASTER_NAV = [
+  { to: '/', label: 'Главная', icon: 'home', end: true },
+  { to: '/clients', label: 'Клиенты', icon: 'clients' },
+  { to: '/shift', label: 'Смена', icon: 'shift' },
+  { to: '/supplies', label: 'Склад', icon: 'supply' },
+  { to: '/finance', label: 'Финансы', icon: 'finance' },
+  { to: '/more', label: 'Ещё', icon: 'more' },
+];
+
+// Разделы, доступные только через хаб "Ещё" (нет прямой вкладки в нижнем
+// меню) — используются, чтобы подсвечивать "Ещё" активным, когда открыт
+// один из них.
+const OWNER_HUB_PATHS = ['/supplies', '/shift', '/knowledge', '/security', '/feedback', '/team', '/settings'];
+const MASTER_HUB_PATHS = ['/knowledge', '/settings'];
+
+const TITLES = {
+  '/clients': 'Клиенты',
+  '/visits': 'Визиты',
+  '/finance': 'Финансы',
+  '/supplies': 'Склад',
+  '/shift': 'Чек-листы',
+  '/knowledge': 'База знаний',
+  '/security': 'Безопасность',
+  '/team': 'Команда',
+  '/settings': 'Настройки',
+  '/feedback': 'Обратная связь',
+  '/more': 'Ещё',
+};
+
 export default function Layout() {
-  const { user, logout, isOwner } = useAuth();
+  const { user, currentCompany, isOwner } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const nav = isOwner ? OWNER_NAV : MASTER_NAV;
+  const hubPaths = isOwner ? OWNER_HUB_PATHS : MASTER_HUB_PATHS;
+  const isHome = location.pathname === '/';
+  const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));
+  const initial = user?.name?.[0]?.toUpperCase() || '?';
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-icon">🛡</span>
-          <span>Безопасный бизнес</span>
-        </div>
-        <nav>
-          {NAV_ITEMS.filter((item) => !item.ownerOnly || isOwner).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <div className="user-badge">
-            <div className="user-name">{user?.name}</div>
-            <div className="user-role">{isOwner ? 'Владелец' : 'Мастер'}</div>
+    <div style={{ maxWidth: MAX_WIDTH, margin: '0 auto', minHeight: '100vh', background: C.bg, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '16px 20px 12px', background: C.bg, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {isHome ? (
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+            Studio OS · {currentCompany?.name}
           </div>
-          <button className="btn btn-ghost" onClick={logout}>Выйти</button>
+        ) : (
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
+        )}
+        <div
+          onClick={() => navigate('/settings')}
+          style={{ width: 34, height: 34, borderRadius: '50%', background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#FFF', cursor: 'pointer' }}
+        >
+          {initial}
         </div>
-      </aside>
-      <main className="content">
+      </div>
+
+      <div style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto' }}>
         <Outlet />
-      </main>
+      </div>
+
+      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, background: C.bg, borderTop: `1px solid ${C.border}`, display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+        {nav.map((n) => {
+          const active = n.to === '/more' ? location.pathname === '/more' || moreActive : n.end ? location.pathname === n.to : location.pathname.startsWith(n.to);
+          return (
+            <NavLink key={n.to} to={n.to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 4px 8px', textDecoration: 'none', gap: 3 }}>
+              <Icon name={n.icon} size={22} color={active ? C.primary : C.subtle} sw={active ? 2.2 : 1.6} />
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? C.primary : C.subtle }}>{n.label}</span>
+            </NavLink>
+          );
+        })}
+      </nav>
     </div>
   );
 }

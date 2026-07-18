@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, C } from '../ui/components.jsx';
 
 function nowLocal() {
   const d = new Date();
@@ -10,9 +11,13 @@ function nowLocal() {
 
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
-  masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: 0,
+  masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: '0',
   visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '',
 };
+
+function money(v) {
+  return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
+}
 
 export default function Visits() {
   const { isOwner } = useAuth();
@@ -22,16 +27,16 @@ export default function Visits() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [clientMatches, setClientMatches] = useState([]);
+  const [saved, setSaved] = useState(false);
 
   const firstNameRef = useRef(null);
   const serviceRef = useRef(null);
+  const materialsRef = useRef(null);
+  const priceRef = useRef(null);
 
   function load() {
     setLoading(true);
-    api
-      .get('/modules/visits')
-      .then((res) => setVisits(res.data))
-      .finally(() => setLoading(false));
+    api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, []);
@@ -57,6 +62,7 @@ export default function Visits() {
   function openCreate() {
     setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isOwner ? '' : undefined });
     setClientMatches([]);
+    setSaved(false);
     setShowForm(true);
   }
 
@@ -66,7 +72,7 @@ export default function Visits() {
   }
 
   function clearClient() {
-    setForm({ ...form, clientId: null, lastName: '', firstName: '' });
+    setForm({ ...form, clientId: null });
   }
 
   function handleEnter(e, nextRef) {
@@ -79,10 +85,7 @@ export default function Visits() {
     e.preventDefault();
     let clientId = form.clientId;
     if (!clientId) {
-      if (!form.lastName || !form.firstName) {
-        alert('Укажите фамилию и имя клиента');
-        return;
-      }
+      if (!form.lastName || !form.firstName) return;
       const created = await api.post('/modules/clients', { firstName: form.firstName, lastName: form.lastName });
       clientId = created.data.id;
     }
@@ -98,7 +101,7 @@ export default function Visits() {
       photoBeforeUrl: form.photoBeforeUrl || null,
       photoAfterUrl: form.photoAfterUrl || null,
     });
-    setShowForm(false);
+    setSaved(true);
     load();
   }
 
@@ -108,142 +111,154 @@ export default function Visits() {
     load();
   }
 
-  const discountAmount = form.amount ? (Number(form.amount) * (Number(form.discountPercent) || 0)) / 100 : 0;
-  const finalAmount = form.amount ? Number(form.amount) - discountAmount : 0;
+  const priceNum = Number(form.amount) || 0;
+  const discPct = Number(form.discountPercent) || 0;
+  const discRub = Math.round((priceNum * discPct) / 100);
+  const finalPrice = priceNum - discRub;
+  const suggestedMaster = masters.find((m) => String(m.id) === String(form.masterMembershipId));
 
-  return (
-    <div>
-      <div className="page-header">
-        <h1>Визиты</h1>
-        <button className="btn btn-primary" onClick={openCreate}>+ Новый визит</button>
-      </div>
+  if (showForm) {
+    if (saved) {
+      return (
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Визит сохранён</div>
+          <div style={{ fontSize: 14, color: C.subtle, marginBottom: 32 }}>Данные добавлены в историю</div>
+          <Btn onClick={() => setShowForm(false)}>Готово</Btn>
+        </div>
+      );
+    }
 
-      {loading ? (
-        <div className="page-loading">Загрузка...</div>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Дата и время</th>
-              <th>Клиент</th>
-              <th>Услуга</th>
-              {isOwner && <th>Мастер</th>}
-              <th>Сумма</th>
-              {isOwner && <th>Заработок мастера</th>}
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visits.map((v) => (
-              <tr key={v.id}>
-                <td>{new Date(v.visit_at).toLocaleString('ru-RU')}</td>
-                <td>{v.client_last_name} {v.client_first_name}</td>
-                <td>{v.service}</td>
-                {isOwner && <td>{v.master_name || '—'}</td>}
-                <td>
-                  {Number(v.final_amount).toLocaleString('ru-RU')} ₽
-                  {Number(v.discount_percent) > 0 && <span className="page-subtitle"> (скидка {v.discount_percent}%)</span>}
-                </td>
-                {isOwner && <td>{Number(v.master_earnings).toLocaleString('ru-RU')} ₽</td>}
-                <td className="row-actions">
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(v.id)}>✕</button>
-                </td>
-              </tr>
-            ))}
-            {visits.length === 0 && (
-              <tr><td colSpan={isOwner ? 7 : 5} className="empty-hint">Визитов не найдено</td></tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      {showForm && (
-        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <h3>Новый визит</h3>
-
-            <label className="field">
-              <span>Фамилия клиента</span>
-              <input
+    return (
+      <div>
+        <BackBtn onClick={() => setShowForm(false)} />
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Новый визит</div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Фамилия">
+              <TextInput
                 required
                 value={form.lastName}
                 disabled={!!form.clientId}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                 onKeyDown={(e) => handleEnter(e, firstNameRef)}
+                placeholder="Иванова"
               />
-            </label>
-            {clientMatches.length > 0 && (
-              <ul className="list" style={{ marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
-                {clientMatches.map((c) => (
-                  <li key={c.id}>
-                    <a className="link" onClick={() => pickClient(c)}>Это {c.last_name} {c.first_name}?</a>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {form.clientId && (
-              <p className="page-subtitle">
-                Клиент выбран. <a className="link" onClick={clearClient}>Другой человек</a>
-              </p>
-            )}
-
-            <label className="field">
-              <span>Имя клиента</span>
-              <input
+            </Field>
+            <Field label="Имя">
+              <TextInput
                 required
                 ref={firstNameRef}
                 value={form.firstName}
                 disabled={!!form.clientId}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                onKeyDown={(e) => handleEnter(e, serviceRef)}
+                onKeyDown={(e) => handleEnter(e, isOwner ? undefined : serviceRef)}
+                placeholder="Анна"
               />
-            </label>
+            </Field>
+          </div>
 
-            {isOwner && (
-              <label className="field">
-                <span>Мастер</span>
-                <select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
-                  <option value="">Выберите мастера</option>
-                  {masters.map((m) => <option key={m.id} value={m.id}>{m.user_name}</option>)}
-                </select>
-              </label>
-            )}
-
-            <label className="field">
-              <span>Услуга</span>
-              <input required ref={serviceRef} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Материалы</span>
-              <input value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Сумма без скидки (₽)</span>
-              <input required type="number" min="0" step="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Скидка (%) — к оплате: {finalAmount.toLocaleString('ru-RU')} ₽</span>
-              <input type="number" min="0" max="100" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Дата и время</span>
-              <input type="datetime-local" value={form.visitAt} onChange={(e) => setForm({ ...form, visitAt: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Фото до</span>
-              <input type="url" placeholder="https://..." value={form.photoBeforeUrl} onChange={(e) => setForm({ ...form, photoBeforeUrl: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Фото после</span>
-              <input type="url" placeholder="https://..." value={form.photoAfterUrl} onChange={(e) => setForm({ ...form, photoAfterUrl: e.target.value })} />
-            </label>
-
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
+          {clientMatches.length > 0 && (
+            <div style={{ background: C.orangeBg, border: `1px solid ${C.orange}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, marginBottom: 6 }}>⚡ Найден клиент</div>
+              {clientMatches.map((c) => (
+                <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: C.secondary, flex: 1 }}>{c.last_name} {c.first_name}</span>
+                  <Btn small onClick={() => pickClient(c)}>Это он/она</Btn>
+                </div>
+              ))}
             </div>
-          </form>
-        </div>
+          )}
+          {form.clientId && (
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
+              Клиент выбран. <span style={{ color: C.primary, cursor: 'pointer', fontWeight: 600 }} onClick={clearClient}>Другой человек</span>
+            </div>
+          )}
+
+          {isOwner && (
+            <Field label="Мастер">
+              <Select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
+                <option value="">Выберите мастера</option>
+                {masters.map((m) => <option key={m.id} value={m.id}>{m.user_name}</option>)}
+              </Select>
+            </Field>
+          )}
+
+          <Field label="Услуга">
+            <TextInput required ref={serviceRef} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} onKeyDown={(e) => handleEnter(e, materialsRef)} placeholder="Маникюр + гель-лак" />
+          </Field>
+          <Field label="Материалы">
+            <TextInput ref={materialsRef} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} onKeyDown={(e) => handleEnter(e, priceRef)} placeholder="Гель-лак №47, топ..." />
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Сумма, ₽">
+              <TextInput ref={priceRef} required type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="2500" />
+            </Field>
+            <Field label="Скидка, %">
+              <TextInput type="number" min="0" max="100" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} />
+            </Field>
+          </div>
+
+          {priceNum > 0 && (
+            <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
+              {discPct > 0 && <div style={{ color: C.orange, marginBottom: 4 }}>Скидка {discPct}% = {discRub.toLocaleString('ru-RU')} ₽ · Клиент платит: {finalPrice.toLocaleString('ru-RU')} ₽</div>}
+              {suggestedMaster && <div style={{ color: C.green, fontWeight: 600 }}>Заработок мастера ({suggestedMaster.payout_percent}% от {priceNum.toLocaleString('ru-RU')} ₽): {Math.round((priceNum * (suggestedMaster.payout_percent || 0)) / 100).toLocaleString('ru-RU')} ₽</div>}
+            </div>
+          )}
+
+          <Field label="Фото до">
+            <TextInput type="url" placeholder="Ссылка на фото до" value={form.photoBeforeUrl} onChange={(e) => setForm({ ...form, photoBeforeUrl: e.target.value })} />
+          </Field>
+          <Field label="Фото после">
+            <TextInput type="url" placeholder="Ссылка на фото после" value={form.photoAfterUrl} onChange={(e) => setForm({ ...form, photoAfterUrl: e.target.value })} />
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+            <Field label="Дата и время">
+              <TextInput type="datetime-local" value={form.visitAt} onChange={(e) => setForm({ ...form, visitAt: e.target.value })} />
+            </Field>
+          </div>
+
+          <Btn type="submit">Сохранить визит</Btn>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Визиты</div>
+        <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Визит</button>
+      </div>
+
+      {loading ? (
+        <div className="page-loading">Загрузка...</div>
+      ) : (
+        <Card style={{ padding: 0 }}>
+          {visits.map((v, i) => (
+            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Avatar letter={v.client_last_name?.[0]} size={36} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{v.client_last_name} {v.client_first_name}</div>
+                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
+                    {v.service} {isOwner && v.master_name && `· ${v.master_name.split(' ')[0]} `}· {new Date(v.visit_at).toLocaleString('ru-RU')}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{money(v.final_amount)}</div>
+                  {Number(v.discount_percent) > 0 && <div style={{ fontSize: 11, color: C.orange }}>−{v.discount_percent}%</div>}
+                </div>
+                <button onClick={() => handleDelete(v.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 14 }}>✕</button>
+              </div>
+            </div>
+          ))}
+          {visits.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Визитов не найдено</div>}
+        </Card>
       )}
     </div>
   );

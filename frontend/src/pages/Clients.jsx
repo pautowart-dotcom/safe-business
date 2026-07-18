@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
+import { Card, BackBtn, Field, TextInput, Btn, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_FORM = { firstName: '', lastName: '', phone: '' };
 
@@ -10,6 +11,8 @@ export default function Clients() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const firstNameRef = useRef(null);
 
   function load(searchTerm) {
     setLoading(true);
@@ -31,17 +34,15 @@ export default function Clients() {
   }
 
   function openEdit(client) {
-    setForm({
-      firstName: client.first_name || '',
-      lastName: client.last_name || '',
-      phone: client.phone || '',
-    });
+    setForm({ firstName: client.first_name || '', lastName: client.last_name || '', phone: client.phone || '' });
     setEditingId(client.id);
+    setSelected(null);
     setShowForm(true);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!form.lastName.trim() || !form.firstName.trim()) return;
     if (editingId) {
       await api.patch(`/modules/clients/${editingId}`, form);
     } else {
@@ -54,78 +55,88 @@ export default function Clients() {
   async function handleDelete(id) {
     if (!confirm('Удалить клиента? Это действие необратимо.')) return;
     await api.delete(`/modules/clients/${id}`);
+    setSelected(null);
     load(search);
+  }
+
+  if (showForm) {
+    return (
+      <div>
+        <BackBtn onClick={() => setShowForm(false)} />
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить клиента' : 'Новый клиент'}</div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Фамилия">
+              <TextInput
+                autoFocus
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); firstNameRef.current?.focus(); } }}
+                placeholder="Иванова"
+              />
+            </Field>
+            <Field label="Имя">
+              <TextInput ref={firstNameRef} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder="Анна" />
+            </Field>
+          </div>
+          <Field label="Телефон">
+            <TextInput value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+7 900 000-00-00" />
+          </Field>
+          <Btn type="submit">Сохранить клиента</Btn>
+        </form>
+      </div>
+    );
+  }
+
+  if (selected) {
+    return (
+      <div>
+        <BackBtn onClick={() => setSelected(null)} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+          <Avatar letter={selected.last_name?.[0]} size={52} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>{selected.last_name} {selected.first_name}</div>
+            {selected.phone && <div style={{ fontSize: 13, color: C.subtle }}>{selected.phone}</div>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn small onClick={() => openEdit(selected)}>Изменить</Btn>
+          <Btn small variant="secondary" onClick={() => handleDelete(selected.id)}>Удалить</Btn>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Клиенты</h1>
-        <button className="btn btn-primary" onClick={openCreate}>+ Новый клиент</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Клиенты</div>
+        <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Клиент</button>
       </div>
-
-      <input
-        className="search-input"
-        placeholder="Поиск по фамилии или имени"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <TextInput placeholder="Поиск по фамилии или имени" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
 
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Фамилия</th>
-              <th>Имя</th>
-              <th>Телефон</th>
-              <th>Добавлен</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c) => (
-              <tr key={c.id}>
-                <td>{c.last_name}</td>
-                <td>{c.first_name}</td>
-                <td>{c.phone || '—'}</td>
-                <td>{new Date(c.created_at).toLocaleDateString('ru-RU')}</td>
-                <td className="row-actions">
-                  <button className="btn btn-sm" onClick={() => openEdit(c)}>Изменить</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id)}>Удалить</button>
-                </td>
-              </tr>
-            ))}
-            {clients.length === 0 && (
-              <tr><td colSpan={5} className="empty-hint">Клиенты не найдены</td></tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      {showForm && (
-        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <h3>{editingId ? 'Изменить клиента' : 'Новый клиент'}</h3>
-            <label className="field">
-              <span>Фамилия</span>
-              <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Имя</span>
-              <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Телефон</span>
-              <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
+        <Card style={{ padding: 0 }}>
+          {clients.map((c, i) => (
+            <div
+              key={c.id}
+              onClick={() => setSelected(c)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < clients.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Avatar letter={c.last_name?.[0]} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{c.last_name} {c.first_name}</div>
+                  {c.phone && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{c.phone}</div>}
+                </div>
+              </div>
+              <span style={{ fontSize: 20, color: C.border }}>›</span>
             </div>
-          </form>
-        </div>
+          ))}
+          {clients.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Клиенты не найдены</div>}
+        </Card>
       )}
     </div>
   );

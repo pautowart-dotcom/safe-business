@@ -23,6 +23,10 @@ export function AuthProvider({ children }) {
   // Заполняется, когда у пользователя больше одной компании и нужно спросить,
   // с какой работать — Login.jsx рендерит выбор вместо формы входа.
   const [pendingCompanies, setPendingCompanies] = useState(null);
+  // true, когда у пользователя вообще нет ни одной компании (например,
+  // Super Admin впервые входит в интерфейс и ещё не завёл свой бизнес) —
+  // Login.jsx рендерит форму создания компании вместо ошибки.
+  const [needsCompany, setNeedsCompany] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,6 +44,8 @@ export function AuthProvider({ children }) {
 
         if (tenant) {
           applyCompany(tenant.companyId, companies, tenant.role, tenant.branchId);
+        } else if (companies.length === 0) {
+          setNeedsCompany(true);
         } else if (companies.length === 1) {
           await selectCompany(companies[0].companyId);
         } else if (companies.length > 1) {
@@ -59,6 +65,16 @@ export function AuthProvider({ children }) {
     localStorage.setItem('currentCompany', JSON.stringify(cc));
     setCurrentCompany(cc);
     setPendingCompanies(null);
+    setNeedsCompany(false);
+  }
+
+  // POST /platform/companies уже существует и именно для этого:
+  // "владелец может завести дополнительную компанию под тем же аккаунтом" —
+  // тот же эндпоинт покрывает и случай "ни одной компании ещё нет".
+  // Требует только requireAuth, так что работает и на базовом токене.
+  async function createCompany(name, industrySegment) {
+    const res = await api.post('/platform/companies', { name, industrySegment });
+    await selectCompany(res.data.companyId);
   }
 
   function clearSession() {
@@ -68,6 +84,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setCurrentCompany(null);
     setPendingCompanies(null);
+    setNeedsCompany(false);
   }
 
   // Меняет активный токен с базового на company-scoped (или переключает
@@ -92,7 +109,8 @@ export function AuthProvider({ children }) {
 
     const { companies } = res.data;
     if (companies.length === 0) {
-      throw { response: { data: { error: 'У вас нет доступа ни к одной компании — обратитесь к владельцу за приглашением' } } };
+      setNeedsCompany(true);
+      return;
     }
     if (companies.length === 1) {
       await selectCompany(companies[0].companyId);
@@ -105,13 +123,25 @@ export function AuthProvider({ children }) {
     clearSession();
   }
 
+  // Открывает выбор компании заново (кнопка "Сменить компанию" в
+  // настройках) — переиспользует тот же экран выбора, что и при логине.
+  async function switchCompany() {
+    const res = await api.get('/auth/me');
+    localStorage.removeItem('currentCompany');
+    setCurrentCompany(null);
+    setPendingCompanies(res.data.companies);
+  }
+
   return (
     <AuthContext.Provider
       value={{
         user,
         currentCompany,
         pendingCompanies,
+        needsCompany,
         selectCompany,
+        createCompany,
+        switchCompany,
         loading,
         login,
         logout,
