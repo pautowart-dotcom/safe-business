@@ -1,18 +1,46 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Login() {
-  const { user, login } = useAuth();
-  const navigate = useNavigate();
+  const { user, currentCompany, pendingCompanies, selectCompany, login } = useAuth();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  if (user) {
+  // Полностью авторизован (есть и пользователь, и выбранная компания) —
+  // дальше решает роутинг, здесь делать нечего.
+  if (user && currentCompany) {
     return <Navigate to={location.state?.from || '/'} replace />;
+  }
+
+  // Компаний несколько — нужно спросить, с какой работать, прежде чем
+  // пускать дальше (иначе первый же запрос модуля получит 401).
+  if (user && pendingCompanies) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="brand brand-center">
+            <span className="brand-icon">🛡</span>
+            <span>Безопасный бизнес</span>
+          </div>
+          <p className="auth-subtitle">Выберите компанию</p>
+          {error && <div className="alert alert-error">{error}</div>}
+          {pendingCompanies.map((c) => (
+            <button
+              key={c.companyId}
+              className="btn btn-primary"
+              style={{ width: '100%', marginBottom: '0.5rem' }}
+              onClick={() => selectCompany(c.companyId).catch((err) => setError(err.response?.data?.error || 'Не удалось выбрать компанию'))}
+            >
+              {c.companyName}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   async function handleSubmit(e) {
@@ -21,7 +49,9 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate('/');
+      // Дальше решает состояние: если компания выбралась автоматически
+      // (она одна), сработает редирект выше; если их несколько — покажется
+      // выбор выше же, без навигации отсюда.
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось войти');
     } finally {
