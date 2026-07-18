@@ -4,21 +4,37 @@ const asyncHandler = require('../../utils/asyncHandler');
 
 const router = express.Router();
 
-// Скользящее окно (последние N дней), а не календарные сутки/неделя/месяц —
-// проще и не зависит от часового пояса компании. dateFrom/dateTo в запросе
-// переопределяют period.
+const toDateStr = (d) => d.toISOString().slice(0, 10);
+
+// Пресеты Этапа 6: сегодня / неделя (скользящее окно, 7 дней) / месяц
+// (текущий календарный, с 1-го числа) / прошлый месяц (полный календарный).
+// dateFrom/dateTo в запросе — произвольный диапазон, переопределяет period.
 function resolvePeriod(query) {
   const today = new Date();
-  const toStr = today.toISOString().slice(0, 10);
+  const toStr = toDateStr(today);
 
   if (query.dateFrom && query.dateTo) {
     return { from: query.dateFrom, to: query.dateTo };
   }
 
-  const daysBack = { today: 0, week: 6, month: 29 }[query.period] ?? 29;
-  const from = new Date(today);
-  from.setDate(from.getDate() - daysBack);
-  return { from: from.toISOString().slice(0, 10), to: toStr };
+  if (query.period === 'lastMonth') {
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    return { from: toDateStr(lastMonthStart), to: toDateStr(lastMonthEnd) };
+  }
+
+  if (query.period === 'month') {
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { from: toDateStr(monthStart), to: toStr };
+  }
+
+  if (query.period === 'week') {
+    const weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() - 6);
+    return { from: toDateStr(weekStart), to: toStr };
+  }
+
+  return { from: toStr, to: toStr };
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;

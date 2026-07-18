@@ -7,16 +7,20 @@ const { requireModule } = require('../../core/sdk');
 const summaryRoutes = require('./summary.routes');
 const recurringExpensesRoutes = require('./recurring-expenses.routes');
 const expenseEntriesRoutes = require('./expense-entries.routes');
+const adjustmentsRoutes = require('./adjustments.routes');
 
 const BASE_PATH = '/api/modules/finance';
 
-// Финансы — только владелец (README: "нет доступа" для мастера), поэтому
-// requireRole('owner') висит на всём роутере модуля, а не на части эндпоинтов.
+// Сводка по компании и управление расходами — только владелец. Корректировки
+// (adjustments) доступны и мастеру (видит свои, редактировать не может —
+// роль проверяется внутри adjustments.routes.js по каждому эндпоинту), так
+// как у мастера теперь есть собственный экран "Финансы" (Этап 6).
 const router = express.Router();
-router.use(requireAuth, requireTenant, requireModule('finance'), requireRole('owner'));
-router.use('/summary', summaryRoutes);
-router.use('/recurring-expenses', recurringExpensesRoutes);
-router.use('/expenses', expenseEntriesRoutes);
+router.use(requireAuth, requireTenant, requireModule('finance'));
+router.use('/summary', requireRole('owner'), summaryRoutes);
+router.use('/recurring-expenses', requireRole('owner'), recurringExpensesRoutes);
+router.use('/expenses', requireRole('owner'), expenseEntriesRoutes);
+router.use('/adjustments', adjustmentsRoutes);
 
 registerModule({
   key: 'finance',
