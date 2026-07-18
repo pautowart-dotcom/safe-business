@@ -36,11 +36,6 @@ function serializeQuestion(question) {
   };
 }
 
-async function visibleFreeQuestions(profile) {
-  const all = await repository.getFreeQuestions();
-  return filterVisible(all, { legalForm: profile.legalForm, workModel: profile.workModel });
-}
-
 async function visiblePaidQuestions(profile) {
   const all = await repository.getPaidQuestions(profile.niche);
   if (!all) return null;
@@ -122,7 +117,11 @@ router.post(
   })
 );
 
-// ---------- Каталог продуктов после бесплатного аудита (Файл 05) ----------
+// ---------- Каталог продуктов (Файл 05) ----------
+// Тест безопасности (34 вопроса, полный отчёт и PDF) бесплатен для всех —
+// монетизация на уровне подписки на платформу целиком, а не этого модуля.
+// available=false здесь означает только одно: контент для ниши ещё не готов
+// (например, не "маникюр") — это не платёжный барьер.
 
 router.get(
   '/products',
@@ -132,17 +131,9 @@ router.get(
       return res.status(400).json({ error: 'Сначала пройдите сегментацию' });
     }
     const niche = await repository.getNiche(profile.segment, profile.niche);
-    const company = await pool.query('SELECT subscription_status FROM companies WHERE id = $1', [req.tenant.companyId]);
-    const subscriptionActive = ['trial', 'active'].includes(company.rows[0]?.subscription_status);
 
     res.json({
-      paidAudit: {
-        available: !!niche?.paidAudit,
-        // Оплата платного аудита включена в подписку платформы — отдельного
-        // разового платежа нет (согласовано с владельцем продукта).
-        gatedBySubscription: true,
-        subscriptionActive,
-      },
+      audit: { available: !!niche?.paidAudit },
       documentPackage: { available: false },
       subscriptionCalm: { available: false },
     });
@@ -186,42 +177,28 @@ router.post(
   '/sessions',
   requireRole('owner'),
   asyncHandler(async (req, res) => {
-    const { type } = req.body;
-    if (!['free', 'paid'].includes(type)) {
-      return res.status(400).json({ error: 'Некорректный тип аудита' });
-    }
-
     const profile = await loadProfile(req.tenant.companyId);
     if (!profile || !profile.niche) {
       return res.status(400).json({ error: 'Сначала пройдите сегментацию' });
     }
     const niche = await repository.getNiche(profile.segment, profile.niche);
 
-    let questions;
-    if (type === 'free') {
-      if (!niche.freeAudit) {
-        return res.status(403).json({ error: 'Бесплатный аудит для этой ниши пока недоступен' });
-      }
-      questions = await visibleFreeQuestions(profile);
-    } else {
-      if (!niche.paidAudit) {
-        await addWaitlistEntry({ companyId: req.tenant.companyId, segment: profile.segment, niche: profile.niche, productKey: 'paid_audit' });
-        return res.status(403).json({
-          error: `Расширенный аудит для ниши «${niche.label}» сейчас в разработке. Мы уведомим вас, как только он будет готов.`,
-          waitlisted: true,
-        });
-      }
-      const company = await pool.query('SELECT subscription_status FROM companies WHERE id = $1', [req.tenant.companyId]);
-      if (!['trial', 'active'].includes(company.rows[0]?.subscription_status)) {
-        return res.status(403).json({ error: 'Расширенный аудит доступен при активной подписке' });
-      }
-      questions = await visiblePaidQuestions(profile);
+    if (!niche.paidAudit) {
+      await addWaitlistEntry({ companyId: req.tenant.companyId, segment: profile.segment, niche: profile.niche, productKey: 'paid_audit' });
+      return res.status(403).json({
+        error: `Тест безопасности для ниши «${niche.label}» сейчас в разработке. Мы уведомим вас, как только он будет готов.`,
+        waitlisted: true,
+      });
     }
+    const questions = await visiblePaidQuestions(profile);
 
+    // type исторически 'free'/'paid' (см. миграцию 0008) — тест теперь один
+    // и всегда бесплатный, значение сохраняем как есть, чтобы не трогать схему
+    // и остальной код, читающий эту колонку.
     const { rows } = await pool.query(
       `INSERT INTO security_sessions (company_id, type, niche, total_questions)
-       VALUES ($1, $2, $3, $4) RETURNING id, type, niche, status, total_questions, started_at`,
-      [req.tenant.companyId, type, profile.niche, questions.length]
+       VALUES ($1, 'paid', $2, $3) RETURNING id, type, niche, status, total_questions, started_at`,
+      [req.tenant.companyId, profile.niche, questions.length]
     );
 
     await logEvent({
@@ -231,7 +208,6 @@ router.post(
       entityType: 'security_session',
       entityId: rows[0].id,
       action: 'security_session.started',
-      payload: { type },
     });
 
     res.status(201).json({ session: rows[0], questions: questions.map(serializeQuestion) });
@@ -256,7 +232,7 @@ router.post(
 
     const { questionCode, answerIndex } = req.body;
     const profile = await loadProfile(req.tenant.companyId);
-    const questions = session.type === 'free' ? await visibleFreeQuestions(profile) : await visiblePaidQuestions(profile);
+    const questions = await visiblePaidQuestions(profile);
     const question = questions.find((q) => q.code === questionCode);
     if (!question) return res.status(400).json({ error: 'Вопрос не найден для этой сессии' });
 
@@ -283,7 +259,7 @@ router.post(
     if (session.status !== 'in_progress') return res.status(400).json({ error: 'Аудит уже завершён' });
 
     const profile = await loadProfile(req.tenant.companyId);
-    const questions = session.type === 'free' ? await visibleFreeQuestions(profile) : await visiblePaidQuestions(profile);
+    const questions = await visiblePaidQuestions(profile);
 
     const answersRes = await pool.query('SELECT question_code, answer_index FROM security_answers WHERE session_id = $1', [session.id]);
     const answersByCode = {};
@@ -301,20 +277,18 @@ router.post(
       [result.score, result.maxScore, result.indexPercent, result.zone, session.id]
     );
 
+    // Персистентно на company_id: resolved не сбрасывается повторным аудитом,
+    // новая сессия только добавляет/подтверждает open-нарушения.
     let violationsPersisted = [];
-    if (session.type === 'paid') {
-      // Персистентно на company_id: resolved не сбрасывается повторным аудитом,
-      // новая сессия только добавляет/подтверждает open-нарушения.
-      for (const code of result.violationCodes) {
-        const { rows } = await pool.query(
-          `INSERT INTO security_violations (company_id, violation_code, niche, first_session_id, last_confirmed_session_id)
-           VALUES ($1, $2, $3, $4, $4)
-           ON CONFLICT (company_id, violation_code) DO UPDATE SET last_confirmed_session_id = EXCLUDED.last_confirmed_session_id
-           RETURNING *`,
-          [req.tenant.companyId, code, profile.niche, session.id]
-        );
-        violationsPersisted.push(rows[0]);
-      }
+    for (const code of result.violationCodes) {
+      const { rows } = await pool.query(
+        `INSERT INTO security_violations (company_id, violation_code, niche, first_session_id, last_confirmed_session_id)
+         VALUES ($1, $2, $3, $4, $4)
+         ON CONFLICT (company_id, violation_code) DO UPDATE SET last_confirmed_session_id = EXCLUDED.last_confirmed_session_id
+         RETURNING *`,
+        [req.tenant.companyId, code, profile.niche, session.id]
+      );
+      violationsPersisted.push(rows[0]);
     }
 
     await logEvent({
@@ -324,7 +298,7 @@ router.post(
       entityType: 'security_session',
       entityId: session.id,
       action: 'security_session.completed',
-      payload: { type: session.type, zone: result.zone, indexPercent: result.indexPercent },
+      payload: { zone: result.zone, indexPercent: result.indexPercent },
     });
 
     res.json({ ...result, violationsPersisted: violationsPersisted.length });
@@ -337,21 +311,6 @@ router.get(
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
     if (session.status !== 'completed') return res.status(400).json({ error: 'Аудит ещё не завершён' });
-
-    if (session.type === 'free') {
-      const priorityOrder = await repository.getFreeQuestionPriorityOrder();
-      const questions = await repository.getFreeQuestions();
-      const answersRes = await pool.query(
-        `SELECT question_code, points FROM security_answers WHERE session_id = $1 AND points < 1`,
-        [session.id]
-      );
-      const violatedCodes = answersRes.rows.map((r) => r.question_code);
-      const top3 = scoring.topByPriority(violatedCodes, priorityOrder, 3).map((code) => {
-        const q = questions.find((x) => x.code === code);
-        return { code, text: q.text, description: q.resultDescription };
-      });
-      return res.json({ session, top3 });
-    }
 
     const matrix = await repository.getViolationMatrix(session.niche);
     const violationsRes = await pool.query(
@@ -446,6 +405,25 @@ router.get(
       [req.tenant.companyId]
     );
     res.json(rows);
+  })
+);
+
+// Разделы и ожидаемые документы в каждом — тот же список и порядок, что и
+// в mandatoryDocuments PDF-отчёта (report/build.js), чтобы вкладка "Документы"
+// была структурирована так же, как отчёт, а не произвольным плоским списком.
+router.get(
+  '/documents/sections',
+  asyncHandler(async (req, res) => {
+    const profile = await loadProfile(req.tenant.companyId);
+    if (!profile || !profile.niche) return res.json([]);
+
+    const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
+    const sections = (await repository.getMandatoryDocuments(profile.niche)) || [];
+    res.json(
+      sections
+        .filter((s) => !s.employerOnly || hasEmployees)
+        .map((s) => ({ title: s.title, items: s.items }))
+    );
   })
 );
 

@@ -40,8 +40,7 @@ export default function Dashboard() {
         setVisits(v.data);
         if (isOwner) {
           setRevenue(fin.data.revenue);
-          const latest = sessions.data.find((s) => s.status === 'completed' && s.type === 'paid') || sessions.data.find((s) => s.status === 'completed' && s.type === 'free');
-          setSecurity(latest || null);
+          setSecurity(sessions.data.find((s) => s.status === 'completed') || null);
         }
       })
       .finally(() => setLoading(false));
@@ -93,7 +92,7 @@ export default function Dashboard() {
       {isOwner && !security && (
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Безопасность</div>
-          <div style={{ fontSize: 12, color: C.subtle }}>Пройдите бесплатный аудит, чтобы увидеть индекс безопасности →</div>
+          <div style={{ fontSize: 12, color: C.subtle }}>Пройдите тест безопасности, чтобы увидеть индекс безопасности →</div>
         </Card>
       )}
 

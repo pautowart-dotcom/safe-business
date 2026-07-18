@@ -4,9 +4,9 @@
 //
 // hasNicheStep=false → сегмент ведёт сразу в лист ожидания (Файл 02: Розничная
 // торговля / Общепит / Другое), без показа списка ниш.
-// На нишу: freeAudit/paidAudit — есть ли готовый контент. Если paidAudit=false,
-// кнопка "Расширенный аудит" ведёт на заглушку с листом ожидания (Файл 05).
-// Если freeAudit=false, весь сегмент/ниша — заглушка с первого экрана.
+// На нишу: paidAudit — есть ли готовый контент теста (34 вопроса). Тест
+// бесплатен для всех ниш; paidAudit=false просто значит "контент ещё не
+// готов" — кнопка ведёт на заглушку с листом ожидания (Файл 05).
 
 const SEGMENTS = [
   {
@@ -14,10 +14,10 @@ const SEGMENTS = [
     label: 'Красота и здоровье',
     hasNicheStep: true,
     niches: [
-      { key: 'manicure', label: 'Маникюр и педикюр', freeAudit: true, paidAudit: true },
-      { key: 'lashes_brows', label: 'Ресницы и брови', freeAudit: true, paidAudit: false },
-      { key: 'hair', label: 'Волосы (парикмахерские услуги)', freeAudit: true, paidAudit: false },
-      { key: 'massage', label: 'Массаж (без медицинской лицензии)', freeAudit: true, paidAudit: false },
+      { key: 'manicure', label: 'Маникюр и педикюр', paidAudit: true },
+      { key: 'lashes_brows', label: 'Ресницы и брови', paidAudit: false },
+      { key: 'hair', label: 'Волосы (парикмахерские услуги)', paidAudit: false },
+      { key: 'massage', label: 'Массаж (без медицинской лицензии)', paidAudit: false },
     ],
   },
   {
@@ -25,9 +25,9 @@ const SEGMENTS = [
     label: 'Фитнес и активность',
     hasNicheStep: true,
     niches: [
-      { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал', freeAudit: true, paidAudit: false },
-      { key: 'dance', label: 'Танцы', freeAudit: true, paidAudit: false },
-      { key: 'yoga', label: 'Йога / растяжка', freeAudit: true, paidAudit: false },
+      { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал', paidAudit: false },
+      { key: 'dance', label: 'Танцы', paidAudit: false },
+      { key: 'yoga', label: 'Йога / растяжка', paidAudit: false },
     ],
   },
   { key: 'retail', label: 'Розничная торговля', hasNicheStep: false, niches: [] },

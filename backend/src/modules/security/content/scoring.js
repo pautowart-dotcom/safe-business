@@ -1,6 +1,5 @@
 // Расчёт баллов, индекса безопасности и списка нарушений.
 // Источник: docs/security-engine/09_Scoring_Logic_FINAL.md.
-// Эта единая шкала используется и в бесплатном, и в платном аудите (Файл 09 §3).
 
 const ZONES = [
   { key: 'green', min: 80, max: 100, label: 'Зелёная зона' },
@@ -62,15 +61,7 @@ function scoreSession(questions, answersByCode) {
   };
 }
 
-// Топ-N нарушений бесплатного аудита по фиксированному приоритету (Файл 04 §3),
-// а не по риску — в бесплатном тесте нет матрицы рисков, только порядок вопросов.
-function topByPriority(violationCodes, priorityOrder, limit = 3) {
-  return [...violationCodes]
-    .sort((a, b) => priorityOrder.indexOf(a) - priorityOrder.indexOf(b))
-    .slice(0, limit);
-}
-
-// Сортировка нарушений платного аудита для карты уязвимостей (Файл 11):
+// Сортировка нарушений для карты уязвимостей (Файл 11):
 // по убыванию риска, при равном риске — по убыванию верхней границы штрафа.
 function sortByRisk(violations) {
   return [...violations].sort((a, b) => {
@@ -79,4 +70,4 @@ function sortByRisk(violations) {
   });
 }
 
-module.exports = { ZONES, zoneForPercent, indexPercent, evaluateAnswer, scoreSession, topByPriority, sortByRisk };
+module.exports = { ZONES, zoneForPercent, indexPercent, evaluateAnswer, scoreSession, sortByRisk };

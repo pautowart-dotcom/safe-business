@@ -55,7 +55,26 @@ router.post(
     const session = rows[0];
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
     if (session.type !== 'paid' || session.status !== 'completed') {
-      return res.status(400).json({ error: 'Отчёт формируется только для завершённого расширенного аудита' });
+      return res.status(400).json({ error: 'Отчёт формируется только для завершённого аудита' });
+    }
+
+    // Идемпотентно: у сессии не может быть больше одного отчёта (UNIQUE
+    // session_id, миграция 0011). Содержимое отчёта детерминировано
+    // (session+violations), поэтому при повторном вызове просто отдаём уже
+    // существующую запись — без этого второй клик на "Скачать PDF" падал
+    // с duplicate key на report_number.
+    const existing = await pool.query(
+      'SELECT id, report_number, generated_at FROM security_reports WHERE session_id = $1',
+      [session.id]
+    );
+    if (existing.rows.length > 0) {
+      const report = existing.rows[0];
+      return res.status(200).json({
+        id: report.id,
+        reportNumber: report.report_number,
+        generatedAt: report.generated_at,
+        downloadUrl: `/api/modules/security/reports/${report.id}/download`,
+      });
     }
 
     const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');

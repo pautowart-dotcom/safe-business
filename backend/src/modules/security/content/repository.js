@@ -11,7 +11,6 @@
 // и ни scoring.js, ни visibility.js, ни роуты, ни PDF-сборка не меняются.
 
 const { SEGMENTS, findSegment, findNiche } = require('./segments');
-const freeQuestions = require('./free-questions');
 
 const PAID_QUESTIONS_BY_NICHE = {
   manicure: require('./paid-questions/manicure'),
@@ -39,14 +38,6 @@ async function getSegment(segmentKey) {
 
 async function getNiche(segmentKey, nicheKey) {
   return findNiche(segmentKey, nicheKey);
-}
-
-async function getFreeQuestions() {
-  return freeQuestions.questions;
-}
-
-async function getFreeQuestionPriorityOrder() {
-  return freeQuestions.priorityOrder;
 }
 
 async function getPaidQuestions(niche) {
@@ -84,8 +75,6 @@ module.exports = {
   getSegments,
   getSegment,
   getNiche,
-  getFreeQuestions,
-  getFreeQuestionPriorityOrder,
   getPaidQuestions,
   getFeedbackOptions,
   getViolationMatrix,

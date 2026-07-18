@@ -87,22 +87,24 @@ export default function Security() {
   const [sessions, setSessions] = useState([]);
   const [violations, setViolations] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [documentSections, setDocumentSections] = useState([]);
   const [products, setProducts] = useState(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [activeAudit, setActiveAudit] = useState(null);
-  const [freeResult, setFreeResult] = useState(null);
-  const [paidResult, setPaidResult] = useState(null);
+  const [auditResult, setAuditResult] = useState(null);
 
   async function loadDashboardData() {
-    const [sessionsRes, violationsRes, documentsRes, productsRes] = await Promise.all([
+    const [sessionsRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
       api.get('/modules/security/sessions'),
       api.get('/modules/security/violations'),
       api.get('/modules/security/documents'),
+      api.get('/modules/security/documents/sections'),
       api.get('/modules/security/products'),
     ]);
     setSessions(sessionsRes.data);
     setViolations(violationsRes.data);
     setDocuments(documentsRes.data);
+    setDocumentSections(sectionsRes.data);
     setProducts(productsRes.data);
   }
 
@@ -125,10 +127,10 @@ export default function Security() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function startAudit(type) {
+  async function startAudit() {
     setError('');
     try {
-      const { data } = await api.post('/modules/security/sessions', { type });
+      const { data } = await api.post('/modules/security/sessions', {});
       setActiveAudit({ session: data.session, questions: data.questions, index: 0, answers: {} });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать аудит');
@@ -145,14 +147,17 @@ export default function Security() {
       } else {
         await api.post(`/modules/security/sessions/${activeAudit.session.id}/complete`);
         const resultRes = await api.get(`/modules/security/sessions/${activeAudit.session.id}/result`);
-        if (activeAudit.session.type === 'free') setFreeResult(resultRes.data);
-        else setPaidResult(resultRes.data);
+        setAuditResult(resultRes.data);
         setActiveAudit(null);
         await loadDashboardData();
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить ответ');
     }
+  }
+
+  function goToPreviousQuestion() {
+    setActiveAudit({ ...activeAudit, index: activeAudit.index - 1 });
   }
 
   async function resolveViolation(id) {
@@ -168,13 +173,18 @@ export default function Security() {
   if (loading) return <div className="page-loading">Загрузка...</div>;
 
   if (activeAudit) {
-    return <AuditQuestionnaire activeAudit={activeAudit} onAnswer={submitAnswer} onCancel={() => setActiveAudit(null)} error={error} />;
+    return (
+      <AuditQuestionnaire
+        activeAudit={activeAudit}
+        onAnswer={submitAnswer}
+        onBack={activeAudit.index > 0 ? goToPreviousQuestion : null}
+        onCancel={() => setActiveAudit(null)}
+        error={error}
+      />
+    );
   }
-  if (freeResult) {
-    return <FreeAuditResult result={freeResult} onClose={() => setFreeResult(null)} onStartPaid={() => { setFreeResult(null); startAudit('paid'); }} />;
-  }
-  if (paidResult) {
-    return <PaidAuditResult result={paidResult} onClose={() => setPaidResult(null)} onDownload={() => downloadPdf(paidResult.session.id, setError)} />;
+  if (auditResult) {
+    return <AuditResult result={auditResult} onClose={() => setAuditResult(null)} onDownload={() => downloadPdf(auditResult.session.id, setError)} />;
   }
   if (!profile || editingProfile) {
     return (
@@ -196,12 +206,12 @@ export default function Security() {
       sessions={sessions}
       violations={violations}
       documents={documents}
+      documentSections={documentSections}
       products={products}
       isOwner={isOwner}
       error={error}
       onEditProfile={() => setEditingProfile(true)}
-      onStartFree={() => startAudit('free')}
-      onStartPaid={() => startAudit('paid')}
+      onStartAudit={startAudit}
       onResolveViolation={resolveViolation}
       onJoinWaitlist={joinWaitlist}
       onDownloadReport={(sessionId) => downloadPdf(sessionId, setError)}
@@ -299,7 +309,7 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
 
 // ---------- Опросник ----------
 
-function AuditQuestionnaire({ activeAudit, onAnswer, onCancel, error }) {
+function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) {
   const { questions, index } = activeAudit;
   const question = questions[index];
   const progress = Math.round(((index + 1) / questions.length) * 100);
@@ -307,6 +317,13 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onCancel, error }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        {onBack ? (
+          <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: C.secondary, fontSize: 13, cursor: 'pointer', padding: 0 }}>
+            <Icon name="arrow" size={14} color={C.secondary} />Назад
+          </button>
+        ) : (
+          <span />
+        )}
         <span style={{ fontSize: 13, color: C.subtle }}>Вопрос {index + 1} из {questions.length}</span>
         <button onClick={onCancel} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 13, cursor: 'pointer' }}>Прервать</button>
       </div>
@@ -346,40 +363,12 @@ function IndexHero({ percent, zone, subtitle }) {
   );
 }
 
-function FreeAuditResult({ result, onClose, onStartPaid }) {
-  const zone = result.session.zone;
-  return (
-    <div>
-      <BackBtn onClick={onClose} label="Закрыть" />
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Результат бесплатного аудита</div>
-      <IndexHero percent={result.session.index_percent} zone={zone} subtitle={ZONE_LABELS[zone]} />
-
-      {result.top3.length > 0 && (
-        <Card>
-          <ST>Главные риски</ST>
-          {result.top3.map((v, i, arr) => (
-            <div key={v.code} style={{ padding: '10px 0', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{v.text}</div>
-              <div style={{ fontSize: 13, color: C.subtle, marginTop: 2 }}>{v.description}</div>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>
-        Бесплатный аудит охватывает только часть обязательных требований. Полный аудит проверяет дополнительные точки уязвимости и выдаёт персональную дорожную карту устранения.
-      </div>
-      <Btn onClick={onStartPaid}>Пройти расширенный аудит</Btn>
-    </div>
-  );
-}
-
-function PaidAuditResult({ result, onClose, onDownload }) {
+function AuditResult({ result, onClose, onDownload }) {
   const zone = result.session.zone;
   return (
     <div>
       <BackBtn onClick={onClose} label="К панели безопасности" />
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Расширенный аудит завершён</div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Аудит завершён</div>
       <IndexHero percent={result.session.index_percent} zone={zone} subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${result.violations.length}`} />
       <Btn onClick={onDownload}>Скачать PDF-отчёт</Btn>
     </div>
@@ -389,15 +378,13 @@ function PaidAuditResult({ result, onClose, onDownload }) {
 // ---------- Главная панель ----------
 
 function SecurityDashboard({
-  profile, sessions, violations, documents, products, isOwner, error,
-  onEditProfile, onStartFree, onStartPaid, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange,
+  profile, sessions, violations, documents, documentSections, products, isOwner, error,
+  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange,
 }) {
   const [tab, setTab] = useState('overview');
 
-  const lastFree = sessions.find((s) => s.type === 'free' && s.status === 'completed');
-  const lastPaid = sessions.find((s) => s.type === 'paid' && s.status === 'completed');
+  const lastCompleted = sessions.find((s) => s.status === 'completed');
   const nicheLabel = SEGMENTS.flatMap((s) => s.niches).find((n) => n.key === profile.niche)?.label || profile.niche;
-  const hero = lastPaid || lastFree;
   const openCount = violations.filter((v) => v.status === 'open').length;
   const doneCount = violations.filter((v) => v.status === 'resolved').length;
 
@@ -411,9 +398,9 @@ function SecurityDashboard({
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {hero && <IndexHero percent={hero.index_percent} zone={hero.zone} subtitle={ZONE_LABELS[hero.zone]} />}
-      {hero && violations.length > 0 && (
-        <div style={{ display: 'flex', gap: 24, marginTop: -18, marginBottom: 12, padding: '0 4px' }}>
+      {lastCompleted && <IndexHero percent={lastCompleted.index_percent} zone={lastCompleted.zone} subtitle={ZONE_LABELS[lastCompleted.zone]} />}
+      {lastCompleted && violations.length > 0 && (
+        <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '0 4px' }}>
           {[[violations.length, 'Нарушений'], [doneCount, 'Устранено'], [openCount, 'Осталось']].map(([v, l]) => (
             <div key={l}><div style={{ fontSize: 18, fontWeight: 800 }}>{v}</div><div style={{ fontSize: 11, color: C.subtle }}>{l}</div></div>
           ))}
@@ -433,56 +420,36 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab lastFree={lastFree} lastPaid={lastPaid} products={products} isOwner={isOwner} onStartFree={onStartFree} onStartPaid={onStartPaid} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
+        <OverviewTab lastCompleted={lastCompleted} products={products} isOwner={isOwner} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isOwner={isOwner} onResolve={onResolveViolation} />}
-      {tab === 'documents' && <DocumentsTab documents={documents} isOwner={isOwner} onChange={onDocumentsChange} />}
+      {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isOwner={isOwner} onChange={onDocumentsChange} />}
     </div>
   );
 }
 
-function OverviewTab({ lastFree, lastPaid, products, isOwner, onStartFree, onStartPaid, onJoinWaitlist, onDownloadReport }) {
+function OverviewTab({ lastCompleted, products, isOwner, onStartAudit, onJoinWaitlist, onDownloadReport }) {
   return (
     <div>
       <Card>
-        <ST>Бесплатный аудит</ST>
-        {lastFree ? (
+        <ST>Тест безопасности</ST>
+        {lastCompleted ? (
           <div>
-            <Badge color={ZONE_COLOR[lastFree.zone]} bg={ZONE_BG[lastFree.zone]}>{ZONE_LABELS[lastFree.zone]}</Badge>
-            <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {lastFree.index_percent}%</div>
-            {isOwner && <Btn small variant="secondary" onClick={onStartFree}>Пройти ещё раз</Btn>}
-          </div>
-        ) : (
-          <div>
-            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>12 вопросов, займёт несколько минут. Покажет три главных риска бизнеса.</div>
-            {isOwner && <Btn onClick={onStartFree}>Пройти бесплатный аудит</Btn>}
-          </div>
-        )}
-      </Card>
-
-      <Card>
-        <ST>Расширенный аудит</ST>
-        {lastPaid ? (
-          <div>
-            <Badge color={ZONE_COLOR[lastPaid.zone]} bg={ZONE_BG[lastPaid.zone]}>{ZONE_LABELS[lastPaid.zone]}</Badge>
-            <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {lastPaid.index_percent}%</div>
+            <Badge color={ZONE_COLOR[lastCompleted.zone]} bg={ZONE_BG[lastCompleted.zone]}>{ZONE_LABELS[lastCompleted.zone]}</Badge>
+            <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {lastCompleted.index_percent}%</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {isOwner && <Btn small variant="secondary" onClick={onStartPaid}>Пройти ещё раз</Btn>}
-              {isOwner && <Btn small onClick={() => onDownloadReport(lastPaid.id)}>Скачать PDF</Btn>}
+              {isOwner && <Btn small variant="secondary" onClick={onStartAudit}>Пройти ещё раз</Btn>}
+              {isOwner && <Btn small onClick={() => onDownloadReport(lastCompleted.id)}>Скачать PDF</Btn>}
             </div>
           </div>
-        ) : products?.paidAudit.available ? (
-          products.paidAudit.subscriptionActive ? (
-            <div>
-              <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Полная карта нарушений, дорожная карта устранения и персональный PDF-отчёт.</div>
-              {isOwner && <Btn onClick={onStartPaid}>Начать расширенный аудит</Btn>}
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, color: C.subtle }}>Доступно при активной подписке.</div>
-          )
+        ) : products?.audit.available ? (
+          <div>
+            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>34 вопроса, бесплатно. Полная карта нарушений, дорожная карта устранения и персональный PDF-отчёт.</div>
+            {isOwner && <Btn onClick={onStartAudit}>Пройти тест безопасности</Btn>}
+          </div>
         ) : (
           <div>
-            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Расширенный аудит для вашей ниши сейчас в разработке. Мы уведомим вас о запуске.</div>
+            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Тест безопасности для вашей ниши сейчас в разработке. Мы уведомим вас о запуске.</div>
             {isOwner && <Btn small variant="secondary" onClick={() => onJoinWaitlist('paid_audit')}>Сообщить о запуске</Btn>}
           </div>
         )}
@@ -512,7 +479,7 @@ function ViolationsTab({ violations, isOwner, onResolve }) {
   const resolved = violations.filter((v) => v.status === 'resolved');
 
   if (violations.length === 0) {
-    return <div className="empty-hint">Нарушений не найдено. Пройдите расширенный аудит, чтобы увидеть карту уязвимостей.</div>;
+    return <div className="empty-hint">Нарушений не найдено. Пройдите тест безопасности, чтобы увидеть карту уязвимостей.</div>;
   }
 
   return (
@@ -552,17 +519,31 @@ function ViolationCard({ violation, isOwner, onResolve }) {
   );
 }
 
-function DocumentsTab({ documents, isOwner, onChange }) {
+// Разделы берём из structure отчёта (sections, GET /documents/sections) —
+// тот же порядок и названия категорий, что и в mandatoryDocuments PDF-отчёта
+// (report/build.js), так вкладка выглядит как карта требований, а не
+// произвольный список. Если для ниши ещё нет контента отчёта (sections
+// пустой), используем общий фолбэк-список категорий, чтобы загрузка
+// документов всё равно работала.
+function DocumentsTab({ documents, sections, isOwner, onChange }) {
+  const categories = sections.length > 0 ? sections.map((s) => s.title) : DOCUMENT_CATEGORIES;
+  const itemsByCategory = {};
+  for (const s of sections) itemsByCategory[s.title] = s.items;
+
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ category: DOCUMENT_CATEGORIES[0], name: '', fileUrl: '' });
+  const [form, setForm] = useState({ category: '', name: '', fileUrl: '' });
 
   const byCategory = {};
   for (const doc of documents) (byCategory[doc.category] ||= []).push(doc);
 
+  function openForm() {
+    setForm({ category: categories[0] || '', name: '', fileUrl: '' });
+    setShowForm(true);
+  }
+
   async function submit() {
     if (!form.name.trim() || !form.fileUrl.trim()) return;
     await api.post('/modules/security/documents', form);
-    setForm({ category: DOCUMENT_CATEGORIES[0], name: '', fileUrl: '' });
     setShowForm(false);
     onChange();
   }
@@ -580,7 +561,7 @@ function DocumentsTab({ documents, isOwner, onChange }) {
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Добавить документ</div>
         <Field label="Категория">
           <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-            {DOCUMENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </Select>
         </Field>
         <Field label="Название"><TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -592,24 +573,31 @@ function DocumentsTab({ documents, isOwner, onChange }) {
 
   return (
     <div>
-      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 12 }}>Храните документы студии по категориям</div>
-      {isOwner && <div style={{ marginBottom: 16 }}><Btn small onClick={() => setShowForm(true)}>+ Добавить документ</Btn></div>}
+      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 12 }}>
+        Разделы соответствуют структуре отчёта — так видно, какие документы относятся к каждой категории требований.
+      </div>
+      {isOwner && <div style={{ marginBottom: 16 }}><Btn small onClick={openForm}>+ Добавить документ</Btn></div>}
 
-      {Object.keys(byCategory).length === 0 && <div className="empty-hint">Документов пока нет</div>}
-
-      {DOCUMENT_CATEGORIES.filter((c) => byCategory[c]).map((category) => (
+      {categories.map((category) => (
         <div key={category} style={{ marginBottom: 16 }}>
           <ST>{category}</ST>
-          <Card style={{ padding: 0 }}>
-            {byCategory[category].map((doc, i, arr) => (
-              <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: C.primary, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Icon name="doc" size={15} color={C.secondary} />{doc.name}
-                </a>
-                {isOwner && <button onClick={() => remove(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>}
-              </div>
-            ))}
-          </Card>
+          {itemsByCategory[category] && (
+            <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>{itemsByCategory[category].join(' · ')}</div>
+          )}
+          {byCategory[category] ? (
+            <Card style={{ padding: 0 }}>
+              {byCategory[category].map((doc, i, arr) => (
+                <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                  <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: C.primary, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Icon name="doc" size={15} color={C.secondary} />{doc.name}
+                  </a>
+                  {isOwner && <button onClick={() => remove(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>}
+                </div>
+              ))}
+            </Card>
+          ) : (
+            <div className="empty-hint">Пока не загружено</div>
+          )}
         </div>
       ))}
     </div>
