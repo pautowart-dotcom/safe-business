@@ -15,7 +15,7 @@ export function AuthShell({ children }) {
   );
 }
 
-function CompanyPicker({ companies, onPick, error }) {
+function CompanyPicker({ companies, onPick, onAdd, error }) {
   return (
     <AuthShell>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Выберите компанию</div>
@@ -30,6 +30,14 @@ function CompanyPicker({ companies, onPick, error }) {
           <span style={{ fontSize: 22, color: C.border }}>›</span>
         </div>
       ))}
+      {onAdd && (
+        <div
+          onClick={onAdd}
+          style={{ border: `1.5px dashed ${C.border}`, borderRadius: 16, padding: 20, marginTop: 6, cursor: 'pointer', textAlign: 'center', color: C.primary, fontSize: 14, fontWeight: 700 }}
+        >
+          + Добавить студию
+        </div>
+      )}
     </AuthShell>
   );
 }
@@ -45,7 +53,7 @@ function NoCompanyAccess() {
   );
 }
 
-function CreateCompanyForm({ onCreate }) {
+function CreateCompanyForm({ onCreate, onBack }) {
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -68,12 +76,24 @@ function CreateCompanyForm({ onCreate }) {
     <AuthShell>
       <form onSubmit={submit}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Название компании</div>
-        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 24 }}>Будет отображаться в вашем кабинете. Позже можно добавить ещё одну.</div>
+        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 24 }}>
+          Будет отображаться в вашем кабинете. Каждая студия — отдельная подписка; позже можно добавить ещё одну.
+        </div>
         {error && <div className="alert alert-error">{error}</div>}
         <Field>
           <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Студия на Тверской" />
         </Field>
         <Btn type="submit" disabled={submitting || !name.trim()}>{submitting ? 'Создаём...' : 'Начать работу'}</Btn>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={submitting}
+            style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 13, marginTop: 14, padding: 0 }}
+          >
+            Назад к выбору компании
+          </button>
+        )}
       </form>
     </AuthShell>
   );
@@ -86,6 +106,7 @@ export default function Login() {
   const passwordRef = useRef(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [addingCompany, setAddingCompany] = useState(false);
 
   // Полностью авторизован (есть и пользователь, и выбранная компания) —
   // дальше решает роутинг, здесь делать нечего.
@@ -103,13 +124,18 @@ export default function Login() {
   }
 
   // Компаний несколько — нужно спросить, с какой работать, прежде чем
-  // пускать дальше (иначе первый же запрос модуля получит 401).
+  // пускать дальше (иначе первый же запрос модуля получит 401). С этого же
+  // экрана можно завести ещё одну студию (owner может иметь несколько).
   if (user && pendingCompanies) {
+    if (addingCompany) {
+      return <CreateCompanyForm onCreate={createCompany} onBack={() => setAddingCompany(false)} />;
+    }
     return (
       <CompanyPicker
         companies={pendingCompanies}
         error={error}
         onPick={(id) => selectCompany(id).catch((err) => setError(err.response?.data?.error || 'Не удалось выбрать компанию'))}
+        onAdd={() => setAddingCompany(true)}
       />
     );
   }

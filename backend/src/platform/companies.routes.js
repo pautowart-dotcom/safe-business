@@ -79,7 +79,7 @@ router.get(
   requireTenant,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT id, name, industry_segment, subscription_status, trial_ends_at, created_at FROM companies WHERE id = $1',
+      'SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, created_at FROM companies WHERE id = $1',
       [req.tenant.companyId]
     );
     if (rows.length === 0) {
