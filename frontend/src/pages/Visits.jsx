@@ -3,10 +3,14 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, Icon, C } from '../ui/components.jsx';
 
-function nowLocal() {
-  const d = new Date();
+function toLocalInputValue(date) {
+  const d = new Date(date);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 16);
+}
+
+function nowLocal() {
+  return toLocalInputValue(new Date());
 }
 
 const EMPTY_FORM = {
@@ -77,6 +81,7 @@ export default function Visits() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [editingId, setEditingId] = useState(null);
   const [clientMatches, setClientMatches] = useState([]);
   const [saved, setSaved] = useState(false);
 
@@ -112,6 +117,27 @@ export default function Visits() {
 
   function openCreate() {
     setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isOwner ? '' : undefined });
+    setEditingId(null);
+    setClientMatches([]);
+    setSaved(false);
+    setShowForm(true);
+  }
+
+  function openEdit(v) {
+    setForm({
+      lastName: v.client_last_name || '',
+      firstName: v.client_first_name || '',
+      clientId: v.client_id,
+      masterMembershipId: v.master_membership_id || '',
+      service: v.service || '',
+      materials: v.materials || '',
+      amount: String(v.amount ?? ''),
+      discountPercent: String(v.discount_percent ?? '0'),
+      visitAt: v.visit_at ? toLocalInputValue(v.visit_at) : nowLocal(),
+      photoBeforeUrl: v.photo_before_url || '',
+      photoAfterUrl: v.photo_after_url || '',
+    });
+    setEditingId(v.id);
     setClientMatches([]);
     setSaved(false);
     setShowForm(true);
@@ -141,7 +167,7 @@ export default function Visits() {
       clientId = created.data.id;
     }
 
-    await api.post('/modules/visits', {
+    const payload = {
       clientId,
       service: form.service,
       materials: form.materials || null,
@@ -151,7 +177,13 @@ export default function Visits() {
       masterMembershipId: isOwner ? form.masterMembershipId || undefined : undefined,
       photoBeforeUrl: form.photoBeforeUrl || null,
       photoAfterUrl: form.photoAfterUrl || null,
-    });
+    };
+
+    if (editingId) {
+      await api.patch(`/modules/visits/${editingId}`, payload);
+    } else {
+      await api.post('/modules/visits', payload);
+    }
     setSaved(true);
     load();
   }
@@ -183,7 +215,7 @@ export default function Visits() {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Новый визит</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить визит' : 'Новый визит'}</div>
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Фамилия">
@@ -271,7 +303,7 @@ export default function Visits() {
             </Field>
           </div>
 
-          <Btn type="submit">Сохранить визит</Btn>
+          <Btn type="submit">{editingId ? 'Сохранить изменения' : 'Сохранить визит'}</Btn>
         </form>
       </div>
     );
@@ -289,7 +321,7 @@ export default function Visits() {
       ) : (
         <Card style={{ padding: 0 }}>
           {visits.map((v, i) => (
-            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            <div key={v.id} onClick={() => openEdit(v)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Avatar letter={v.client_last_name?.[0]} size={36} />
                 <div>
@@ -304,7 +336,7 @@ export default function Visits() {
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{money(v.final_amount)}</div>
                   {Number(v.discount_percent) > 0 && <div style={{ fontSize: 11, color: C.orange }}>−{v.discount_percent}%</div>}
                 </div>
-                <button onClick={() => handleDelete(v.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 14 }}>✕</button>
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(v.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 14 }}>✕</button>
               </div>
             </div>
           ))}

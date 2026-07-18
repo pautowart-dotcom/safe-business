@@ -2,18 +2,33 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, Icon, C } from '../ui/components.jsx';
+import { Card, Field, TextInput, Btn, Icon, C } from '../ui/components.jsx';
 
 const ROLE_LABELS = { owner: 'Владелец', master: 'Мастер' };
 
 export default function Settings() {
-  const { user, currentCompany, isOwner, logout, switchCompany } = useAuth();
+  const { user, currentCompany, isOwner, logout, switchCompany, renameCurrentCompany } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [companyName, setCompanyName] = useState('');
 
   useEffect(() => {
     api.get('/platform/companies/current').then((res) => setCompany(res.data));
   }, []);
+
+  function openEditCompany() {
+    setCompanyName(company.name);
+    setEditingCompany(true);
+  }
+
+  async function saveCompanyName() {
+    if (!companyName.trim()) return;
+    const { data } = await api.patch('/platform/companies/current', { name: companyName.trim() });
+    setCompany(data);
+    renameCurrentCompany(data.name);
+    setEditingCompany(false);
+  }
 
   async function handleSwitch() {
     await switchCompany();
@@ -41,6 +56,30 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+
+      {isOwner && company && (
+        <Card>
+          {editingCompany ? (
+            <>
+              <Field label="Название компании">
+                <TextInput autoFocus value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+              </Field>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn small onClick={saveCompanyName}>Сохранить</Btn>
+                <Btn small variant="secondary" onClick={() => setEditingCompany(false)}>Отмена</Btn>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 12, color: C.subtle, marginBottom: 2 }}>Компания</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>{company.name}</div>
+              </div>
+              <button onClick={openEditCompany} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Изменить</button>
+            </div>
+          )}
+        </Card>
+      )}
 
       {isOwner && company?.subscription_status === 'trial' && (
         <Card style={{ background: C.greenBg, borderColor: C.green + '44' }}>

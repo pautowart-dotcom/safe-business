@@ -16,6 +16,7 @@ export default function Knowledge() {
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [showSectionForm, setShowSectionForm] = useState(false);
   const [sectionName, setSectionName] = useState('');
+  const [renamingSectionId, setRenamingSectionId] = useState(null);
 
   function load() {
     setLoading(true);
@@ -71,6 +72,14 @@ export default function Knowledge() {
   async function handleDeleteSection(id) {
     if (!confirm('Удалить раздел вместе со всеми статьями?')) return;
     await api.delete(`/modules/knowledge/sections/${id}`);
+    load();
+  }
+
+  async function saveSectionName(id, name) {
+    setRenamingSectionId(null);
+    const current = sections.find((s) => s.id === id);
+    if (!name.trim() || !current || name.trim() === current.name) return;
+    await api.patch(`/modules/knowledge/sections/${id}`, { name: name.trim() });
     load();
   }
 
@@ -136,9 +145,21 @@ export default function Knowledge() {
 
       {visibleSections.map((section) => (
         <div key={section.id} style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <ST>{section.name}</ST>
-            {isOwner && <button onClick={() => handleDeleteSection(section.id)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 11, cursor: 'pointer' }}>Удалить раздел</button>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+            {isOwner && renamingSectionId === section.id ? (
+              <TextInput
+                autoFocus
+                defaultValue={section.name}
+                onBlur={(e) => saveSectionName(section.id, e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                style={{ fontSize: 13, padding: '6px 10px' }}
+              />
+            ) : (
+              <ST>
+                <span onClick={() => isOwner && setRenamingSectionId(section.id)} style={isOwner ? { cursor: 'pointer' } : undefined}>{section.name}</span>
+              </ST>
+            )}
+            {isOwner && <button onClick={() => handleDeleteSection(section.id)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>Удалить раздел</button>}
           </div>
           <Card style={{ padding: 0 }}>
             {section.articles.map((a, i, arr) => (

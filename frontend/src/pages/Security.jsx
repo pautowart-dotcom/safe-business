@@ -531,6 +531,7 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
   for (const s of sections) itemsByCategory[s.title] = s.items;
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ category: '', name: '', fileUrl: '' });
 
   const byCategory = {};
@@ -538,12 +539,23 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
 
   function openForm() {
     setForm({ category: categories[0] || '', name: '', fileUrl: '' });
+    setEditingId(null);
+    setShowForm(true);
+  }
+
+  function openEdit(doc) {
+    setForm({ category: doc.category, name: doc.name, fileUrl: doc.file_url });
+    setEditingId(doc.id);
     setShowForm(true);
   }
 
   async function submit() {
     if (!form.name.trim() || !form.fileUrl.trim()) return;
-    await api.post('/modules/security/documents', form);
+    if (editingId) {
+      await api.patch(`/modules/security/documents/${editingId}`, form);
+    } else {
+      await api.post('/modules/security/documents', form);
+    }
     setShowForm(false);
     onChange();
   }
@@ -558,7 +570,7 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Добавить документ</div>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>{editingId ? 'Изменить документ' : 'Добавить документ'}</div>
         <Field label="Категория">
           <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -566,7 +578,7 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
         </Field>
         <Field label="Название"><TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
         <Field label="Ссылка на файл"><TextInput type="url" value={form.fileUrl} onChange={(e) => setForm({ ...form, fileUrl: e.target.value })} placeholder="https://..." /></Field>
-        <Btn onClick={submit}>Сохранить</Btn>
+        <Btn onClick={submit}>{editingId ? 'Сохранить изменения' : 'Сохранить'}</Btn>
       </div>
     );
   }
@@ -591,7 +603,12 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
                   <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: C.primary, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Icon name="doc" size={15} color={C.secondary} />{doc.name}
                   </a>
-                  {isOwner && <button onClick={() => remove(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>}
+                  {isOwner && (
+                    <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                      <button onClick={() => openEdit(doc)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 12 }}>Изменить</button>
+                      <button onClick={() => remove(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </Card>

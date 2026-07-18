@@ -5,13 +5,17 @@ const { logEvent } = require('../../core/eventLog');
 
 const router = express.Router();
 
-// Телефон клиента не должен попадать в ответ для роли "мастер" ни при каких
-// обстоятельствах (docs/task.md, обязательные бизнес-правила) — фильтруем на
-// уровне сервера, а не полагаемся на фронтенд.
+// Мастеру показываем только последние 4 цифры телефона клиента (Этап 5) —
+// маскируем на уровне сервера, а не полагаемся на фронтенд.
+function maskPhone(phone) {
+  if (!phone) return phone;
+  const last4 = phone.replace(/\D/g, '').slice(-4);
+  return last4 ? `•••• ${last4}` : phone;
+}
+
 function sanitize(client, role) {
-  if (role === 'master') {
-    const { phone, ...rest } = client;
-    return rest;
+  if (role === 'master' && client.phone) {
+    return { ...client, phone: maskPhone(client.phone) };
   }
   return client;
 }

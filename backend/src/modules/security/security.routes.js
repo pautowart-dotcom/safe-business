@@ -454,6 +454,35 @@ router.post(
   })
 );
 
+router.patch(
+  '/documents/:id',
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const { category, name, fileUrl } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE security_documents SET
+         category = COALESCE($1, category),
+         name = COALESCE($2, name),
+         file_url = COALESCE($3, file_url)
+       WHERE id = $4 AND company_id = $5
+       RETURNING id, category, name, file_url, uploaded_at`,
+      [category || null, name || null, fileUrl || null, req.params.id, req.tenant.companyId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Документ не найден' });
+
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'security',
+      userId: req.user.id,
+      entityType: 'security_document',
+      entityId: rows[0].id,
+      action: 'security_document.updated',
+    });
+
+    res.json(rows[0]);
+  })
+);
+
 router.delete(
   '/documents/:id',
   requireRole('owner'),

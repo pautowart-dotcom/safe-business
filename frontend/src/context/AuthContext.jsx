@@ -135,6 +135,16 @@ export function AuthProvider({ children }) {
     await selectCompany(res.data.companyId);
   }
 
+  // Синхронизирует отображаемое имя компании (шапка, "Сменить компанию")
+  // после переименования в Настройках — иначе оно оставалось бы старым
+  // до следующего логина/select-company (localStorage/currentCompany
+  // кэшируются с момента выбора компании).
+  function renameCurrentCompany(name) {
+    const cc = { ...currentCompany, name };
+    localStorage.setItem('currentCompany', JSON.stringify(cc));
+    setCurrentCompany(cc);
+  }
+
   // Открывает выбор компании заново (кнопка "Сменить компанию" в
   // настройках) — переиспользует тот же экран выбора, что и при логине.
   async function switchCompany() {
@@ -154,6 +164,7 @@ export function AuthProvider({ children }) {
         selectCompany,
         createCompany,
         switchCompany,
+        renameCurrentCompany,
         loading,
         login,
         logout,

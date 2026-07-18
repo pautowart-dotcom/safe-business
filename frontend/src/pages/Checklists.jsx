@@ -72,6 +72,27 @@ export default function Checklists() {
     load();
   }
 
+  async function saveTemplateName(name) {
+    if (!name.trim() || name === editingTemplate.name) return;
+    await api.patch(`/modules/checklists/templates/${editingTemplate.id}`, { name: name.trim() });
+    setEditingTemplate({ ...editingTemplate, name: name.trim() });
+    load();
+  }
+
+  async function saveTemplateDescription(description) {
+    if (description === (editingTemplate.description || '')) return;
+    await api.patch(`/modules/checklists/templates/${editingTemplate.id}`, { description });
+    setEditingTemplate({ ...editingTemplate, description });
+    load();
+  }
+
+  async function saveItemLabel(item, label) {
+    if (!label.trim() || label === item.label) return;
+    await api.patch(`/modules/checklists/items/${item.id}`, { label: label.trim() });
+    setEditingTemplate({ ...editingTemplate, items: editingTemplate.items.map((x) => (x.id === item.id ? { ...x, label: label.trim() } : x)) });
+    load();
+  }
+
   function updateFormItem(idx, value) {
     const items = [...form.items];
     items[idx] = value;
@@ -102,11 +123,30 @@ export default function Checklists() {
     return (
       <div>
         <BackBtn onClick={() => setEditingTemplate(null)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Редактировать: {editingTemplate.name}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Редактировать чек-лист</div>
+        <Field label="Название">
+          <TextInput
+            value={editingTemplate.name}
+            onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+            onBlur={(e) => saveTemplateName(e.target.value)}
+          />
+        </Field>
+        <Field label="Описание">
+          <TextArea
+            value={editingTemplate.description || ''}
+            onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
+            onBlur={(e) => saveTemplateDescription(e.target.value)}
+          />
+        </Field>
         <Card style={{ padding: 0 }}>
           {editingTemplate.items.map((item, i) => (
-            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', borderBottom: i < editingTemplate.items.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-              <span style={{ flex: 1, fontSize: 14 }}>{item.label}</span>
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: i < editingTemplate.items.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <TextInput
+                value={item.label}
+                onChange={(e) => setEditingTemplate({ ...editingTemplate, items: editingTemplate.items.map((x) => (x.id === item.id ? { ...x, label: e.target.value } : x)) })}
+                onBlur={(e) => saveItemLabel(item, e.target.value)}
+                style={{ flex: 1 }}
+              />
               <button onClick={() => deleteItem(item.id).then(() => setEditingTemplate({ ...editingTemplate, items: editingTemplate.items.filter((x) => x.id !== item.id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
                 <Icon name="trash" size={16} color={C.red} />
               </button>
