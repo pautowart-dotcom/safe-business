@@ -34,6 +34,17 @@ function CompanyPicker({ companies, onPick, error }) {
   );
 }
 
+function NoCompanyAccess() {
+  return (
+    <AuthShell>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Нет доступа ни к одной компании</div>
+      <div style={{ fontSize: 14, color: C.subtle, lineHeight: 1.5 }}>
+        Обратитесь к владельцу компании — он может пригласить вас по ссылке в разделе «Команда».
+      </div>
+    </AuthShell>
+  );
+}
+
 function CreateCompanyForm({ onCreate }) {
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -69,7 +80,7 @@ function CreateCompanyForm({ onCreate }) {
 }
 
 export default function Login() {
-  const { user, currentCompany, pendingCompanies, needsCompany, selectCompany, createCompany, login } = useAuth();
+  const { user, currentCompany, pendingCompanies, needsCompany, isSuperAdmin, selectCompany, createCompany, login } = useAuth();
   const location = useLocation();
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
@@ -82,11 +93,13 @@ export default function Login() {
     return <Navigate to={location.state?.from || '/'} replace />;
   }
 
-  // Ни одной компании ещё нет (например, первый вход Super Admin) —
-  // раньше здесь был тупик "нет доступа", теперь можно завести компанию
-  // прямо тут (docs/task-frontend-v2.md, приоритетный баг).
+  // Ни одной компании ещё нет. Для Super Admin это ожидаемо при первом
+  // входе — он ещё не завёл свой бизнес, поэтому вместо тупика даём форму
+  // создания компании (docs/task-company.txt). Обычному пользователю без
+  // компании (например, приглашение отозвали) показываем прежнее
+  // сообщение — самостоятельно заводить компанию он не должен.
   if (user && needsCompany) {
-    return <CreateCompanyForm onCreate={createCompany} />;
+    return isSuperAdmin ? <CreateCompanyForm onCreate={createCompany} /> : <NoCompanyAccess />;
   }
 
   // Компаний несколько — нужно спросить, с какой работать, прежде чем
