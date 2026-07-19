@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Btn, Icon, C, F } from '../ui/components.jsx';
 
 const PERIOD_PRESETS = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['lastMonth', 'Прошлый месяц']];
@@ -123,9 +124,9 @@ function OwnerFinance() {
   const [adjustmentForm, setAdjustmentForm] = useState(null);
 
   function load() {
-    if (!period.ready) return;
+    if (!period.ready) return Promise.resolve();
     setLoading(true);
-    api
+    return api
       .get('/modules/finance/summary', { params: period.params })
       .then((res) => {
         setSummary(res.data);
@@ -141,12 +142,13 @@ function OwnerFinance() {
       .finally(() => setLoading(false));
   }
   function loadRecurring() {
-    api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
+    return api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [period.preset, period.customFrom, period.customTo]);
   useEffect(loadRecurring, []);
+  usePullToRefresh(() => Promise.all([load(), loadRecurring()]));
   useEffect(() => {
     api.get('/platform/memberships').then((res) => setMasters(res.data.filter((m) => m.role === 'master' && m.user_id)));
   }, []);
@@ -498,11 +500,11 @@ function MasterFinance() {
   const [adjustments, setAdjustments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!period.ready) return;
+  function load() {
+    if (!period.ready) return Promise.resolve();
     setLoading(true);
     const { from, to } = computePeriodRange(period.preset, period.customFrom, period.customTo);
-    Promise.all([
+    return Promise.all([
       api.get('/modules/visits', { params: { dateFrom: `${from}T00:00:00`, dateTo: `${to}T23:59:59` } }),
       api.get('/modules/finance/adjustments', { params: { dateFrom: from, dateTo: to } }),
     ])
@@ -511,8 +513,11 @@ function MasterFinance() {
         setAdjustments(a.data);
       })
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period.preset, period.customFrom, period.customTo]);
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [period.preset, period.customFrom, period.customTo]);
+  usePullToRefresh(load);
 
   if (loading) return <div className="page-loading">Загрузка...</div>;
 

@@ -1,7 +1,12 @@
 const jwt = require('jsonwebtoken');
 
 const BASE_EXPIRES_IN = '30d';
-const COMPANY_EXPIRES_IN = '12h';
+// Раньше было 12h: компани-токен — единственный токен, который фронтенд
+// шлёт после выбора компании (см. AuthContext.jsx), и при его протухании
+// interceptor сразу разлогинивает без попытки обновления (его просто нет) —
+// пользователей выкидывало посреди обычного использования. Совпадает с
+// base-токеном, пока нет отдельного refresh-flow.
+const COMPANY_EXPIRES_IN = '30d';
 
 function signBaseToken(userId) {
   return jwt.sign({ sub: userId, session: 'base' }, process.env.JWT_SECRET, {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, Icon, C } from '../ui/components.jsx';
 
 function toLocalInputValue(date) {
@@ -92,10 +93,11 @@ export default function Visits() {
 
   function load() {
     setLoading(true);
-    api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
+    return api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, []);
+  usePullToRefresh(load);
 
   useEffect(() => {
     if (!isOwner) return;

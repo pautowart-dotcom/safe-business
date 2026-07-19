@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
-import { Card, BackBtn, Field, TextInput, Btn, Avatar, C } from '../ui/components.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
+import { Card, BackBtn, Field, TextInput, TextArea, Btn, Avatar, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { firstName: '', lastName: '', phone: '' };
+const EMPTY_FORM = { firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '' };
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -16,7 +17,7 @@ export default function Clients() {
 
   function load(searchTerm) {
     setLoading(true);
-    api
+    return api
       .get('/modules/clients', { params: searchTerm ? { search: searchTerm } : {} })
       .then((res) => setClients(res.data))
       .finally(() => setLoading(false));
@@ -27,6 +28,9 @@ export default function Clients() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const refresh = () => load(search);
+  usePullToRefresh(refresh);
+
   function openCreate() {
     setForm(EMPTY_FORM);
     setEditingId(null);
@@ -34,7 +38,14 @@ export default function Clients() {
   }
 
   function openEdit(client) {
-    setForm({ firstName: client.first_name || '', lastName: client.last_name || '', phone: client.phone || '' });
+    setForm({
+      firstName: client.first_name || '',
+      lastName: client.last_name || '',
+      phone: client.phone || '',
+      preferences: client.preferences || '',
+      notes: client.notes || '',
+      allergies: client.allergies || '',
+    });
     setEditingId(client.id);
     setSelected(null);
     setShowForm(true);
@@ -82,6 +93,15 @@ export default function Clients() {
           <Field label="Телефон">
             <TextInput value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+7 900 000-00-00" />
           </Field>
+          <Field label="Пожелания">
+            <TextArea value={form.preferences} onChange={(e) => setForm({ ...form, preferences: e.target.value })} placeholder="Например: любит крепкий кофе, не любит разговоры во время процедуры" />
+          </Field>
+          <Field label="Замечания">
+            <TextArea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Например: часто опаздывает, просил напоминать заранее" />
+          </Field>
+          <Field label="Аллергии">
+            <TextArea value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} placeholder="Например: аллергия на латекс" />
+          </Field>
           <Btn type="submit">Сохранить клиента</Btn>
         </form>
       </div>
@@ -99,10 +119,28 @@ export default function Clients() {
             {selected.phone && <div style={{ fontSize: 13, color: C.subtle }}>{selected.phone}</div>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <Btn small onClick={() => openEdit(selected)}>Изменить</Btn>
           <Btn small variant="secondary" onClick={() => handleDelete(selected.id)}>Удалить</Btn>
         </div>
+        {selected.allergies && (
+          <Card style={{ background: C.redBg, borderColor: `${C.red}33` }}>
+            <div style={{ fontSize: 12, color: C.red, fontWeight: 700, marginBottom: 4 }}>⚠️ Аллергии</div>
+            <div style={{ fontSize: 13, color: C.secondary, whiteSpace: 'pre-wrap' }}>{selected.allergies}</div>
+          </Card>
+        )}
+        {selected.preferences && (
+          <Card>
+            <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700, marginBottom: 4 }}>Пожелания</div>
+            <div style={{ fontSize: 13, color: C.secondary, whiteSpace: 'pre-wrap' }}>{selected.preferences}</div>
+          </Card>
+        )}
+        {selected.notes && (
+          <Card>
+            <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700, marginBottom: 4 }}>Замечания</div>
+            <div style={{ fontSize: 13, color: C.secondary, whiteSpace: 'pre-wrap' }}>{selected.notes}</div>
+          </Card>
+        )}
       </div>
     );
   }

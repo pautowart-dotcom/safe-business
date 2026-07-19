@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
-import { Card, BackBtn, Btn, C } from '../ui/components.jsx';
+import { Card, Btn, C } from '../ui/components.jsx';
 
 const STATUS_LABELS = {
   trial: 'Бесплатный период',
@@ -15,7 +14,6 @@ const STATUS_LABELS = {
 // подписка, и служит местом, куда ведёт "Скачать PDF" до появления
 // настоящего платёжного провайдера — сама активация пока не для этого экрана.
 export default function Subscription() {
-  const navigate = useNavigate();
   const [company, setCompany] = useState(null);
 
   useEffect(() => {
@@ -28,7 +26,6 @@ export default function Subscription() {
 
   return (
     <div>
-      <BackBtn onClick={() => navigate(-1)} />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Подписка</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>
         Статус: {STATUS_LABELS[company?.subscription_status] || '—'}

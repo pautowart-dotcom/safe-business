@@ -6,6 +6,7 @@ const membershipsRoutes = require('./memberships.routes');
 const modulesRoutes = require('./modules.routes');
 const adminRoutes = require('./admin.routes');
 const legalRoutes = require('./legal.routes');
+const supportRoutes = require('./support.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -13,5 +14,6 @@ platformRouter.use('/branches', branchesRoutes);
 platformRouter.use('/memberships', membershipsRoutes);
 platformRouter.use('/modules', modulesRoutes);
 platformRouter.use('/admin', adminRoutes);
+platformRouter.use('/support', supportRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

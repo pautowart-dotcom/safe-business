@@ -1,7 +1,12 @@
+import { useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
 import Icon from '../ui/Icon.jsx';
 import { C, F, MAX_WIDTH } from '../ui/theme.js';
+
+const PULL_THRESHOLD = 64;
+const PULL_MAX = 100;
 
 const OWNER_NAV = [
   { to: '/', label: 'Главная', icon: 'home', end: true },
@@ -39,6 +44,8 @@ const TITLES = {
   '/admin/legal': 'Юридические документы',
   '/settings': 'Настройки',
   '/feedback': 'Обратная связь',
+  '/subscription': 'Подписка',
+  '/support': 'Поддержка',
   '/more': 'Ещё',
 };
 
@@ -46,23 +53,88 @@ export default function Layout() {
   const { user, currentCompany, isOwner } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const ptr = usePullToRefreshController();
+  const scrollRef = useRef(null);
+  const touchStartY = useRef(0);
+  const pullingRef = useRef(false);
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const nav = isOwner ? OWNER_NAV : MASTER_NAV;
   const hubPaths = isOwner ? OWNER_HUB_PATHS : MASTER_HUB_PATHS;
   const isHome = location.pathname === '/';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));
   const initial = user?.name?.[0]?.toUpperCase() || '?';
+  // Разделы, открываемые только из "Ещё" (нет вкладки в нижнем меню, роль-
+  // зависимо — например, у мастера "Склад"/"Смена" сами являются вкладками),
+  // не имели способа вернуться назад кроме свайпа/системной кнопки браузера.
+  const navPaths = nav.map((n) => n.to);
+  const showBack = !navPaths.includes(location.pathname);
+
+  // Pull-to-refresh: жест ловится здесь (единственный скролл-контейнер
+  // приложения), но данные грузит страница — см. PullToRefreshContext.
+  // Работает, только если текущая страница зарегистрировала свою load().
+  function handleTouchStart(e) {
+    if (refreshing || !ptr?.hasHandler()) {
+      pullingRef.current = false;
+      return;
+    }
+    if (scrollRef.current && scrollRef.current.scrollTop <= 0) {
+      touchStartY.current = e.touches[0].clientY;
+      pullingRef.current = true;
+    } else {
+      pullingRef.current = false;
+    }
+  }
+
+  function handleTouchMove(e) {
+    if (!pullingRef.current || refreshing) return;
+    const dy = e.touches[0].clientY - touchStartY.current;
+    if (dy <= 0 || (scrollRef.current && scrollRef.current.scrollTop > 0)) {
+      setPullY(0);
+      return;
+    }
+    setPullY(Math.min(dy * 0.5, PULL_MAX));
+  }
+
+  async function handleTouchEnd() {
+    if (!pullingRef.current) return;
+    pullingRef.current = false;
+    if (pullY >= PULL_THRESHOLD && ptr) {
+      setRefreshing(true);
+      setPullY(PULL_THRESHOLD);
+      try {
+        await ptr.trigger();
+      } finally {
+        setRefreshing(false);
+        setPullY(0);
+      }
+    } else {
+      setPullY(0);
+    }
+  }
 
   return (
     <div style={{ maxWidth: MAX_WIDTH, margin: '0 auto', minHeight: '100vh', background: C.bg, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '16px 20px 12px', background: C.bg, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {isHome ? (
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-            Безопасный бизнес · {currentCompany?.name}
-          </div>
-        ) : (
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {showBack && (
+            <button
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/more'))}
+              aria-label="Назад"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, marginLeft: -4, display: 'flex', alignItems: 'center', flexShrink: 0 }}
+            >
+              <Icon name="arrow" size={18} color={C.secondary} />
+            </button>
+          )}
+          {isHome ? (
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+              Безопасный бизнес · {currentCompany?.name}
+            </div>
+          ) : (
+            <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
+          )}
+        </div>
         <div
           onClick={() => navigate('/settings')}
           style={{ width: 34, height: 34, borderRadius: '50%', background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#FFF', cursor: 'pointer' }}
@@ -71,7 +143,31 @@ export default function Layout() {
         </div>
       </div>
 
-      <div style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto' }}>
+      <div
+        ref={scrollRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto' }}
+      >
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: refreshing ? 40 : pullY,
+            overflow: 'hidden',
+            transition: pullingRef.current ? 'none' : 'height 0.2s ease',
+          }}
+        >
+          <div
+            style={{
+              width: 20, height: 20, borderRadius: '50%',
+              border: `2px solid ${C.border}`, borderTopColor: C.primary,
+              opacity: refreshing ? 1 : Math.min(pullY / PULL_THRESHOLD, 1),
+              transform: refreshing ? undefined : `rotate(${Math.min(pullY / PULL_THRESHOLD, 1) * 360}deg)`,
+              animation: refreshing ? 'ptr-spin 0.7s linear infinite' : 'none',
+            }}
+          />
+        </div>
         <Outlet />
       </div>
 

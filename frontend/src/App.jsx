@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { PrivateRoute } from './components/PrivateRoute.jsx';
 import Layout from './components/Layout.jsx';
+import { PullToRefreshProvider } from './context/PullToRefreshContext.jsx';
 import Login from './pages/Login.jsx';
 import AcceptInvite from './pages/AcceptInvite.jsx';
 import LegalDocument from './pages/LegalDocument.jsx';
@@ -19,6 +20,7 @@ import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
 import More from './pages/More.jsx';
 import Subscription from './pages/Subscription.jsx';
+import Support from './pages/Support.jsx';
 
 export default function App() {
   return (
@@ -30,7 +32,9 @@ export default function App() {
         path="/"
         element={
           <PrivateRoute>
-            <Layout />
+            <PullToRefreshProvider>
+              <Layout />
+            </PullToRefreshProvider>
           </PrivateRoute>
         }
       >
@@ -83,6 +87,7 @@ export default function App() {
         />
         <Route path="settings" element={<Settings />} />
         <Route path="subscription" element={<Subscription />} />
+        <Route path="support" element={<Support />} />
         <Route path="more" element={<More />} />
       </Route>
     </Routes>
