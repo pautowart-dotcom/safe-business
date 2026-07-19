@@ -115,24 +115,28 @@ export default function Users() {
 
       {inviteUrl && (
         <Card style={{ borderColor: C.primary + '33' }}>
-          <ST>Ссылка-приглашение</ST>
-          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>Отправьте сотруднику. После перехода он присоединится к компании.</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <ST>Ссылка-приглашение</ST>
+            <button onClick={() => { setInviteUrl(''); setCopied(false); setCopyFailed(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Скрыть</button>
+          </div>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>Отправьте сотруднику. После перехода он присоединится к компании. Ссылку можно скопировать в любой момент, пока карточка открыта.</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', fontSize: 13, color: C.secondary, marginBottom: 12, wordBreak: 'break-all' }}>{inviteUrl}</div>
-          <Btn
-            onClick={async () => {
-              const ok = await copyToClipboard(inviteUrl);
-              if (ok) {
-                setCopied(true);
-                setCopyFailed(false);
-                setTimeout(() => { setCopied(false); setInviteUrl(''); }, 1200);
-              } else {
-                setCopyFailed(true);
-              }
-            }}
-            variant={copied ? 'green' : 'primary'}
-          >
-            {copied ? '✓ Скопировано!' : 'Скопировать ссылку'}
-          </Btn>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Btn
+              small
+              onClick={async () => {
+                const ok = await copyToClipboard(inviteUrl);
+                setCopyFailed(!ok);
+                if (ok) {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }
+              }}
+            >
+              Скопировать ссылку
+            </Btn>
+            {copied && <span style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>✓ Скопировано!</span>}
+          </div>
           {copyFailed && (
             <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>
               Не удалось скопировать автоматически — выделите ссылку выше вручную.

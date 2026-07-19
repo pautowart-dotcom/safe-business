@@ -11,6 +11,7 @@ const OWNER_ITEMS = [
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
   { label: 'Обратная связь', sub: 'Сообщения от мастеров', icon: 'msg', to: '/feedback' },
   { label: 'Команда', sub: 'Мастера, приглашения, удаление', icon: 'team', to: '/team' },
+  { label: 'Филиалы', sub: 'Адреса студии, если их несколько', icon: 'home', to: '/branches' },
   { label: 'Настройки', sub: 'Компания, профиль, подписка', icon: 'settings', to: '/settings' },
 ];
 

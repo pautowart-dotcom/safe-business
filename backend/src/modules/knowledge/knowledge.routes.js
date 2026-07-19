@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
 
@@ -64,7 +65,7 @@ router.patch(
       `UPDATE knowledge_sections SET name = COALESCE($1, name), sort_order = COALESCE($2, sort_order)
        WHERE id = $3 AND company_id = $4
        RETURNING id, name, sort_order, created_at`,
-      [name || null, sortOrder ?? null, req.params.id, req.tenant.companyId]
+      [name || null, emptyToNull(sortOrder), req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Раздел не найден' });
@@ -173,7 +174,7 @@ router.patch(
          updated_at = now()
        WHERE id = $5 AND company_id = $6
        RETURNING id, section_id, title, content, sort_order, created_at, updated_at`,
-      [title || null, content !== undefined ? content : null, sortOrder ?? null, sectionId || null, req.params.id, req.tenant.companyId]
+      [title || null, content !== undefined ? content : null, emptyToNull(sortOrder), sectionId || null, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Статья не найдена' });

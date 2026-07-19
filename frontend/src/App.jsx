@@ -12,6 +12,7 @@ import Checklists from './pages/Checklists.jsx';
 import Knowledge from './pages/Knowledge.jsx';
 import Security from './pages/Security.jsx';
 import Users from './pages/Users.jsx';
+import Branches from './pages/Branches.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
 import More from './pages/More.jsx';
@@ -49,6 +50,14 @@ export default function App() {
           element={
             <PrivateRoute ownerOnly>
               <Users />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="branches"
+          element={
+            <PrivateRoute ownerOnly>
+              <Branches />
             </PrivateRoute>
           }
         />

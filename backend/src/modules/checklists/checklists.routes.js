@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
 
@@ -66,7 +67,7 @@ router.patch(
          active = COALESCE($3, active)
        WHERE id = $4 AND company_id = $5
        RETURNING id, name, description, active, created_at`,
-      [name || null, description || null, active ?? null, req.params.id, req.tenant.companyId]
+      [name || null, description || null, emptyToNull(active), req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Чек-лист не найден' });
@@ -154,7 +155,7 @@ router.patch(
       `UPDATE checklist_items SET label = COALESCE($1, label), sort_order = COALESCE($2, sort_order)
        WHERE id = $3 AND company_id = $4
        RETURNING id, template_id, label, sort_order`,
-      [label || null, sortOrder ?? null, req.params.itemId, req.tenant.companyId]
+      [label || null, emptyToNull(sortOrder), req.params.itemId, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Пункт не найден' });

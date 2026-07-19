@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const emptyToNull = require('../../utils/emptyToNull');
 const { logEvent } = require('../../core/eventLog');
 
 const router = express.Router();
@@ -65,7 +66,7 @@ router.patch(
          occurred_at = COALESCE($3, occurred_at)
        WHERE id = $4 AND company_id = $5
        RETURNING id, name, amount, occurred_at, created_at`,
-      [name || null, amount ?? null, occurredAt || null, req.params.id, req.tenant.companyId]
+      [name || null, emptyToNull(amount), occurredAt || null, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Расход не найден' });

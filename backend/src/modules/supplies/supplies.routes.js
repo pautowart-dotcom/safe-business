@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
 
@@ -65,7 +66,7 @@ router.patch(
          low_stock_threshold = COALESCE($4, low_stock_threshold)
        WHERE id = $5 AND company_id = $6
        RETURNING id, name, unit, product_url, quantity, low_stock_threshold, created_at`,
-      [name || null, unit || null, productUrl || null, lowStockThreshold ?? null, req.params.id, req.tenant.companyId]
+      [name || null, unit || null, productUrl || null, emptyToNull(lowStockThreshold), req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Позиция не найдена' });

@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const emptyToNull = require('../../utils/emptyToNull');
 const { logEvent } = require('../../core/eventLog');
 
 const router = express.Router();
@@ -54,7 +55,7 @@ router.patch(
          active = COALESCE($3, active)
        WHERE id = $4 AND company_id = $5
        RETURNING id, name, kind, amount, active, created_at`,
-      [name || null, amount ?? null, active ?? null, req.params.id, req.tenant.companyId]
+      [name || null, emptyToNull(amount), emptyToNull(active), req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Статья расходов не найдена' });
