@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '', branchId: '' };
@@ -12,6 +13,7 @@ export default function Users() {
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM);
   const [inviteUrl, setInviteUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ payoutPercent: '', branchId: '' });
   const [confirmDel, setConfirmDel] = useState(null);
@@ -29,6 +31,8 @@ export default function Users() {
   async function handleInvite() {
     const { data } = await api.post('/platform/memberships/invite', inviteForm);
     setInviteUrl(data.inviteUrl);
+    setCopied(false);
+    setCopyFailed(false);
     setInviteForm(EMPTY_INVITE_FORM);
     setShowInviteForm(false);
     load();
@@ -115,11 +119,25 @@ export default function Users() {
           <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>Отправьте сотруднику. После перехода он присоединится к компании.</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', fontSize: 13, color: C.secondary, marginBottom: 12, wordBreak: 'break-all' }}>{inviteUrl}</div>
           <Btn
-            onClick={() => { navigator.clipboard?.writeText(inviteUrl); setCopied(true); setTimeout(() => { setCopied(false); setInviteUrl(''); }, 1200); }}
+            onClick={async () => {
+              const ok = await copyToClipboard(inviteUrl);
+              if (ok) {
+                setCopied(true);
+                setCopyFailed(false);
+                setTimeout(() => { setCopied(false); setInviteUrl(''); }, 1200);
+              } else {
+                setCopyFailed(true);
+              }
+            }}
             variant={copied ? 'green' : 'primary'}
           >
             {copied ? '✓ Скопировано!' : 'Скопировать ссылку'}
           </Btn>
+          {copyFailed && (
+            <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>
+              Не удалось скопировать автоматически — выделите ссылку выше вручную.
+            </div>
+          )}
         </Card>
       )}
 
