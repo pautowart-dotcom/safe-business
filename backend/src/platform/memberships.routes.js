@@ -12,6 +12,19 @@ const router = express.Router();
 
 router.use(requireAuth, requireTenant);
 
+// FRONTEND_URL — необязательный явный оверрайд (например, если API когда-то
+// будет доступен не только через тот же публичный домен, что и фронтенд).
+// Если не задан (как оказалось на проде — .env разошёлся с ожиданиями),
+// берём хост из самого запроса: nginx прокидывает оригинальный Host клиента
+// (deploy/nginx.conf: proxy_set_header Host $host), так что req.get('host')
+// всегда совпадает с тем, что видит браузер в адресной строке — само
+// подстраивается под домен/TLS, если они появятся позже.
+function publicBaseUrl(req) {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  const proto = req.get('x-forwarded-proto') || req.protocol;
+  return `${proto}://${req.get('host')}`;
+}
+
 router.get(
   '/',
   requireRole('owner'),
@@ -59,7 +72,7 @@ router.post(
       membershipId: rows[0].id,
       role: rows[0].role,
       inviteToken,
-      inviteUrl: `${process.env.FRONTEND_URL || ''}/invite/${inviteToken}`,
+      inviteUrl: `${publicBaseUrl(req)}/invite/${inviteToken}`,
     });
   })
 );
