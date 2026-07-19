@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, Select, Icon, C } from '../ui/components.jsx';
@@ -62,7 +63,11 @@ function money(value) {
   return `${Number(value).toLocaleString('ru-RU')} ₽`;
 }
 
-async function downloadPdf(sessionId, setError) {
+// Сам тест и результат (индекс, зона, карта нарушений) бесплатны всем —
+// платный барьер стоит только на скачивании файла (backend: 402 на
+// /reports/:id/download, см. requirePaidPlan). Кнопка "Скачать PDF" в этом
+// случае не показывает ошибку, а ведёт на экран оформления подписки.
+async function downloadPdf(sessionId, setError, navigate) {
   try {
     const created = await api.post(`/modules/security/sessions/${sessionId}/report`);
     const pdfRes = await api.get(`/modules/security/reports/${created.data.id}/download`, { responseType: 'blob' });
@@ -75,12 +80,17 @@ async function downloadPdf(sessionId, setError) {
     link.remove();
     window.URL.revokeObjectURL(url);
   } catch (err) {
+    if (err.response?.status === 402) {
+      navigate('/subscription');
+      return;
+    }
     setError(err.response?.data?.error || 'Не удалось сформировать отчёт');
   }
 }
 
 export default function Security() {
   const { isOwner } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState(null);
@@ -184,7 +194,7 @@ export default function Security() {
     );
   }
   if (auditResult) {
-    return <AuditResult result={auditResult} onClose={() => setAuditResult(null)} onDownload={() => downloadPdf(auditResult.session.id, setError)} />;
+    return <AuditResult result={auditResult} onClose={() => setAuditResult(null)} onDownload={() => downloadPdf(auditResult.session.id, setError, navigate)} />;
   }
   if (!profile || editingProfile) {
     return (
@@ -214,7 +224,7 @@ export default function Security() {
       onStartAudit={startAudit}
       onResolveViolation={resolveViolation}
       onJoinWaitlist={joinWaitlist}
-      onDownloadReport={(sessionId) => downloadPdf(sessionId, setError)}
+      onDownloadReport={(sessionId) => downloadPdf(sessionId, setError, navigate)}
       onDocumentsChange={loadDashboardData}
     />
   );

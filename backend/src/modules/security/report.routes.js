@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
+const { requirePaidPlan } = require('../../core/middleware/subscription');
 const { logEvent } = require('../../core/eventLog');
 const repository = require('./content/repository');
 const { buildReport } = require('./report/build');
@@ -118,8 +119,13 @@ router.get(
 // PDF не хранится на диске — пересобирается из session+violations по
 // требованию (данные детерминированы, дешевле не держать файловое хранилище
 // для MVP). Если позже понадобится кэш/S3 — меняется только этот роут.
+//
+// Сам тест и результат (индекс, зона, карта нарушений) бесплатны всем —
+// paywall стоит только на этом роуте (скачивание файла), не на генерации
+// записи отчёта (POST /sessions/:id/report) и не на /sessions/:id/result.
 router.get(
   '/reports/:id/download',
+  requirePaidPlan,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM security_reports WHERE id = $1 AND company_id = $2', [
       req.params.id,

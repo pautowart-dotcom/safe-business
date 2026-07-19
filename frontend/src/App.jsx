@@ -18,6 +18,7 @@ import AdminLegalDocs from './pages/AdminLegalDocs.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
 import More from './pages/More.jsx';
+import Subscription from './pages/Subscription.jsx';
 
 export default function App() {
   return (
@@ -81,6 +82,7 @@ export default function App() {
           }
         />
         <Route path="settings" element={<Settings />} />
+        <Route path="subscription" element={<Subscription />} />
         <Route path="more" element={<More />} />
       </Route>
     </Routes>
