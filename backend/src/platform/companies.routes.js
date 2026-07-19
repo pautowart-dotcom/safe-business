@@ -93,7 +93,7 @@ router.patch(
   '/current',
   requireAuth,
   requireTenant,
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, industrySegment } = req.body;
     const { rows } = await pool.query(

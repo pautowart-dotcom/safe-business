@@ -20,7 +20,7 @@ function money(v) {
 }
 
 export default function Dashboard() {
-  const { user, currentCompany, isOwner } = useAuth();
+  const { user, currentCompany, isManagement } = useAuth();
   const navigate = useNavigate();
   const [visits, setVisits] = useState([]);
   const [revenue, setRevenue] = useState(0);
@@ -30,7 +30,7 @@ export default function Dashboard() {
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
     const requests = [api.get('/modules/visits', { params: { dateFrom: `${today}T00:00:00`, dateTo: `${today}T23:59:59` } })];
-    if (isOwner) {
+    if (isManagement) {
       requests.push(api.get('/modules/finance/summary', { params: { period: 'today' } }));
       requests.push(api.get('/modules/security/sessions'));
     }
@@ -38,13 +38,13 @@ export default function Dashboard() {
     Promise.all(requests)
       .then(([v, fin, sessions]) => {
         setVisits(v.data);
-        if (isOwner) {
+        if (isManagement) {
           setRevenue(fin.data.revenue);
           setSecurity(sessions.data.find((s) => s.status === 'completed') || null);
         }
       })
       .finally(() => setLoading(false));
-  }, [isOwner]);
+  }, [isManagement]);
 
   if (loading) return <div className="page-loading">Загрузка...</div>;
 
@@ -55,18 +55,18 @@ export default function Dashboard() {
     <div>
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
-          {isOwner ? `${greeting()} 👋` : `Привет, ${firstName} 👋`}
+          {isManagement ? `${greeting()} 👋` : `Привет, ${firstName} 👋`}
         </div>
         <div style={{ fontSize: 13, color: C.subtle, marginTop: 4 }}>
-          {isOwner ? currentCompany?.name : ''} {isOwner && '· '}
+          {isManagement ? currentCompany?.name : ''} {isManagement && '· '}
           {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
         <div style={{ background: C.primary, borderRadius: 14, padding: 16 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(isOwner ? revenue : masterEarned)}</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>{isOwner ? 'Выручка сегодня' : 'Мои финансы'}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(isManagement ? revenue : masterEarned)}</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>{isManagement ? 'Выручка сегодня' : 'Мои финансы'}</div>
         </div>
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
           <div style={{ fontSize: 22, fontWeight: 800 }}>{visits.length}</div>
@@ -74,7 +74,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {isOwner && security && (
+      {isManagement && security && (
         <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -89,7 +89,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {isOwner && !security && (
+      {isManagement && !security && (
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Безопасность</div>
           <div style={{ fontSize: 12, color: C.subtle }}>Пройдите тест безопасности, чтобы увидеть индекс безопасности →</div>
@@ -97,7 +97,7 @@ export default function Dashboard() {
       )}
 
       <Card>
-        <ST>{isOwner ? 'Визиты сегодня' : 'Сегодня'}</ST>
+        <ST>{isManagement ? 'Визиты сегодня' : 'Сегодня'}</ST>
         {visits.length === 0 ? (
           <div className="empty-hint">На сегодня визитов нет</div>
         ) : (
@@ -108,7 +108,7 @@ export default function Dashboard() {
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{v.client_last_name} {v.client_first_name}</div>
                   <div style={{ fontSize: 12, color: C.subtle }}>
-                    {v.service} {isOwner && v.master_name && `· ${v.master_name.split(' ')[0]} `}·{' '}
+                    {v.service} {isManagement && v.master_name && `· ${v.master_name.split(' ')[0]} `}·{' '}
                     {new Date(v.visit_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
@@ -119,7 +119,7 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {!isOwner && (
+      {!isManagement && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
             { label: 'Клиенты', icon: 'clients', to: '/clients' },

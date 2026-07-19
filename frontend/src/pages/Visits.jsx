@@ -76,7 +76,7 @@ function PhotoUploadCell({ label, url, onUploaded }) {
 }
 
 export default function Visits() {
-  const { isOwner } = useAuth();
+  const { isManagement } = useAuth();
   const [visits, setVisits] = useState([]);
   const [masters, setMasters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,11 +100,11 @@ export default function Visits() {
   usePullToRefresh(load);
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (!isManagement) return;
     api.get('/platform/memberships').then((res) => {
       setMasters(res.data.filter((m) => m.role === 'master' && m.user_id));
     });
-  }, [isOwner]);
+  }, [isManagement]);
 
   useEffect(() => {
     if (form.clientId || !form.lastName || form.lastName.length < 2) {
@@ -118,7 +118,7 @@ export default function Visits() {
   }, [form.lastName, form.clientId]);
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isOwner ? '' : undefined });
+    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined });
     setEditingId(null);
     setClientMatches([]);
     setSaved(false);
@@ -176,7 +176,7 @@ export default function Visits() {
       amount: Number(form.amount),
       discountPercent: Number(form.discountPercent) || 0,
       visitAt: form.visitAt ? new Date(form.visitAt).toISOString() : undefined,
-      masterMembershipId: isOwner ? form.masterMembershipId || undefined : undefined,
+      masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
       photoBeforeUrl: form.photoBeforeUrl || null,
       photoAfterUrl: form.photoAfterUrl || null,
     };
@@ -237,7 +237,7 @@ export default function Visits() {
                 value={form.firstName}
                 disabled={!!form.clientId}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                onKeyDown={(e) => handleEnter(e, isOwner ? undefined : serviceRef)}
+                onKeyDown={(e) => handleEnter(e, isManagement ? undefined : serviceRef)}
                 placeholder="Анна"
               />
             </Field>
@@ -260,7 +260,7 @@ export default function Visits() {
             </div>
           )}
 
-          {isOwner && (
+          {isManagement && (
             <Field label="Мастер">
               <Select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
                 <option value="">Выберите мастера</option>
@@ -329,7 +329,7 @@ export default function Visits() {
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{v.client_last_name} {v.client_first_name}</div>
                   <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                    {v.service} {isOwner && v.master_name && `· ${v.master_name.split(' ')[0]} `}· {new Date(v.visit_at).toLocaleString('ru-RU')}
+                    {v.service} {isManagement && v.master_name && `· ${v.master_name.split(' ')[0]} `}· {new Date(v.visit_at).toLocaleString('ru-RU')}
                   </div>
                 </div>
               </div>

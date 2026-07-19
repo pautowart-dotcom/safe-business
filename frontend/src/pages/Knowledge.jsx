@@ -6,7 +6,7 @@ import { Card, ST, BackBtn, Field, TextInput, TextArea, Select, Btn, C } from '.
 const EMPTY_ARTICLE_FORM = { title: '', content: '', sectionId: '' };
 
 export default function Knowledge() {
-  const { isOwner } = useAuth();
+  const { isManagement } = useAuth();
   const [sections, setSections] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -92,7 +92,7 @@ export default function Knowledge() {
         <ST>{sections.find((s) => s.id === selected.section_id)?.name}</ST>
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{selected.title}</div>
         <Card><div style={{ fontSize: 15, color: C.secondary, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{selected.content}</div></Card>
-        {isOwner && (
+        {isManagement && (
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <Btn small onClick={() => openEditArticle(selected)}>Редактировать</Btn>
             <Btn small variant="secondary" onClick={() => handleDeleteArticle(selected.id)}>Удалить</Btn>
@@ -128,16 +128,16 @@ export default function Knowledge() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>База знаний</div>
-        {isOwner && <button onClick={openCreateArticle} disabled={sections.length === 0} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>}
+        {isManagement && <button onClick={openCreateArticle} disabled={sections.length === 0} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>}
       </div>
-      {isOwner && !showSectionForm && <div style={{ marginBottom: 12 }}><Btn small variant="secondary" onClick={() => setShowSectionForm(true)}>+ Новый раздел</Btn></div>}
-      {isOwner && showSectionForm && (
+      {isManagement && !showSectionForm && <div style={{ marginBottom: 12 }}><Btn small variant="secondary" onClick={() => setShowSectionForm(true)}>+ Новый раздел</Btn></div>}
+      {isManagement && showSectionForm && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <TextInput autoFocus placeholder="Название раздела" value={sectionName} onChange={(e) => setSectionName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSectionSubmit(); }} />
           <Btn small onClick={handleSectionSubmit}>Создать</Btn>
         </div>
       )}
-      {!isOwner && (
+      {!isManagement && (
         <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.subtle }}>Редактирование доступно только владельцу студии</div>
       )}
 
@@ -146,7 +146,7 @@ export default function Knowledge() {
       {visibleSections.map((section) => (
         <div key={section.id} style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10 }}>
-            {isOwner && renamingSectionId === section.id ? (
+            {isManagement && renamingSectionId === section.id ? (
               <TextInput
                 autoFocus
                 defaultValue={section.name}
@@ -156,10 +156,10 @@ export default function Knowledge() {
               />
             ) : (
               <ST>
-                <span onClick={() => isOwner && setRenamingSectionId(section.id)} style={isOwner ? { cursor: 'pointer' } : undefined}>{section.name}</span>
+                <span onClick={() => isManagement && setRenamingSectionId(section.id)} style={isManagement ? { cursor: 'pointer' } : undefined}>{section.name}</span>
               </ST>
             )}
-            {isOwner && <button onClick={() => handleDeleteSection(section.id)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>Удалить раздел</button>}
+            {isManagement && <button onClick={() => handleDeleteSection(section.id)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>Удалить раздел</button>}
           </div>
           <Card style={{ padding: 0 }}>
             {section.articles.map((a, i, arr) => (

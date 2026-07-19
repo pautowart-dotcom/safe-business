@@ -4,6 +4,7 @@ import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '', branchId: '' };
+const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 
 export default function Users() {
   const [members, setMembers] = useState([]);
@@ -65,6 +66,7 @@ export default function Users() {
         <Field label="Роль">
           <Select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
             <option value="master">Мастер</option>
+            <option value="admin">Администратор</option>
             <option value="owner">Владелец</option>
           </Select>
         </Field>
@@ -92,9 +94,11 @@ export default function Users() {
       <div>
         <BackBtn onClick={() => setEditing(null)} />
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Изменить условия: {editing.user_name || editing.invited_email}</div>
-        <Field label="% выплаты от суммы визита">
-          <TextInput type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
-        </Field>
+        {editing.role === 'master' && (
+          <Field label="% выплаты от суммы визита">
+            <TextInput type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
+          </Field>
+        )}
         <Field label="Филиал">
           <Select value={editForm.branchId} onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}>
             <option value="">Не указан</option>
@@ -154,7 +158,7 @@ export default function Users() {
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{m.user_name || m.invited_email || 'Приглашение отправлено'}</div>
                 <div style={{ fontSize: 12, color: C.subtle }}>
-                  {m.role === 'owner' ? 'Владелец' : 'Мастер'}
+                  {ROLE_LABELS[m.role] || m.role}
                   {m.role === 'master' && m.payout_percent != null && ` · ${m.payout_percent}% от чека`}
                   {branches.find((b) => b.id === m.branch_id) && ` · ${branches.find((b) => b.id === m.branch_id).name}`}
                 </div>
@@ -164,7 +168,7 @@ export default function Users() {
               <Badge color={m.invite_status === 'active' ? C.green : C.subtle} bg={m.invite_status === 'active' ? C.greenBg : C.surface}>
                 {m.invite_status === 'active' ? 'Активен' : 'Ожидает'}
               </Badge>
-              {m.role === 'master' && (
+              {m.role !== 'owner' && (
                 confirmDel === m.id ? (
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Btn small variant="red" onClick={() => handleRemove(m.id)}>Удалить</Btn>

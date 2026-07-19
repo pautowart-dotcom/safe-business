@@ -135,7 +135,7 @@ router.post(
       return res.status(400).json({ error: 'Клиент не найден в этой компании' });
     }
 
-    if (req.tenant.role === 'owner' && !masterMembershipId) {
+    if (req.tenant.role !== 'master' && !masterMembershipId) {
       return res.status(400).json({ error: 'Укажите мастера, который выполнил визит' });
     }
     const resolvedMasterId = await resolveMasterMembership(req.tenant.companyId, req.tenant, masterMembershipId);
@@ -211,7 +211,7 @@ router.patch(
 
     let masterMembershipToSet = current.master_membership_id;
     let payoutPercentToSet = current.master_payout_percent;
-    if (req.tenant.role === 'owner' && masterMembershipId && masterMembershipId !== current.master_membership_id) {
+    if (req.tenant.role !== 'master' && masterMembershipId && masterMembershipId !== current.master_membership_id) {
       const resolved = await resolveMasterMembership(req.tenant.companyId, req.tenant, masterMembershipId);
       if (!resolved) {
         return res.status(400).json({ error: 'Мастер не найден в этой компании' });

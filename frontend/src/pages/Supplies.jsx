@@ -6,7 +6,7 @@ import { Card, BackBtn, Field, TextInput, Btn, Badge, Icon, C } from '../ui/comp
 const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0' };
 
 export default function Supplies() {
-  const { isOwner } = useAuth();
+  const { isManagement } = useAuth();
   const [supplies, setSupplies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -91,7 +91,7 @@ export default function Supplies() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>Склад расходников</div>
-        {isOwner && (
+        {isManagement && (
           <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>
         )}
       </div>
@@ -118,7 +118,7 @@ export default function Supplies() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {isOwner && (
+                  {isManagement && (
                     <button onClick={() => adjust(s.id, 'receive', 1)} style={{ background: C.greenBg, border: `1px solid ${C.green}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.green, cursor: 'pointer', fontWeight: 600 }}>+ Пришло</button>
                   )}
                   <button onClick={() => adjust(s.id, 'deduct', 1)} style={{ background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.red, cursor: 'pointer', fontWeight: 600 }}>− Списать</button>
@@ -127,10 +127,10 @@ export default function Supplies() {
                       <Icon name="link" size={12} color={C.secondary} />Купить
                     </a>
                   )}
-                  {isOwner && (
+                  {isManagement && (
                     <button onClick={() => openEdit(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 12, marginLeft: 'auto' }}>Изменить</button>
                   )}
-                  {isOwner && (
+                  {isManagement && (
                     <button onClick={() => handleDelete(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>
                   )}
                 </div>

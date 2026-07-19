@@ -30,7 +30,7 @@ router.get(
 
 router.post(
   '/templates',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, description } = req.body;
     if (!name) {
@@ -57,7 +57,7 @@ router.post(
 
 router.patch(
   '/templates/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, description, active } = req.body;
     const { rows } = await pool.query(
@@ -88,7 +88,7 @@ router.patch(
 
 router.delete(
   '/templates/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query(
       'DELETE FROM checklist_templates WHERE id = $1 AND company_id = $2',
@@ -113,7 +113,7 @@ router.delete(
 
 router.post(
   '/templates/:id/items',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { label, sortOrder } = req.body;
     if (!label) {
@@ -148,7 +148,7 @@ router.post(
 
 router.patch(
   '/items/:itemId',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { label, sortOrder } = req.body;
     const { rows } = await pool.query(
@@ -176,7 +176,7 @@ router.patch(
 
 router.delete(
   '/items/:itemId',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query('DELETE FROM checklist_items WHERE id = $1 AND company_id = $2', [
       req.params.itemId,
@@ -245,7 +245,7 @@ router.get(
 // запись (UNIQUE в схеме), повторная отметка просто обновляет её.
 router.post(
   '/items/:itemId/mark',
-  requireRole('master', 'owner'),
+  requireRole('master', 'owner', 'admin'),
   asyncHandler(async (req, res) => {
     const checked = req.body.checked !== false;
     const date = req.body.date || new Date().toISOString().slice(0, 10);

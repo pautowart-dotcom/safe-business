@@ -48,7 +48,7 @@ export default function App() {
         <Route
           path="security"
           element={
-            <PrivateRoute ownerOnly>
+            <PrivateRoute managementOnly>
               <Security />
             </PrivateRoute>
           }
@@ -56,7 +56,7 @@ export default function App() {
         <Route
           path="team"
           element={
-            <PrivateRoute ownerOnly>
+            <PrivateRoute managementOnly>
               <Users />
             </PrivateRoute>
           }
@@ -64,7 +64,7 @@ export default function App() {
         <Route
           path="branches"
           element={
-            <PrivateRoute ownerOnly>
+            <PrivateRoute managementOnly>
               <Branches />
             </PrivateRoute>
           }
@@ -72,7 +72,7 @@ export default function App() {
         <Route
           path="admin/legal"
           element={
-            <PrivateRoute ownerOnly>
+            <PrivateRoute managementOnly>
               <AdminLegalDocs />
             </PrivateRoute>
           }
@@ -80,7 +80,7 @@ export default function App() {
         <Route
           path="feedback"
           element={
-            <PrivateRoute ownerOnly>
+            <PrivateRoute managementOnly>
               <Feedback />
             </PrivateRoute>
           }

@@ -22,7 +22,7 @@ router.get(
 
 router.post(
   '/',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, address } = req.body;
     if (!name) {
@@ -38,7 +38,7 @@ router.post(
 
 router.patch(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, address } = req.body;
     const { rows } = await pool.query(
@@ -56,7 +56,7 @@ router.patch(
 
 router.delete(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query('DELETE FROM branches WHERE id = $1 AND company_id = $2', [
       req.params.id,

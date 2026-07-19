@@ -101,8 +101,8 @@ function ExpRow({ label, value, onEdit, onDel }) {
 }
 
 export default function Finance() {
-  const { isOwner } = useAuth();
-  return isOwner ? <OwnerFinance /> : <MasterFinance />;
+  const { isManagement } = useAuth();
+  return isManagement ? <OwnerFinance /> : <MasterFinance />;
 }
 
 // ---------- Владелец ----------
@@ -293,9 +293,13 @@ function OverviewTab({
   return (
     <div>
       <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Чистая прибыль</div>
-        <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-1.5px', color: summary.netProfit >= 0 ? '#FFF' : '#FCA5A5' }}>{money(summary.netProfit)}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
+        {summary.netProfit != null && (
+          <>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Чистая прибыль</div>
+            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-1.5px', color: summary.netProfit >= 0 ? '#FFF' : '#FCA5A5' }}>{money(summary.netProfit)}</div>
+          </>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: summary.netProfit != null ? 16 : 0 }}>
           {[['Выручка', summary.revenue], ['Зарплаты', summary.masterSalaries], ['Пост. расходы', summary.fixedExpenses], ['% расходы', summary.percentExpenses], ['Перем. расходы', summary.variableExpenses], ['Всего расходов', totalExpenses]].map(([l, v]) => (
             <div key={l}>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{money(v)}</div>

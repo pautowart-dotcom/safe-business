@@ -47,7 +47,7 @@ async function loadReportInputs(session, profile) {
 
 router.post(
   '/sessions/:id/report',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM security_sessions WHERE id = $1 AND company_id = $2', [
       req.params.id,

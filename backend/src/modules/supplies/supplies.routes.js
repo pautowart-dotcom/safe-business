@@ -27,7 +27,7 @@ router.get(
 // списание, управление позициями" у владельца, "только списание" у мастера).
 router.post(
   '/',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, unit, productUrl, quantity, lowStockThreshold } = req.body;
     if (!name) {
@@ -55,7 +55,7 @@ router.post(
 
 router.patch(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, unit, productUrl, lowStockThreshold } = req.body;
     const { rows } = await pool.query(
@@ -87,7 +87,7 @@ router.patch(
 
 router.delete(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query('DELETE FROM supplies WHERE id = $1 AND company_id = $2', [
       req.params.id,
@@ -155,7 +155,7 @@ async function applyMovement(req, type, quantity) {
 // "Пришло" — приход товара, только владелец.
 router.post(
   '/:id/receive',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const quantity = parseFloat(req.body.quantity);
     if (!quantity || quantity <= 0) {

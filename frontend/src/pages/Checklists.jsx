@@ -11,7 +11,7 @@ function formatTime(iso) {
 }
 
 export default function Checklists() {
-  const { isOwner } = useAuth();
+  const { isManagement } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [marks, setMarks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -162,13 +162,13 @@ export default function Checklists() {
     );
   }
 
-  const visibleTemplates = isOwner ? templates : templates.filter((t) => t.active);
+  const visibleTemplates = isManagement ? templates : templates.filter((t) => t.active);
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>Чек-листы</div>
-        {isOwner && <button onClick={() => setShowForm(true)} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Новый</button>}
+        {isManagement && <button onClick={() => setShowForm(true)} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Новый</button>}
       </div>
 
       {visibleTemplates.length === 0 && <div className="empty-hint">Чек-листов пока нет</div>}
@@ -188,14 +188,14 @@ export default function Checklists() {
                 <div style={{ fontSize: 15, fontWeight: 700 }}>{template.name}{!template.active && ' (отключён)'}</div>
                 {template.description && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{template.description}</div>}
               </div>
-              {isOwner && (
+              {isManagement && (
                 <button onClick={() => setEditingTemplate(template)} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Icon name="edit" size={13} color={C.secondary} />Изменить
                 </button>
               )}
             </div>
 
-            {isOwner ? (
+            {isManagement ? (
               <div>
                 {firstMark && (
                   <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>

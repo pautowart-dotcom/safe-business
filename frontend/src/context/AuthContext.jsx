@@ -170,6 +170,12 @@ export function AuthProvider({ children }) {
         logout,
         acceptInvite,
         isOwner: currentCompany?.role === 'owner',
+        isAdmin: currentCompany?.role === 'admin',
+        // Этап 5: администратор управляет компанией наравне с владельцем
+        // (кроме итоговой прибыли/маржи — это скрывается на бэкенде, не тут).
+        // Используется везде, где раньше проверялось isOwner для доступа к
+        // разделам/действиям, не связанным именно с итоговой прибылью.
+        isManagement: currentCompany?.role === 'owner' || currentCompany?.role === 'admin',
         isSuperAdmin: !!user?.is_super_admin,
       }}
     >

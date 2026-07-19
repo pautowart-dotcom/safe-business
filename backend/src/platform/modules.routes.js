@@ -27,7 +27,7 @@ router.get(
 
 router.post(
   '/:key/enable',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     await pool.query(
       `INSERT INTO company_modules (company_id, module_key, enabled, enabled_at)
@@ -49,7 +49,7 @@ router.post(
 
 router.post(
   '/:key/disable',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     await pool.query(
       `INSERT INTO company_modules (company_id, module_key, enabled)

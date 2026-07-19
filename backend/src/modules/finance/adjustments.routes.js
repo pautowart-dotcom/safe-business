@@ -46,7 +46,7 @@ router.get(
 
 router.post(
   '/',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { masterMembershipId, amount, comment, occurredAt } = req.body;
     if (!masterMembershipId || amount === undefined || amount === null || amount === '' || !comment || !comment.trim()) {
@@ -82,7 +82,7 @@ router.post(
 
 router.patch(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { amount, comment, occurredAt } = req.body;
     if (comment !== undefined && !comment.trim()) {
@@ -116,7 +116,7 @@ router.patch(
 
 router.delete(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query('DELETE FROM finance_adjustments WHERE id = $1 AND company_id = $2', [
       req.params.id,

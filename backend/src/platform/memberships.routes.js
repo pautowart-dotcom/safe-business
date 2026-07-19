@@ -27,7 +27,7 @@ function publicBaseUrl(req) {
 
 router.get(
   '/',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.invite_status, m.invited_email, m.created_at,
@@ -44,11 +44,11 @@ router.get(
 
 router.post(
   '/invite',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { role, branchId, payoutPercent, invitedEmail } = req.body;
-    if (!role || !['owner', 'master'].includes(role)) {
-      return res.status(400).json({ error: 'Укажите корректную роль (owner или master)' });
+    if (!role || !['owner', 'master', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Укажите корректную роль (owner, admin или master)' });
     }
 
     const inviteToken = crypto.randomBytes(24).toString('hex');
@@ -77,12 +77,14 @@ router.post(
   })
 );
 
-// Изменение мастера владельцем: % выплаты и/или филиал.
-// Роль сознательно не меняется этим эндпоинтом — понижение/повышение owner<->master
-// не входит в задачи управления командой и требует отдельного продуманного флоу.
+// Изменение мастера/администратора владельцем (или другим админом): % выплаты
+// и/или филиал (payout_percent применим только к мастеру, для admin просто
+// не меняется). Роль сознательно не меняется этим эндпоинтом — повышение/
+// понижение между owner/admin/master не входит в задачи управления командой
+// и требует отдельного продуманного флоу.
 router.patch(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { payoutPercent, branchId } = req.body;
 
@@ -100,7 +102,7 @@ router.patch(
       `UPDATE memberships SET
          payout_percent = COALESCE($1, payout_percent),
          branch_id = COALESCE($2, branch_id)
-       WHERE id = $3 AND company_id = $4 AND role = 'master'
+       WHERE id = $3 AND company_id = $4 AND role IN ('master', 'admin')
        RETURNING id, role, branch_id, payout_percent, invite_status`,
       [emptyToNull(payoutPercent), emptyToNull(branchId), req.params.id, req.tenant.companyId]
     );
@@ -123,10 +125,10 @@ router.patch(
 
 router.delete(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query(
-      `DELETE FROM memberships WHERE id = $1 AND company_id = $2 AND role = 'master'`,
+      `DELETE FROM memberships WHERE id = $1 AND company_id = $2 AND role IN ('master', 'admin')`,
       [req.params.id, req.tenant.companyId]
     );
     if (rowCount === 0) {

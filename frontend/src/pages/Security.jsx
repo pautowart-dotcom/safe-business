@@ -89,7 +89,7 @@ async function downloadPdf(sessionId, setError, navigate) {
 }
 
 export default function Security() {
-  const { isOwner } = useAuth();
+  const { isManagement } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -218,7 +218,7 @@ export default function Security() {
       documents={documents}
       documentSections={documentSections}
       products={products}
-      isOwner={isOwner}
+      isManagement={isManagement}
       error={error}
       onEditProfile={() => setEditingProfile(true)}
       onStartAudit={startAudit}
@@ -388,7 +388,7 @@ function AuditResult({ result, onClose, onDownload }) {
 // ---------- Главная панель ----------
 
 function SecurityDashboard({
-  profile, sessions, violations, documents, documentSections, products, isOwner, error,
+  profile, sessions, violations, documents, documentSections, products, isManagement, error,
   onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange,
 }) {
   const [tab, setTab] = useState('overview');
@@ -403,7 +403,7 @@ function SecurityDashboard({
       <div style={{ fontSize: 20, fontWeight: 800 }}>Безопасность</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         {nicheLabel} · {LEGAL_FORM_OPTIONS.find((o) => o.value === profile.legalForm)?.label}
-        {isOwner && <span onClick={onEditProfile} style={{ color: C.primary, fontWeight: 600, cursor: 'pointer', marginLeft: 8 }}>Изменить</span>}
+        {isManagement && <span onClick={onEditProfile} style={{ color: C.primary, fontWeight: 600, cursor: 'pointer', marginLeft: 8 }}>Изменить</span>}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -430,15 +430,15 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab lastCompleted={lastCompleted} products={products} isOwner={isOwner} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
+        <OverviewTab lastCompleted={lastCompleted} products={products} isManagement={isManagement} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
       )}
-      {tab === 'violations' && <ViolationsTab violations={violations} isOwner={isOwner} onResolve={onResolveViolation} />}
-      {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isOwner={isOwner} onChange={onDocumentsChange} />}
+      {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
+      {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} />}
     </div>
   );
 }
 
-function OverviewTab({ lastCompleted, products, isOwner, onStartAudit, onJoinWaitlist, onDownloadReport }) {
+function OverviewTab({ lastCompleted, products, isManagement, onStartAudit, onJoinWaitlist, onDownloadReport }) {
   return (
     <div>
       <Card>
@@ -448,19 +448,19 @@ function OverviewTab({ lastCompleted, products, isOwner, onStartAudit, onJoinWai
             <Badge color={ZONE_COLOR[lastCompleted.zone]} bg={ZONE_BG[lastCompleted.zone]}>{ZONE_LABELS[lastCompleted.zone]}</Badge>
             <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {lastCompleted.index_percent}%</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {isOwner && <Btn small variant="secondary" onClick={onStartAudit}>Пройти ещё раз</Btn>}
-              {isOwner && <Btn small onClick={() => onDownloadReport(lastCompleted.id)}>Скачать PDF</Btn>}
+              {isManagement && <Btn small variant="secondary" onClick={onStartAudit}>Пройти ещё раз</Btn>}
+              {isManagement && <Btn small onClick={() => onDownloadReport(lastCompleted.id)}>Скачать PDF</Btn>}
             </div>
           </div>
         ) : products?.audit.available ? (
           <div>
             <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>34 вопроса, бесплатно. Полная карта нарушений, дорожная карта устранения и персональный PDF-отчёт.</div>
-            {isOwner && <Btn onClick={onStartAudit}>Пройти тест безопасности</Btn>}
+            {isManagement && <Btn onClick={onStartAudit}>Пройти тест безопасности</Btn>}
           </div>
         ) : (
           <div>
             <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Тест безопасности для вашей ниши сейчас в разработке. Мы уведомим вас о запуске.</div>
-            {isOwner && <Btn small variant="secondary" onClick={() => onJoinWaitlist('paid_audit')}>Сообщить о запуске</Btn>}
+            {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('paid_audit')}>Сообщить о запуске</Btn>}
           </div>
         )}
       </Card>
@@ -468,13 +468,13 @@ function OverviewTab({ lastCompleted, products, isOwner, onStartAudit, onJoinWai
       <Card>
         <ST>Пакет документов</ST>
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Готовый комплект документов под вашу нишу. Скоро запуск.</div>
-        {isOwner && <Btn small variant="secondary" onClick={() => onJoinWaitlist('document_package')}>Сообщить о запуске</Btn>}
+        {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('document_package')}>Сообщить о запуске</Btn>}
       </Card>
 
       <Card>
         <ST>Подписка «Спокойствие»</ST>
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Постоянный контроль изменений требований и документов. Скоро запуск.</div>
-        {isOwner && <Btn small variant="secondary" onClick={() => onJoinWaitlist('subscription_calm')}>Сообщить о запуске</Btn>}
+        {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('subscription_calm')}>Сообщить о запуске</Btn>}
       </Card>
 
       <div style={{ fontSize: 12, color: C.subtle, textAlign: 'center', marginTop: 8 }}>
@@ -484,7 +484,7 @@ function OverviewTab({ lastCompleted, products, isOwner, onStartAudit, onJoinWai
   );
 }
 
-function ViolationsTab({ violations, isOwner, onResolve }) {
+function ViolationsTab({ violations, isManagement, onResolve }) {
   const open = violations.filter((v) => v.status === 'open');
   const resolved = violations.filter((v) => v.status === 'resolved');
 
@@ -495,20 +495,20 @@ function ViolationsTab({ violations, isOwner, onResolve }) {
   return (
     <div>
       <ST>Открытые ({open.length})</ST>
-      {open.map((v) => <ViolationCard key={v.id} violation={v} isOwner={isOwner} onResolve={onResolve} />)}
+      {open.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} />)}
       {open.length === 0 && <div className="empty-hint">Открытых нарушений нет.</div>}
 
       {resolved.length > 0 && (
         <>
           <div style={{ marginTop: 20 }}><ST>Устранено ({resolved.length})</ST></div>
-          {resolved.map((v) => <ViolationCard key={v.id} violation={v} isOwner={isOwner} onResolve={onResolve} />)}
+          {resolved.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} />)}
         </>
       )}
     </div>
   );
 }
 
-function ViolationCard({ violation, isOwner, onResolve }) {
+function ViolationCard({ violation, isManagement, onResolve }) {
   const color = riskColor(violation.risk);
   return (
     <Card style={{ borderLeft: `3px solid ${violation.status === 'resolved' ? C.green : color}`, opacity: violation.status === 'resolved' ? 0.7 : 1 }}>
@@ -524,7 +524,7 @@ function ViolationCard({ violation, isOwner, onResolve }) {
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
         <strong>Стоимость:</strong> {violation.free ? 'бесплатно' : money(violation.costMin)} · <strong>Срок:</strong> {violation.daysMin} дн.
       </div>
-      {isOwner && violation.status === 'open' && <Btn small variant="green" onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>}
+      {isManagement && violation.status === 'open' && <Btn small variant="green" onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>}
     </Card>
   );
 }
@@ -535,7 +535,7 @@ function ViolationCard({ violation, isOwner, onResolve }) {
 // произвольный список. Если для ниши ещё нет контента отчёта (sections
 // пустой), используем общий фолбэк-список категорий, чтобы загрузка
 // документов всё равно работала.
-function DocumentsTab({ documents, sections, isOwner, onChange }) {
+function DocumentsTab({ documents, sections, isManagement, onChange }) {
   const categories = sections.length > 0 ? sections.map((s) => s.title) : DOCUMENT_CATEGORIES;
   const itemsByCategory = {};
   for (const s of sections) itemsByCategory[s.title] = s.items;
@@ -598,7 +598,7 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 12 }}>
         Разделы соответствуют структуре отчёта — так видно, какие документы относятся к каждой категории требований.
       </div>
-      {isOwner && <div style={{ marginBottom: 16 }}><Btn small onClick={openForm}>+ Добавить документ</Btn></div>}
+      {isManagement && <div style={{ marginBottom: 16 }}><Btn small onClick={openForm}>+ Добавить документ</Btn></div>}
 
       {categories.map((category) => (
         <div key={category} style={{ marginBottom: 16 }}>
@@ -613,7 +613,7 @@ function DocumentsTab({ documents, sections, isOwner, onChange }) {
                   <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: C.primary, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Icon name="doc" size={15} color={C.secondary} />{doc.name}
                   </a>
-                  {isOwner && (
+                  {isManagement && (
                     <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
                       <button onClick={() => openEdit(doc)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 12 }}>Изменить</button>
                       <button onClick={() => remove(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>

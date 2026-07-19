@@ -1,8 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export function PrivateRoute({ children, ownerOnly = false }) {
-  const { user, currentCompany, loading, isOwner } = useAuth();
+export function PrivateRoute({ children, managementOnly = false }) {
+  const { user, currentCompany, loading, isManagement } = useAuth();
 
   if (loading) {
     return <div className="page-loading">Загрузка...</div>;
@@ -13,7 +13,7 @@ export function PrivateRoute({ children, ownerOnly = false }) {
   if (!user || !currentCompany) {
     return <Navigate to="/login" replace />;
   }
-  if (ownerOnly && !isOwner) {
+  if (managementOnly && !isManagement) {
     return <Navigate to="/" replace />;
   }
   return children;

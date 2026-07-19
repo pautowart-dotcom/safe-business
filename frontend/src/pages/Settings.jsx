@@ -4,10 +4,10 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Btn, Icon, C } from '../ui/components.jsx';
 
-const ROLE_LABELS = { owner: 'Владелец', master: 'Мастер' };
+const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 
 export default function Settings() {
-  const { user, currentCompany, isOwner, logout, switchCompany, renameCurrentCompany } = useAuth();
+  const { user, currentCompany, isManagement, logout, switchCompany, renameCurrentCompany } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);
   const [editingCompany, setEditingCompany] = useState(false);
@@ -63,7 +63,7 @@ export default function Settings() {
         </div>
       </Card>
 
-      {isOwner && company && (
+      {isManagement && company && (
         <Card>
           {editingCompany ? (
             <>
@@ -87,7 +87,7 @@ export default function Settings() {
         </Card>
       )}
 
-      {isOwner && company?.subscription_status === 'trial' && (
+      {isManagement && company?.subscription_status === 'trial' && (
         <Card style={{ background: C.greenBg, borderColor: C.green + '44', cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>🎉 Бесплатный период</div>
           <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>

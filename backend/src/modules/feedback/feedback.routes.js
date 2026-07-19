@@ -10,7 +10,7 @@ const router = express.Router();
 // (мастер -> владелец), README: "Обратная связь передаётся владельцу".
 router.get(
   '/',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT f.id, f.message, f.read, f.created_at, u.name AS from_name
@@ -52,7 +52,7 @@ router.post(
 
 router.patch(
   '/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE feedback_messages SET read = true WHERE id = $1 AND company_id = $2

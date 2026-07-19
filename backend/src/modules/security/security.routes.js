@@ -63,7 +63,7 @@ router.get(
 
 router.post(
   '/profile',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { legalForm, workModel, segment, niche } = req.body;
     if (!legalForm || !workModel || !segment) {
@@ -142,7 +142,7 @@ router.get(
 
 router.post(
   '/waitlist',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { productKey } = req.body;
     if (!['paid_audit', 'document_package', 'subscription_calm'].includes(productKey)) {
@@ -175,7 +175,7 @@ router.get(
 
 router.post(
   '/sessions',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const profile = await loadProfile(req.tenant.companyId);
     if (!profile || !profile.niche) {
@@ -224,7 +224,7 @@ async function loadOwnedSession(req) {
 
 router.post(
   '/sessions/:id/answers',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
@@ -252,7 +252,7 @@ router.post(
 
 router.post(
   '/sessions/:id/complete',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
@@ -327,7 +327,7 @@ router.get(
 
 router.post(
   '/sessions/:id/feedback',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
@@ -373,7 +373,7 @@ router.get(
 
 router.patch(
   '/violations/:id/resolve',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE security_violations SET status = 'resolved', resolved_at = now(), resolved_by_membership_id = $1
@@ -429,7 +429,7 @@ router.get(
 
 router.post(
   '/documents',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { category, name, fileUrl } = req.body;
     if (!category || !name || !fileUrl) {
@@ -456,7 +456,7 @@ router.post(
 
 router.patch(
   '/documents/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { category, name, fileUrl } = req.body;
     const { rows } = await pool.query(
@@ -485,7 +485,7 @@ router.patch(
 
 router.delete(
   '/documents/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query('DELETE FROM security_documents WHERE id = $1 AND company_id = $2', [
       req.params.id,

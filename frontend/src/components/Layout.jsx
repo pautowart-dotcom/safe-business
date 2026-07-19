@@ -50,7 +50,7 @@ const TITLES = {
 };
 
 export default function Layout() {
-  const { user, currentCompany, isOwner } = useAuth();
+  const { user, currentCompany, isManagement } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const ptr = usePullToRefreshController();
@@ -60,8 +60,8 @@ export default function Layout() {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
-  const nav = isOwner ? OWNER_NAV : MASTER_NAV;
-  const hubPaths = isOwner ? OWNER_HUB_PATHS : MASTER_HUB_PATHS;
+  const nav = isManagement ? OWNER_NAV : MASTER_NAV;
+  const hubPaths = isManagement ? OWNER_HUB_PATHS : MASTER_HUB_PATHS;
   const isHome = location.pathname === '/';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));
   const initial = user?.name?.[0]?.toUpperCase() || '?';

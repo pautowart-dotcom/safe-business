@@ -95,14 +95,16 @@ router.get(
 
     const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - variableExpenses;
 
-    res.json({
+    // Этап 5: администратор видит выручку и расходы, но не итоговую
+    // прибыль/маржу компании — поле просто не попадает в ответ, а не
+    // скрывается на фронтенде, чтобы не полагаться на доверие к клиенту.
+    const summary = {
       period: { from, to, days },
       revenue: round2(revenue),
       masterSalaries: round2(masterSalaries),
       fixedExpenses: round2(fixedExpenses),
       percentExpenses: round2(percentExpenses),
       variableExpenses: round2(variableExpenses),
-      netProfit: round2(netProfit),
       byMaster: byMaster.rows.map((r) => ({
         masterMembershipId: r.master_membership_id,
         masterName: r.master_name,
@@ -110,7 +112,11 @@ router.get(
         revenue: round2(parseFloat(r.revenue)),
         earnings: round2(parseFloat(r.earnings)),
       })),
-    });
+    };
+    if (req.tenant.role !== 'admin') {
+      summary.netProfit = round2(netProfit);
+    }
+    res.json(summary);
   })
 );
 

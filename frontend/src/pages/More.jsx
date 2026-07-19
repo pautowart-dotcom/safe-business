@@ -123,6 +123,6 @@ function MasterMore() {
 }
 
 export default function More() {
-  const { isOwner } = useAuth();
-  return isOwner ? <OwnerMore /> : <MasterMore />;
+  const { isManagement } = useAuth();
+  return isManagement ? <OwnerMore /> : <MasterMore />;
 }

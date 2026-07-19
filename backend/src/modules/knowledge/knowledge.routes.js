@@ -31,7 +31,7 @@ router.get(
 
 router.post(
   '/sections',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, sortOrder } = req.body;
     if (!name) {
@@ -58,7 +58,7 @@ router.post(
 
 router.patch(
   '/sections/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, sortOrder } = req.body;
     const { rows } = await pool.query(
@@ -86,7 +86,7 @@ router.patch(
 
 router.delete(
   '/sections/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query(
       'DELETE FROM knowledge_sections WHERE id = $1 AND company_id = $2',
@@ -126,7 +126,7 @@ router.get(
 
 router.post(
   '/sections/:id/articles',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { title, content, sortOrder } = req.body;
     if (!title) {
@@ -162,7 +162,7 @@ router.post(
 
 router.patch(
   '/articles/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { title, content, sortOrder, sectionId } = req.body;
     const { rows } = await pool.query(
@@ -195,7 +195,7 @@ router.patch(
 
 router.delete(
   '/articles/:id',
-  requireRole('owner'),
+  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query('DELETE FROM knowledge_articles WHERE id = $1 AND company_id = $2', [
       req.params.id,
