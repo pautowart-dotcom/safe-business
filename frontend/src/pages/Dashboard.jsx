@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [visits, setVisits] = useState([]);
   const [revenue, setRevenue] = useState(0);
   const [security, setSecurity] = useState(null);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,14 +34,19 @@ export default function Dashboard() {
     if (isManagement) {
       requests.push(api.get('/modules/finance/summary', { params: { period: 'today' } }));
       requests.push(api.get('/modules/security/sessions'));
+      // Этап 7 соберёт полноценный блок "Внимание сегодня" (статус смены,
+      // отчёты, расходники, безопасность) — до тех пор минимальный вариант:
+      // просто предупреждение, что что-то на складе ниже минимума.
+      requests.push(api.get('/modules/supplies'));
     }
 
     Promise.all(requests)
-      .then(([v, fin, sessions]) => {
+      .then(([v, fin, sessions, supplies]) => {
         setVisits(v.data);
         if (isManagement) {
           setRevenue(fin.data.revenue);
           setSecurity(sessions.data.find((s) => s.status === 'completed') || null);
+          setLowStockCount(supplies.data.filter((s) => s.low_stock).length);
         }
       })
       .finally(() => setLoading(false));
@@ -73,6 +79,15 @@ export default function Dashboard() {
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>Визитов сегодня</div>
         </div>
       </div>
+
+      {isManagement && lowStockCount > 0 && (
+        <Card style={{ borderLeft: `3px solid ${C.red}`, cursor: 'pointer' }} onClick={() => navigate('/supplies')}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.red, marginBottom: 4 }}>⚠️ Расходники заканчиваются</div>
+          <div style={{ fontSize: 12, color: C.subtle }}>
+            {lowStockCount === 1 ? '1 позиция ниже минимального остатка' : `${lowStockCount} позиций ниже минимального остатка`} · Открыть →
+          </div>
+        </Card>
+      )}
 
       {isManagement && security && (
         <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
