@@ -60,4 +60,42 @@ router.get(
   })
 );
 
+// Редактор юридических документов (оферта, политика конфиденциальности) —
+// текст живёт в БД, а не в коде, чтобы менять его без участия
+// программистов (see docs/task-batch-2.txt, Этап 2). Отдаётся публично
+// без авторизации через legal.routes.js; здесь — только редактирование.
+router.get(
+  '/legal-documents',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      'SELECT key, title, content, updated_at FROM legal_documents ORDER BY key'
+    );
+    res.json(rows);
+  })
+);
+
+router.patch(
+  '/legal-documents/:key',
+  asyncHandler(async (req, res) => {
+    const { title, content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Текст документа не может быть пустым' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE legal_documents SET
+         title = COALESCE($1, title),
+         content = $2,
+         updated_at = now(),
+         updated_by_user_id = $3
+       WHERE key = $4
+       RETURNING key, title, content, updated_at`,
+      [title || null, content, req.user.id, req.params.key]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Документ не найден' });
+    }
+    res.json(rows[0]);
+  })
+);
+
 module.exports = router;

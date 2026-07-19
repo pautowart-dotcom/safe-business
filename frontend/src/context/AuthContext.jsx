@@ -126,8 +126,8 @@ export function AuthProvider({ children }) {
   // Принять приглашение по токену (страница /invite/:token). Бэкенд отвечает
   // тем же base-токеном, что и login/register, поэтому дальше — тот же шаг
   // selectCompany(companyId), что и при обычном входе с одной компанией.
-  async function acceptInvite({ token, name, email, password }) {
-    const res = await api.post('/auth/accept-invite', { token, name, email, password });
+  async function acceptInvite({ token, name, email, password, acceptedTerms, analyticsConsent }) {
+    const res = await api.post('/auth/accept-invite', { token, name, email, password, acceptedTerms, analyticsConsent });
     localStorage.setItem('token', res.data.token);
     localStorage.setItem('user', JSON.stringify(res.data.user));
     setUser(res.data.user);

@@ -17,10 +17,14 @@ const OWNER_ITEMS = [
 
 function OwnerMore() {
   const navigate = useNavigate();
+  const { isSuperAdmin } = useAuth();
+  const items = isSuperAdmin
+    ? [...OWNER_ITEMS, { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' }]
+    : OWNER_ITEMS;
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Разделы</div>
-      {OWNER_ITEMS.map((item) => (
+      {items.map((item) => (
         <Card key={item.to} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }} onClick={() => navigate(item.to)}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Icon name={item.icon} size={20} color={C.primary} />

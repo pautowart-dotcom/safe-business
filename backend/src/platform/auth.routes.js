@@ -122,7 +122,7 @@ router.post(
     }
 
     const result = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, password_hash FROM users WHERE email = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, password_hash FROM users WHERE email = $1',
       [email]
     );
     const user = result.rows[0];
@@ -201,7 +201,7 @@ router.get(
 router.post(
   '/accept-invite',
   asyncHandler(async (req, res) => {
-    const { token, name, email, password } = req.body;
+    const { token, name, email, password, acceptedTerms, analyticsConsent } = req.body;
     if (!token) {
       return res.status(400).json({ error: 'Не указан код приглашения' });
     }
@@ -230,14 +230,18 @@ router.post(
       if (password.length < 8) {
         return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });
       }
+      if (!acceptedTerms) {
+        return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
+      }
       const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
         return res.status(409).json({ error: 'Пользователь с таким email уже зарегистрирован — войдите в аккаунт и повторите переход по ссылке' });
       }
       const passwordHash = await bcrypt.hash(password, 10);
       const created = await pool.query(
-        'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id',
-        [name, email, passwordHash]
+        `INSERT INTO users (name, email, password_hash, accepted_terms_at, analytics_consent)
+         VALUES ($1, $2, $3, now(), $4) RETURNING id`,
+        [name, email, passwordHash, !!analyticsConsent]
       );
       userId = created.rows[0].id;
     }
@@ -265,7 +269,7 @@ router.post(
     });
 
     const userResult = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin FROM users WHERE id = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent FROM users WHERE id = $1',
       [userId]
     );
 
@@ -288,6 +292,23 @@ router.get(
         : null;
 
     res.json({ user: req.user, companies, tenant });
+  })
+);
+
+// Согласие на использование обезличенных агрегированных данных для
+// аналитики можно отозвать в любой момент через настройки (политика
+// конфиденциальности, п.10.3) — это единственное поле, которое сейчас
+// редактируется этим эндпоинтом.
+router.patch(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { analyticsConsent } = req.body;
+    if (analyticsConsent === undefined) {
+      return res.status(400).json({ error: 'Нечего обновлять' });
+    }
+    await pool.query('UPDATE users SET analytics_consent = $1 WHERE id = $2', [!!analyticsConsent, req.user.id]);
+    res.json({ analyticsConsent: !!analyticsConsent });
   })
 );
 

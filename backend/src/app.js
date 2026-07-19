@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('./modules');
-const { authRoutes, platformRouter } = require('./platform');
+const { authRoutes, platformRouter, legalRoutes } = require('./platform');
 const { mountModules } = require('./core/modules-registry');
 const { UPLOADS_DIR } = require('./core/uploads');
 
@@ -14,6 +14,9 @@ function buildApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/platform', platformRouter);
+  // Публичный доступ (без авторизации) — нужен на форме приёма приглашения
+  // до создания аккаунта.
+  app.use('/api/legal', legalRoutes);
   // Под /api/, чтобы отдавалось через тот же nginx/vite-прокси, что и
   // остальной бэкенд — без отдельного правила проксирования.
   app.use('/api/uploads', express.static(UPLOADS_DIR));

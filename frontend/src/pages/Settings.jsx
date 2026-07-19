@@ -12,6 +12,7 @@ export default function Settings() {
   const [company, setCompany] = useState(null);
   const [editingCompany, setEditingCompany] = useState(false);
   const [companyName, setCompanyName] = useState('');
+  const [analyticsConsent, setAnalyticsConsent] = useState(!!user?.analytics_consent);
 
   useEffect(() => {
     api.get('/platform/companies/current').then((res) => setCompany(res.data));
@@ -33,6 +34,11 @@ export default function Settings() {
   async function handleSwitch() {
     await switchCompany();
     navigate('/login');
+  }
+
+  async function toggleAnalyticsConsent(checked) {
+    setAnalyticsConsent(checked);
+    await api.patch('/auth/me', { analyticsConsent: checked });
   }
 
   const trialDaysLeft = company?.trial_ends_at
@@ -88,6 +94,21 @@ export default function Settings() {
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — 1 490 ₽/мес</div>
         </Card>
       )}
+
+      <Card>
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Документы</div>
+        <a href="/legal/oferta" target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 14, color: C.primary, textDecoration: 'none', marginBottom: 8 }}>Публичная оферта</a>
+        <a href="/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 14, color: C.primary, textDecoration: 'none' }}>Политика конфиденциальности</a>
+      </Card>
+
+      <Card>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+          <input type="checkbox" checked={analyticsConsent} onChange={(e) => toggleAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
+          <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+            Разрешить использование обезличенных агрегированных данных для аналитики. Можно включить или отключить в любой момент.
+          </span>
+        </label>
+      </Card>
 
       <div onClick={handleSwitch} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px', marginBottom: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
