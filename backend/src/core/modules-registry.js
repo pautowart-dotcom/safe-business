@@ -5,8 +5,8 @@ const pool = require('../db/pool');
 
 const REGISTRY = [];
 
-function registerModule({ key, name, description, icon, category, backendBasePath, frontendEntry, router }) {
-  REGISTRY.push({ key, name, description, icon, category, backendBasePath, frontendEntry, router });
+function registerModule({ key, name, description, icon, category, backendBasePath, frontendEntry, router, toggleable }) {
+  REGISTRY.push({ key, name, description, icon, category, backendBasePath, frontendEntry, router, toggleable: !!toggleable });
 }
 
 async function syncModulesTable() {
@@ -32,8 +32,12 @@ function mountModules(app) {
   }
 }
 
+// toggleable-модули (сейчас только visits/clients, Пакет 3 Этап 1) не входят
+// в автовключение при регистрации компании — для новых компаний они
+// выключены по умолчанию, владелец включает их сам через POST
+// /platform/modules/:key/enable.
 function studioOsBundleKeys() {
-  return REGISTRY.filter((m) => m.category === 'studio-os').map((m) => m.key);
+  return REGISTRY.filter((m) => m.category === 'studio-os' && !m.toggleable).map((m) => m.key);
 }
 
 module.exports = { REGISTRY, registerModule, syncModulesTable, mountModules, studioOsBundleKeys };

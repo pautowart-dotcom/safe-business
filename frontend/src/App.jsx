@@ -40,8 +40,22 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="clients" element={<Clients />} />
-        <Route path="visits" element={<Visits />} />
+        <Route
+          path="clients"
+          element={
+            <PrivateRoute requireModule="clients">
+              <Clients />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="visits"
+          element={
+            <PrivateRoute requireModule="visits">
+              <Visits />
+            </PrivateRoute>
+          }
+        />
         <Route path="finance" element={<Finance />} />
         <Route path="supplies" element={<Supplies />} />
         <Route path="shift" element={<Checklists />} />

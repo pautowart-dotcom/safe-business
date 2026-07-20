@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, BackBtn, Field, TextInput, Btn, Icon, C, F } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
 
 const PERIOD_PRESETS = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['lastMonth', 'Прошлый месяц']];
 const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '' };
 const EMPTY_RECURRING_FORM = { name: '', kind: 'fixed', amount: '' };
 const EMPTY_ADJUSTMENT_FORM = { masterMembershipId: '', amount: '', comment: '', occurredAt: '' };
+const EMPTY_REVENUE_FORM = { amount: '', membershipId: '', comment: '', occurredAt: '' };
 
 function money(v) {
   return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
@@ -114,6 +115,7 @@ function OwnerFinance() {
   const [expenses, setExpenses] = useState([]);
   const [recurring, setRecurring] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
+  const [revenue, setRevenue] = useState([]);
   const [masters, setMasters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expenseForm, setExpenseForm] = useState(null);
@@ -122,6 +124,7 @@ function OwnerFinance() {
   const [editingRecurringId, setEditingRecurringId] = useState(null);
   const [selectedMaster, setSelectedMaster] = useState(null);
   const [adjustmentForm, setAdjustmentForm] = useState(null);
+  const [revenueForm, setRevenueForm] = useState(null);
 
   function load() {
     if (!period.ready) return Promise.resolve();
@@ -133,11 +136,13 @@ function OwnerFinance() {
         return Promise.all([
           api.get('/modules/finance/expenses', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
           api.get('/modules/finance/adjustments', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
+          api.get('/modules/finance/revenue', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
         ]);
       })
-      .then(([exp, adj]) => {
+      .then(([exp, adj, rev]) => {
         setExpenses(exp.data);
         setAdjustments(adj.data);
+        setRevenue(rev.data);
       })
       .finally(() => setLoading(false));
   }
@@ -205,6 +210,24 @@ function OwnerFinance() {
     load();
   }
 
+  function openAddRevenue() {
+    setRevenueForm(EMPTY_REVENUE_FORM);
+  }
+  function closeRevenueForm() {
+    setRevenueForm(null);
+  }
+  async function submitRevenue(e) {
+    e.preventDefault();
+    if (!revenueForm.amount) return;
+    await api.post('/modules/finance/revenue', revenueForm);
+    closeRevenueForm();
+    load();
+  }
+  async function deleteRevenue(id) {
+    await api.delete(`/modules/finance/revenue/${id}`);
+    load();
+  }
+
   async function submitAdjustment(e) {
     e.preventDefault();
     if (!adjustmentForm.amount || !adjustmentForm.comment.trim()) return;
@@ -250,6 +273,14 @@ function OwnerFinance() {
           totalExpenses={totalExpenses}
           recurring={recurring}
           expenses={expenses}
+          revenue={revenue}
+          masters={masters}
+          revenueForm={revenueForm}
+          setRevenueForm={setRevenueForm}
+          openAddRevenue={openAddRevenue}
+          closeRevenueForm={closeRevenueForm}
+          submitRevenue={submitRevenue}
+          deleteRevenue={deleteRevenue}
           recurringForm={recurringForm}
           setRecurringForm={setRecurringForm}
           editingRecurringId={editingRecurringId}
@@ -285,8 +316,61 @@ function OwnerFinance() {
   );
 }
 
+function RevenueRow({ entry, onDelete }) {
+  const isAuto = entry.source === 'auto_from_visit';
+  const label = isAuto ? `Авто · Визит №${entry.visit_id}` : 'Вручную';
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: `1px solid ${C.border}` }}>
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+          <Badge color={isAuto ? C.subtle : C.orange} bg={isAuto ? C.surface : C.orangeBg}>{label}</Badge>
+          <span style={{ fontSize: 12, color: C.subtle }}>{new Date(entry.occurred_at).toLocaleDateString('ru-RU')}</span>
+        </div>
+        <div style={{ fontSize: 13 }}>{entry.master_name || 'Без сотрудника'}{entry.comment ? ` · ${entry.comment}` : ''}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>{money(entry.amount)}</span>
+        {!isAuto && onDelete && (
+          <button onClick={() => onDelete(entry.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+            <Icon name="trash" size={14} color={C.red} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RevenueForm({ form, setForm, masters, onSubmit, onCancel }) {
+  return (
+    <form onSubmit={onSubmit} style={{ background: C.surface, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+      <Field label="Сумма ₽">
+        <TextInput type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} style={{ background: C.bg }} />
+      </Field>
+      <Field label="Сотрудник (необязательно)">
+        <Select value={form.membershipId} onChange={(e) => setForm({ ...form, membershipId: e.target.value })} style={{ background: C.bg }}>
+          <option value="">Без сотрудника</option>
+          {masters.map((m) => (
+            <option key={m.id} value={m.id}>{m.user_name}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Комментарий (необязательно)">
+        <TextInput value={form.comment} onChange={(e) => setForm({ ...form, comment: e.target.value })} placeholder="Например: наличная выручка за день" style={{ background: C.bg }} />
+      </Field>
+      <Field label="Дата">
+        <TextInput type="date" value={form.occurredAt || todayStr()} onChange={(e) => setForm({ ...form, occurredAt: e.target.value })} style={{ background: C.bg }} />
+      </Field>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn small type="submit">Добавить</Btn>
+        <Btn small type="button" variant="secondary" onClick={onCancel}>Отмена</Btn>
+      </div>
+    </form>
+  );
+}
+
 function OverviewTab({
-  summary, totalExpenses, recurring, expenses,
+  summary, totalExpenses, recurring, expenses, revenue, masters,
+  revenueForm, setRevenueForm, openAddRevenue, closeRevenueForm, submitRevenue, deleteRevenue,
   recurringForm, setRecurringForm, editingRecurringId, openAddRecurring, openEditRecurring, closeRecurringForm, submitRecurring, deleteRecurring,
   expenseForm, setExpenseForm, editingExpenseId, openAddExpense, openEditExpense, closeExpenseForm, submitExpense, deleteExpense,
 }) {
@@ -308,6 +392,32 @@ function OverviewTab({
           ))}
         </div>
       </div>
+
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <ST>Выручка</ST>
+          <button onClick={openAddRevenue} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+            <Icon name="plus" size={18} color={C.primary} />
+          </button>
+        </div>
+        {revenueForm && (
+          <RevenueForm form={revenueForm} setForm={setRevenueForm} masters={masters} onSubmit={submitRevenue} onCancel={closeRevenueForm} />
+        )}
+        {revenue.map((r) => (
+          <RevenueRow key={r.id} entry={r} onDelete={deleteRevenue} />
+        ))}
+        {revenue.length === 0 && <div style={{ padding: '10px 0', textAlign: 'center', color: C.subtle, fontSize: 13 }}>Записей о выручке за период нет</div>}
+        {summary.unassignedRevenue > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: 4, fontSize: 12, color: C.subtle }}>
+            <span>из них без сотрудника</span>
+            <span>{money(summary.unassignedRevenue)}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', marginTop: 4, borderTop: `2px solid ${C.border}` }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого</span>
+          <span style={{ fontSize: 14, fontWeight: 800 }}>{money(summary.revenue)}</span>
+        </div>
+      </Card>
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

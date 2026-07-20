@@ -28,6 +28,17 @@ export function AuthProvider({ children }) {
   // Login.jsx рендерит форму создания компании вместо ошибки.
   const [needsCompany, setNeedsCompany] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Пакет 3, Этап 1.1: флаги модулей компании (сейчас — visits/clients,
+  // остальные всегда включены). {} до первой загрузки — hasModule() до этого
+  // момента считает всё доступным, чтобы не мигать нав-баром на типичном
+  // случае (модуль включён), а не наоборот.
+  const [modules, setModules] = useState({});
+
+  function loadModules() {
+    return api.get('/platform/modules').then((res) => {
+      setModules(Object.fromEntries(res.data.map((m) => [m.key, m.enabled])));
+    });
+  }
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -44,6 +55,7 @@ export function AuthProvider({ children }) {
 
         if (tenant) {
           applyCompany(tenant.companyId, companies, tenant.role, tenant.branchId);
+          await loadModules();
         } else if (companies.length === 0) {
           setNeedsCompany(true);
         } else if (companies.length === 1) {
@@ -85,6 +97,7 @@ export function AuthProvider({ children }) {
     setCurrentCompany(null);
     setPendingCompanies(null);
     setNeedsCompany(false);
+    setModules({});
   }
 
   // Меняет активный токен с базового на company-scoped (или переключает
@@ -98,6 +111,8 @@ export function AuthProvider({ children }) {
     localStorage.setItem('currentCompany', JSON.stringify(cc));
     setCurrentCompany(cc);
     setPendingCompanies(null);
+    setModules({});
+    await loadModules();
   }
 
   async function login(email, password) {
@@ -197,6 +212,8 @@ export function AuthProvider({ children }) {
         // разделам/действиям, не связанным именно с итоговой прибылью.
         isManagement: currentCompany?.role === 'owner' || currentCompany?.role === 'admin',
         isSuperAdmin: !!user?.is_super_admin,
+        // false только когда модуль явно выключен (см. комментарий у useState(modules))
+        hasModule: (key) => modules[key] !== false,
       }}
     >
       {children}

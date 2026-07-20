@@ -222,7 +222,7 @@ router.post(
            amount, discount_percent, master_payout_percent, photo_before_url, photo_after_url,
            visit_at, created_by_user_id
          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, now()), $13)
-         RETURNING id`,
+         RETURNING id, visit_at`,
         [
           req.tenant.companyId,
           branchId || req.tenant.branchId || null,
@@ -240,6 +240,14 @@ router.post(
         ]
       );
       visitId = insert.rows[0].id;
+
+      // Пакет 3, Этап 1.2: у каждого визита — своя auto_from_visit-запись в
+      // finance_entries (источник выручки), а не расчёт налету из visits.
+      await dbClient.query(
+        `INSERT INTO finance_entries (company_id, source, visit_id, membership_id, amount, occurred_at, created_by_user_id)
+         VALUES ($1, 'auto_from_visit', $2, $3, ROUND($4 - ($4 * $5 / 100), 2), $6::timestamptz::date, $7)`,
+        [req.tenant.companyId, visitId, resolvedMasterId, amount, discountPercent || 0, insert.rows[0].visit_at, req.user.id]
+      );
 
       if (Array.isArray(supplies) && supplies.length > 0) {
         const result = await applyVisitSupplies(dbClient, {
@@ -354,6 +362,19 @@ router.patch(
           payoutPercentToSet,
           req.params.id,
         ]
+      );
+
+      // Держим finance_entries.amount/membership_id в синхроне с визитом —
+      // без этого правка суммы/скидки/мастера в визите расходилась бы с уже
+      // созданной auto_from_visit-записью (Пакет 3, Этап 1.2).
+      await dbClient.query(
+        `UPDATE finance_entries fe SET
+           amount = ROUND(v.amount - (v.amount * v.discount_percent / 100), 2),
+           membership_id = v.master_membership_id,
+           occurred_at = v.visit_at::date
+         FROM visits v
+         WHERE fe.visit_id = v.id AND v.id = $1`,
+        [req.params.id]
       );
 
       // supplies отсутствует в теле запроса — использование расходников не

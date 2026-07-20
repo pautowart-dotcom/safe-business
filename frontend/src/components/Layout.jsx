@@ -9,17 +9,19 @@ import { C, F, MAX_WIDTH } from '../ui/theme.js';
 const PULL_THRESHOLD = 64;
 const PULL_MAX = 100;
 
+// moduleKey — Пакет 3, Этап 1.1: пункт скрывается, если company.hasModule(key)
+// вернёт false (модуль visits_clients выключен для этой компании).
 const OWNER_NAV = [
   { to: '/', label: 'Главная', icon: 'home', end: true },
-  { to: '/clients', label: 'Клиенты', icon: 'clients' },
-  { to: '/visits', label: 'Визиты', icon: 'visit' },
+  { to: '/clients', label: 'Клиенты', icon: 'clients', moduleKey: 'clients' },
+  { to: '/visits', label: 'Визиты', icon: 'visit', moduleKey: 'visits' },
   { to: '/finance', label: 'Финансы', icon: 'finance' },
   { to: '/more', label: 'Ещё', icon: 'more' },
 ];
 
 const MASTER_NAV = [
   { to: '/', label: 'Главная', icon: 'home', end: true },
-  { to: '/clients', label: 'Клиенты', icon: 'clients' },
+  { to: '/clients', label: 'Клиенты', icon: 'clients', moduleKey: 'clients' },
   { to: '/shift', label: 'Смена', icon: 'shift' },
   { to: '/supplies', label: 'Склад', icon: 'supply' },
   { to: '/finance', label: 'Финансы', icon: 'finance' },
@@ -52,7 +54,7 @@ const TITLES = {
 };
 
 export default function Layout() {
-  const { user, currentCompany, isManagement } = useAuth();
+  const { user, currentCompany, isManagement, hasModule } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const ptr = usePullToRefreshController();
@@ -62,7 +64,7 @@ export default function Layout() {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
-  const nav = isManagement ? OWNER_NAV : MASTER_NAV;
+  const nav = (isManagement ? OWNER_NAV : MASTER_NAV).filter((n) => !n.moduleKey || hasModule(n.moduleKey));
   const hubPaths = isManagement ? OWNER_HUB_PATHS : MASTER_HUB_PATHS;
   const isHome = location.pathname === '/';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));

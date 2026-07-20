@@ -19,6 +19,9 @@ registerModule({
   backendBasePath: BASE_PATH,
   frontendEntry: 'visits',
   router,
+  // Пакет 3, Этап 1.1: единственный опциональный модуль — выключен по
+  // умолчанию для новых компаний, включён явно миграцией для существующих.
+  toggleable: true,
 });
 
 module.exports = router;

@@ -19,6 +19,9 @@ registerModule({
   backendBasePath: BASE_PATH,
   frontendEntry: 'clients',
   router,
+  // См. комментарий в modules/visits/index.js — Визиты и Клиенты образуют
+  // один переключаемый флаг "visits_clients" из docs/task-batch-3.txt.
+  toggleable: true,
 });
 
 module.exports = router;
