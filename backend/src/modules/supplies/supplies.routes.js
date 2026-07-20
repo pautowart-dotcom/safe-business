@@ -4,6 +4,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
+const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
@@ -89,10 +90,20 @@ router.delete(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query('DELETE FROM supplies WHERE id = $1 AND company_id = $2', [
-      req.params.id,
-      req.tenant.companyId,
-    ]);
+    let rowCount;
+    try {
+      ({ rowCount } = await pool.query('DELETE FROM supplies WHERE id = $1 AND company_id = $2', [
+        req.params.id,
+        req.tenant.companyId,
+      ]));
+    } catch (err) {
+      // visit_supplies.supply_id -> supplies(id) ON DELETE RESTRICT: расходник
+      // уже фигурирует в истории визитов, нельзя стереть без потери учёта.
+      if (err.code === '23503') {
+        return res.status(400).json({ error: 'Нельзя удалить: расходник уже использован в визитах' });
+      }
+      throw err;
+    }
     if (rowCount === 0) {
       return res.status(404).json({ error: 'Позиция не найдена' });
     }
@@ -110,40 +121,29 @@ router.delete(
   })
 );
 
-// Меняет остаток внутри транзакции (FOR UPDATE — защита от гонки при
-// одновременном списании) и пишет движение в supply_movements.
+// Обёртка над core/supplyMovements.applySupplyMovement — открывает
+// транзакцию, отдаёт актуальную строку расходника при успехе.
 async function applyMovement(req, type, quantity) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const supply = await client.query(
-      'SELECT id, quantity FROM supplies WHERE id = $1 AND company_id = $2 FOR UPDATE',
-      [req.params.id, req.tenant.companyId]
-    );
-    if (supply.rows.length === 0) {
+    const result = await applySupplyMovement(client, {
+      companyId: req.tenant.companyId,
+      supplyId: req.params.id,
+      type,
+      quantity,
+      userId: req.user.id,
+    });
+    if (result.status !== 'ok') {
       await client.query('ROLLBACK');
-      return 'not_found';
+      return result;
     }
-
-    const current = parseFloat(supply.rows[0].quantity);
-    if (type === 'out' && current < quantity) {
-      await client.query('ROLLBACK');
-      return 'insufficient';
-    }
-
-    const delta = type === 'in' ? quantity : -quantity;
     const updated = await client.query(
-      `UPDATE supplies SET quantity = quantity + $1 WHERE id = $2
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, created_at`,
-      [delta, req.params.id]
-    );
-    await client.query(
-      `INSERT INTO supply_movements (company_id, supply_id, type, quantity, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [req.tenant.companyId, req.params.id, type, quantity, req.user.id]
+      `SELECT id, name, unit, product_url, quantity, low_stock_threshold, created_at FROM supplies WHERE id = $1`,
+      [req.params.id]
     );
     await client.query('COMMIT');
-    return updated.rows[0];
+    return { status: 'ok', supply: updated.rows[0] };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -163,7 +163,7 @@ router.post(
     }
 
     const result = await applyMovement(req, 'in', quantity);
-    if (result === 'not_found') {
+    if (result.status === 'not_found') {
       return res.status(404).json({ error: 'Позиция не найдена' });
     }
 
@@ -177,7 +177,7 @@ router.post(
       payload: { quantity },
     });
 
-    res.json(withLowStock(result));
+    res.json(withLowStock(result.supply));
   })
 );
 
@@ -191,10 +191,10 @@ router.post(
     }
 
     const result = await applyMovement(req, 'out', quantity);
-    if (result === 'not_found') {
+    if (result.status === 'not_found') {
       return res.status(404).json({ error: 'Позиция не найдена' });
     }
-    if (result === 'insufficient') {
+    if (result.status === 'insufficient') {
       return res.status(400).json({ error: 'Недостаточно остатка для списания' });
     }
 
@@ -208,7 +208,7 @@ router.post(
       payload: { quantity },
     });
 
-    res.json(withLowStock(result));
+    res.json(withLowStock(result.supply));
   })
 );
 

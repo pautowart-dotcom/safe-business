@@ -17,7 +17,7 @@ function nowLocal() {
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
   masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: '0',
-  visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '',
+  visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', supplies: [],
 };
 
 function money(v) {
@@ -79,12 +79,16 @@ export default function Visits() {
   const { isManagement } = useAuth();
   const [visits, setVisits] = useState([]);
   const [masters, setMasters] = useState([]);
+  const [supplies, setSupplies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [clientMatches, setClientMatches] = useState([]);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [supplyPick, setSupplyPick] = useState('');
+  const [supplyQty, setSupplyQty] = useState('');
 
   const firstNameRef = useRef(null);
   const serviceRef = useRef(null);
@@ -107,6 +111,10 @@ export default function Visits() {
   }, [isManagement]);
 
   useEffect(() => {
+    api.get('/modules/supplies').then((res) => setSupplies(res.data));
+  }, []);
+
+  useEffect(() => {
     if (form.clientId || !form.lastName || form.lastName.length < 2) {
       setClientMatches([]);
       return;
@@ -118,10 +126,13 @@ export default function Visits() {
   }, [form.lastName, form.clientId]);
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined });
+    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: [] });
     setEditingId(null);
     setClientMatches([]);
     setSaved(false);
+    setError('');
+    setSupplyPick('');
+    setSupplyQty('');
     setShowForm(true);
   }
 
@@ -138,11 +149,31 @@ export default function Visits() {
       visitAt: v.visit_at ? toLocalInputValue(v.visit_at) : nowLocal(),
       photoBeforeUrl: v.photo_before_url || '',
       photoAfterUrl: v.photo_after_url || '',
+      supplies: (v.supplies || []).map((s) => ({ supplyId: s.supplyId, quantity: String(s.quantity), name: s.name, unit: s.unit })),
     });
     setEditingId(v.id);
     setClientMatches([]);
     setSaved(false);
+    setError('');
+    setSupplyPick('');
+    setSupplyQty('');
     setShowForm(true);
+  }
+
+  function addSupplyToForm() {
+    if (!supplyPick || !supplyQty || Number(supplyQty) <= 0) return;
+    const supply = supplies.find((s) => String(s.id) === String(supplyPick));
+    if (!supply) return;
+    setForm({
+      ...form,
+      supplies: [...form.supplies, { supplyId: supply.id, quantity: supplyQty, name: supply.name, unit: supply.unit }],
+    });
+    setSupplyPick('');
+    setSupplyQty('');
+  }
+
+  function removeSupplyFromForm(idx) {
+    setForm({ ...form, supplies: form.supplies.filter((_, i) => i !== idx) });
   }
 
   function pickClient(client) {
@@ -162,32 +193,38 @@ export default function Visits() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setError('');
     let clientId = form.clientId;
-    if (!clientId) {
-      if (!form.lastName || !form.firstName) return;
-      const created = await api.post('/modules/clients', { firstName: form.firstName, lastName: form.lastName });
-      clientId = created.data.id;
-    }
+    try {
+      if (!clientId) {
+        if (!form.lastName || !form.firstName) return;
+        const created = await api.post('/modules/clients', { firstName: form.firstName, lastName: form.lastName });
+        clientId = created.data.id;
+      }
 
-    const payload = {
-      clientId,
-      service: form.service,
-      materials: form.materials || null,
-      amount: Number(form.amount),
-      discountPercent: Number(form.discountPercent) || 0,
-      visitAt: form.visitAt ? new Date(form.visitAt).toISOString() : undefined,
-      masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
-      photoBeforeUrl: form.photoBeforeUrl || null,
-      photoAfterUrl: form.photoAfterUrl || null,
-    };
+      const payload = {
+        clientId,
+        service: form.service,
+        materials: form.materials || null,
+        amount: Number(form.amount),
+        discountPercent: Number(form.discountPercent) || 0,
+        visitAt: form.visitAt ? new Date(form.visitAt).toISOString() : undefined,
+        masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
+        photoBeforeUrl: form.photoBeforeUrl || null,
+        photoAfterUrl: form.photoAfterUrl || null,
+        supplies: form.supplies.map((s) => ({ supplyId: s.supplyId, quantity: Number(s.quantity) })),
+      };
 
-    if (editingId) {
-      await api.patch(`/modules/visits/${editingId}`, payload);
-    } else {
-      await api.post('/modules/visits', payload);
+      if (editingId) {
+        await api.patch(`/modules/visits/${editingId}`, payload);
+      } else {
+        await api.post('/modules/visits', payload);
+      }
+      setSaved(true);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось сохранить визит');
     }
-    setSaved(true);
-    load();
   }
 
   async function handleDelete(id) {
@@ -218,6 +255,7 @@ export default function Visits() {
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить визит' : 'Новый визит'}</div>
+        {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Фамилия">
@@ -296,6 +334,24 @@ export default function Visits() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} />
               <PhotoUploadCell label="после" url={form.photoAfterUrl} onUploaded={(url) => setForm({ ...form, photoAfterUrl: url })} />
+            </div>
+          </Field>
+
+          <Field label="Расходники (необязательно)">
+            {form.supplies.map((s, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+                <span style={{ flex: 1, fontSize: 13 }}>{s.name}</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{s.quantity} {s.unit}</span>
+                <button type="button" onClick={() => removeSupplyFromForm(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 14 }}>✕</button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Select value={supplyPick} onChange={(e) => setSupplyPick(e.target.value)} style={{ flex: 2 }}>
+                <option value="">Выберите расходник</option>
+                {supplies.map((s) => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ''}</option>)}
+              </Select>
+              <TextInput type="number" min="0" step="0.01" placeholder="Кол-во" value={supplyQty} onChange={(e) => setSupplyQty(e.target.value)} style={{ flex: 1 }} />
+              <Btn small type="button" onClick={addSupplyToForm}>+</Btn>
             </div>
           </Field>
 

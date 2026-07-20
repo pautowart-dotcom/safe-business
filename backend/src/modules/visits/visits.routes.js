@@ -3,6 +3,7 @@ const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { logEvent } = require('../../core/eventLog');
 const { uploadPhoto } = require('../../core/uploads');
+const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
@@ -32,6 +33,60 @@ const FROM_CLAUSE = `
   LEFT JOIN memberships mm ON mm.id = v.master_membership_id
   LEFT JOIN users mu ON mu.id = mm.user_id
 `;
+
+// Этап 8: расходники, отмеченные мастером как использованные в визите
+// (docs/task-batch-2.txt — вариант "ручной выбор в визите", без каталога
+// услуг/рецептов). Один батч-запрос на весь список визитов, не N+1.
+async function attachSupplies(rows) {
+  if (rows.length === 0) return rows;
+  const ids = rows.map((r) => r.id);
+  const { rows: vs } = await pool.query(
+    `SELECT vs.visit_id, vs.supply_id, vs.quantity, s.name, s.unit
+     FROM visit_supplies vs JOIN supplies s ON s.id = vs.supply_id
+     WHERE vs.visit_id = ANY($1)`,
+    [ids]
+  );
+  const byVisit = {};
+  for (const r of vs) {
+    (byVisit[r.visit_id] ||= []).push({ supplyId: r.supply_id, quantity: r.quantity, name: r.name, unit: r.unit });
+  }
+  return rows.map((r) => ({ ...r, supplies: byVisit[r.id] || [] }));
+}
+
+// Списывает расходники визита внутри уже открытой транзакции. Возвращает
+// { error } — если какого-то расходника не хватает, вызывающий код
+// откатывает всю транзакцию (визит не создаётся/не обновляется наполовину).
+async function applyVisitSupplies(client, { companyId, visitId, userId, supplies }) {
+  for (const item of supplies) {
+    const quantity = parseFloat(item.quantity);
+    if (!item.supplyId || !quantity || quantity <= 0) {
+      return { error: 'Укажите расходник и положительное количество' };
+    }
+    const result = await applySupplyMovement(client, { companyId, supplyId: item.supplyId, type: 'out', quantity, userId });
+    if (result.status === 'not_found') {
+      return { error: 'Расходник не найден в этой компании' };
+    }
+    if (result.status === 'insufficient') {
+      return { error: `Недостаточно остатка расходника «${result.name}» для списания` };
+    }
+    await client.query(
+      `INSERT INTO visit_supplies (company_id, visit_id, supply_id, quantity) VALUES ($1, $2, $3, $4)`,
+      [companyId, visitId, item.supplyId, quantity]
+    );
+  }
+  return { error: null };
+}
+
+// Возвращает списанные расходники визита обратно на склад и убирает связь —
+// используется перед пересохранением списка расходников визита (PATCH) и
+// перед удалением визита, чтобы остаток не "терялся" молча.
+async function restockVisitSupplies(client, { companyId, visitId, userId }) {
+  const { rows } = await client.query('SELECT supply_id, quantity FROM visit_supplies WHERE visit_id = $1', [visitId]);
+  for (const row of rows) {
+    await applySupplyMovement(client, { companyId, supplyId: row.supply_id, type: 'in', quantity: parseFloat(row.quantity), userId });
+  }
+  await client.query('DELETE FROM visit_supplies WHERE visit_id = $1', [visitId]);
+}
 
 // Мастер видит и ведёт только свои визиты (README, раздел "Визиты").
 // Владелец видит все и может назначать мастера.
@@ -82,7 +137,7 @@ router.get(
        WHERE ${where} ORDER BY v.visit_at DESC LIMIT 200`,
       params
     );
-    res.json(rows);
+    res.json(await attachSupplies(rows));
   })
 );
 
@@ -103,7 +158,7 @@ router.get(
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Визит не найден' });
     }
-    res.json(rows[0]);
+    res.json((await attachSupplies(rows))[0]);
   })
 );
 
@@ -121,6 +176,7 @@ router.post(
       photoBeforeUrl,
       photoAfterUrl,
       masterMembershipId,
+      supplies,
     } = req.body;
 
     if (!clientId || !service || amount === undefined || amount === null) {
@@ -149,33 +205,59 @@ router.post(
       return res.status(400).json({ error: 'Для этого мастера не задан процент выплаты — попросите владельца указать его в разделе «Команда»' });
     }
 
-    const insert = await pool.query(
-      `INSERT INTO visits (
-         company_id, branch_id, client_id, master_membership_id, service, materials,
-         amount, discount_percent, master_payout_percent, photo_before_url, photo_after_url,
-         visit_at, created_by_user_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, now()), $13)
-       RETURNING id`,
-      [
-        req.tenant.companyId,
-        branchId || req.tenant.branchId || null,
-        clientId,
-        resolvedMasterId,
-        service,
-        materials || null,
-        amount,
-        discountPercent || 0,
-        payoutPercent,
-        photoBeforeUrl || null,
-        photoAfterUrl || null,
-        visitAt || null,
-        req.user.id,
-      ]
-    );
+    const dbClient = await pool.connect();
+    let visitId;
+    try {
+      await dbClient.query('BEGIN');
+      const insert = await dbClient.query(
+        `INSERT INTO visits (
+           company_id, branch_id, client_id, master_membership_id, service, materials,
+           amount, discount_percent, master_payout_percent, photo_before_url, photo_after_url,
+           visit_at, created_by_user_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, now()), $13)
+         RETURNING id`,
+        [
+          req.tenant.companyId,
+          branchId || req.tenant.branchId || null,
+          clientId,
+          resolvedMasterId,
+          service,
+          materials || null,
+          amount,
+          discountPercent || 0,
+          payoutPercent,
+          photoBeforeUrl || null,
+          photoAfterUrl || null,
+          visitAt || null,
+          req.user.id,
+        ]
+      );
+      visitId = insert.rows[0].id;
+
+      if (Array.isArray(supplies) && supplies.length > 0) {
+        const result = await applyVisitSupplies(dbClient, {
+          companyId: req.tenant.companyId,
+          visitId,
+          userId: req.user.id,
+          supplies,
+        });
+        if (result.error) {
+          await dbClient.query('ROLLBACK');
+          return res.status(400).json({ error: result.error });
+        }
+      }
+
+      await dbClient.query('COMMIT');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      dbClient.release();
+    }
 
     const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} ${FROM_CLAUSE} WHERE v.id = $1`,
-      [insert.rows[0].id]
+      [visitId]
     );
 
     await logEvent({
@@ -183,11 +265,11 @@ router.post(
       moduleKey: 'visits',
       userId: req.user.id,
       entityType: 'visit',
-      entityId: insert.rows[0].id,
+      entityId: visitId,
       action: 'visit.created',
     });
 
-    res.status(201).json(rows[0]);
+    res.status(201).json((await attachSupplies(rows))[0]);
   })
 );
 
@@ -206,7 +288,7 @@ router.patch(
     }
     const current = existing.rows[0];
 
-    const { clientId, service, materials, amount, discountPercent, visitAt, branchId, photoBeforeUrl, photoAfterUrl, masterMembershipId } =
+    const { clientId, service, materials, amount, discountPercent, visitAt, branchId, photoBeforeUrl, photoAfterUrl, masterMembershipId, supplies } =
       req.body;
 
     let masterMembershipToSet = current.master_membership_id;
@@ -234,35 +316,65 @@ router.patch(
       }
     }
 
-    await pool.query(
-      `UPDATE visits SET
-         client_id = COALESCE($1, client_id),
-         service = COALESCE($2, service),
-         materials = COALESCE($3, materials),
-         amount = COALESCE($4, amount),
-         discount_percent = COALESCE($5, discount_percent),
-         branch_id = COALESCE($6, branch_id),
-         photo_before_url = COALESCE($7, photo_before_url),
-         photo_after_url = COALESCE($8, photo_after_url),
-         visit_at = COALESCE($9, visit_at),
-         master_membership_id = $10,
-         master_payout_percent = $11
-       WHERE id = $12`,
-      [
-        clientId || null,
-        service || null,
-        materials !== undefined ? materials : null,
-        amount === undefined || amount === null ? null : amount,
-        discountPercent === undefined || discountPercent === null ? null : discountPercent,
-        branchId || null,
-        photoBeforeUrl !== undefined ? photoBeforeUrl : null,
-        photoAfterUrl !== undefined ? photoAfterUrl : null,
-        visitAt || null,
-        masterMembershipToSet,
-        payoutPercentToSet,
-        req.params.id,
-      ]
-    );
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query('BEGIN');
+      await dbClient.query(
+        `UPDATE visits SET
+           client_id = COALESCE($1, client_id),
+           service = COALESCE($2, service),
+           materials = COALESCE($3, materials),
+           amount = COALESCE($4, amount),
+           discount_percent = COALESCE($5, discount_percent),
+           branch_id = COALESCE($6, branch_id),
+           photo_before_url = COALESCE($7, photo_before_url),
+           photo_after_url = COALESCE($8, photo_after_url),
+           visit_at = COALESCE($9, visit_at),
+           master_membership_id = $10,
+           master_payout_percent = $11
+         WHERE id = $12`,
+        [
+          clientId || null,
+          service || null,
+          materials !== undefined ? materials : null,
+          amount === undefined || amount === null ? null : amount,
+          discountPercent === undefined || discountPercent === null ? null : discountPercent,
+          branchId || null,
+          photoBeforeUrl !== undefined ? photoBeforeUrl : null,
+          photoAfterUrl !== undefined ? photoAfterUrl : null,
+          visitAt || null,
+          masterMembershipToSet,
+          payoutPercentToSet,
+          req.params.id,
+        ]
+      );
+
+      // supplies отсутствует в теле запроса — использование расходников не
+      // трогаем. Пустой массив — осознанная очистка (мастер убрал все
+      // отметки), тоже возвращает остаток на склад.
+      if (Array.isArray(supplies)) {
+        await restockVisitSupplies(dbClient, { companyId: req.tenant.companyId, visitId: req.params.id, userId: req.user.id });
+        if (supplies.length > 0) {
+          const result = await applyVisitSupplies(dbClient, {
+            companyId: req.tenant.companyId,
+            visitId: req.params.id,
+            userId: req.user.id,
+            supplies,
+          });
+          if (result.error) {
+            await dbClient.query('ROLLBACK');
+            return res.status(400).json({ error: result.error });
+          }
+        }
+      }
+
+      await dbClient.query('COMMIT');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      dbClient.release();
+    }
 
     const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} ${FROM_CLAUSE} WHERE v.id = $1`,
@@ -278,7 +390,7 @@ router.patch(
       action: 'visit.updated',
     });
 
-    res.json(rows[0]);
+    res.json((await attachSupplies(rows))[0]);
   })
 );
 
@@ -292,9 +404,24 @@ router.delete(
       where += ` AND master_membership_id = $${params.length}`;
     }
 
-    const { rowCount } = await pool.query(`DELETE FROM visits WHERE ${where}`, params);
-    if (rowCount === 0) {
-      return res.status(404).json({ error: 'Визит не найден' });
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query('BEGIN');
+      const exists = await dbClient.query(`SELECT id FROM visits WHERE ${where}`, params);
+      if (exists.rows.length === 0) {
+        await dbClient.query('ROLLBACK');
+        return res.status(404).json({ error: 'Визит не найден' });
+      }
+      // Возвращаем на склад всё, что было списано этим визитом, прежде чем
+      // удалить его — иначе расходники "терялись" бы безвозвратно.
+      await restockVisitSupplies(dbClient, { companyId: req.tenant.companyId, visitId: req.params.id, userId: req.user.id });
+      await dbClient.query('DELETE FROM visits WHERE id = $1', [req.params.id]);
+      await dbClient.query('COMMIT');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      dbClient.release();
     }
 
     await logEvent({
