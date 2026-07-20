@@ -18,10 +18,13 @@ const OWNER_ITEMS = [
 
 function OwnerMore() {
   const navigate = useNavigate();
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, isOwner } = useAuth();
+  // Безопасность — только владелец (политика конфиденциальности §8.4,
+  // делегирования доступа администратору пока нет).
+  const base = isOwner ? OWNER_ITEMS : OWNER_ITEMS.filter((i) => i.to !== '/security');
   const items = isSuperAdmin
-    ? [...OWNER_ITEMS, { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' }]
-    : OWNER_ITEMS;
+    ? [...base, { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' }]
+    : base;
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Разделы</div>

@@ -33,7 +33,7 @@ export default function Dashboard() {
 // ---------- Владелец / Администратор ----------
 
 function ManagementDashboard() {
-  const { user, currentCompany } = useAuth();
+  const { user, currentCompany, isOwner } = useAuth();
   const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [revenue, setRevenue] = useState(0);
@@ -50,7 +50,10 @@ function ManagementDashboard() {
         setSummary(res.data);
         return Promise.all([
           api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }),
-          api.get('/modules/security/sessions'),
+          // Данные аудита безопасности видит только владелец (политика
+          // конфиденциальности §8.4) — админу этот эндпоинт отвечает 403,
+          // поэтому не запрашиваем его вовсе, если isOwner=false.
+          isOwner ? api.get('/modules/security/sessions') : Promise.resolve({ data: [] }),
           api.get('/platform/daily-tasks'),
         ]);
       })
@@ -151,7 +154,7 @@ function ManagementDashboard() {
         </div>
       </Card>
 
-      {security ? (
+      {isOwner && (security ? (
         <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>Безопасность</span>
@@ -167,7 +170,7 @@ function ManagementDashboard() {
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Безопасность</div>
           <div style={{ fontSize: 12, color: C.subtle }}>Пройдите тест безопасности, чтобы увидеть индекс безопасности →</div>
         </Card>
-      )}
+      ))}
 
       {summary.byMaster && summary.byMaster.length > 0 && (
         <Card>

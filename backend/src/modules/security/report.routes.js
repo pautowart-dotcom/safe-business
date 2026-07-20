@@ -10,6 +10,11 @@ const { renderPdf } = require('./report/pdf');
 
 const router = express.Router();
 
+// См. security.routes.js — тот же owner-only гейт на весь модуль
+// (политика конфиденциальности §8.4). requirePaidPlan ниже — независимая
+// ось (подписка на платформу), не заменяет ролевую проверку.
+router.use(requireRole('owner'));
+
 async function loadProfile(companyId) {
   const { rows } = await pool.query('SELECT * FROM security_profiles WHERE company_id = $1', [companyId]);
   return rows[0]
@@ -47,7 +52,6 @@ async function loadReportInputs(session, profile) {
 
 router.post(
   '/sessions/:id/report',
-  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM security_sessions WHERE id = $1 AND company_id = $2', [
       req.params.id,

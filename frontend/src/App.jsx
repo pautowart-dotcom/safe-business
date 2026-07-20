@@ -49,7 +49,7 @@ export default function App() {
         <Route
           path="security"
           element={
-            <PrivateRoute managementOnly>
+            <PrivateRoute ownerOnly>
               <Security />
             </PrivateRoute>
           }

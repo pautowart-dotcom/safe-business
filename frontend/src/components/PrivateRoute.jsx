@@ -1,8 +1,11 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export function PrivateRoute({ children, managementOnly = false }) {
-  const { user, currentCompany, loading, isManagement } = useAuth();
+// ownerOnly — строже managementOnly (owner+admin): например, раздел
+// "Безопасность" по политике конфиденциальности §8.4 доступен только
+// владельцу, администратору — нет (пока нет функционала делегирования).
+export function PrivateRoute({ children, managementOnly = false, ownerOnly = false }) {
+  const { user, currentCompany, loading, isManagement, isOwner } = useAuth();
 
   if (loading) {
     return <div className="page-loading">Загрузка...</div>;
@@ -12,6 +15,9 @@ export function PrivateRoute({ children, managementOnly = false }) {
   // /login — там это состояние отрисуется как выбор компании, не форма входа.
   if (!user || !currentCompany) {
     return <Navigate to="/login" replace />;
+  }
+  if (ownerOnly && !isOwner) {
+    return <Navigate to="/" replace />;
   }
   if (managementOnly && !isManagement) {
     return <Navigate to="/" replace />;

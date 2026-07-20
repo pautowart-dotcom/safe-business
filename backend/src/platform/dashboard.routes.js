@@ -149,14 +149,18 @@ router.get(
     }
 
     let lowStockCount = null;
-    let securityIndexPercent = null;
     if (role !== 'master') {
       const supplies = await pool.query(
         `SELECT COUNT(*) AS n FROM supplies WHERE company_id = $1 AND quantity <= low_stock_threshold`,
         [companyId]
       );
       lowStockCount = Number(supplies.rows[0].n);
+    }
 
+    // Политика конфиденциальности §8.4: данные аудита безопасности видит
+    // только владелец — админ и мастер их не получают даже в сводке дашборда.
+    let securityIndexPercent = null;
+    if (role === 'owner') {
       const security = await pool.query(
         `SELECT index_percent FROM security_sessions WHERE company_id = $1 AND status = 'completed'
          ORDER BY completed_at DESC LIMIT 1`,
