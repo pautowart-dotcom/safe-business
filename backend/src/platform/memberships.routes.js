@@ -7,6 +7,7 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { logEvent } = require('../core/eventLog');
+const { logAudit } = require('../core/auditLog');
 
 const router = express.Router();
 
@@ -66,6 +67,13 @@ router.post(
       entityType: 'membership',
       entityId: rows[0].id,
       action: 'membership.invited',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'membership.invited',
+      entityType: 'membership',
+      entityId: rows[0].id,
     });
 
     res.status(201).json({
@@ -142,6 +150,13 @@ router.delete(
       entityType: 'membership',
       entityId: Number(req.params.id),
       action: 'membership.removed',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'membership.removed',
+      entityType: 'membership',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

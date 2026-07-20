@@ -4,6 +4,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
 
 const router = express.Router();
 
@@ -112,6 +113,13 @@ router.delete(
       entityType: 'checklist_template',
       entityId: Number(req.params.id),
       action: 'checklist_template.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'checklist_template.deleted',
+      entityType: 'checklist_template',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

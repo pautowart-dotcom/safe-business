@@ -4,6 +4,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
 
 const router = express.Router();
 
@@ -103,6 +104,13 @@ router.delete(
       entityType: 'knowledge_section',
       entityId: Number(req.params.id),
       action: 'knowledge_section.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'knowledge_section.deleted',
+      entityType: 'knowledge_section',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();
@@ -212,6 +220,13 @@ router.delete(
       entityType: 'knowledge_article',
       entityId: Number(req.params.id),
       action: 'knowledge_article.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'knowledge_article.deleted',
+      entityType: 'knowledge_article',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

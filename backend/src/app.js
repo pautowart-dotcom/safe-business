@@ -7,6 +7,11 @@ const { UPLOADS_DIR } = require('./core/uploads');
 
 function buildApp() {
   const app = express();
+  // За nginx (deploy/nginx.conf выставляет X-Forwarded-For) — без этого
+  // req.ip всегда был бы адресом самого nginx, а не клиента, и
+  // rate limiting логина (core/loginRateLimit.js) бил бы по общей IP-корзине
+  // для всех пользователей сразу.
+  app.set('trust proxy', 1);
   app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
   app.use(express.json());
 

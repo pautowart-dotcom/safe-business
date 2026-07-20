@@ -3,6 +3,8 @@ const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
+const { encrypt, decrypt } = require('../../core/crypto');
 const repository = require('./content/repository');
 const { filterVisible } = require('./content/visibility');
 const scoring = require('./content/scoring');
@@ -242,15 +244,19 @@ router.post(
 
     const evaluated = scoring.evaluateAnswer(question, answerIndex);
 
+    // Ответ и баллы шифруются (политика конфиденциальности §8.2) —
+    // answer_index/points больше не заполняются для новых записей, только
+    // *_enc (см. 0024_security_answers_encryption.sql про NOT NULL и
+    // почему violation_code/index_percent пока не шифруются так же).
     const { rows } = await pool.query(
-      `INSERT INTO security_answers (session_id, company_id, question_code, answer_index, points)
+      `INSERT INTO security_answers (session_id, company_id, question_code, answer_index_enc, points_enc)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (session_id, question_code) DO UPDATE SET answer_index = EXCLUDED.answer_index, points = EXCLUDED.points
-       RETURNING question_code, answer_index`,
-      [session.id, req.tenant.companyId, questionCode, answerIndex, evaluated.points]
+       ON CONFLICT (session_id, question_code) DO UPDATE SET answer_index_enc = EXCLUDED.answer_index_enc, points_enc = EXCLUDED.points_enc
+       RETURNING question_code`,
+      [session.id, req.tenant.companyId, questionCode, encrypt(answerIndex), encrypt(evaluated.points)]
     );
 
-    res.json(rows[0]);
+    res.json({ question_code: rows[0].question_code, answer_index: answerIndex });
   })
 );
 
@@ -264,9 +270,13 @@ router.post(
     const profile = await loadProfile(req.tenant.companyId);
     const questions = await visiblePaidQuestions(profile);
 
-    const answersRes = await pool.query('SELECT question_code, answer_index FROM security_answers WHERE session_id = $1', [session.id]);
+    const answersRes = await pool.query('SELECT question_code, answer_index, answer_index_enc FROM security_answers WHERE session_id = $1', [session.id]);
     const answersByCode = {};
-    for (const row of answersRes.rows) answersByCode[row.question_code] = row.answer_index;
+    // answer_index_enc — новые ответы (зашифрованы); answer_index —
+    // fallback для строк, записанных до 0024_security_answers_encryption.sql.
+    for (const row of answersRes.rows) {
+      answersByCode[row.question_code] = row.answer_index_enc ? Number(decrypt(row.answer_index_enc)) : row.answer_index;
+    }
 
     if (Object.keys(answersByCode).length < questions.length) {
       return res.status(400).json({ error: 'Отвечено не на все вопросы' });
@@ -498,6 +508,13 @@ router.delete(
       entityType: 'security_document',
       entityId: Number(req.params.id),
       action: 'security_document.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'security_document.deleted',
+      entityType: 'security_document',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

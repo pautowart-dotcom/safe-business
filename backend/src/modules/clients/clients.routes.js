@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
 
 const router = express.Router();
 
@@ -131,6 +132,13 @@ router.delete(
       entityType: 'client',
       entityId: Number(req.params.id),
       action: 'client.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'client.deleted',
+      entityType: 'client',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

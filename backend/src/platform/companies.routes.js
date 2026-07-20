@@ -6,6 +6,7 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
+const { logAudit } = require('../core/auditLog');
 
 const router = express.Router();
 
@@ -55,6 +56,13 @@ router.post(
         entityType: 'company',
         entityId: company.id,
         action: 'company.registered',
+      });
+      await logAudit({
+        companyId: company.id,
+        userId: req.user.id,
+        action: 'company.registered',
+        entityType: 'company',
+        entityId: company.id,
       });
 
       res.status(201).json({

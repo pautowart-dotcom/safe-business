@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
 const { uploadPhoto } = require('../../core/uploads');
 const { applySupplyMovement } = require('../../core/supplyMovements');
 
@@ -431,6 +432,13 @@ router.delete(
       entityType: 'visit',
       entityId: Number(req.params.id),
       action: 'visit.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'visit.deleted',
+      entityType: 'visit',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

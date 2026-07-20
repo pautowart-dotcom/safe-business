@@ -6,7 +6,9 @@ const { requireAuth } = require('../core/middleware/auth');
 const { signBaseToken, signCompanyToken, verifyToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
+const { logAudit } = require('../core/auditLog');
 const { uploadPhoto } = require('../core/uploads');
+const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 
 const router = express.Router();
 
@@ -91,6 +93,13 @@ router.post(
         entityId: company.id,
         action: 'company.registered',
       });
+      await logAudit({
+        companyId: company.id,
+        userId: user.id,
+        action: 'company.registered',
+        entityType: 'company',
+        entityId: company.id,
+      });
 
       res.status(201).json({
         token: signBaseToken(user.id),
@@ -122,17 +131,26 @@ router.post(
       return res.status(400).json({ error: 'Введите email и пароль' });
     }
 
+    // Этап 9: ограничение попыток входа — проверяем ДО обращения к
+    // паролю, чтобы сам перебор (даже без правильного email) считался.
+    const allowed = await checkLoginAllowed(req.ip, email);
+    if (!allowed) {
+      return res.status(429).json({ error: 'Слишком много попыток входа. Попробуйте снова через 15 минут.' });
+    }
+
     const result = await pool.query(
       'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, password_hash FROM users WHERE email = $1',
       [email]
     );
     const user = result.rows[0];
     if (!user) {
+      await recordFailedLogin(req.ip, email);
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      await recordFailedLogin(req.ip, email);
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
@@ -267,6 +285,13 @@ router.post(
       entityType: 'membership',
       entityId: membership.id,
       action: 'membership.accepted',
+    });
+    await logAudit({
+      companyId: membership.company_id,
+      userId,
+      action: 'membership.accepted',
+      entityType: 'membership',
+      entityId: membership.id,
     });
 
     const userResult = await pool.query(

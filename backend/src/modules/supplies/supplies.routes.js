@@ -4,6 +4,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
 const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
@@ -115,6 +116,13 @@ router.delete(
       entityType: 'supply',
       entityId: Number(req.params.id),
       action: 'supply.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'supply.deleted',
+      entityType: 'supply',
+      entityId: Number(req.params.id),
     });
 
     res.status(204).end();

@@ -4,6 +4,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
 const { requirePaidPlan } = require('../../core/middleware/subscription');
 const { logEvent } = require('../../core/eventLog');
+const { decrypt } = require('../../core/crypto');
 const repository = require('./content/repository');
 const { buildReport } = require('./report/build');
 const { renderPdf } = require('./report/pdf');
@@ -40,10 +41,10 @@ async function loadReportInputs(session, profile) {
     .filter(Boolean);
 
   const questions = await repository.getPaidQuestions(session.niche);
-  const answersRes = await pool.query('SELECT question_code, points FROM security_answers WHERE session_id = $1', [session.id]);
+  const answersRes = await pool.query('SELECT question_code, points, points_enc FROM security_answers WHERE session_id = $1', [session.id]);
   const answersWithBlocks = answersRes.rows.map((row) => ({
     code: row.question_code,
-    points: row.points,
+    points: row.points_enc ? Number(decrypt(row.points_enc)) : row.points,
     block: questions.find((q) => q.code === row.question_code)?.block,
   }));
 
