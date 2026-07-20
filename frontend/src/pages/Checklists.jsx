@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, BackBtn, Field, TextInput, TextArea, Btn, Icon, C } from '../ui/components.jsx';
+import { Card, BackBtn, Field, TextInput, TextArea, Select, Btn, Icon, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { name: '', description: '', items: [''] };
-const ROLE_LABELS = { owner: 'владелец', master: 'мастер' };
+const EMPTY_FORM = { name: '', description: '', kind: '', items: [''] };
+const ROLE_LABELS = { owner: 'владелец', admin: 'администратор', master: 'мастер' };
+const KIND_LABELS = { opening: 'Открытие смены', closing: 'Закрытие смены' };
 
 function formatTime(iso) {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -44,7 +45,7 @@ export default function Checklists() {
 
   async function handleCreate() {
     if (!form.name.trim()) return;
-    const { data: template } = await api.post('/modules/checklists/templates', { name: form.name, description: form.description });
+    const { data: template } = await api.post('/modules/checklists/templates', { name: form.name, description: form.description, kind: form.kind || null });
     for (const label of form.items.filter((i) => i.trim() !== '')) {
       await api.post(`/modules/checklists/templates/${template.id}/items`, { label });
     }
@@ -86,6 +87,13 @@ export default function Checklists() {
     load();
   }
 
+  async function saveTemplateKind(kind) {
+    if (kind === (editingTemplate.kind || '')) return;
+    await api.patch(`/modules/checklists/templates/${editingTemplate.id}`, { kind: kind || '' });
+    setEditingTemplate({ ...editingTemplate, kind: kind || null });
+    load();
+  }
+
   async function saveItemLabel(item, label) {
     if (!label.trim() || label === item.label) return;
     await api.patch(`/modules/checklists/items/${item.id}`, { label: label.trim() });
@@ -108,6 +116,13 @@ export default function Checklists() {
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Новый чек-лист</div>
         <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Открытие смены" /></Field>
         <Field label="Описание"><TextArea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+        <Field label="Тип (для статуса смены на главной)">
+          <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+            <option value="">Обычный чек-лист</option>
+            <option value="opening">Открытие смены</option>
+            <option value="closing">Закрытие смены</option>
+          </Select>
+        </Field>
         <Field label="Пункты чек-листа">
           {form.items.map((item, idx) => (
             <TextInput key={idx} value={item} onChange={(e) => updateFormItem(idx, e.target.value)} placeholder={`Пункт ${idx + 1}`} style={{ marginBottom: 8 }} />
@@ -137,6 +152,13 @@ export default function Checklists() {
             onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
             onBlur={(e) => saveTemplateDescription(e.target.value)}
           />
+        </Field>
+        <Field label="Тип (для статуса смены на главной)">
+          <Select value={editingTemplate.kind || ''} onChange={(e) => saveTemplateKind(e.target.value)}>
+            <option value="">Обычный чек-лист</option>
+            <option value="opening">Открытие смены</option>
+            <option value="closing">Закрытие смены</option>
+          </Select>
         </Field>
         <Card style={{ padding: 0 }}>
           {editingTemplate.items.map((item, i) => (
@@ -185,7 +207,7 @@ export default function Checklists() {
           <Card key={template.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>{template.name}{!template.active && ' (отключён)'}</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>{template.name}{!template.active && ' (отключён)'}{template.kind && <span style={{ fontSize: 11, fontWeight: 700, color: C.primary, marginLeft: 6 }}>· {KIND_LABELS[template.kind]}</span>}</div>
                 {template.description && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{template.description}</div>}
               </div>
               {isManagement && (

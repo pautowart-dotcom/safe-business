@@ -13,7 +13,7 @@ router.get(
   '/templates',
   asyncHandler(async (req, res) => {
     const templates = await pool.query(
-      'SELECT id, name, description, active, created_at FROM checklist_templates WHERE company_id = $1 ORDER BY name',
+      'SELECT id, name, description, active, kind, created_at FROM checklist_templates WHERE company_id = $1 ORDER BY name',
       [req.tenant.companyId]
     );
     const items = await pool.query(
@@ -32,14 +32,17 @@ router.post(
   '/templates',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, description } = req.body;
+    const { name, description, kind } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Укажите название чек-листа' });
     }
+    if (kind && !['opening', 'closing'].includes(kind)) {
+      return res.status(400).json({ error: 'Некорректный тип чек-листа' });
+    }
     const { rows } = await pool.query(
-      `INSERT INTO checklist_templates (company_id, name, description)
-       VALUES ($1, $2, $3) RETURNING id, name, description, active, created_at`,
-      [req.tenant.companyId, name, description || null]
+      `INSERT INTO checklist_templates (company_id, name, description, kind)
+       VALUES ($1, $2, $3, $4) RETURNING id, name, description, active, kind, created_at`,
+      [req.tenant.companyId, name, description || null, kind || null]
     );
 
     await logEvent({
@@ -59,15 +62,19 @@ router.patch(
   '/templates/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, description, active } = req.body;
+    const { name, description, active, kind } = req.body;
+    if (kind && !['opening', 'closing'].includes(kind)) {
+      return res.status(400).json({ error: 'Некорректный тип чек-листа' });
+    }
     const { rows } = await pool.query(
       `UPDATE checklist_templates SET
          name = COALESCE($1, name),
          description = COALESCE($2, description),
-         active = COALESCE($3, active)
-       WHERE id = $4 AND company_id = $5
-       RETURNING id, name, description, active, created_at`,
-      [name || null, description || null, emptyToNull(active), req.params.id, req.tenant.companyId]
+         active = COALESCE($3, active),
+         kind = CASE WHEN $6 THEN $4 ELSE kind END
+       WHERE id = $5 AND company_id = $7
+       RETURNING id, name, description, active, kind, created_at`,
+      [name || null, description || null, emptyToNull(active), kind || null, req.params.id, kind !== undefined, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Чек-лист не найден' });

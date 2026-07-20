@@ -46,6 +46,7 @@ const TITLES = {
   '/feedback': 'Обратная связь',
   '/subscription': 'Подписка',
   '/support': 'Поддержка',
+  '/calendar': 'Календарь',
   '/more': 'Ещё',
 };
 
@@ -128,18 +129,43 @@ export default function Layout() {
             </button>
           )}
           {isHome ? (
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               Безопасный бизнес · {currentCompany?.name}
             </div>
           ) : (
             <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
           )}
         </div>
-        <div
-          onClick={() => navigate('/settings')}
-          style={{ width: 34, height: 34, borderRadius: '50%', background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#FFF', cursor: 'pointer' }}
-        >
-          {initial}
+        {/* Оба круга — одинаковый box-sizing/flexShrink: без flexShrink:0 в
+            узкой шапке (длинное название компании) круг личного кабинета
+            сжимался по ширине и становился овальным — это и был баг. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div
+            onClick={() => navigate('/calendar')}
+            style={{
+              width: 34, height: 34, minWidth: 34, minHeight: 34, borderRadius: '50%', boxSizing: 'border-box',
+              background: C.surface, border: `1px solid ${C.border}`, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 800, color: C.primary, cursor: 'pointer',
+            }}
+          >
+            {new Date().getDate()}
+          </div>
+          <div
+            onClick={() => navigate('/settings')}
+            style={{
+              width: 34, height: 34, minWidth: 34, minHeight: 34, borderRadius: '50%', boxSizing: 'border-box',
+              background: user?.avatar_url ? 'none' : C.primary, flexShrink: 0, overflow: 'hidden',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 800, color: '#FFF', cursor: 'pointer',
+            }}
+          >
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              initial
+            )}
+          </div>
         </div>
       </div>
 

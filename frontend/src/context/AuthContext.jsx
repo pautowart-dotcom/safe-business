@@ -145,6 +145,14 @@ export function AuthProvider({ children }) {
     setCurrentCompany(cc);
   }
 
+  // Синхронизирует фото профиля в шапке сразу после загрузки (Настройки),
+  // не дожидаясь следующего /auth/me.
+  function setUserAvatar(avatarUrl) {
+    const u = { ...user, avatar_url: avatarUrl };
+    localStorage.setItem('user', JSON.stringify(u));
+    setUser(u);
+  }
+
   // Открывает выбор компании заново (кнопка "Сменить компанию" в
   // настройках) — переиспользует тот же экран выбора, что и при логине.
   async function switchCompany() {
@@ -165,6 +173,7 @@ export function AuthProvider({ children }) {
         createCompany,
         switchCompany,
         renameCurrentCompany,
+        setUserAvatar,
         loading,
         login,
         logout,

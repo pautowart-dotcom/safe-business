@@ -6,6 +6,7 @@ const { requireAuth } = require('../core/middleware/auth');
 const { signBaseToken, signCompanyToken, verifyToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
+const { uploadPhoto } = require('../core/uploads');
 
 const router = express.Router();
 
@@ -122,7 +123,7 @@ router.post(
     }
 
     const result = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, analytics_consent, password_hash FROM users WHERE email = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, password_hash FROM users WHERE email = $1',
       [email]
     );
     const user = result.rows[0];
@@ -269,7 +270,7 @@ router.post(
     });
 
     const userResult = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, analytics_consent FROM users WHERE id = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url FROM users WHERE id = $1',
       [userId]
     );
 
@@ -309,6 +310,21 @@ router.patch(
     }
     await pool.query('UPDATE users SET analytics_consent = $1 WHERE id = $2', [!!analyticsConsent, req.user.id]);
     res.json({ analyticsConsent: !!analyticsConsent });
+  })
+);
+
+// Этап 7: фото пользователя/лого компании в круге личного кабинета —
+// загружается тем же механизмом, что и фото визита (диск сервера,
+// core/uploads.js), просто в отдельное поле users.avatar_url.
+router.post(
+  '/me/avatar',
+  requireAuth,
+  uploadPhoto,
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    const url = `/api/uploads/${req.file.filename}`;
+    await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [url, req.user.id]);
+    res.status(201).json({ avatarUrl: url });
   })
 );
 

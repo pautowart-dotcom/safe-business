@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -7,12 +7,14 @@ import { Card, Field, TextInput, Btn, Icon, C } from '../ui/components.jsx';
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 
 export default function Settings() {
-  const { user, currentCompany, isManagement, logout, switchCompany, renameCurrentCompany } = useAuth();
+  const { user, currentCompany, isManagement, logout, switchCompany, renameCurrentCompany, setUserAvatar } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);
   const [editingCompany, setEditingCompany] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [analyticsConsent, setAnalyticsConsent] = useState(!!user?.analytics_consent);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     api.get('/platform/companies/current').then((res) => setCompany(res.data));
@@ -41,6 +43,21 @@ export default function Settings() {
     await api.patch('/auth/me', { analyticsConsent: checked });
   }
 
+  async function handleAvatarFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const data = new FormData();
+      data.append('photo', file);
+      const res = await api.post('/auth/me/avatar', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setUserAvatar(res.data.avatarUrl);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   const trialDaysLeft = company?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(company.trial_ends_at) - new Date()) / 86400000))
     : null;
@@ -51,13 +68,28 @@ export default function Settings() {
 
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: '#FFF' }}>
-            {user?.name?.[0]?.toUpperCase()}
+          <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarFile} style={{ display: 'none' }} />
+          <div
+            onClick={() => avatarInputRef.current?.click()}
+            style={{
+              width: 52, height: 52, minWidth: 52, borderRadius: '50%', boxSizing: 'border-box', overflow: 'hidden', flexShrink: 0,
+              background: user?.avatar_url ? 'none' : C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20, fontWeight: 800, color: '#FFF', cursor: 'pointer', position: 'relative',
+            }}
+          >
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              user?.name?.[0]?.toUpperCase()
+            )}
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800 }}>{user?.name}</div>
             <div style={{ fontSize: 13, color: C.subtle }}>
               {ROLE_LABELS[currentCompany?.role] || currentCompany?.role} · {currentCompany?.name}
+            </div>
+            <div onClick={() => avatarInputRef.current?.click()} style={{ fontSize: 12, color: C.primary, fontWeight: 600, marginTop: 4, cursor: 'pointer' }}>
+              {uploadingAvatar ? 'Загрузка...' : 'Изменить фото'}
             </div>
           </div>
         </div>
