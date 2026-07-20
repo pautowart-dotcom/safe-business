@@ -8,6 +8,7 @@ const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { uploadPhoto } = require('../core/uploads');
+const { saveImage, getFileUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 
 const router = express.Router();
@@ -339,15 +340,16 @@ router.patch(
 );
 
 // Этап 7: фото пользователя/лого компании в круге личного кабинета —
-// загружается тем же механизмом, что и фото визита (диск сервера,
-// core/uploads.js), просто в отдельное поле users.avatar_url.
+// загружается тем же механизмом, что и фото визита (core/fileStorage.js),
+// просто в отдельное поле users.avatar_url.
 router.post(
   '/me/avatar',
   requireAuth,
   uploadPhoto,
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
-    const url = `/api/uploads/${req.file.filename}`;
+    const filename = await saveImage(req.file.buffer);
+    const url = getFileUrl(filename);
     await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [url, req.user.id]);
     res.status(201).json({ avatarUrl: url });
   })

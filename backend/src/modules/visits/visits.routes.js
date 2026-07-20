@@ -4,16 +4,22 @@ const asyncHandler = require('../../utils/asyncHandler');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 const { uploadPhoto } = require('../../core/uploads');
+const { saveImage, getFileUrl } = require('../../core/fileStorage');
 const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
-// Фото до/после визита — сохраняются на диск сервера, отдаём относительный
-// URL (см. core/uploads.js) для записи в visits.photo_before_url/after_url.
-router.post('/photos', uploadPhoto, (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
-  res.status(201).json({ url: `/api/uploads/${req.file.filename}` });
-});
+// Фото до/после визита — сжимаются и сохраняются через core/fileStorage.js
+// (Этап 10), отдаём URL для записи в visits.photo_before_url/after_url.
+router.post(
+  '/photos',
+  uploadPhoto,
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    const filename = await saveImage(req.file.buffer);
+    res.status(201).json({ url: getFileUrl(filename) });
+  })
+);
 
 // Общий SELECT: считаем сумму скидки, итог и заработок мастера прямо в SQL,
 // чтобы не расходиться в округлении между разными эндпоинтами.

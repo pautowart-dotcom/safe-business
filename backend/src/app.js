@@ -3,7 +3,7 @@ const cors = require('cors');
 require('./modules');
 const { authRoutes, platformRouter, legalRoutes } = require('./platform');
 const { mountModules } = require('./core/modules-registry');
-const { UPLOADS_DIR } = require('./core/uploads');
+const { UPLOADS_DIR } = require('./core/fileStorage');
 
 function buildApp() {
   const app = express();

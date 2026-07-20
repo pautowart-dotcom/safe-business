@@ -35,4 +35,10 @@ ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
 
+echo "== Cron: удаление фото визитов старше 6 месяцев (Этап 10) =="
+# Пересоздаём строку идемпотентно (grep -vF отфильтровывает старую перед
+# добавлением новой), чтобы повторный запуск provision.sh не плодил дубли.
+CRON_CMD="cd $APP_DIR/backend && node src/db/retentionCleanup.js >> /var/log/safe-business-retention.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "retentionCleanup.js" ; echo "0 3 * * * $CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."
