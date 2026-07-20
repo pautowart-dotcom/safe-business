@@ -56,7 +56,7 @@ router.post(
       await client.query('BEGIN');
 
       const userResult = await client.query(
-        'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone, is_super_admin',
+        'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone, is_super_admin, onboarding_seen_at',
         [name, email, passwordHash]
       );
       user = userResult.rows[0];
@@ -140,7 +140,7 @@ router.post(
     }
 
     const result = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, password_hash FROM users WHERE email = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at, password_hash FROM users WHERE email = $1',
       [email]
     );
     const user = result.rows[0];
@@ -296,7 +296,7 @@ router.post(
     });
 
     const userResult = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url FROM users WHERE id = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE id = $1',
       [userId]
     );
 
@@ -322,20 +322,28 @@ router.get(
   })
 );
 
-// Согласие на использование обезличенных агрегированных данных для
-// аналитики можно отозвать в любой момент через настройки (политика
-// конфиденциальности, п.10.3) — это единственное поле, которое сейчас
-// редактируется этим эндпоинтом.
+// analyticsConsent — согласие на использование обезличенных агрегированных
+// данных для аналитики, можно отозвать в любой момент через настройки
+// (политика конфиденциальности, п.10.3). onboardingSeen — Этап 11:
+// отмечает вступительную инструкцию прочитанной, показывается один раз.
 router.patch(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const { analyticsConsent } = req.body;
-    if (analyticsConsent === undefined) {
+    const { analyticsConsent, onboardingSeen } = req.body;
+    if (analyticsConsent === undefined && onboardingSeen === undefined) {
       return res.status(400).json({ error: 'Нечего обновлять' });
     }
-    await pool.query('UPDATE users SET analytics_consent = $1 WHERE id = $2', [!!analyticsConsent, req.user.id]);
-    res.json({ analyticsConsent: !!analyticsConsent });
+    if (analyticsConsent !== undefined) {
+      await pool.query('UPDATE users SET analytics_consent = $1 WHERE id = $2', [!!analyticsConsent, req.user.id]);
+    }
+    if (onboardingSeen) {
+      await pool.query('UPDATE users SET onboarding_seen_at = now() WHERE id = $1', [req.user.id]);
+    }
+    res.json({
+      analyticsConsent: analyticsConsent !== undefined ? !!analyticsConsent : undefined,
+      onboardingSeenAt: onboardingSeen ? new Date().toISOString() : undefined,
+    });
   })
 );
 

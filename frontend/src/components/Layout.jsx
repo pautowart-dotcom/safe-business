@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
 import Icon from '../ui/Icon.jsx';
+import OnboardingModal from './OnboardingModal.jsx';
 import { C, F, MAX_WIDTH } from '../ui/theme.js';
 
 const PULL_THRESHOLD = 64;
@@ -117,6 +118,7 @@ export default function Layout() {
 
   return (
     <div style={{ maxWidth: MAX_WIDTH, margin: '0 auto', minHeight: '100vh', background: C.bg, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
+      {!user?.onboarding_seen_at && <OnboardingModal />}
       <div style={{ padding: '16px 20px 12px', background: C.bg, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           {showBack && (

@@ -153,6 +153,16 @@ export function AuthProvider({ children }) {
     setUser(u);
   }
 
+  // Этап 11: отмечает вступительную инструкцию прочитанной — modal
+  // (components/OnboardingModal.jsx) больше не показывается этому
+  // пользователю. Обновляет user локально сразу, не дожидаясь /auth/me.
+  async function markOnboardingSeen() {
+    await api.patch('/auth/me', { onboardingSeen: true });
+    const u = { ...user, onboarding_seen_at: new Date().toISOString() };
+    localStorage.setItem('user', JSON.stringify(u));
+    setUser(u);
+  }
+
   // Открывает выбор компании заново (кнопка "Сменить компанию" в
   // настройках) — переиспользует тот же экран выбора, что и при логине.
   async function switchCompany() {
@@ -174,6 +184,7 @@ export function AuthProvider({ children }) {
         switchCompany,
         renameCurrentCompany,
         setUserAvatar,
+        markOnboardingSeen,
         loading,
         login,
         logout,

@@ -16,7 +16,7 @@ const requireAuth = asyncHandler(async (req, res, next) => {
   }
 
   const { rows } = await pool.query(
-    'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url FROM users WHERE id = $1',
+    'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE id = $1',
     [payload.sub]
   );
   if (rows.length === 0) {
