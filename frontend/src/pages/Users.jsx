@@ -197,7 +197,7 @@ export default function Users() {
           </div>
           <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>Отправьте сотруднику. После перехода он присоединится к компании. Ссылку можно скопировать в любой момент, пока карточка открыта.</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', fontSize: 13, color: C.secondary, marginBottom: 12, wordBreak: 'break-all' }}>{inviteUrl}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Btn
               small
               onClick={async () => {
@@ -211,6 +211,21 @@ export default function Users() {
             >
               Скопировать ссылку
             </Btn>
+            {/* Пакет 3, Этап 10 п.8. navigator.share — не везде поддержан
+                (десктоп-браузеры без share target), поэтому кнопка видна
+                только если API реально доступен, а не просто спрятана за
+                try/catch на клик. */}
+            {typeof navigator.share === 'function' && (
+              <Btn
+                small
+                variant="secondary"
+                onClick={() => {
+                  navigator.share({ title: 'Приглашение в Безопасный бизнес', url: inviteUrl }).catch(() => {});
+                }}
+              >
+                Поделиться
+              </Btn>
+            )}
             {copied && <span style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>✓ Скопировано!</span>}
           </div>
           {copyFailed && (

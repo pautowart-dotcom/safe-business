@@ -46,6 +46,7 @@ function ManagementDashboard() {
   const [security, setSecurity] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
+  const [dueTodayDeadlines, setDueTodayDeadlines] = useState([]);
   const [loading, setLoading] = useState(true);
 
   function load() {
@@ -61,12 +62,14 @@ function ManagementDashboard() {
           // поэтому не запрашиваем его вовсе, если isOwner=false.
           isOwner ? api.get('/modules/security/sessions') : Promise.resolve({ data: [] }),
           api.get('/platform/daily-tasks'),
+          api.get('/platform/deadlines'),
         ]);
       })
-      .then(([fin, sessions, dailyTasks]) => {
+      .then(([fin, sessions, dailyTasks, deadlines]) => {
         setRevenue(fin.data.revenue);
         setSecurity(sessions.data.find((s) => s.status === 'completed') || null);
         setTasks(dailyTasks.data);
+        setDueTodayDeadlines(deadlines.data.filter((d) => d.due_date === todayStr()));
       })
       .finally(() => setLoading(false));
   }
@@ -97,36 +100,34 @@ function ManagementDashboard() {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{greeting()} 👋</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.primary }}>{currentCompany?.name}</div>
         <div style={{ fontSize: 13, color: C.subtle, marginTop: 4 }}>
-          {currentCompany?.name} · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+          {greeting()} · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
       </div>
 
       <Card>
-        <ST>Внимание {dayLabel}</ST>
+        <ST>Сводка {dayLabel}</ST>
         {summary.shiftStatus && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: SHIFT_COLOR[summary.shiftStatus], flexShrink: 0 }} />
-            <span style={{ fontSize: 14 }}>{SHIFT_LABEL[summary.shiftStatus]}</span>
+            <span style={{ fontSize: 14, color: C.primary }}>{SHIFT_LABEL[summary.shiftStatus]}</span>
           </div>
         )}
         {summary.reportsTotal > 0 && (
-          <div style={{ fontSize: 14, marginBottom: summary.lowStockCount || summary.securityIndexPercent != null ? 10 : 0 }}>
+          <div style={{ fontSize: 14, color: C.primary, marginBottom: summary.lowStockCount ? 10 : 0 }}>
             Отчётов внесено: <b>{summary.reportsDone} из {summary.reportsTotal}</b>
           </div>
         )}
         {summary.lowStockCount > 0 && (
-          <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer', marginBottom: summary.securityIndexPercent != null ? 10 : 0 }}>
+          <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
             ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
           </div>
         )}
-        {summary.securityIndexPercent != null && (
-          <div onClick={() => navigate('/security')} style={{ fontSize: 14, cursor: 'pointer' }}>
-            Индекс безопасности: <b>{summary.securityIndexPercent}%</b>
-          </div>
-        )}
-        {!summary.shiftStatus && summary.reportsTotal === 0 && !summary.lowStockCount && summary.securityIndexPercent == null && (
+        {/* Индекс безопасности здесь дублировал отдельную карточку "Безопасность"
+            ниже (та же цифра, зона и ссылка) — убран отсюда, единственный
+            источник теперь только она (Этап 10 п.3). */}
+        {!summary.shiftStatus && summary.reportsTotal === 0 && !summary.lowStockCount && (
           <div style={{ fontSize: 13, color: C.subtle }}>Пока нечего показать</div>
         )}
       </Card>
@@ -136,8 +137,22 @@ function ManagementDashboard() {
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
 
+      {/* Пакет 3, Этап 10 п.7: сроки из "Дедлайнов" (Этап 2) и личные заметки
+          ниже — два разных смысла (обязательный срок vs произвольная
+          заметка себе), поэтому разделены на две карточки, а не слиты в
+          одну — но "сроки сегодня" теперь виден и у Владельца/Администратора
+          на главной, а не только у Мастера (было раньше только там). */}
+      {dueTodayDeadlines.length > 0 && (
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/deadlines')}>
+          <ST>Сроки сегодня</ST>
+          {dueTodayDeadlines.map((d) => (
+            <div key={d.id} style={{ fontSize: 14, color: C.primary, padding: '4px 0' }}>{d.title}</div>
+          ))}
+        </Card>
+      )}
+
       <Card>
-        <ST>Задачи на сегодня</ST>
+        <ST>Личные заметки на сегодня</ST>
         {tasks.map((t) => (
           <div key={t.id} onClick={() => toggleTask(t)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' }}>
             <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${t.done ? C.primary : C.border}`, background: t.done ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -35,13 +35,27 @@ export default function OnboardingModal() {
   const { markOnboardingSeen } = useAuth();
   const [step, setStep] = useState(0);
   const [closing, setClosing] = useState(false);
+  const [error, setError] = useState('');
   const isLast = step === SLIDES.length - 1;
   const slide = SLIDES[step];
 
+  // Раньше без try/catch: если markOnboardingSeen() падал (сеть/сервер),
+  // closing навсегда оставался true — кнопка "зависала" задизейбленной, а
+  // модалка не закрывалась (она закрывается через user.onboarding_seen_at
+  // из контекста, не сама по себе), пока пользователь не обновлял страницу
+  // (следующий /auth/me иногда всё же подтягивал уже обновлённый флаг).
+  // Теперь ошибка сбрасывает closing — кнопка снова кликабельна, повтор
+  // работает без перезагрузки страницы.
   async function finish() {
     if (closing) return;
     setClosing(true);
-    await markOnboardingSeen();
+    setError('');
+    try {
+      await markOnboardingSeen();
+    } catch {
+      setError('Не удалось сохранить — попробуйте ещё раз');
+      setClosing(false);
+    }
   }
 
   return (
@@ -59,8 +73,9 @@ export default function OnboardingModal() {
           ))}
         </div>
 
+        {error && <div className="alert alert-error" style={{ marginBottom: 14, textAlign: 'left' }}>{error}</div>}
         <Btn onClick={() => (isLast ? finish() : setStep(step + 1))} disabled={closing}>
-          {isLast ? 'Начать работу' : 'Далее'}
+          {closing ? 'Сохраняем...' : isLast ? 'Начать работу' : 'Далее'}
         </Btn>
         {!isLast && (
           <button

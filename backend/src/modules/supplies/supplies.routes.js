@@ -13,12 +13,83 @@ function withLowStock(row) {
   return { ...row, low_stock: parseFloat(row.quantity) <= parseFloat(row.low_stock_threshold) };
 }
 
+// Пакет 3, Этап 10 п.2: категории — настраиваемые владельцем/админом, не
+// зашитые в код (было раньше два фиксированных "работа"/"бар"). Свободный
+// список на компанию, расходник может быть без категории (category_id NULL).
+router.get(
+  '/categories',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      'SELECT id, name, sort_order FROM supply_categories WHERE company_id = $1 ORDER BY sort_order, name',
+      [req.tenant.companyId]
+    );
+    res.json(rows);
+  })
+);
+
+router.post(
+  '/categories',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Укажите название категории' });
+    }
+    const next = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM supply_categories WHERE company_id = $1', [
+      req.tenant.companyId,
+    ]);
+    const { rows } = await pool.query(
+      `INSERT INTO supply_categories (company_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id, name, sort_order`,
+      [req.tenant.companyId, name.trim(), next.rows[0].next]
+    );
+    res.status(201).json(rows[0]);
+  })
+);
+
+router.patch(
+  '/categories/:id',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { name, sortOrder } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE supply_categories SET name = COALESCE($1, name), sort_order = COALESCE($2, sort_order)
+       WHERE id = $3 AND company_id = $4 RETURNING id, name, sort_order`,
+      [name?.trim() || null, sortOrder ?? null, req.params.id, req.tenant.companyId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+// Удаление категории НЕ удаляет расходники — они просто становятся "без
+// категории" (supplies.category_id ON DELETE SET NULL), тот же принцип,
+// что и отключение модуля не стирает данные (Этап 1.1).
+router.delete(
+  '/categories/:id',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rowCount } = await pool.query('DELETE FROM supply_categories WHERE id = $1 AND company_id = $2', [
+      req.params.id,
+      req.tenant.companyId,
+    ]);
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    res.status(204).end();
+  })
+);
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at
-       FROM supplies WHERE company_id = $1 ORDER BY name`,
+      `SELECT s.id, s.name, s.unit, s.product_url, s.quantity, s.low_stock_threshold, s.is_disinfectant,
+              s.category_id, sc.name AS category_name, s.created_at
+       FROM supplies s
+       LEFT JOIN supply_categories sc ON sc.id = s.category_id
+       WHERE s.company_id = $1 ORDER BY s.name`,
       [req.tenant.companyId]
     );
     res.json(rows.map(withLowStock));
@@ -31,15 +102,21 @@ router.post(
   '/',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant } = req.body;
+    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Укажите название позиции' });
     }
+    if (categoryId) {
+      const cat = await pool.query('SELECT 1 FROM supply_categories WHERE id = $1 AND company_id = $2', [categoryId, req.tenant.companyId]);
+      if (cat.rows.length === 0) {
+        return res.status(400).json({ error: 'Категория не найдена в этой компании' });
+      }
+    }
     const { rows } = await pool.query(
-      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at`,
-      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant]
+      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, created_at`,
+      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant, categoryId || null]
     );
 
     await logEvent({
@@ -59,20 +136,28 @@ router.patch(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, lowStockThreshold, isDisinfectant } = req.body;
-    // is_disinfectant — булево, false тоже валидное значение, поэтому COALESCE
-    // (как для остальных полей) сюда не подходит: используем ту же схему, что
-    // и kind в checklists.routes.js — обновляем, только если поле реально
-    // пришло в запросе (isDisinfectant !== undefined).
+    const { name, unit, productUrl, lowStockThreshold, isDisinfectant, categoryId } = req.body;
+    // is_disinfectant/category_id — false/NULL тоже валидные значения (снять
+    // тег, снять категорию), поэтому обычный COALESCE (как для остальных
+    // полей) сюда не подходит: обновляем, только если поле реально пришло в
+    // запросе — та же схема, что и kind в checklists.routes.js.
+    const categoryProvided = 'categoryId' in req.body;
+    if (categoryProvided && categoryId) {
+      const cat = await pool.query('SELECT 1 FROM supply_categories WHERE id = $1 AND company_id = $2', [categoryId, req.tenant.companyId]);
+      if (cat.rows.length === 0) {
+        return res.status(400).json({ error: 'Категория не найдена в этой компании' });
+      }
+    }
     const { rows } = await pool.query(
       `UPDATE supplies SET
          name = COALESCE($1, name),
          unit = COALESCE($2, unit),
          product_url = COALESCE($3, product_url),
          low_stock_threshold = COALESCE($4, low_stock_threshold),
-         is_disinfectant = CASE WHEN $7 THEN $8 ELSE is_disinfectant END
+         is_disinfectant = CASE WHEN $7 THEN $8 ELSE is_disinfectant END,
+         category_id = CASE WHEN $9 THEN $10 ELSE category_id END
        WHERE id = $5 AND company_id = $6
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at`,
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, created_at`,
       [
         name || null,
         unit || null,
@@ -82,6 +167,8 @@ router.patch(
         req.tenant.companyId,
         isDisinfectant !== undefined,
         !!isDisinfectant,
+        categoryProvided,
+        categoryId || null,
       ]
     );
     if (rows.length === 0) {

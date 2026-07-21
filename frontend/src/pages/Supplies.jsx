@@ -1,25 +1,35 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, BackBtn, Field, TextInput, Btn, Badge, Icon, C } from '../ui/components.jsx';
+import { Card, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false };
+const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false, categoryId: '' };
 
 export default function Supplies() {
   const { isManagement } = useAuth();
   const [supplies, setSupplies] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(''); // '' = все, 'none' = без категории, иначе id (строкой)
+  const [manageCategories, setManageCategories] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
-  const [moveTarget, setMoveTarget] = useState(null);
 
   function load() {
     setLoading(true);
     api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  function loadCategories() {
+    api.get('/modules/supplies/categories').then((res) => setCategories(res.data));
+  }
+
+  useEffect(() => {
+    load();
+    loadCategories();
+  }, []);
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -35,6 +45,7 @@ export default function Supplies() {
       quantity: String(s.quantity ?? '0'),
       lowStockThreshold: String(s.low_stock_threshold ?? '0'),
       isDisinfectant: !!s.is_disinfectant,
+      categoryId: s.category_id ? String(s.category_id) : '',
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -42,6 +53,7 @@ export default function Supplies() {
 
   async function handleCreate() {
     if (!form.name.trim()) return;
+    const payload = { ...form, categoryId: form.categoryId || null };
     if (editingId) {
       // Остаток меняется только через "Пришло"/"Списать" — не полем формы,
       // чтобы не разъезжались история движений и текущее количество.
@@ -51,9 +63,10 @@ export default function Supplies() {
         productUrl: form.productUrl,
         lowStockThreshold: form.lowStockThreshold,
         isDisinfectant: form.isDisinfectant,
+        categoryId: form.categoryId || null,
       });
     } else {
-      await api.post('/modules/supplies', form);
+      await api.post('/modules/supplies', payload);
     }
     setForm(EMPTY_FORM);
     setEditingId(null);
@@ -72,12 +85,39 @@ export default function Supplies() {
     load();
   }
 
+  async function addCategory() {
+    if (!newCategoryName.trim()) return;
+    await api.post('/modules/supplies/categories', { name: newCategoryName.trim() });
+    setNewCategoryName('');
+    loadCategories();
+  }
+
+  async function renameCategory(id, name) {
+    if (!name.trim()) return;
+    await api.patch(`/modules/supplies/categories/${id}`, { name: name.trim() });
+    loadCategories();
+  }
+
+  async function deleteCategory(id) {
+    if (!confirm('Удалить категорию? Расходники в ней останутся, просто без категории.')) return;
+    await api.delete(`/modules/supplies/categories/${id}`);
+    if (activeCategory === String(id)) setActiveCategory('');
+    loadCategories();
+    load();
+  }
+
   if (showForm) {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить расходник' : 'Новый расходник'}</div>
         <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Гель-лак Kodi" /></Field>
+        <Field label="Категория">
+          <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+            <option value="">Без категории</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </Field>
         {!editingId && (
           <Field label="Начальный остаток"><TextInput type="number" min="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="5" /></Field>
         )}
@@ -93,6 +133,12 @@ export default function Supplies() {
     );
   }
 
+  const filteredSupplies = supplies.filter((s) => {
+    if (activeCategory === '') return true;
+    if (activeCategory === 'none') return !s.category_id;
+    return String(s.category_id) === activeCategory;
+  });
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -102,20 +148,74 @@ export default function Supplies() {
         )}
       </div>
 
+      <div style={{ display: 'flex', gap: 6, marginBottom: isManagement ? 8 : 16, overflowX: 'auto' }}>
+        {[{ key: '', label: 'Все' }, ...categories.map((c) => ({ key: String(c.id), label: c.name })), { key: 'none', label: 'Без категории' }].map((c) => (
+          <button
+            key={c.key}
+            onClick={() => setActiveCategory(c.key)}
+            style={{
+              flexShrink: 0, padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
+              background: activeCategory === c.key ? C.primary : C.bg, color: activeCategory === c.key ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
+            }}
+          >
+            {c.label}
+          </button>
+        ))}
+        {isManagement && (
+          <button
+            onClick={() => setManageCategories((v) => !v)}
+            style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, padding: '7px 6px' }}
+            aria-label="Управление категориями"
+          >
+            <Icon name="edit" size={16} color={C.subtle} />
+          </button>
+        )}
+      </div>
+
+      {isManagement && manageCategories && (
+        <Card>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Категории склада</div>
+          {categories.map((c, i) => (
+            <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < categories.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <TextInput
+                defaultValue={c.name}
+                onBlur={(e) => e.target.value !== c.name && renameCategory(c.id, e.target.value)}
+                style={{ flex: 1, padding: '8px 10px', fontSize: 13 }}
+              />
+              <button onClick={() => deleteCategory(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, flexShrink: 0 }}>
+                <Icon name="trash" size={16} color={C.subtle} />
+              </button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <TextInput
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addCategory(); }}
+              placeholder="Новая категория"
+              style={{ flex: 1 }}
+            />
+            <Btn small onClick={addCategory}>Добавить</Btn>
+          </div>
+        </Card>
+      )}
+
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : (
         <Card style={{ padding: 0 }}>
-          {supplies.map((s, i) => {
+          {filteredSupplies.map((s, i) => {
             const low = s.low_stock;
             return (
-              <div key={s.id} style={{ padding: '14px 16px', borderBottom: i < supplies.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div key={s.id} style={{ padding: '14px 16px', borderBottom: i < filteredSupplies.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: low ? C.red : C.green, flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
-                      <div style={{ fontSize: 12, color: C.subtle }}>мин. {Number(s.low_stock_threshold)} {s.unit}</div>
+                      <div style={{ fontSize: 12, color: C.subtle }}>
+                        {s.category_name ? `${s.category_name} · ` : ''}мин. {Number(s.low_stock_threshold)} {s.unit}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -144,7 +244,7 @@ export default function Supplies() {
               </div>
             );
           })}
-          {supplies.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Склад пуст</div>}
+          {filteredSupplies.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>{supplies.length === 0 ? 'Склад пуст' : 'В этой категории пока пусто'}</div>}
         </Card>
       )}
     </div>
