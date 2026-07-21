@@ -13,6 +13,7 @@ const dailyTasksRoutes = require('./daily-tasks.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const journalsRoutes = require('./journals.routes');
 const dossierRoutes = require('./dossier.routes');
+const pushRoutes = require('./push.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -27,5 +28,6 @@ platformRouter.use('/daily-tasks', dailyTasksRoutes);
 platformRouter.use('/dashboard', dashboardRoutes);
 platformRouter.use('/journals', journalsRoutes);
 platformRouter.use('/dossier', dossierRoutes);
+platformRouter.use('/push', pushRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

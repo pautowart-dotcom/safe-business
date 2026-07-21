@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
+import IosPushBanner from '../components/IosPushBanner.jsx';
 
 const ZONE_LABEL = { green: 'Зелёная зона', yellow: 'Жёлтая зона · Есть нарушения', red: 'Красная зона · Есть нарушения' };
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
@@ -27,7 +28,12 @@ function todayStr() {
 
 export default function Dashboard() {
   const { isManagement } = useAuth();
-  return isManagement ? <ManagementDashboard /> : <MasterDashboard />;
+  return (
+    <div>
+      <IosPushBanner />
+      {isManagement ? <ManagementDashboard /> : <MasterDashboard />}
+    </div>
+  );
 }
 
 // ---------- Владелец / Администратор ----------

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Select, Btn, Icon, C } from '../ui/components.jsx';
+import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат' };
@@ -25,7 +26,58 @@ export default function Settings() {
   const [myDocuments, setMyDocuments] = useState(null);
   const [taxRegimes, setTaxRegimes] = useState([]);
   const [savingTaxRegime, setSavingTaxRegime] = useState(false);
+  const [pushState, setPushState] = useState('checking'); // checking | unsupported | ios-not-installed | unsubscribed | subscribed
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState('');
+  const [testCategory, setTestCategory] = useState('legal');
+  const [testSent, setTestSent] = useState(false);
   const avatarInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushState('unsupported');
+      return;
+    }
+    if (isIos() && !isStandalone()) {
+      // Push на iOS требует установки на "Домашний экран" — обычный Safari-таб
+      // подписаться не может вообще, показывать переключатель бессмысленно.
+      setPushState('ios-not-installed');
+      return;
+    }
+    getPushSubscriptionState().then(setPushState);
+  }, []);
+
+  async function togglePush() {
+    setPushBusy(true);
+    setPushError('');
+    try {
+      if (pushState === 'subscribed') {
+        await unsubscribeFromPush();
+        setPushState('unsubscribed');
+      } else {
+        await subscribeToPush();
+        setPushState('subscribed');
+      }
+    } catch (err) {
+      setPushError(err.response?.data?.error || err.message || 'Не удалось изменить подписку');
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function sendTestPush() {
+    setPushBusy(true);
+    setPushError('');
+    setTestSent(false);
+    try {
+      await api.post('/platform/push/test', { category: testCategory });
+      setTestSent(true);
+    } catch (err) {
+      setPushError(err.response?.data?.error || 'Не удалось отправить тестовое уведомление');
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     api.get('/platform/companies/current').then((res) => setCompany(res.data));
@@ -206,6 +258,40 @@ export default function Settings() {
           })}
         </Card>
       )}
+
+      <Card>
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Push-уведомления</div>
+        {pushState === 'unsupported' && (
+          <div style={{ fontSize: 13, color: C.subtle }}>Этот браузер не поддерживает push-уведомления.</div>
+        )}
+        {pushState === 'ios-not-installed' && (
+          <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+            На iPhone/iPad push работает только после установки на "Домашний экран": в Safari нажмите "Поделиться" → "На экран «Домой»", затем откройте приложение оттуда.
+          </div>
+        )}
+        {(pushState === 'subscribed' || pushState === 'unsubscribed') && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: pushState === 'subscribed' ? 12 : 0 }}>
+              <span style={{ fontSize: 14 }}>{pushState === 'subscribed' ? 'Уведомления включены на этом устройстве' : 'Уведомления выключены на этом устройстве'}</span>
+              <Btn small variant={pushState === 'subscribed' ? 'secondary' : 'primary'} disabled={pushBusy} onClick={togglePush}>
+                {pushState === 'subscribed' ? 'Отключить' : 'Включить'}
+              </Btn>
+            </div>
+            {pushState === 'subscribed' && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {isManagement && (
+                  <Select value={testCategory} onChange={(e) => setTestCategory(e.target.value)} style={{ width: 'auto', flex: 1, minWidth: 140 }}>
+                    {NOTIFICATION_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </Select>
+                )}
+                <Btn small variant="secondary" disabled={pushBusy} onClick={sendTestPush}>Отправить тестовое</Btn>
+              </div>
+            )}
+            {testSent && <div style={{ fontSize: 12, color: C.green, marginTop: 8 }}>✓ Отправлено — проверьте уведомления на устройстве</div>}
+          </>
+        )}
+        {pushError && <div className="alert alert-error" style={{ marginTop: 8 }}>{pushError}</div>}
+      </Card>
 
       {!isManagement && myDocuments && myDocuments.length > 0 && (
         <Card>
