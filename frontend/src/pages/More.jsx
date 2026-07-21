@@ -9,6 +9,7 @@ const OWNER_ITEMS = [
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
+  { label: 'Журналы', sub: 'УФ-лампа, инструктаж на рабочем месте', icon: 'doc', to: '/journals' },
   { label: 'Обратная связь', sub: 'Сообщения от мастеров', icon: 'msg', to: '/feedback' },
   { label: 'Команда', sub: 'Мастера, приглашения, удаление', icon: 'team', to: '/team' },
   { label: 'Филиалы', sub: 'Адреса студии, если их несколько', icon: 'home', to: '/branches' },
@@ -23,7 +24,11 @@ function OwnerMore() {
   // делегирования доступа администратору пока нет).
   const base = isOwner ? OWNER_ITEMS : OWNER_ITEMS.filter((i) => i.to !== '/security');
   const items = isSuperAdmin
-    ? [...base, { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' }]
+    ? [
+        ...base,
+        { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' },
+        { label: 'Типы журналов', sub: 'Заголовки и дисклеймеры журналов (админ)', icon: 'doc', to: '/admin/journal-types' },
+      ]
     : base;
   return (
     <div>
@@ -74,6 +79,19 @@ function MasterMore() {
             <div>
               <div style={{ fontSize: 15, fontWeight: 600 }}>База знаний</div>
               <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Стандарты, правила, инструкции</div>
+            </div>
+          </div>
+        </ChevronRow>
+      </Card>
+      <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/journals')}>
+        <ChevronRow>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="doc" size={20} color={C.primary} />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>Журналы</div>
+              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>УФ-лампа, инструктаж на рабочем месте</div>
             </div>
           </div>
         </ChevronRow>

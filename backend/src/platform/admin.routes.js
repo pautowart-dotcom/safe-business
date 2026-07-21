@@ -98,4 +98,43 @@ router.patch(
   })
 );
 
+// Редактор "структуры" журналов (заголовок + обязательный дисклеймер) —
+// Пакет 3, Этап 5. Тот же принцип, что и legal_documents выше: текст живёт
+// в БД, редактируется без релиза. В отличие от юридических документов эти
+// строки не публикуются отдельной страницей — их читают сами страницы
+// журналов через GET /platform/journals/types (см. journals.routes.js).
+router.get(
+  '/journal-types',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      'SELECT key, title, disclaimer, updated_at FROM journal_types ORDER BY key'
+    );
+    res.json(rows);
+  })
+);
+
+router.patch(
+  '/journal-types/:key',
+  asyncHandler(async (req, res) => {
+    const { title, disclaimer } = req.body;
+    if (!disclaimer || !disclaimer.trim()) {
+      return res.status(400).json({ error: 'Текст дисклеймера не может быть пустым' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE journal_types SET
+         title = COALESCE($1, title),
+         disclaimer = $2,
+         updated_at = now(),
+         updated_by_user_id = $3
+       WHERE key = $4
+       RETURNING key, title, disclaimer, updated_at`,
+      [title || null, disclaimer, req.user.id, req.params.key]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Журнал не найден' });
+    }
+    res.json(rows[0]);
+  })
+);
+
 module.exports = router;

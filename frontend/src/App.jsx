@@ -16,6 +16,8 @@ import Security from './pages/Security.jsx';
 import Users from './pages/Users.jsx';
 import Branches from './pages/Branches.jsx';
 import AdminLegalDocs from './pages/AdminLegalDocs.jsx';
+import Journals from './pages/Journals.jsx';
+import AdminJournalTypes from './pages/AdminJournalTypes.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
 import More from './pages/More.jsx';
@@ -104,6 +106,15 @@ export default function App() {
         <Route path="subscription" element={<Subscription />} />
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
+        <Route path="journals" element={<Journals />} />
+        <Route
+          path="admin/journal-types"
+          element={
+            <PrivateRoute managementOnly>
+              <AdminJournalTypes />
+            </PrivateRoute>
+          }
+        />
         <Route path="more" element={<More />} />
       </Route>
     </Routes>

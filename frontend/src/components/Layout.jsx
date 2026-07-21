@@ -31,8 +31,8 @@ const MASTER_NAV = [
 // Разделы, доступные только через хаб "Ещё" (нет прямой вкладки в нижнем
 // меню) — используются, чтобы подсвечивать "Ещё" активным, когда открыт
 // один из них.
-const OWNER_HUB_PATHS = ['/supplies', '/shift', '/knowledge', '/security', '/feedback', '/team', '/branches', '/settings', '/admin/legal'];
-const MASTER_HUB_PATHS = ['/knowledge', '/settings'];
+const OWNER_HUB_PATHS = ['/supplies', '/shift', '/knowledge', '/security', '/feedback', '/team', '/branches', '/settings', '/admin/legal', '/journals', '/admin/journal-types'];
+const MASTER_HUB_PATHS = ['/knowledge', '/settings', '/journals'];
 
 const TITLES = {
   '/clients': 'Клиенты',
@@ -45,6 +45,8 @@ const TITLES = {
   '/team': 'Команда',
   '/branches': 'Филиалы',
   '/admin/legal': 'Юридические документы',
+  '/journals': 'Журналы',
+  '/admin/journal-types': 'Типы журналов',
   '/settings': 'Настройки',
   '/feedback': 'Обратная связь',
   '/subscription': 'Подписка',

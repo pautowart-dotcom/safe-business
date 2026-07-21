@@ -26,6 +26,25 @@ function publicBaseUrl(req) {
   return `${proto}://${req.get('host')}`;
 }
 
+// Лёгкий список сотрудников (id + имя) для пикеров вроде "ответственный" в
+// журналах (Пакет 3, Этап 5) — открыт любой роли компании, в отличие от
+// полного GET / ниже (owner/admin), потому что заполнять журнал во время
+// смены может и мастер, а выбор "ответственного" не привязан жёстко к роли.
+router.get(
+  '/roster',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT m.id, m.role, u.name
+       FROM memberships m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.company_id = $1 AND m.invite_status = 'active'
+       ORDER BY u.name`,
+      [req.tenant.companyId]
+    );
+    res.json(rows);
+  })
+);
+
 router.get(
   '/',
   requireRole('owner', 'admin'),
