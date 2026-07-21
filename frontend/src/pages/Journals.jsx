@@ -225,6 +225,54 @@ function BriefingTab({ type, roster, isManagement, error, setError }) {
   );
 }
 
+// Только чтение: записи появляются сами из истории списаний/приходов
+// расходников с тегом "дезинфицирующее средство" (Supplies.jsx), никакого
+// ручного ввода здесь нет — см. GET /platform/journals/disinfectant-log.
+function DisinfectantLogTab({ type, isManagement, error, setError }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get('/platform/journals/disinfectant-log').then((res) => setEntries(res.data)).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      <Disclaimer text={type?.disclaimer} />
+      <div style={{ fontSize: 12, color: C.subtle, marginBottom: 16 }}>
+        Формируется автоматически из прихода/списания расходников, помеченных тегом "Дезсредство" в разделе "Склад расходников".
+      </div>
+
+      {isManagement && (
+        <Btn variant="secondary" small style={{ marginBottom: 16 }} onClick={() => downloadPdf('/platform/journals/disinfectant-log/export', 'disinfectant-journal.pdf', setError)}>
+          Экспорт в PDF
+        </Btn>
+      )}
+      {error && <div className="alert alert-error">{error}</div>}
+
+      {loading ? (
+        <div className="page-loading">Загрузка...</div>
+      ) : entries.length === 0 ? (
+        <div className="empty-hint">Записей пока нет — отметьте расходник тегом "Дезсредство" на складе</div>
+      ) : (
+        entries.map((e) => (
+          <Card key={e.id}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{e.type === 'in' ? 'Приход' : 'Списание'} — {e.supply_name} ({Number(e.quantity)} {e.unit})</div>
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{e.user_name || '—'} · {new Date(e.created_at).toLocaleString('ru-RU')}</div>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
+const TABS = [
+  { key: 'uv_lamp', fallbackLabel: 'УФ-лампа' },
+  { key: 'briefing', fallbackLabel: 'Инструктаж' },
+  { key: 'disinfectant_log', fallbackLabel: 'Дезсредства' },
+];
+
 export default function Journals() {
   const { isManagement } = useAuth();
   const [tab, setTab] = useState('uv_lamp');
@@ -241,31 +289,29 @@ export default function Journals() {
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Журналы</div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        <button
-          onClick={() => setTab('uv_lamp')}
-          style={{
-            flex: 1, padding: '9px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
-            background: tab === 'uv_lamp' ? C.primary : C.bg, color: tab === 'uv_lamp' ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {types.uv_lamp?.title || 'УФ-лампа'}
-        </button>
-        <button
-          onClick={() => setTab('briefing')}
-          style={{
-            flex: 1, padding: '9px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
-            background: tab === 'briefing' ? C.primary : C.bg, color: tab === 'briefing' ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {types.briefing?.title || 'Инструктаж'}
-        </button>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto' }}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              flex: 1, flexShrink: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
+              background: tab === t.key ? C.primary : C.bg, color: tab === t.key ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
+            }}
+          >
+            {types[t.key]?.title || t.fallbackLabel}
+          </button>
+        ))}
       </div>
 
-      {tab === 'uv_lamp' ? (
+      {tab === 'uv_lamp' && (
         <UvLampTab type={types.uv_lamp} roster={roster} isManagement={isManagement} error={error} setError={setError} />
-      ) : (
+      )}
+      {tab === 'briefing' && (
         <BriefingTab type={types.briefing} roster={roster} isManagement={isManagement} error={error} setError={setError} />
+      )}
+      {tab === 'disinfectant_log' && (
+        <DisinfectantLogTab type={types.disinfectant_log} isManagement={isManagement} error={error} setError={setError} />
       )}
     </div>
   );

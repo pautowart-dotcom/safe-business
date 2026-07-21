@@ -17,7 +17,7 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT id, name, unit, product_url, quantity, low_stock_threshold, created_at
+      `SELECT id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at
        FROM supplies WHERE company_id = $1 ORDER BY name`,
       [req.tenant.companyId]
     );
@@ -31,15 +31,15 @@ router.post(
   '/',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, quantity, lowStockThreshold } = req.body;
+    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Укажите название позиции' });
     }
     const { rows } = await pool.query(
-      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, created_at`,
-      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0]
+      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at`,
+      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant]
     );
 
     await logEvent({
@@ -59,16 +59,30 @@ router.patch(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, lowStockThreshold } = req.body;
+    const { name, unit, productUrl, lowStockThreshold, isDisinfectant } = req.body;
+    // is_disinfectant — булево, false тоже валидное значение, поэтому COALESCE
+    // (как для остальных полей) сюда не подходит: используем ту же схему, что
+    // и kind в checklists.routes.js — обновляем, только если поле реально
+    // пришло в запросе (isDisinfectant !== undefined).
     const { rows } = await pool.query(
       `UPDATE supplies SET
          name = COALESCE($1, name),
          unit = COALESCE($2, unit),
          product_url = COALESCE($3, product_url),
-         low_stock_threshold = COALESCE($4, low_stock_threshold)
+         low_stock_threshold = COALESCE($4, low_stock_threshold),
+         is_disinfectant = CASE WHEN $7 THEN $8 ELSE is_disinfectant END
        WHERE id = $5 AND company_id = $6
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, created_at`,
-      [name || null, unit || null, productUrl || null, emptyToNull(lowStockThreshold), req.params.id, req.tenant.companyId]
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at`,
+      [
+        name || null,
+        unit || null,
+        productUrl || null,
+        emptyToNull(lowStockThreshold),
+        req.params.id,
+        req.tenant.companyId,
+        isDisinfectant !== undefined,
+        !!isDisinfectant,
+      ]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Позиция не найдена' });
@@ -147,7 +161,7 @@ async function applyMovement(req, type, quantity) {
       return result;
     }
     const updated = await client.query(
-      `SELECT id, name, unit, product_url, quantity, low_stock_threshold, created_at FROM supplies WHERE id = $1`,
+      `SELECT id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, created_at FROM supplies WHERE id = $1`,
       [req.params.id]
     );
     await client.query('COMMIT');

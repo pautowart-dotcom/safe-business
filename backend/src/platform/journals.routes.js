@@ -279,4 +279,65 @@ router.get(
   })
 );
 
+// --- Журнал дезсредств (Пакет 3, Этап 6) ---
+// Никакого ручного ввода: журнал — это просто история списаний/приходов
+// позиций склада, помеченных тегом "дезинфицирующее средство"
+// (supplies.is_disinfectant), читаемая из уже существующего
+// supply_movements. Записи создаются через модуль "Расходники"
+// (Пришло/Списать/визит), не здесь — поэтому только GET + экспорт.
+router.get(
+  '/disinfectant-log',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT sm.id, sm.type, sm.quantity, sm.created_at, s.name AS supply_name, s.unit, u.name AS user_name
+       FROM supply_movements sm
+       JOIN supplies s ON s.id = sm.supply_id
+       LEFT JOIN users u ON u.id = sm.created_by_user_id
+       WHERE sm.company_id = $1 AND s.is_disinfectant = true
+       ORDER BY sm.created_at DESC`,
+      [req.tenant.companyId]
+    );
+    res.json(rows);
+  })
+);
+
+router.get(
+  '/disinfectant-log/export',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT sm.type, sm.quantity, sm.created_at, s.name AS supply_name, s.unit, u.name AS user_name
+       FROM supply_movements sm
+       JOIN supplies s ON s.id = sm.supply_id
+       LEFT JOIN users u ON u.id = sm.created_by_user_id
+       WHERE sm.company_id = $1 AND s.is_disinfectant = true
+       ORDER BY sm.created_at DESC`,
+      [req.tenant.companyId]
+    );
+    const type = await journalType('disinfectant_log');
+    const pdfBuffer = await renderJournalPdf({
+      companyName: await companyName(req.tenant.companyId),
+      title: type.title,
+      disclaimer: type.disclaimer,
+      columns: [
+        { header: 'Операция', key: 'op' },
+        { header: 'Средство', key: 'supply_name' },
+        { header: 'Количество', key: 'qty' },
+        { header: 'Кто', key: 'user_name' },
+        { header: 'Время', key: 'created_at' },
+      ],
+      rows: rows.map((r) => ({
+        op: r.type === 'in' ? 'Приход' : 'Списание',
+        supply_name: r.supply_name,
+        qty: `${Number(r.quantity)} ${r.unit || ''}`.trim(),
+        user_name: r.user_name || '—',
+        created_at: new Date(r.created_at).toLocaleString('ru-RU'),
+      })),
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="disinfectant-journal.pdf"');
+    res.send(pdfBuffer);
+  })
+);
+
 module.exports = router;

@@ -3,7 +3,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, BackBtn, Field, TextInput, Btn, Badge, Icon, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0' };
+const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false };
 
 export default function Supplies() {
   const { isManagement } = useAuth();
@@ -34,6 +34,7 @@ export default function Supplies() {
       productUrl: s.product_url || '',
       quantity: String(s.quantity ?? '0'),
       lowStockThreshold: String(s.low_stock_threshold ?? '0'),
+      isDisinfectant: !!s.is_disinfectant,
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -49,6 +50,7 @@ export default function Supplies() {
         unit: form.unit,
         productUrl: form.productUrl,
         lowStockThreshold: form.lowStockThreshold,
+        isDisinfectant: form.isDisinfectant,
       });
     } else {
       await api.post('/modules/supplies', form);
@@ -82,6 +84,10 @@ export default function Supplies() {
         <Field label="Минимум (порог)"><TextInput type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} placeholder="2" /></Field>
         <Field label="Единица"><TextInput value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="шт" /></Field>
         <Field label="Ссылка на товар"><TextInput type="url" value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} placeholder="https://..." /></Field>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, cursor: 'pointer' }}>
+          <input type="checkbox" checked={form.isDisinfectant} onChange={(e) => setForm({ ...form, isDisinfectant: e.target.checked })} />
+          <span style={{ fontSize: 14 }}>Дезинфицирующее средство</span>
+        </label>
         <Btn onClick={handleCreate}>{editingId ? 'Сохранить изменения' : 'Добавить'}</Btn>
       </div>
     );
@@ -113,6 +119,7 @@ export default function Supplies() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {s.is_disinfectant && <Badge color={C.secondary} bg={C.surface}>Дезсредство</Badge>}
                     {low && <Badge color={C.red} bg={C.redBg}>Мало</Badge>}
                     <div style={{ fontSize: 16, fontWeight: 800, color: low ? C.red : C.primary }}>{Number(s.quantity)} {s.unit}</div>
                   </div>
