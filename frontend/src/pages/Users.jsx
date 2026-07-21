@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '', branchId: '' };
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат' };
+const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '' };
 
 export default function Users() {
+  const { isOwner } = useAuth();
   const [members, setMembers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +22,8 @@ export default function Users() {
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ payoutPercent: '', branchId: '' });
   const [confirmDel, setConfirmDel] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [docForm, setDocForm] = useState(null);
 
   function load() {
     setLoading(true);
@@ -42,12 +48,30 @@ export default function Users() {
   function openEdit(member) {
     setEditing(member);
     setEditForm({ payoutPercent: member.payout_percent || '', branchId: member.branch_id || '' });
+    loadDocuments(member.id);
   }
 
   async function handleEditSubmit() {
     await api.patch(`/platform/memberships/${editing.id}`, editForm);
     setEditing(null);
     load();
+  }
+
+  function loadDocuments(membershipId) {
+    api.get('/platform/staff-documents', { params: { membershipId } }).then((res) => setDocuments(res.data));
+  }
+
+  async function handleAddDocument() {
+    if (!docForm.expiresAt) return;
+    await api.post('/platform/staff-documents', { membershipId: editing.id, ...docForm });
+    setDocForm(null);
+    loadDocuments(editing.id);
+  }
+
+  async function handleDeleteDocument(id) {
+    if (!confirm('Удалить документ?')) return;
+    await api.delete(`/platform/staff-documents/${id}`);
+    loadDocuments(editing.id);
   }
 
   async function handleRemove(id) {
@@ -106,6 +130,54 @@ export default function Users() {
           </Select>
         </Field>
         <Btn onClick={handleEditSubmit}>Сохранить</Btn>
+
+        <div style={{ marginTop: 24 }}>
+          <ST>Документы</ST>
+          <Card>
+            {documents.length === 0 ? (
+              <div className="empty-hint">Документов пока нет</div>
+            ) : (
+              documents.map((d, i) => (
+                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: i < documents.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{DOC_TYPE_LABELS[d.doc_type]}{d.title ? ` · ${d.title}` : ''}</div>
+                    <div style={{ fontSize: 12, color: C.subtle }}>Истекает {new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                  </div>
+                  {isOwner && (
+                    <button onClick={() => handleDeleteDocument(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.red }}>Удалить</button>
+                  )}
+                </div>
+              ))
+            )}
+          </Card>
+
+          {isOwner && (
+            docForm ? (
+              <Card>
+                <Field label="Тип документа">
+                  <Select value={docForm.docType} onChange={(e) => setDocForm({ ...docForm, docType: e.target.value })}>
+                    <option value="medical_book">Мед. книжка</option>
+                    <option value="certificate">Сертификат</option>
+                  </Select>
+                </Field>
+                {docForm.docType === 'certificate' && (
+                  <Field label="Название сертификата">
+                    <TextInput value={docForm.title} onChange={(e) => setDocForm({ ...docForm, title: e.target.value })} placeholder="Например, курс лешмейкера" />
+                  </Field>
+                )}
+                <Field label="Дата истечения">
+                  <TextInput type="date" value={docForm.expiresAt} onChange={(e) => setDocForm({ ...docForm, expiresAt: e.target.value })} />
+                </Field>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Btn small onClick={handleAddDocument}>Добавить</Btn>
+                  <Btn small variant="secondary" onClick={() => setDocForm(null)}>Отмена</Btn>
+                </div>
+              </Card>
+            ) : (
+              <Btn variant="secondary" onClick={() => setDocForm({ ...EMPTY_DOC_FORM })}>+ Добавить документ</Btn>
+            )
+          )}
+        </div>
       </div>
     );
   }

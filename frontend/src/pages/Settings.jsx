@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Btn, Icon, C } from '../ui/components.jsx';
 
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат' };
 const NOTIFICATION_CATEGORIES = [
   { key: 'legal', label: 'Юридические' },
   { key: 'tax', label: 'Налоговые' },
@@ -21,6 +22,7 @@ export default function Settings() {
   const [analyticsConsent, setAnalyticsConsent] = useState(!!user?.analytics_consent);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState(null);
+  const [myDocuments, setMyDocuments] = useState(null);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -30,6 +32,11 @@ export default function Settings() {
   useEffect(() => {
     if (!isManagement) return;
     api.get('/platform/deadlines/settings').then((res) => setNotificationSettings(res.data));
+  }, [isManagement]);
+
+  useEffect(() => {
+    if (isManagement) return;
+    api.get('/platform/staff-documents').then((res) => setMyDocuments(res.data));
   }, [isManagement]);
 
   async function toggleNotificationCategory(category, enabled) {
@@ -166,6 +173,18 @@ export default function Settings() {
               </label>
             );
           })}
+        </Card>
+      )}
+
+      {!isManagement && myDocuments && myDocuments.length > 0 && (
+        <Card>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Мои документы</div>
+          {myDocuments.map((d, i) => (
+            <div key={d.id} style={{ padding: '8px 0', borderBottom: i < myDocuments.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{DOC_TYPE_LABELS[d.doc_type]}{d.title ? ` · ${d.title}` : ''}</div>
+              <div style={{ fontSize: 12, color: C.subtle }}>Истекает {new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            </div>
+          ))}
         </Card>
       )}
 
