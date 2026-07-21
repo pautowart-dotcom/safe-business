@@ -7,6 +7,7 @@ const { requireRole } = require('../core/middleware/role');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
+const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
 
 const router = express.Router();
 
@@ -87,7 +88,7 @@ router.get(
   requireTenant,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, created_at FROM companies WHERE id = $1',
+      'SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime, created_at FROM companies WHERE id = $1',
       [req.tenant.companyId]
     );
     if (rows.length === 0) {
@@ -97,21 +98,35 @@ router.get(
   })
 );
 
+router.get('/tax-regimes', requireAuth, (req, res) => res.json(TAX_REGIMES));
+
 router.patch(
   '/current',
   requireAuth,
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, industrySegment } = req.body;
+    const { name, industrySegment, taxRegime } = req.body;
+    // taxRegime может прийти '' (сброс режима на "не указан" из фронта) —
+    // это валидный случай, отличный от неизвестного ключа.
+    if (taxRegime && !TAX_REGIMES.some((r) => r.key === taxRegime)) {
+      return res.status(400).json({ error: 'Неизвестный налоговый режим' });
+    }
+
     const { rows } = await pool.query(
       `UPDATE companies SET
          name = COALESCE($1, name),
-         industry_segment = COALESCE($2, industry_segment)
-       WHERE id = $3
-       RETURNING id, name, industry_segment, subscription_status, trial_ends_at, created_at`,
-      [name || null, industrySegment || null, req.tenant.companyId]
+         industry_segment = COALESCE($2, industry_segment),
+         tax_regime = CASE WHEN $3 THEN $4 ELSE tax_regime END
+       WHERE id = $5
+       RETURNING id, name, industry_segment, subscription_status, trial_ends_at, tax_regime, created_at`,
+      [name || null, industrySegment || null, taxRegime !== undefined, taxRegime || null, req.tenant.companyId]
     );
+
+    if (taxRegime !== undefined) {
+      await syncTaxDeadlines(req.tenant.companyId, rows[0].tax_regime);
+    }
+
     res.json(rows[0]);
   })
 );

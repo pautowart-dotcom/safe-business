@@ -17,10 +17,13 @@ function daysLeft(dueDate) {
 }
 
 export default function Deadlines() {
-  const { isManagement } = useAuth();
+  const { isManagement, isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  // Налоговые дедлайны скрыты от Администратора (Этап 4) — сам фильтр по
+  // ней тоже незачем показывать, он бы вёл в пустой список.
+  const visibleCategories = isAdmin ? CATEGORIES.filter((c) => c.key !== 'tax') : CATEGORIES;
 
   function load() {
     setLoading(true);
@@ -51,7 +54,7 @@ export default function Deadlines() {
         >
           Все
         </button>
-        {CATEGORIES.map((c) => (
+        {visibleCategories.map((c) => (
           <button
             key={c.key}
             onClick={() => setCategory(c.key)}

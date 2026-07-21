@@ -11,14 +11,21 @@ const router = express.Router();
 router.use(requireAuth, requireTenant);
 
 // Список предстоящих сроков, отсортирован по дате. По умолчанию — только
-// незакрытые (pending), фильтр по категории необязателен. Видно всем ролям
-// компании — сами категории/видимость по роли (например налоговые от
-// Администратора) настраиваются на уровне конкретного модуля-поставщика
-// (Этап 4), не здесь.
+// незакрытые (pending), фильтр по категории необязателен.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { category, status } = req.query;
+
+    // Пакет 3, Этап 4: налоговые напоминания скрыты от Администратора — по
+    // аналогии с netProfit в finance/summary.routes.js (решение по
+    // умолчанию, озвученное владельцу как предложение, можно пересмотреть).
+    // Не 400/403 на явный ?category=tax — просто пустой список, тем же
+    // способом, что и netProfit молча не попадает в ответ.
+    if (category === 'tax' && req.tenant.role === 'admin') {
+      return res.json([]);
+    }
+
     const params = [req.tenant.companyId];
     let where = 'company_id = $1';
 
@@ -28,6 +35,8 @@ router.get(
       }
       params.push(category);
       where += ` AND category = $${params.length}`;
+    } else if (req.tenant.role === 'admin') {
+      where += ` AND category != 'tax'`;
     }
     params.push(status || 'pending');
     where += ` AND status = $${params.length}`;
@@ -58,7 +67,10 @@ router.get(
       [req.tenant.companyId]
     );
     const byCategory = Object.fromEntries(rows.map((r) => [r.category, r.enabled]));
-    res.json(CATEGORIES.map((category) => ({ category, enabled: byCategory[category] ?? true })));
+    // Тумблер для скрытой от Администратора категории тоже не отдаём — иначе
+    // это управляло бы напоминаниями, которые сам он никогда не увидит.
+    const visibleCategories = req.tenant.role === 'admin' ? CATEGORIES.filter((c) => c !== 'tax') : CATEGORIES;
+    res.json(visibleCategories.map((category) => ({ category, enabled: byCategory[category] ?? true })));
   })
 );
 
@@ -69,6 +81,9 @@ router.patch(
     const { category, enabled } = req.body;
     if (!CATEGORIES.includes(category) || typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'Укажите категорию и значение тумблера' });
+    }
+    if (category === 'tax' && req.tenant.role === 'admin') {
+      return res.status(403).json({ error: 'Недостаточно прав для этого действия' });
     }
     await pool.query(
       `INSERT INTO notification_settings (company_id, category, enabled)
@@ -88,8 +103,11 @@ router.patch(
     if (!['pending', 'done', 'dismissed'].includes(status)) {
       return res.status(400).json({ error: 'Недопустимый статус' });
     }
+    // Админ не видит налоговые дедлайны в списке — не даём тронуть их и
+    // напрямую по id.
+    const adminGuard = req.tenant.role === 'admin' ? `AND category != 'tax'` : '';
     const { rows } = await pool.query(
-      `UPDATE deadlines SET status = $1 WHERE id = $2 AND company_id = $3
+      `UPDATE deadlines SET status = $1 WHERE id = $2 AND company_id = $3 ${adminGuard}
        RETURNING id, category, title, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
                  related_entity_type, related_entity_id, created_at`,
       [status, req.params.id, req.tenant.companyId]
