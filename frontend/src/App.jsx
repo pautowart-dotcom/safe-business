@@ -21,7 +21,7 @@ import Feedback from './pages/Feedback.jsx';
 import More from './pages/More.jsx';
 import Subscription from './pages/Subscription.jsx';
 import Support from './pages/Support.jsx';
-import CalendarPage from './pages/Calendar.jsx';
+import Deadlines from './pages/Deadlines.jsx';
 
 export default function App() {
   return (
@@ -103,7 +103,7 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="subscription" element={<Subscription />} />
         <Route path="support" element={<Support />} />
-        <Route path="calendar" element={<CalendarPage />} />
+        <Route path="deadlines" element={<Deadlines />} />
         <Route path="more" element={<More />} />
       </Route>
     </Routes>

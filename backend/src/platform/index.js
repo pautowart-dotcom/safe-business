@@ -7,7 +7,7 @@ const modulesRoutes = require('./modules.routes');
 const adminRoutes = require('./admin.routes');
 const legalRoutes = require('./legal.routes');
 const supportRoutes = require('./support.routes');
-const calendarRoutes = require('./calendar.routes');
+const deadlinesRoutes = require('./deadlines.routes');
 const dailyTasksRoutes = require('./daily-tasks.routes');
 const dashboardRoutes = require('./dashboard.routes');
 
@@ -18,7 +18,7 @@ platformRouter.use('/memberships', membershipsRoutes);
 platformRouter.use('/modules', modulesRoutes);
 platformRouter.use('/admin', adminRoutes);
 platformRouter.use('/support', supportRoutes);
-platformRouter.use('/calendar', calendarRoutes);
+platformRouter.use('/deadlines', deadlinesRoutes);
 platformRouter.use('/daily-tasks', dailyTasksRoutes);
 platformRouter.use('/dashboard', dashboardRoutes);
 

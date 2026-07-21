@@ -222,13 +222,13 @@ function MasterDashboard() {
       api.get('/modules/visits', { params: { dateFrom: `${today}T00:00:00`, dateTo: `${today}T23:59:59` } }),
       api.get('/modules/checklists/templates'),
       api.get('/modules/checklists/marks', { params: { date: today } }),
-      api.get('/platform/calendar', { params: { from: today, to: today } }),
+      api.get('/platform/deadlines'),
     ])
-      .then(([sum, v, tpl, marks, cal]) => {
+      .then(([sum, v, tpl, marks, dl]) => {
         setSummary(sum.data);
         setVisits(v.data);
         setChecklists({ templates: tpl.data.filter((t) => t.active), marks: marks.data });
-        setReminders(cal.data);
+        setReminders(dl.data.filter((d) => d.due_date === today));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -280,12 +280,11 @@ function MasterDashboard() {
       </Card>
 
       {reminders.length > 0 && (
-        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/calendar')}>
-          <ST>Мои напоминания сегодня</ST>
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/deadlines')}>
+          <ST>Сроки сегодня</ST>
           {reminders.map((r) => (
             <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14 }}>
               <span>{r.title}</span>
-              {r.event_time && <span style={{ color: C.subtle, fontSize: 12 }}>{r.event_time.slice(0, 5)}</span>}
             </div>
           ))}
         </Card>

@@ -49,7 +49,7 @@ const TITLES = {
   '/feedback': 'Обратная связь',
   '/subscription': 'Подписка',
   '/support': 'Поддержка',
-  '/calendar': 'Календарь',
+  '/deadlines': 'Дедлайны',
   '/more': 'Ещё',
 };
 
@@ -145,7 +145,7 @@ export default function Layout() {
             сжимался по ширине и становился овальным — это и был баг. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div
-            onClick={() => navigate('/calendar')}
+            onClick={() => navigate('/deadlines')}
             style={{
               width: 34, height: 34, minWidth: 34, minHeight: 34, borderRadius: '50%', boxSizing: 'border-box',
               background: C.surface, border: `1px solid ${C.border}`, flexShrink: 0,

@@ -5,6 +5,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Btn, Icon, C } from '../ui/components.jsx';
 
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+const NOTIFICATION_CATEGORIES = [
+  { key: 'legal', label: 'Юридические' },
+  { key: 'tax', label: 'Налоговые' },
+  { key: 'financial', label: 'Финансовые' },
+  { key: 'staff', label: 'Кадровые' },
+];
 
 export default function Settings() {
   const { user, currentCompany, isManagement, logout, switchCompany, renameCurrentCompany, setUserAvatar } = useAuth();
@@ -14,11 +20,22 @@ export default function Settings() {
   const [companyName, setCompanyName] = useState('');
   const [analyticsConsent, setAnalyticsConsent] = useState(!!user?.analytics_consent);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState(null);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
     api.get('/platform/companies/current').then((res) => setCompany(res.data));
   }, []);
+
+  useEffect(() => {
+    if (!isManagement) return;
+    api.get('/platform/deadlines/settings').then((res) => setNotificationSettings(res.data));
+  }, [isManagement]);
+
+  async function toggleNotificationCategory(category, enabled) {
+    setNotificationSettings((prev) => prev.map((s) => (s.category === category ? { ...s, enabled } : s)));
+    await api.patch('/platform/deadlines/settings', { category, enabled });
+  }
 
   function openEditCompany() {
     setCompanyName(company.name);
@@ -124,6 +141,31 @@ export default function Settings() {
           <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>🎉 Бесплатный период</div>
           <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — 1 490 ₽/мес</div>
+        </Card>
+      )}
+
+      {isManagement && notificationSettings && (
+        <Card>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Уведомления</div>
+          {NOTIFICATION_CATEGORIES.map((cat, i) => {
+            const setting = notificationSettings.find((s) => s.category === cat.key);
+            return (
+              <label
+                key={cat.key}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                  padding: '8px 0', borderBottom: i < NOTIFICATION_CATEGORIES.length - 1 ? `1px solid ${C.border}` : 'none',
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{cat.label}</span>
+                <input
+                  type="checkbox"
+                  checked={setting?.enabled ?? true}
+                  onChange={(e) => toggleNotificationCategory(cat.key, e.target.checked)}
+                />
+              </label>
+            );
+          })}
         </Card>
       )}
 
