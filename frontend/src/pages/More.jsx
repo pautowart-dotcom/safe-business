@@ -10,6 +10,7 @@ const OWNER_ITEMS = [
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
   { label: 'Журналы', sub: 'УФ-лампа, инструктаж на рабочем месте', icon: 'doc', to: '/journals' },
+  { label: 'Сформировать досье', sub: 'По дате или по мастеру (по клиенту — в его карточке)', icon: 'doc', to: '/dossier' },
   { label: 'Обратная связь', sub: 'Сообщения от мастеров', icon: 'msg', to: '/feedback' },
   { label: 'Команда', sub: 'Мастера, приглашения, удаление', icon: 'team', to: '/team' },
   { label: 'Филиалы', sub: 'Адреса студии, если их несколько', icon: 'home', to: '/branches' },

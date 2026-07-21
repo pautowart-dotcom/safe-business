@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, TextArea, Btn, Avatar, C } from '../ui/components.jsx';
+import { downloadPdf } from '../utils/downloadPdf.js';
 
 const EMPTY_FORM = { firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '' };
 
 export default function Clients() {
+  const { isManagement } = useAuth();
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -13,6 +16,7 @@ export default function Clients() {
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [dossierError, setDossierError] = useState('');
   const firstNameRef = useRef(null);
 
   function load(searchTerm) {
@@ -119,10 +123,20 @@ export default function Clients() {
             {selected.phone && <div style={{ fontSize: 13, color: C.subtle }}>{selected.phone}</div>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           <Btn small onClick={() => openEdit(selected)}>Изменить</Btn>
           <Btn small variant="secondary" onClick={() => handleDelete(selected.id)}>Удалить</Btn>
+          {isManagement && (
+            <Btn
+              small
+              variant="secondary"
+              onClick={() => downloadPdf(`/platform/dossier/client/${selected.id}/export`, `dossier-${selected.last_name}.pdf`, setDossierError)}
+            >
+              Сформировать досье
+            </Btn>
+          )}
         </div>
+        {dossierError && <div className="alert alert-error">{dossierError}</div>}
         {selected.allergies && (
           <Card style={{ background: C.redBg, borderColor: `${C.red}33` }}>
             <div style={{ fontSize: 12, color: C.red, fontWeight: 700, marginBottom: 4 }}>⚠️ Аллергии</div>

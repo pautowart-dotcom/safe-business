@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Select, Btn, C } from '../ui/components.jsx';
+import { downloadPdf } from '../utils/downloadPdf.js';
 
 // Пакет 3, Этап 5: журналы УФ-лампы и инструктажа. Дисклеймер (обязательный
 // под каждым журналом) и заголовки — из БД (journal_types), не зашиты в
@@ -15,22 +16,6 @@ function toLocalInputValue(date) {
 
 function nowLocal() {
   return toLocalInputValue(new Date());
-}
-
-async function downloadPdf(url, filename, setError) {
-  try {
-    const res = await api.get(url, { responseType: 'blob' });
-    const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(blobUrl);
-  } catch (err) {
-    setError(err.response?.data?.error || 'Не удалось сформировать PDF');
-  }
 }
 
 function Disclaimer({ text }) {

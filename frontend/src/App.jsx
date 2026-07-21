@@ -18,6 +18,7 @@ import Branches from './pages/Branches.jsx';
 import AdminLegalDocs from './pages/AdminLegalDocs.jsx';
 import Journals from './pages/Journals.jsx';
 import AdminJournalTypes from './pages/AdminJournalTypes.jsx';
+import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
 import More from './pages/More.jsx';
@@ -107,6 +108,14 @@ export default function App() {
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
         <Route path="journals" element={<Journals />} />
+        <Route
+          path="dossier"
+          element={
+            <PrivateRoute managementOnly>
+              <Dossier />
+            </PrivateRoute>
+          }
+        />
         <Route
           path="admin/journal-types"
           element={
