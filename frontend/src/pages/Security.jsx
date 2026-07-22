@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, Select, Icon, C } from '../ui/components.jsx';
+import MyDeadlinesTab from './MyDeadlines.jsx';
 
 const LEGAL_FORM_OPTIONS = [
   { value: 'self_employed', label: 'Самозанятый' },
@@ -102,6 +103,11 @@ export default function Security() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [activeAudit, setActiveAudit] = useState(null);
   const [auditResult, setAuditResult] = useState(null);
+  // Пакет 4, Этап 2: два таба верхнего уровня внутри "Безопасности" — "Тест"
+  // (существующая панель ниже) и новая "Мои сроки". Таб переключается только
+  // в устойчивом состоянии панели — во время прохождения теста/результата/
+  // формы сегментации верхних табов нет, это отдельные полноэкранные шаги.
+  const [topTab, setTopTab] = useState('test');
 
   async function loadDashboardData() {
     const [sessionsRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
@@ -211,22 +217,45 @@ export default function Security() {
   }
 
   return (
-    <SecurityDashboard
-      profile={profile}
-      sessions={sessions}
-      violations={violations}
-      documents={documents}
-      documentSections={documentSections}
-      products={products}
-      isManagement={isManagement}
-      error={error}
-      onEditProfile={() => setEditingProfile(true)}
-      onStartAudit={startAudit}
-      onResolveViolation={resolveViolation}
-      onJoinWaitlist={joinWaitlist}
-      onDownloadReport={(sessionId) => downloadPdf(sessionId, setError, navigate)}
-      onDocumentsChange={loadDashboardData}
-    />
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Безопасность</div>
+
+      {isManagement && (
+        <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, margin: '12px 0 16px' }}>
+          {[['test', 'Тест'], ['my_deadlines', 'Мои сроки']].map(([k, l]) => (
+            <button
+              key={k}
+              onClick={() => setTopTab(k)}
+              style={{ flex: 1, padding: '9px 4px', borderRadius: 10, border: 'none', cursor: 'pointer', background: topTab === k ? C.bg : 'transparent', color: topTab === k ? C.primary : C.subtle, fontSize: 13, fontWeight: topTab === k ? 700 : 500, boxShadow: topTab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {topTab === 'my_deadlines' && isManagement ? (
+        <MyDeadlinesTab />
+      ) : (
+        <SecurityDashboard
+          profile={profile}
+          sessions={sessions}
+          violations={violations}
+          documents={documents}
+          documentSections={documentSections}
+          products={products}
+          isManagement={isManagement}
+          error={error}
+          onEditProfile={() => setEditingProfile(true)}
+          onStartAudit={startAudit}
+          onResolveViolation={resolveViolation}
+          onJoinWaitlist={joinWaitlist}
+          onDownloadReport={(sessionId) => downloadPdf(sessionId, setError, navigate)}
+          onDocumentsChange={loadDashboardData}
+          hideTitle
+        />
+      )}
+    </div>
   );
 }
 
@@ -389,7 +418,7 @@ function AuditResult({ result, onClose, onDownload }) {
 
 function SecurityDashboard({
   profile, sessions, violations, documents, documentSections, products, isManagement, error,
-  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange,
+  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange, hideTitle,
 }) {
   const [tab, setTab] = useState('overview');
 
@@ -400,7 +429,7 @@ function SecurityDashboard({
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800 }}>Безопасность</div>
+      {!hideTitle && <div style={{ fontSize: 20, fontWeight: 800 }}>Безопасность</div>}
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         {nicheLabel} · {LEGAL_FORM_OPTIONS.find((o) => o.value === profile.legalForm)?.label}
         {isManagement && <span onClick={onEditProfile} style={{ color: C.primary, fontWeight: 600, cursor: 'pointer', marginLeft: 8 }}>Изменить</span>}

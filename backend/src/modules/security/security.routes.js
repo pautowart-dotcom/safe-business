@@ -8,6 +8,32 @@ const { encrypt, decrypt } = require('../../core/crypto');
 const repository = require('./content/repository');
 const { filterVisible } = require('./content/visibility');
 const scoring = require('./content/scoring');
+const { registerAction, clearAction } = require('../../core/deadlines');
+
+// Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
+// точной даты нет) из docs/task-batch-4.txt. category='documents' — тест
+// безопасности содержательно ближе к юридическому комплаенсу компании, чем
+// к остальным категориям (кадры/помещение/налоги/журналы); отдельную
+// категорию под один пункт заводить не стали.
+const TEST_NOT_PASSED_RELATED_TYPE = 'security_test';
+
+async function syncTestAction(companyId) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM security_sessions WHERE company_id = $1 AND status = 'completed' LIMIT 1`,
+    [companyId]
+  );
+  if (rows.length > 0) {
+    await clearAction({ relatedEntityType: TEST_NOT_PASSED_RELATED_TYPE, relatedEntityId: companyId, category: 'documents' });
+    return;
+  }
+  await registerAction({
+    companyId,
+    category: 'documents',
+    title: 'Пройти тест безопасности',
+    relatedEntityType: TEST_NOT_PASSED_RELATED_TYPE,
+    relatedEntityId: companyId,
+  });
+}
 
 const router = express.Router();
 
@@ -121,6 +147,7 @@ router.post(
       entityType: 'security_profile',
       action: 'security_profile.updated',
     });
+    await syncTestAction(req.tenant.companyId);
 
     res.json({ stub: false, profile: toProfileShape(rows[0]) });
   })
@@ -313,6 +340,7 @@ router.post(
       action: 'security_session.completed',
       payload: { zone: result.zone, indexPercent: result.indexPercent },
     });
+    await syncTestAction(req.tenant.companyId);
 
     res.json({ ...result, violationsPersisted: violationsPersisted.length });
   })

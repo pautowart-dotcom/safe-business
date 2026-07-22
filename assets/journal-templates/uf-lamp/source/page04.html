@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+@page{size:210mm 148mm;margin:0;}
+.htable{position:absolute;top:16%;bottom:8%;display:flex;flex-direction:column;border:0.6pt solid var(--graphite);}
+.htable.left{left:5%;width:44%;}
+.htable.right{left:51%;width:44%;}
+.hrow{flex:1;display:flex;border-bottom:0.4pt solid var(--hair);}
+.hrow:last-child{border-bottom:none;}
+.hrow.header{background:var(--graphite);}
+.hcell{flex:1;display:flex;align-items:center;justify-content:center;font-size:8pt;border-right:0.4pt solid var(--hair);}
+.hcell:first-child{flex:1.6;justify-content:flex-start;padding-left:4%;}
+.hcell:last-child{border-right:none;}
+.hrow.header .hcell{color:#fff;font-weight:700;font-size:7.6pt;border-right:0.4pt solid rgba(255,255,255,0.25);}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="ihead">
+    <div class="mark"><div class="word">БЕЗОПАСНЫЙ БИЗНЕС</div></div>
+    <div class="doc">Журнал УФ-установки</div>
+  </div>
+
+  <div class="stitle"><span class="over">РАЗДЕЛ 4</span>Суммарное количество часов работы лампы по месяцам</div>
+
+  <div class="htable left">
+    <div class="hrow header"><div class="hcell">Месяц, год</div><div class="hcell">Часов</div></div>
+    <div class="hrow"><div class="hcell">Январь</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Февраль</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Март</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Апрель</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Май</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Июнь</div><div class="hcell">&nbsp;</div></div>
+  </div>
+  <div class="htable right">
+    <div class="hrow header"><div class="hcell">Месяц, год</div><div class="hcell">Часов</div></div>
+    <div class="hrow"><div class="hcell">Июль</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Август</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Сентябрь</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Октябрь</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Ноябрь</div><div class="hcell">&nbsp;</div></div>
+    <div class="hrow"><div class="hcell">Декабрь</div><div class="hcell">&nbsp;</div></div>
+  </div>
+
+  <div class="ifoot">
+    <span>Журнал регистрации и контроля УФ-установки</span>
+    <span class="pn">5</span>
+  </div>
+</div>
+</body>
+</html>

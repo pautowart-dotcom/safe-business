@@ -4,7 +4,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client.js';
 import { Card, Btn, TextArea, ChevronRow, Icon, C } from '../ui/components.jsx';
 
+// Пакет 4, Этап 6: Клиенты/Визиты переехали сюда из нижнего меню (место
+// освободила "Безопасность" — новый пункт нижней навигации). moduleKey — та
+// же логика, что раньше двигала видимость в нижнем меню (Пакет 3, Этап 1.1).
 const OWNER_ITEMS = [
+  { label: 'Клиенты', sub: 'База клиентов, история визитов', icon: 'clients', to: '/clients', moduleKey: 'clients' },
+  { label: 'Визиты', sub: 'Календарь визитов и услуг', icon: 'visit', to: '/visits', moduleKey: 'visits' },
   { label: 'Склад расходников', sub: 'Остатки, списание, пополнение', icon: 'supply', to: '/supplies' },
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
@@ -20,10 +25,13 @@ const OWNER_ITEMS = [
 
 function OwnerMore() {
   const navigate = useNavigate();
-  const { isSuperAdmin, isOwner } = useAuth();
+  const { isSuperAdmin, isOwner, hasModule } = useAuth();
   // Безопасность — только владелец (политика конфиденциальности §8.4,
-  // делегирования доступа администратору пока нет).
-  const base = isOwner ? OWNER_ITEMS : OWNER_ITEMS.filter((i) => i.to !== '/security');
+  // делегирования доступа администратору пока нет). Клиенты/Визиты —
+  // видимость по модулю компании, как раньше в нижнем меню.
+  const base = OWNER_ITEMS
+    .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
+    .filter((i) => isOwner || i.to !== '/security');
   const items = isSuperAdmin
     ? [
         ...base,

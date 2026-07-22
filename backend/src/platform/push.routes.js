@@ -55,7 +55,10 @@ router.post(
     if (!isPushConfigured()) {
       return res.status(400).json({ error: 'Push не настроен на сервере (нет VAPID-ключей)' });
     }
-    const category = ['legal', 'tax', 'financial', 'staff'].includes(req.body.category) ? req.body.category : 'legal';
+    // Пакет 4, Этап 1: категории синхронизированы со списком в deadlines.routes.js.
+    const category = ['staff', 'premises', 'documents', 'tax', 'journals', 'financial'].includes(req.body.category)
+      ? req.body.category
+      : 'documents';
     await sendPushToCompany({
       companyId: req.tenant.companyId,
       category,

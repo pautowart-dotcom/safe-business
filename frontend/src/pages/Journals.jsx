@@ -3,6 +3,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Select, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
+import PrintedJournalsTab from './PrintedJournals.jsx';
 
 // Пакет 3, Этап 5: журналы УФ-лампы и инструктажа. Дисклеймер (обязательный
 // под каждым журналом) и заголовки — из БД (journal_types), не зашиты в
@@ -270,12 +271,17 @@ export default function Journals() {
     api.get('/platform/memberships/roster').then((res) => setRoster(res.data));
   }, []);
 
+  // Пакет 4, Этап 3: "Печатные бланки" — management-only (создание/просмотр
+  // на бэкенде тоже requireRole('owner','admin')), поэтому мастеру эту
+  // вкладку вообще не показываем, а не показываем и сразу ломаем ошибками.
+  const allTabs = isManagement ? [...TABS, { key: 'printed', fallbackLabel: 'Печатные бланки' }] : TABS;
+
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Журналы</div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto' }}>
-        {TABS.map((t) => (
+        {allTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -298,6 +304,7 @@ export default function Journals() {
       {tab === 'disinfectant_log' && (
         <DisinfectantLogTab type={types.disinfectant_log} isManagement={isManagement} error={error} setError={setError} />
       )}
+      {tab === 'printed' && isManagement && <PrintedJournalsTab setError={setError} />}
     </div>
   );
 }

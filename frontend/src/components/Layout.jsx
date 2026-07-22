@@ -11,10 +11,17 @@ const PULL_MAX = 100;
 
 // moduleKey — Пакет 3, Этап 1.1: пункт скрывается, если company.hasModule(key)
 // вернёт false (модуль visits_clients выключен для этой компании).
+// ownerOnly — Пакет 4, Этап 6: "Безопасность" видна в нижнем меню только
+// владельцу (страница и так ownerOnly, см. PrivateRoute в App.jsx) — у
+// администратора без этого пункта останется 3 вкладки, это ожидаемо, не баг.
+// Клиенты/Визиты убраны из нижнего меню (теперь 4 пункта по заданию:
+// Главная → Безопасность → Финансы → Ещё) и перенесены в хаб "Ещё"
+// (More.jsx) — прямого места в нижнем меню на 5-6 пунктов уже не осталось,
+// а эти два раздела не менее важны, чем Склад/Смена, которые и так были
+// доступны только через "Ещё".
 const OWNER_NAV = [
   { to: '/', label: 'Главная', icon: 'home', end: true },
-  { to: '/clients', label: 'Клиенты', icon: 'clients', moduleKey: 'clients' },
-  { to: '/visits', label: 'Визиты', icon: 'visit', moduleKey: 'visits' },
+  { to: '/security', label: 'Безопасность', icon: 'shield', ownerOnly: true },
   { to: '/finance', label: 'Финансы', icon: 'finance' },
   { to: '/more', label: 'Ещё', icon: 'more' },
 ];
@@ -30,8 +37,10 @@ const MASTER_NAV = [
 
 // Разделы, доступные только через хаб "Ещё" (нет прямой вкладки в нижнем
 // меню) — используются, чтобы подсвечивать "Ещё" активным, когда открыт
-// один из них.
-const OWNER_HUB_PATHS = ['/supplies', '/shift', '/knowledge', '/security', '/feedback', '/team', '/branches', '/settings', '/admin/legal', '/journals', '/admin/journal-types', '/dossier'];
+// один из них. '/security' убран отсюда (Этап 6) — теперь у неё своя прямая
+// вкладка, подсвечивается сама, а не через "Ещё"; '/clients' и '/visits'
+// добавлены — переехали в хаб вместе с остальными.
+const OWNER_HUB_PATHS = ['/clients', '/visits', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/branches', '/settings', '/admin/legal', '/journals', '/admin/journal-types', '/dossier'];
 const MASTER_HUB_PATHS = ['/knowledge', '/settings', '/journals'];
 
 const TITLES = {
@@ -57,7 +66,7 @@ const TITLES = {
 };
 
 export default function Layout() {
-  const { user, currentCompany, isManagement, hasModule } = useAuth();
+  const { user, currentCompany, isManagement, isOwner, hasModule } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const ptr = usePullToRefreshController();
@@ -67,7 +76,7 @@ export default function Layout() {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
-  const nav = (isManagement ? OWNER_NAV : MASTER_NAV).filter((n) => !n.moduleKey || hasModule(n.moduleKey));
+  const nav = (isManagement ? OWNER_NAV : MASTER_NAV).filter((n) => (!n.moduleKey || hasModule(n.moduleKey)) && (!n.ownerOnly || isOwner));
   const hubPaths = isManagement ? OWNER_HUB_PATHS : MASTER_HUB_PATHS;
   const isHome = location.pathname === '/';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));

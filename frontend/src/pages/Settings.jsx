@@ -6,12 +6,15 @@ import { Card, Field, TextInput, Select, Btn, Icon, C } from '../ui/components.j
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
-const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат' };
+const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
+// Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 const NOTIFICATION_CATEGORIES = [
-  { key: 'legal', label: 'Юридические' },
-  { key: 'tax', label: 'Налоговые' },
-  { key: 'financial', label: 'Финансовые' },
   { key: 'staff', label: 'Кадровые' },
+  { key: 'premises', label: 'Помещение' },
+  { key: 'documents', label: 'Юридические' },
+  { key: 'tax', label: 'Налоговые' },
+  { key: 'journals', label: 'Журналы' },
+  { key: 'financial', label: 'Финансовые' },
 ];
 
 export default function Settings() {
@@ -24,12 +27,10 @@ export default function Settings() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState(null);
   const [myDocuments, setMyDocuments] = useState(null);
-  const [taxRegimes, setTaxRegimes] = useState([]);
-  const [savingTaxRegime, setSavingTaxRegime] = useState(false);
   const [pushState, setPushState] = useState('checking'); // checking | unsupported | ios-not-installed | unsubscribed | subscribed
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState('');
-  const [testCategory, setTestCategory] = useState('legal');
+  const [testCategory, setTestCategory] = useState('documents');
   const [testSent, setTestSent] = useState(false);
   const avatarInputRef = useRef(null);
 
@@ -86,18 +87,7 @@ export default function Settings() {
   useEffect(() => {
     if (!isManagement) return;
     api.get('/platform/deadlines/settings').then((res) => setNotificationSettings(res.data));
-    api.get('/platform/companies/tax-regimes').then((res) => setTaxRegimes(res.data));
   }, [isManagement]);
-
-  async function saveTaxRegime(taxRegime) {
-    setSavingTaxRegime(true);
-    try {
-      const { data } = await api.patch('/platform/companies/current', { taxRegime: taxRegime || null });
-      setCompany(data);
-    } finally {
-      setSavingTaxRegime(false);
-    }
-  }
 
   useEffect(() => {
     if (isManagement) return;
@@ -205,24 +195,6 @@ export default function Settings() {
               <button onClick={openEditCompany} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Изменить</button>
             </div>
           )}
-        </Card>
-      )}
-
-      {isManagement && company && (
-        <Card>
-          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Налоговый режим</div>
-          <Select
-            value={company.tax_regime || ''}
-            disabled={savingTaxRegime}
-            onChange={(e) => saveTaxRegime(e.target.value)}
-          >
-            <option value="">Не указан</option>
-            {taxRegimes.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </Select>
-          <div style={{ fontSize: 12, color: C.subtle, marginTop: 8, lineHeight: 1.5 }}>
-            По режиму автоматически появляются напоминания в «Дедлайнах». Даты — общий ориентир,
-            сверьте их с бухгалтером/юристом перед тем, как полагаться на них.
-          </div>
         </Card>
       )}
 

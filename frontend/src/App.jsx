@@ -5,6 +5,7 @@ import { PullToRefreshProvider } from './context/PullToRefreshContext.jsx';
 import Login from './pages/Login.jsx';
 import AcceptInvite from './pages/AcceptInvite.jsx';
 import LegalDocument from './pages/LegalDocument.jsx';
+import JournalVerify from './pages/JournalVerify.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clients from './pages/Clients.jsx';
 import Visits from './pages/Visits.jsx';
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/invite/:token" element={<AcceptInvite />} />
       <Route path="/legal/:key" element={<LegalDocument />} />
+      <Route path="/j/:token" element={<JournalVerify />} />
       <Route
         path="/"
         element={

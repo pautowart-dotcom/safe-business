@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page{size:297mm 210mm;margin:0;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;}
+body{font-family:"Liberation Sans","DejaVu Sans",sans-serif;}
+
+:root{
+  --graphite:#242321;
+  --cream:#F2ECDD;
+  --cream-dim:#D9D2BE;
+  --accent:#ACAFA9;
+  --accent-soft:#787D77;
+}
+
+.page{width:100%;height:100%;background:var(--graphite);position:relative;overflow:hidden;}
+.thinframe{position:absolute;top:4%;left:3%;right:3%;bottom:4%;border:0.5pt solid rgba(180,180,175,0.5);}
+
+.wordmark-top{position:absolute;top:7%;left:7%;font-size:9pt;letter-spacing:4px;color:var(--cream);font-weight:700;}
+.wordmark-top .dot{color:var(--accent);}
+.refbox{position:absolute;top:7%;right:7%;text-align:right;font-size:6.2pt;color:var(--cream-dim);line-height:1.4;opacity:0.85;}
+
+.title-zone{position:absolute;top:26%;left:7%;right:7%;}
+.doctype{font-size:8.6pt;letter-spacing:4.5px;color:var(--accent);font-weight:700;margin-bottom:3%;}
+.title{font-size:22pt;font-weight:700;color:var(--cream);line-height:1.2;margin-bottom:3%;max-width:70%;}
+.rule{width:7%;height:0;border-top:1pt solid var(--accent);margin-bottom:3%;}
+.subtitle{font-size:9pt;color:var(--cream-dim);line-height:1.5;max-width:60%;}
+
+.fields{position:absolute;top:73%;left:7%;right:7%;display:flex;gap:6%;}
+.field{flex:1;}
+.field-label{font-size:6.6pt;color:var(--accent);letter-spacing:1.6px;margin-bottom:2%;}
+.field-line{border-bottom:0.5pt solid rgba(242,236,221,0.35);padding-bottom:2%;font-size:9pt;color:var(--cream);min-height:1.4em;}
+
+.footer{position:absolute;bottom:7%;left:7%;right:7%;display:flex;justify-content:space-between;align-items:flex-end;padding-top:2.5%;border-top:0.4pt solid rgba(217,210,190,0.3);}
+.qr-block{display:flex;align-items:center;gap:2.5%;}
+.qr{width:7%;aspect-ratio:1;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:5pt;color:#65605A;}
+.qr-text{font-size:6.2pt;color:var(--cream-dim);line-height:1.4;max-width:78%;}
+.qr-text b{color:var(--accent);font-weight:700;}
+.sitetag{font-size:6.4pt;color:var(--cream-dim);text-align:right;}
+
+.corner-rule{position:absolute;bottom:7%;right:7%;width:14%;height:0;border-top:0.5pt solid rgba(172,175,169,0.4);display:none;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="thinframe"></div>
+
+  <div class="wordmark-top">БЕЗОПАСНЫЙ БИЗНЕС</div>
+  <div class="refbox">На основании Приказа Комитета по культуре<br>Правительства Москвы и ЦГСЭН от 10.09.2001 №167/465</div>
+
+  <div class="title-zone">
+    <div class="doctype">ЖУРНАЛ</div>
+    <div class="title">Учёта получения и расходования дезинфицирующих средств</div>
+    <div class="rule"></div>
+    <div class="subtitle">для проведения дезинфекционных мероприятий на объектах</div>
+  </div>
+
+  <div class="fields">
+    <div class="field">
+      <div class="field-label">НАИМЕНОВАНИЕ ОРГАНИЗАЦИИ</div>
+      <div class="field-line">&nbsp;</div>
+    </div>
+    <div class="field">
+      <div class="field-label">НАЧАТ</div>
+      <div class="field-line">« ___ » _____________ 20___ г.</div>
+    </div>
+    <div class="field">
+      <div class="field-label">ОКОНЧЕН</div>
+      <div class="field-line">« ___ » _____________ 20___ г.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="qr-block">
+      <div class="qr">QR</div>
+      <div class="qr-text"><b>Журнал № ______</b> · оформлен по подписке «Безопасный бизнес» — сроки видны в приложении</div>
+    </div>
+    <div class="sitetag"></div>
+  </div>
+</div>
+</body>
+</html>

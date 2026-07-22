@@ -1,0 +1,60 @@
+:root{
+  --graphite:#242321;
+  --graphite-soft:#5C5850;
+  --cream:#FAF6EC;
+  --cream-deep:#F2ECDD;
+  --gold:#ACAFA9;
+  --gold-soft:#787D77;
+  --hair:#DDD5C0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;}
+body{font-family:"Liberation Sans","DejaVu Sans",sans-serif;background:var(--cream);color:var(--graphite);}
+.page{width:100%;height:100%;background:var(--cream);position:relative;}
+
+/* header/footer as % bands */
+.ihead{
+  position:absolute;top:3%;left:5%;right:5%;height:5%;
+  display:flex;justify-content:space-between;align-items:center;
+  border-bottom:0.6pt solid var(--gold);
+}
+.ihead .mark{display:flex;align-items:center;gap:1.4%;}
+.ihead .word{font-size:8pt;letter-spacing:1.6px;color:var(--graphite);font-weight:700;}
+.ihead .doc{font-size:7.5pt;color:var(--graphite-soft);text-align:right;line-height:1.35;}
+
+.ifoot{
+  position:absolute;bottom:2%;left:5%;right:5%;height:4%;
+  display:flex;justify-content:space-between;align-items:center;
+  border-top:0.5pt solid var(--hair);
+  font-size:6.6pt;color:var(--graphite-soft);
+}
+.ifoot .pn{font-weight:700;color:var(--gold-soft);}
+
+.stitle{
+  position:absolute;top:9%;left:5%;right:5%;height:6%;
+  font-size:11pt;font-weight:700;color:var(--graphite);
+  display:flex;align-items:center;gap:2%;
+}
+.stitle .over{font-size:7.4pt;letter-spacing:2px;color:var(--gold-soft);font-weight:700;background:rgba(172,175,169,0.14);padding:1% 2%;}
+
+/* Table built from flex rows, not native <table>, sized purely by % */
+.gtable{
+  position:absolute;top:16%;left:5%;right:5%;bottom:8%;
+  display:flex;flex-direction:column;
+  border:0.6pt solid var(--graphite);
+}
+.grow{flex:1;display:flex;border-bottom:0.4pt solid var(--hair);}
+.grow:last-child{border-bottom:none;}
+.grow.header{background:var(--graphite);border-bottom:none;}
+.gcell{
+  flex:1;display:flex;align-items:center;justify-content:center;text-align:center;
+  border-right:0.4pt solid var(--hair);padding:0 1%;font-size:7.6pt;
+}
+.gcell:last-child{border-right:none;}
+.grow.header .gcell{
+  border-right:0.4pt solid rgba(255,255,255,0.25);color:#fff;font-weight:700;font-size:7pt;line-height:1.25;
+}
+.gcell.wide{flex:2;}
+.gcell.narrow{flex:0.7;}
+.gcell.xnarrow{flex:0.5;}
+.gcell.left{justify-content:flex-start;text-align:left;padding-left:2%;}

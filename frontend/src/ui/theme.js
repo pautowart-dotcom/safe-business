@@ -15,6 +15,13 @@ export const C = {
   orangeBg: '#FFFBEB',
   red: '#DC2626',
   redBg: '#FFF2F2',
+  // Пакет 4: ещё две категории дедлайнов (помещение, журналы) не влезают в
+  // прежние 4 цвета без потери различимости бейджей — добавлены две новые,
+  // не трогая остальную палитру.
+  blue: '#2563EB',
+  blueBg: '#EFF6FF',
+  purple: '#7C3AED',
+  purpleBg: '#F5F3FF',
 };
 
 export const F = "-apple-system,'SF Pro Text','Segoe UI',sans-serif";

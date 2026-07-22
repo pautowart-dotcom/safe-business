@@ -8,10 +8,12 @@ const adminRoutes = require('./admin.routes');
 const legalRoutes = require('./legal.routes');
 const supportRoutes = require('./support.routes');
 const deadlinesRoutes = require('./deadlines.routes');
+const myDeadlinesRoutes = require('./my-deadlines.routes');
 const staffDocumentsRoutes = require('./staff-documents.routes');
 const dailyTasksRoutes = require('./daily-tasks.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const journalsRoutes = require('./journals.routes');
+const generatedJournalsRoutes = require('./generated-journals.routes');
 const dossierRoutes = require('./dossier.routes');
 const pushRoutes = require('./push.routes');
 
@@ -23,10 +25,12 @@ platformRouter.use('/modules', modulesRoutes);
 platformRouter.use('/admin', adminRoutes);
 platformRouter.use('/support', supportRoutes);
 platformRouter.use('/deadlines', deadlinesRoutes);
+platformRouter.use('/my-deadlines', myDeadlinesRoutes);
 platformRouter.use('/staff-documents', staffDocumentsRoutes);
 platformRouter.use('/daily-tasks', dailyTasksRoutes);
 platformRouter.use('/dashboard', dashboardRoutes);
 platformRouter.use('/journals', journalsRoutes);
+platformRouter.use('/generated-journals', generatedJournalsRoutes);
 platformRouter.use('/dossier', dossierRoutes);
 platformRouter.use('/push', pushRoutes);
 

@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, Badge, C } from '../ui/components.jsx';
+import { Card, Badge, Btn, C } from '../ui/components.jsx';
+import { downloadPdf } from '../utils/downloadPdf.js';
 
+// Пакет 4, Этап 4: карточка допечатки журнала (related_entity_type ===
+// 'generated_journal_reprint') получает "Сгенерировать новый" вместо
+// обычного "Готово" — это не ручная отметка, а действие, которое реально
+// заводит новый бланк (Этап 3 повторно) и скачивает его.
+const REPRINT_RELATED_TYPE = 'generated_journal_reprint';
+
+// Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 const CATEGORIES = [
-  { key: 'legal', label: 'Юридические', color: C.primary, bg: C.surface },
-  { key: 'tax', label: 'Налоговые', color: C.orange, bg: C.orangeBg },
-  { key: 'financial', label: 'Финансовые', color: C.green, bg: C.greenBg },
   { key: 'staff', label: 'Кадровые', color: C.red, bg: C.redBg },
+  { key: 'premises', label: 'Помещение', color: C.blue, bg: C.blueBg },
+  { key: 'documents', label: 'Юридические', color: C.primary, bg: C.surface },
+  { key: 'tax', label: 'Налоговые', color: C.orange, bg: C.orangeBg },
+  { key: 'journals', label: 'Журналы', color: C.purple, bg: C.purpleBg },
+  { key: 'financial', label: 'Финансовые', color: C.green, bg: C.greenBg },
 ];
 const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
 
@@ -21,6 +31,8 @@ export default function Deadlines() {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [reprinting, setReprinting] = useState(null);
   // Налоговые дедлайны скрыты от Администратора (Этап 4) — сам фильтр по
   // ней тоже незачем показывать, он бы вёл в пустой список.
   const visibleCategories = isAdmin ? CATEGORIES.filter((c) => c.key !== 'tax') : CATEGORIES;
@@ -38,6 +50,20 @@ export default function Deadlines() {
   async function markDone(id) {
     await api.patch(`/platform/deadlines/${id}`, { status: 'done' });
     load();
+  }
+
+  async function reprintJournal(item) {
+    setReprinting(item.id);
+    setError('');
+    try {
+      const { data } = await api.post(`/platform/generated-journals/${item.related_entity_id}/reprint`);
+      await downloadPdf(`/platform/generated-journals/${data.id}/download`, `${data.journalNumber}.pdf`, setError);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось создать новый журнал');
+    } finally {
+      setReprinting(null);
+    }
   }
 
   return (
@@ -68,6 +94,8 @@ export default function Deadlines() {
         ))}
       </div>
 
+      {error && <div className="alert alert-error">{error}</div>}
+
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : items.length === 0 ? (
@@ -75,13 +103,20 @@ export default function Deadlines() {
       ) : (
         items.map((item) => {
           const cat = CATEGORY_BY_KEY[item.category];
-          const left = daysLeft(item.due_date);
+          const isReprint = item.related_entity_type === REPRINT_RELATED_TYPE;
+          // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
+          // точной даты нет ("не пройден тест", "кончаются расходники") —
+          // без due_date, поэтому считать дни/показывать дату для них нельзя.
+          const isAction = item.kind === 'action' || !item.due_date;
+          const left = isAction ? null : daysLeft(item.due_date);
           return (
             <Card key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Badge color={cat.color} bg={cat.bg}>{cat.label}</Badge>
-                  {left < 0 ? (
+                  {isAction ? (
+                    <span style={{ fontSize: 12, color: C.subtle }}>Требует внимания</span>
+                  ) : left < 0 ? (
                     <span style={{ fontSize: 12, color: C.red, fontWeight: 700 }}>Просрочено на {Math.abs(left)} дн.</span>
                   ) : left === 0 ? (
                     <span style={{ fontSize: 12, color: C.orange, fontWeight: 700 }}>Сегодня</span>
@@ -90,11 +125,18 @@ export default function Deadlines() {
                   )}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div>
-                <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                  {new Date(item.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </div>
+                {!isAction && (
+                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
+                    {new Date(item.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                )}
               </div>
-              {isManagement && (
+              {isManagement && isReprint && (
+                <Btn small variant="secondary" disabled={reprinting === item.id} onClick={() => reprintJournal(item)}>
+                  {reprinting === item.id ? 'Создаём...' : 'Сгенерировать новый'}
+                </Btn>
+              )}
+              {isManagement && !isReprint && (
                 <button
                   onClick={() => markDone(item.id)}
                   style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.secondary }}

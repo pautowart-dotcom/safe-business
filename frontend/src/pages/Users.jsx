@@ -6,7 +6,7 @@ import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } fr
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '', branchId: '' };
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
-const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат' };
+const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
 const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '' };
 
 export default function Users() {
@@ -158,6 +158,7 @@ export default function Users() {
                   <Select value={docForm.docType} onChange={(e) => setDocForm({ ...docForm, docType: e.target.value })}>
                     <option value="medical_book">Мед. книжка</option>
                     <option value="certificate">Сертификат</option>
+                    <option value="employment_contract">Срочный договор</option>
                   </Select>
                 </Field>
                 {docForm.docType === 'certificate' && (

@@ -26,6 +26,57 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Пакет 4, Этап 5: "Центр действий" — единый список дедлайнов+действий из
+// ВСЕХ источников (тест, "Мои сроки", сотрудники, журналы, расходники,
+// финансы — единственный общий источник, /platform/deadlines, читает их
+// все одинаково, см. Этап 1). Группировка только по срочности, не по
+// разделу-источнику: просрочено/сегодня — сверху, затем действия без даты
+// (у них нет "срочности" по дате, но условие уже актуально), затем
+// остальное по возрастанию даты.
+const ACTIONS_CENTER_VISIBLE = 6;
+
+function buildActionsCenter(deadlines) {
+  const today = todayStr();
+  const withDate = deadlines.filter((d) => d.due_date);
+  const withoutDate = deadlines.filter((d) => !d.due_date);
+  const urgent = withDate.filter((d) => d.due_date <= today).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const future = withDate.filter((d) => d.due_date > today).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  return [...urgent, ...withoutDate, ...future];
+}
+
+function ActionsCenterCard({ items, navigate }) {
+  if (items.length === 0) return null;
+  const today = todayStr();
+  const visible = items.slice(0, ACTIONS_CENTER_VISIBLE);
+
+  return (
+    <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/deadlines')}>
+      <ST>Центр действий</ST>
+      {visible.map((d) => {
+        const overdue = d.due_date && d.due_date < today;
+        const isToday = d.due_date === today;
+        return (
+          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+            <span style={{ fontSize: 14, color: C.primary, minWidth: 0, flex: 1 }}>{d.title}</span>
+            {!d.due_date ? (
+              <span style={{ fontSize: 11, color: C.subtle, flexShrink: 0 }}>Требует внимания</span>
+            ) : overdue ? (
+              <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>Просрочено</span>
+            ) : isToday ? (
+              <span style={{ fontSize: 11, color: C.orange, fontWeight: 700, flexShrink: 0 }}>Сегодня</span>
+            ) : (
+              <span style={{ fontSize: 11, color: C.subtle, flexShrink: 0 }}>{new Date(d.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
+            )}
+          </div>
+        );
+      })}
+      {items.length > visible.length && (
+        <div style={{ fontSize: 12, color: C.primary, fontWeight: 700, marginTop: 8 }}>Показать все ({items.length}) →</div>
+      )}
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { isManagement } = useAuth();
   return (
@@ -46,7 +97,7 @@ function ManagementDashboard() {
   const [security, setSecurity] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
-  const [dueTodayDeadlines, setDueTodayDeadlines] = useState([]);
+  const [deadlines, setDeadlines] = useState([]);
   const [loading, setLoading] = useState(true);
 
   function load() {
@@ -65,11 +116,11 @@ function ManagementDashboard() {
           api.get('/platform/deadlines'),
         ]);
       })
-      .then(([fin, sessions, dailyTasks, deadlines]) => {
+      .then(([fin, sessions, dailyTasks, deadlinesRes]) => {
         setRevenue(fin.data.revenue);
         setSecurity(sessions.data.find((s) => s.status === 'completed') || null);
         setTasks(dailyTasks.data);
-        setDueTodayDeadlines(deadlines.data.filter((d) => d.due_date === todayStr()));
+        setDeadlines(deadlinesRes.data);
       })
       .finally(() => setLoading(false));
   }
@@ -137,19 +188,12 @@ function ManagementDashboard() {
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
 
-      {/* Пакет 3, Этап 10 п.7: сроки из "Дедлайнов" (Этап 2) и личные заметки
-          ниже — два разных смысла (обязательный срок vs произвольная
+      {/* Пакет 3, Этап 10 п.7 / Пакет 4, Этап 5: "Центр действий" (дедлайны +
+          действия из всех источников, по срочности) и личные заметки ниже —
+          два разных смысла (обязательный/системный срок vs произвольная
           заметка себе), поэтому разделены на две карточки, а не слиты в
-          одну — но "сроки сегодня" теперь виден и у Владельца/Администратора
-          на главной, а не только у Мастера (было раньше только там). */}
-      {dueTodayDeadlines.length > 0 && (
-        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/deadlines')}>
-          <ST>Сроки сегодня</ST>
-          {dueTodayDeadlines.map((d) => (
-            <div key={d.id} style={{ fontSize: 14, color: C.primary, padding: '4px 0' }}>{d.title}</div>
-          ))}
-        </Card>
-      )}
+          одну. Раньше здесь был только "сегодня" — теперь единый список. */}
+      <ActionsCenterCard items={buildActionsCenter(deadlines)} navigate={navigate} />
 
       <Card>
         <ST>Личные заметки на сегодня</ST>
@@ -233,7 +277,7 @@ function MasterDashboard() {
   const [summary, setSummary] = useState(null);
   const [visits, setVisits] = useState([]);
   const [checklists, setChecklists] = useState({ templates: [], marks: [] });
-  const [reminders, setReminders] = useState([]);
+  const [deadlines, setDeadlines] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -249,7 +293,7 @@ function MasterDashboard() {
         setSummary(sum.data);
         setVisits(v.data);
         setChecklists({ templates: tpl.data.filter((t) => t.active), marks: marks.data });
-        setReminders(dl.data.filter((d) => d.due_date === today));
+        setDeadlines(dl.data);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -300,16 +344,7 @@ function MasterDashboard() {
         <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>Визитов сегодня: {visits.length} · Открыть чек-листы →</div>
       </Card>
 
-      {reminders.length > 0 && (
-        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/deadlines')}>
-          <ST>Сроки сегодня</ST>
-          {reminders.map((r) => (
-            <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14 }}>
-              <span>{r.title}</span>
-            </div>
-          ))}
-        </Card>
-      )}
+      <ActionsCenterCard items={buildActionsCenter(deadlines)} navigate={navigate} />
 
       <Card>
         <ST>Визиты сегодня</ST>

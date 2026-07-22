@@ -4,8 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
+const { nextDueDate } = require('../core/deadlines');
 
-const CATEGORIES = ['legal', 'tax', 'financial', 'staff'];
+// Пакет 4, Этап 1: 'legal' переименована в 'documents' (юр.документы),
+// добавлены 'premises' (помещение/оборудование) и 'journals' (журналы).
+// 'financial' оставлена про запас под будущие сроки от модуля "Финансы".
+const CATEGORIES = ['staff', 'premises', 'documents', 'tax', 'journals', 'financial'];
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -15,7 +19,7 @@ router.use(requireAuth, requireTenant);
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { category, status } = req.query;
+    const { category, status, kind } = req.query;
 
     // Пакет 3, Этап 4: налоговые напоминания скрыты от Администратора — по
     // аналогии с netProfit в finance/summary.routes.js (решение по
@@ -38,6 +42,17 @@ router.get(
     } else if (req.tenant.role === 'admin') {
       where += ` AND category != 'tax'`;
     }
+    // Пакет 4, Этап 1: kind различает Дедлайны (есть точная дата) и Действия
+    // (есть условие, нет даты). Без фильтра — оба типа вместе, как просит
+    // задача ("выводящихся вместе"); группировка по срочности — забота
+    // конкретного экрана (Этап 5 "Центр действий"), не этого списка.
+    if (kind) {
+      if (!['deadline', 'action'].includes(kind)) {
+        return res.status(400).json({ error: 'Неизвестный тип (kind)' });
+      }
+      params.push(kind);
+      where += ` AND kind = $${params.length}`;
+    }
     params.push(status || 'pending');
     where += ` AND status = $${params.length}`;
 
@@ -45,10 +60,13 @@ router.get(
     // toISOString() (с временем) — string-сравнение due_date === 'YYYY-MM-DD'
     // на фронте иначе всегда false. Тот же обходной путь нужен всюду, где
     // фронт сравнивает даты строками, а не форматирует через new Date().
+    // NULLS LAST: due_date может быть NULL у Действий — они попадают в конец
+    // списка, а не путаются в начало сортировки ASC (Postgres по умолчанию
+    // сортирует NULL последним при ASC, но указано явно для ясности).
     const { rows } = await pool.query(
-      `SELECT id, category, title, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
-              related_entity_type, related_entity_id, created_at
-       FROM deadlines WHERE ${where} ORDER BY due_date ASC, id ASC`,
+      `SELECT id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
+              related_entity_type, related_entity_id, note, recurrence, created_at
+       FROM deadlines WHERE ${where} ORDER BY due_date ASC NULLS LAST, id ASC`,
       params
     );
     res.json(rows);
@@ -108,14 +126,31 @@ router.patch(
     const adminGuard = req.tenant.role === 'admin' ? `AND category != 'tax'` : '';
     const { rows } = await pool.query(
       `UPDATE deadlines SET status = $1 WHERE id = $2 AND company_id = $3 ${adminGuard}
-       RETURNING id, category, title, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
-                 related_entity_type, related_entity_id, created_at`,
+       RETURNING id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
+                 related_entity_type, related_entity_id, recurrence, note, created_at`,
       [status, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Срок не найден' });
     }
-    res.json(rows[0]);
+
+    // Пакет 4, Этап 2: у периодического дедлайна ("Готово" на ТО сигнализации,
+    // замере изоляции и т.п.) отметка "Готово" не должна убирать срок навсегда —
+    // вместо этого дата сдвигается на следующий период и статус возвращается
+    // в pending, чтобы напоминание пришло снова к следующему разу.
+    let result = rows[0];
+    if (status === 'done' && result.kind === 'deadline' && result.recurrence && result.due_date) {
+      const due = nextDueDate(result.due_date, result.recurrence);
+      const { rows: advanced } = await pool.query(
+        `UPDATE deadlines SET due_date = $1, status = 'pending' WHERE id = $2
+         RETURNING id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
+                   related_entity_type, related_entity_id, recurrence, note, created_at`,
+        [due, result.id]
+      );
+      result = advanced[0];
+    }
+
+    res.json(result);
   })
 );
 

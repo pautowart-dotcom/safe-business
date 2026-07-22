@@ -7,7 +7,8 @@ const { requireRole } = require('../core/middleware/role');
 const { logEvent } = require('../core/eventLog');
 const { registerDeadline } = require('../core/deadlines');
 
-const DOC_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат' };
+const DOC_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
+const DOC_TYPES = Object.keys(DOC_LABELS);
 const REMINDER_LEAD_DAYS = 14;
 
 // Срок напоминания регистрируется сразу — за REMINDER_LEAD_DAYS до реальной
@@ -69,7 +70,7 @@ router.post(
   requireRole('owner'),
   asyncHandler(async (req, res) => {
     const { membershipId, docType, title, expiresAt } = req.body;
-    if (!membershipId || !['medical_book', 'certificate'].includes(docType) || !expiresAt) {
+    if (!membershipId || !DOC_TYPES.includes(docType) || !expiresAt) {
       return res.status(400).json({ error: 'Укажите сотрудника, тип документа и дату истечения' });
     }
 

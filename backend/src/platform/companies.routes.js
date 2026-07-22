@@ -88,7 +88,10 @@ router.get(
   requireTenant,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime, created_at FROM companies WHERE id = $1',
+      `SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime,
+              to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
+              to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at
+       FROM companies WHERE id = $1`,
       [req.tenant.companyId]
     );
     if (rows.length === 0) {
@@ -106,7 +109,7 @@ router.patch(
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, industrySegment, taxRegime } = req.body;
+    const { name, industrySegment, taxRegime, ipRegisteredAt, hasEmployees } = req.body;
     // taxRegime может прийти '' (сброс режима на "не указан" из фронта) —
     // это валидный случай, отличный от неизвестного ключа.
     if (taxRegime && !TAX_REGIMES.some((r) => r.key === taxRegime)) {
@@ -117,14 +120,31 @@ router.patch(
       `UPDATE companies SET
          name = COALESCE($1, name),
          industry_segment = COALESCE($2, industry_segment),
-         tax_regime = CASE WHEN $3 THEN $4 ELSE tax_regime END
-       WHERE id = $5
-       RETURNING id, name, industry_segment, subscription_status, trial_ends_at, tax_regime, created_at`,
-      [name || null, industrySegment || null, taxRegime !== undefined, taxRegime || null, req.tenant.companyId]
+         tax_regime = CASE WHEN $3 THEN $4 ELSE tax_regime END,
+         ip_registered_at = CASE WHEN $5 THEN $6 ELSE ip_registered_at END,
+         has_employees = CASE WHEN $7 THEN $8 ELSE has_employees END
+       WHERE id = $9
+       RETURNING id, name, industry_segment, subscription_status, trial_ends_at, tax_regime,
+                 to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
+                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at`,
+      [
+        name || null, industrySegment || null,
+        taxRegime !== undefined, taxRegime || null,
+        ipRegisteredAt !== undefined, ipRegisteredAt || null,
+        hasEmployees !== undefined, hasEmployees === undefined ? null : !!hasEmployees,
+        req.tenant.companyId,
+      ]
     );
 
-    if (taxRegime !== undefined) {
-      await syncTaxDeadlines(req.tenant.companyId, rows[0].tax_regime);
+    // Пакет 4, Этап 2: любое из трёх исходных данных для налоговых
+    // напоминаний (режим/дата регистрации/сотрудники) может измениться
+    // независимо — пересчитываем слоты по актуальному состоянию компании
+    // целиком, а не только по тому полю, что пришло в этом запросе.
+    if (taxRegime !== undefined || ipRegisteredAt !== undefined || hasEmployees !== undefined) {
+      await syncTaxDeadlines(req.tenant.companyId, rows[0].tax_regime, {
+        ipRegisteredAt: rows[0].ip_registered_at,
+        hasEmployees: rows[0].has_employees,
+      });
     }
 
     res.json(rows[0]);
