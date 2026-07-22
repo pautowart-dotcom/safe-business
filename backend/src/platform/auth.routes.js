@@ -135,6 +135,9 @@ router.post(
     // Этап 9: ограничение попыток входа — проверяем ДО обращения к
     // паролю, чтобы сам перебор (даже без правильного email) считался.
     const allowed = await checkLoginAllowed(req.ip, email);
+    // Временная диагностика (docs/bug-login-401.txt) — не логируем пароль,
+    // только факт срабатывания rate-limit. Убрать после подтверждения причины.
+    console.log('[login-debug] попытка входа, email =', email, 'rate-limit allowed =', allowed);
     if (!allowed) {
       return res.status(429).json({ error: 'Слишком много попыток входа. Попробуйте снова через 15 минут.' });
     }
@@ -144,12 +147,14 @@ router.post(
       [email]
     );
     const user = result.rows[0];
+    console.log('[login-debug] пользователь найден по email =', !!user, user ? `id=${user.id}` : '');
     if (!user) {
       await recordFailedLogin(req.ip, email);
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
+    console.log('[login-debug] совпадение пароля =', valid, 'hash начинается с =', user.password_hash?.slice(0, 7));
     if (!valid) {
       await recordFailedLogin(req.ip, email);
       return res.status(401).json({ error: 'Неверный email или пароль' });

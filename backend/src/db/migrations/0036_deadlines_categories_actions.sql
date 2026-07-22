@@ -1,10 +1,12 @@
 -- Пакет 4, Этап 1: расширение движка дедлайнов — фундамент для всего пакета.
 --
--- 1) Переименование категории 'legal' → 'documents' (юр.документы). Ни один
---    модуль ещё не создавал дедлайны с category='legal' (проверено по коду
---    на момент миграции), поэтому это чистое переименование, а не перенос
---    данных из активно используемой категории — UPDATE ниже на всякий
---    случай, если что-то всё же успело туда записаться руками через API.
+-- 1) Переименование категории 'legal' → 'documents' (юр.документы). В
+--    deadlines её никто не создавал, но notification_settings — таблица
+--    тумблеров уведомлений (deadlines.routes.js `/settings`) — вполне
+--    могла получить строку category='legal' от реального пользователя,
+--    переключившего уведомления по юр.категории ещё в Пакете 3 (и
+--    push.routes.js даже подставлял 'legal' по умолчанию, если категория
+--    не указана явно) — так и оказалось на проде, см. фикс ниже.
 -- 2) Новые категории: premises (помещение/оборудование), journals (журналы).
 --    'documents' уже добавлена переименованием выше. 'tax' и 'staff' уже
 --    существовали (Пакет 3). 'financial' сознательно оставлена как есть,
@@ -17,9 +19,18 @@
 --    "кончаются расходники", "не заполнен журнал за сегодня"). Хранение в
 --    одной таблице — то, что просит задача ("выводящихся вместе"): один
 --    запрос, единая сортировка/статусы/уведомления для обоих типов.
-UPDATE deadlines SET category = 'documents' WHERE category = 'legal';
-UPDATE notification_settings SET category = 'documents' WHERE category = 'legal';
-
+-- Фикс 2026-07-22 (docs/bug-login-401.txt): порядок ниже был неверным —
+-- UPDATE на category='documents' стоял ДО ALTER, который расширяет CHECK
+-- до включения 'documents'. Пока действует СТАРЫЙ constraint (только
+-- 'staff','legal','tax','financial'), любая существующая строка с
+-- category='legal' (например, тумблер notification_settings по юр.
+-- категории, включённый ещё в Пакете 3) ловит нарушение constraint прямо
+-- на этом UPDATE — миграция падает и откатывается целиком, деплой
+-- останавливается на этом шаге (deploy.sh с set -e), PM2 продолжает
+-- работать на СТАРОМ коде — что и проявилось как "не пройти логин после
+-- деплоя Пакета 4" (на самом деле деплой Пакета 4 не завершился вовсе).
+-- Сначала расширяем constraint (старые значения остаются валидны, просто
+-- добавляются новые допустимые), потом переносим данные.
 ALTER TABLE deadlines DROP CONSTRAINT IF EXISTS deadlines_category_check;
 ALTER TABLE deadlines ADD CONSTRAINT deadlines_category_check
     CHECK (category IN ('staff', 'premises', 'documents', 'tax', 'journals', 'financial'));
@@ -27,6 +38,9 @@ ALTER TABLE deadlines ADD CONSTRAINT deadlines_category_check
 ALTER TABLE notification_settings DROP CONSTRAINT IF EXISTS notification_settings_category_check;
 ALTER TABLE notification_settings ADD CONSTRAINT notification_settings_category_check
     CHECK (category IN ('staff', 'premises', 'documents', 'tax', 'journals', 'financial'));
+
+UPDATE deadlines SET category = 'documents' WHERE category = 'legal';
+UPDATE notification_settings SET category = 'documents' WHERE category = 'legal';
 
 ALTER TABLE deadlines ALTER COLUMN due_date DROP NOT NULL;
 ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS kind VARCHAR(10) NOT NULL DEFAULT 'deadline'
