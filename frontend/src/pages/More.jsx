@@ -38,6 +38,7 @@ function OwnerMore() {
         ...base,
         { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' },
         { label: 'Типы журналов', sub: 'Заголовки и дисклеймеры журналов (админ)', icon: 'doc', to: '/admin/journal-types' },
+        { label: 'Логи краша', sub: 'Диагностика бага №1 (временно)', icon: 'doc', to: '/admin/client-errors' },
       ]
     : base;
   return (

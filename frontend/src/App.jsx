@@ -19,6 +19,7 @@ import Branches from './pages/Branches.jsx';
 import AdminLegalDocs from './pages/AdminLegalDocs.jsx';
 import Journals from './pages/Journals.jsx';
 import AdminJournalTypes from './pages/AdminJournalTypes.jsx';
+import AdminClientErrors from './pages/AdminClientErrors.jsx';
 import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
@@ -123,6 +124,14 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <AdminJournalTypes />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="admin/client-errors"
+          element={
+            <PrivateRoute managementOnly>
+              <AdminClientErrors />
             </PrivateRoute>
           }
         />

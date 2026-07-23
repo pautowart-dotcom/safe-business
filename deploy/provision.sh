@@ -8,7 +8,7 @@ APP_DIR=/var/www/safe-business
 
 echo "== Обновление пакетов =="
 apt-get update -y
-apt-get install -y curl git nginx ufw postgresql postgresql-contrib
+apt-get install -y curl git nginx ufw postgresql postgresql-contrib certbot python3-certbot-nginx
 
 echo "== Установка Node.js 20 LTS =="
 if ! command -v node >/dev/null 2>&1; then

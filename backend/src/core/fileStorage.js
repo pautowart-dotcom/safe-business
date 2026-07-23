@@ -42,6 +42,18 @@ async function saveImage(buffer) {
   return filename;
 }
 
+// Документы (раздел "Безопасность"): фото/скан сжимаем так же, как визиты
+// (saveImage), PDF сохраняем как есть — сжимать/перекодировать документ не
+// нужно и небезопасно (потеряется текстовый слой скана).
+async function saveDocumentFile(buffer, mimetype) {
+  if (mimetype === 'application/pdf') {
+    const filename = `${crypto.randomUUID()}.pdf`;
+    await fs.promises.writeFile(path.join(UPLOADS_DIR, filename), buffer);
+    return filename;
+  }
+  return saveImage(buffer);
+}
+
 function getFileUrl(filename) {
   return `/api/uploads/${filename}`;
 }
@@ -63,4 +75,4 @@ async function deleteFile(filename) {
   }
 }
 
-module.exports = { UPLOADS_DIR, saveImage, getFileUrl, filenameFromUrl, deleteFile };
+module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, getFileUrl, filenameFromUrl, deleteFile };

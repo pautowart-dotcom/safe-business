@@ -5,6 +5,8 @@ const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 const { encrypt, decrypt } = require('../../core/crypto');
+const { uploadDocument } = require('../../core/uploads');
+const { saveDocumentFile, getFileUrl } = require('../../core/fileStorage');
 const repository = require('./content/repository');
 const { filterVisible } = require('./content/visibility');
 const scoring = require('./content/scoring');
@@ -518,12 +520,22 @@ router.get(
   })
 );
 
+// Раньше документ можно было только добавить по готовой ссылке (владельцу
+// пришлось бы самому заводить облако и выгружать туда файл) — теперь можно
+// либо загрузить фото/скан/PDF прямо здесь, либо, как и раньше, вставить
+// ссылку на уже где-то размещённый файл (например, Google Docs).
 router.post(
   '/documents',
+  uploadDocument,
   asyncHandler(async (req, res) => {
-    const { category, name, fileUrl } = req.body;
+    const { category, name } = req.body;
+    let fileUrl = req.body.fileUrl;
+    if (req.file) {
+      const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
+      fileUrl = getFileUrl(filename);
+    }
     if (!category || !name || !fileUrl) {
-      return res.status(400).json({ error: 'Укажите категорию, название и ссылку на документ' });
+      return res.status(400).json({ error: 'Укажите категорию, название и загрузите файл или вставьте ссылку' });
     }
     const { rows } = await pool.query(
       `INSERT INTO security_documents (company_id, category, name, file_url, uploaded_by_user_id)
@@ -546,8 +558,14 @@ router.post(
 
 router.patch(
   '/documents/:id',
+  uploadDocument,
   asyncHandler(async (req, res) => {
-    const { category, name, fileUrl } = req.body;
+    const { category, name } = req.body;
+    let fileUrl = req.body.fileUrl;
+    if (req.file) {
+      const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
+      fileUrl = getFileUrl(filename);
+    }
     const { rows } = await pool.query(
       `UPDATE security_documents SET
          category = COALESCE($1, category),

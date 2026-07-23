@@ -592,32 +592,57 @@ function DocumentsTab({ documents, sections, isManagement, onChange }) {
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ category: '', name: '', fileUrl: '' });
+  const [form, setForm] = useState({ category: '', name: '', fileUrl: '', file: null });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const byCategory = {};
   for (const doc of documents) (byCategory[doc.category] ||= []).push(doc);
 
   function openForm() {
-    setForm({ category: categories[0] || '', name: '', fileUrl: '' });
+    setForm({ category: categories[0] || '', name: '', fileUrl: '', file: null });
     setEditingId(null);
+    setFormError('');
     setShowForm(true);
   }
 
   function openEdit(doc) {
-    setForm({ category: doc.category, name: doc.name, fileUrl: doc.file_url });
+    setForm({ category: doc.category, name: doc.name, fileUrl: doc.file_url, file: null });
     setEditingId(doc.id);
+    setFormError('');
     setShowForm(true);
   }
 
+  // Раньше можно было только вставить готовую ссылку — теперь можно
+  // сфотографировать/отсканировать документ и загрузить прямо тут.
   async function submit() {
-    if (!form.name.trim() || !form.fileUrl.trim()) return;
-    if (editingId) {
-      await api.patch(`/modules/security/documents/${editingId}`, form);
-    } else {
-      await api.post('/modules/security/documents', form);
+    if (!form.name.trim() || (!form.file && !form.fileUrl.trim())) return;
+    setSaving(true);
+    setFormError('');
+    try {
+      let payload;
+      let headers = {};
+      if (form.file) {
+        payload = new FormData();
+        payload.append('category', form.category);
+        payload.append('name', form.name);
+        payload.append('file', form.file);
+        headers = { 'Content-Type': 'multipart/form-data' };
+      } else {
+        payload = { category: form.category, name: form.name, fileUrl: form.fileUrl };
+      }
+      if (editingId) {
+        await api.patch(`/modules/security/documents/${editingId}`, payload, { headers });
+      } else {
+        await api.post('/modules/security/documents', payload, { headers });
+      }
+      setShowForm(false);
+      onChange();
+    } catch (err) {
+      setFormError(err.response?.data?.error || 'Не удалось сохранить документ');
+    } finally {
+      setSaving(false);
     }
-    setShowForm(false);
-    onChange();
   }
 
   async function remove(id) {
@@ -637,8 +662,24 @@ function DocumentsTab({ documents, sections, isManagement, onChange }) {
           </Select>
         </Field>
         <Field label="Название"><TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-        <Field label="Ссылка на файл"><TextInput type="url" value={form.fileUrl} onChange={(e) => setForm({ ...form, fileUrl: e.target.value })} placeholder="https://..." /></Field>
-        <Btn onClick={submit}>{editingId ? 'Сохранить изменения' : 'Сохранить'}</Btn>
+        <Field label="Файл (фото, скан или PDF)">
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null, fileUrl: '' })}
+          />
+        </Field>
+        <div style={{ fontSize: 12, color: C.subtle, margin: '-6px 0 14px' }}>или вставьте ссылку, если файл уже где-то размещён</div>
+        <Field label="Ссылка на файл">
+          <TextInput
+            type="url"
+            value={form.fileUrl}
+            onChange={(e) => setForm({ ...form, fileUrl: e.target.value, file: null })}
+            placeholder="https://..."
+          />
+        </Field>
+        {formError && <div className="alert alert-error">{formError}</div>}
+        <Btn onClick={submit} disabled={saving}>{saving ? 'Сохраняем...' : editingId ? 'Сохранить изменения' : 'Сохранить'}</Btn>
       </div>
     );
   }

@@ -13,4 +13,20 @@ const uploadPhoto = multer({
   },
 }).single('photo');
 
-module.exports = { uploadPhoto };
+// Документы компании (раздел "Безопасность" → "Документы") — раньше можно
+// было только вставить готовую ссылку (владельцу пришлось бы самому
+// заводить облако и выгружать туда файл). Принимает фото/скан (как обычно
+// фотографируют бумажный документ) или готовый PDF — лимит согласован с
+// client_max_body_size в deploy/nginx.conf.
+const uploadDocument = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
+      return cb(new Error('Файл должен быть изображением или PDF'));
+    }
+    cb(null, true);
+  },
+}).single('file');
+
+module.exports = { uploadPhoto, uploadDocument };

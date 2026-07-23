@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- До официального запуска — не индексировать (см. robots.txt рядом). Убрать, когда продукт готов к публичному поиску. -->
+<meta name="robots" content="noindex, nofollow" />
+<title>Безопасный бизнес</title>
+<meta name="description" content="Сервис для владельцев небольших студий: не пропустить сроки документов, сроков и проверок." />
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f5f3;
+    --border: #e6e3de;
+    --text: #1c1c1e;
+    --text-muted: #6b6a66;
+    --accent: #2a2a2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17171a;
+      --surface: #202024;
+      --border: #2d2d31;
+      --text: #f2f2f0;
+      --text-muted: #a3a29e;
+      --accent: #f2f2f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+  header {
+    padding: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo { font-weight: 800; font-size: 15px; letter-spacing: -0.2px; }
+  .hero {
+    padding: 48px 0 32px;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  .hero p {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 52ch;
+    margin: 0 0 28px;
+  }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 13px 22px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 15px;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  section { padding: 32px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin: 0 0 18px; font-weight: 700; }
+  .items { display: flex; flex-direction: column; gap: 16px; }
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+  .item b { display: block; font-size: 15px; margin-bottom: 4px; }
+  .item span { font-size: 14px; color: var(--text-muted); }
+  .price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .price b { font-size: 28px; }
+  .price span { color: var(--text-muted); font-size: 14px; }
+  footer { padding: 32px 0 48px; font-size: 13px; color: var(--text-muted); }
+  footer a { color: var(--text-muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo">Безопасный бизнес</div>
+  </header>
+
+  <div class="hero">
+    <h1>Не пропустите срок, а не «защититесь от штрафов»</h1>
+    <p>
+      Сервис для владельцев небольших студий — помогает держать в порядке
+      юридические, санитарные и финансовые сроки: медкнижки, огнетушители,
+      ЭЦП, патент, дезинфекция и договоры на вывоз отходов. Без давления
+      и без обещаний, которые невозможно проверить.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://app.business-safe.ru/login">Пройти бесплатную диагностику</a>
+      <a class="btn btn-secondary" href="#price">Тарифы</a>
+    </div>
+  </div>
+
+  <section>
+    <h2>Что делает сервис</h2>
+    <div class="items">
+      <div class="item"><b>Бесплатная диагностика</b><span>Коротко показывает, чего вам не хватает — без сбора персональных дат на этом этапе.</span></div>
+      <div class="item"><b>«Мои сроки»</b><span>По желанию вносите точные даты нужных документов — приложение напоминает заранее.</span></div>
+      <div class="item"><b>Готовые журналы с QR</b><span>Официальные бумажные журналы (стерилизация, дезсредства, инструктаж) — готовый PDF на печать, с уникальным QR-кодом.</span></div>
+      <div class="item"><b>Единая лента дел</b><span>«Центр действий» — что нужно сделать или оформить, в одном месте, а не в голове.</span></div>
+    </div>
+  </section>
+
+  <section id="price">
+    <h2>Тариф</h2>
+    <div class="item">
+      <div class="price"><b>2500 ₽</b><span>/ мес</span></div>
+      <span>Первый месяц — бесплатно.</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Кому подходит</h2>
+    <p style="color:var(--text-muted); font-size:15px; margin:0;">
+      В первую очередь — студиям маникюра. Это не CRM для записи клиентов:
+      здесь про контроль и порядок, а не про запись на услуги.
+    </p>
+  </section>
+
+  <div class="cta-row" style="padding: 8px 0 40px;">
+    <a class="btn btn-primary" href="https://app.business-safe.ru/login">Зарегистрироваться</a>
+  </div>
+
+  <footer>
+    <div><a href="https://app.business-safe.ru/legal/faq">Вопросы и ответы</a></div>
+    <div style="margin-top:6px;"><a href="https://app.business-safe.ru/legal/oferta">Оферта</a> · <a href="https://app.business-safe.ru/legal/privacy_policy">Политика конфиденциальности</a></div>
+  </footer>
+</main>
+</body>
+</html>
