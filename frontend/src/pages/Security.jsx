@@ -177,8 +177,21 @@ export default function Security() {
   }
 
   async function resolveViolation(id) {
-    await api.patch(`/modules/security/violations/${id}/resolve`);
+    const { data } = await api.patch(`/modules/security/violations/${id}/resolve`);
     setViolations(violations.map((v) => (v.id === id ? { ...v, status: 'resolved' } : v)));
+    // Баг №6: бэкенд пересчитывает индекс последней завершённой сессии тем же
+    // способом, каким его посчитал сам тест (вопросы с устранёнными
+    // нарушениями засчитываются на полный балл) — обновляем ту же запись в
+    // sessions локально, без перезагрузки всей страницы.
+    if (data?.indexPercent !== undefined) {
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.status === 'completed');
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next[idx] = { ...next[idx], index_percent: data.indexPercent, zone: data.zone };
+        return next;
+      });
+    }
   }
 
   async function joinWaitlist(productKey) {
@@ -389,12 +402,13 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) 
 
 // ---------- Результаты ----------
 
-function IndexHero({ percent, zone, subtitle }) {
+function IndexHero({ percent, zone, subtitle, note }) {
   return (
     <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Индекс безопасности</div>
       <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-2px', marginBottom: 4 }}>{percent}%</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 14 }}>{subtitle}</div>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: note ? 4 : 14 }}>{subtitle}</div>
+      {note && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>{note}</div>}
       <div style={{ height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${percent}%`, background: '#FFF', borderRadius: 2 }} />
       </div>
@@ -437,7 +451,14 @@ function SecurityDashboard({
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {lastCompleted && <IndexHero percent={lastCompleted.index_percent} zone={lastCompleted.zone} subtitle={ZONE_LABELS[lastCompleted.zone]} />}
+      {lastCompleted && (
+        <IndexHero
+          percent={lastCompleted.index_percent}
+          zone={lastCompleted.zone}
+          subtitle={ZONE_LABELS[lastCompleted.zone]}
+          note="Обновляется по мере отметки нарушений устранёнными — не только в момент теста"
+        />
+      )}
       {lastCompleted && violations.length > 0 && (
         <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '0 4px' }}>
           {[[violations.length, 'Нарушений'], [doneCount, 'Устранено'], [openCount, 'Осталось']].map(([v, l]) => (

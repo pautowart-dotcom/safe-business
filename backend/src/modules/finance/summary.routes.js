@@ -123,6 +123,8 @@ router.get(
     // Этап 5: администратор видит выручку и расходы, но не итоговую
     // прибыль/маржу компании — поле просто не попадает в ответ, а не
     // скрывается на фронтенде, чтобы не полагаться на доверие к клиенту.
+    // Задача 3: мастер (Этап "просмотр" по решению владельца) видит ту же
+    // сводку, что и администратор — netProfit ему тоже не отдаём.
     const summary = {
       period: { from, to, days },
       revenue: round2(revenue),
@@ -141,7 +143,7 @@ router.get(
         earnings: round2(parseFloat(r.earnings)),
       })),
     };
-    if (req.tenant.role !== 'admin') {
+    if (req.tenant.role === 'owner') {
       summary.netProfit = round2(netProfit);
     }
     res.json(summary);

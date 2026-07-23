@@ -57,14 +57,20 @@ function usePeriodParams() {
 
 function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, setCustomTo }) {
   const isCustom = preset === 'custom';
+  // Баг №10: flex:1 на 5 кнопках без переноса/прокрутки заставлял их делить
+  // ширину строки поровну независимо от длины текста ("Прошлый месяц" не
+  // помещался) — на узком экране кнопки сжимались и наезжали друг на друга,
+  // так что переключение периодов переставало нормально нажиматься.
+  // flexWrap переносит лишние кнопки на вторую строку вместо сжатия.
   const tabStyle = (active) => ({
-    flex: 1, padding: '8px 4px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: F,
+    padding: '8px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: F,
     background: active ? C.bg : 'transparent', color: active ? C.primary : C.subtle,
     fontSize: 12, fontWeight: active ? 700 : 400, boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+    whiteSpace: 'nowrap',
   });
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: C.surface, borderRadius: 12, padding: 3 }}>
         {PERIOD_PRESETS.map(([k, l]) => (
           <button key={k} onClick={() => setPreset(k)} style={tabStyle(preset === k)}>{l}</button>
         ))}
@@ -612,6 +618,7 @@ function MasterFinance() {
   const period = usePeriodParams();
   const [visits, setVisits] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
+  const [companySummary, setCompanySummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   function load() {
@@ -621,10 +628,15 @@ function MasterFinance() {
     return Promise.all([
       api.get('/modules/visits', { params: { dateFrom: `${from}T00:00:00`, dateTo: `${to}T23:59:59` } }),
       api.get('/modules/finance/adjustments', { params: { dateFrom: from, dateTo: to } }),
+      // Задача 3 (сверка ролей): раньше у мастера была только "своя" вкладка
+      // (комиссия с визитов) — по решению владельца добавлен просмотр общей
+      // сводки компании (без чистой прибыли — та скрыта и от администратора).
+      api.get('/modules/finance/summary', { params: period.params }),
     ])
-      .then(([v, a]) => {
+      .then(([v, a, s]) => {
         setVisits(v.data);
         setAdjustments(a.data);
+        setCompanySummary(s.data);
       })
       .finally(() => setLoading(false));
   }
@@ -660,6 +672,17 @@ function MasterFinance() {
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(totalPayout)}</span>
         </div>
       </Card>
+
+      {companySummary && (
+        <Card>
+          <ST>Финансы компании · {companySummary.period.from === companySummary.period.to ? 'за день' : 'за период'} (только просмотр)</ST>
+          <ExpRow label="Выручка" value={money(companySummary.revenue)} />
+          <ExpRow label="Зарплаты мастеров" value={money(companySummary.masterSalaries)} />
+          <ExpRow label="Пост. расходы" value={money(companySummary.fixedExpenses)} />
+          <ExpRow label="% расходы" value={money(companySummary.percentExpenses)} />
+          <ExpRow label="Перем. расходы" value={money(companySummary.variableExpenses)} />
+        </Card>
+      )}
 
       {adjustments.length > 0 && (
         <Card>

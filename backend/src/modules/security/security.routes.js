@@ -78,6 +78,57 @@ async function visiblePaidQuestions(profile) {
   return filterVisible(all, { legalForm: profile.legalForm, workModel: profile.workModel });
 }
 
+// Баг №6 (по решению владельца, вариант 3): после отметки нарушения
+// устранённым индекс безопасности пересчитывается тем же способом, каким
+// был посчитан изначально (evaluateAnswer по ответам последней завершённой
+// сессии) — просто вопросы, чьё нарушение теперь resolved, засчитываются на
+// максимальный балл, как будто на них ответили без нарушения. Это не новая
+// придуманная формула, а та же scoring.js с одной подстановкой — поэтому
+// цифра не должна расходиться по смыслу с тем, что показывал сам тест.
+// Перезаписывает score/index_percent/zone у сессии (единственное число в
+// интерфейсе, второго "живого" процента рядом не появляется).
+async function recomputeLiveIndex(companyId) {
+  const sessionRes = await pool.query(
+    `SELECT id FROM security_sessions WHERE company_id = $1 AND status = 'completed' ORDER BY completed_at DESC LIMIT 1`,
+    [companyId]
+  );
+  const session = sessionRes.rows[0];
+  if (!session) return;
+
+  const profile = await loadProfile(companyId);
+  if (!profile || !profile.niche) return;
+  const questions = await visiblePaidQuestions(profile);
+  if (!questions) return;
+
+  const [answersRes, violationsRes] = await Promise.all([
+    pool.query(
+      `SELECT question_code, answer_index, answer_index_enc FROM security_answers WHERE session_id = $1`,
+      [session.id]
+    ),
+    pool.query(`SELECT violation_code FROM security_violations WHERE company_id = $1 AND status = 'resolved'`, [companyId]),
+  ]);
+  const resolvedCodes = new Set(violationsRes.rows.map((r) => r.violation_code));
+
+  let score = 0;
+  for (const question of questions) {
+    const answerRow = answersRes.rows.find((r) => r.question_code === question.code);
+    if (!answerRow) continue;
+    const answerIndex = answerRow.answer_index_enc ? Number(decrypt(answerRow.answer_index_enc)) : answerRow.answer_index;
+    const evaluated = scoring.evaluateAnswer(question, answerIndex);
+    const resolved = evaluated.createsViolation && resolvedCodes.has(evaluated.violationCode);
+    score += resolved ? 1 : evaluated.points;
+  }
+
+  const maxScore = questions.length;
+  const percent = scoring.indexPercent(score, maxScore);
+  const zone = scoring.zoneForPercent(percent).key;
+  await pool.query(
+    `UPDATE security_sessions SET score = $1, index_percent = $2, zone = $3 WHERE id = $4`,
+    [score, percent, zone, session.id]
+  );
+  return { indexPercent: percent, zone };
+}
+
 async function addWaitlistEntry({ companyId, segment, niche, productKey }) {
   await pool.query(
     `INSERT INTO security_waitlist (company_id, segment, niche, product_key)
@@ -430,7 +481,8 @@ router.patch(
       action: 'security_violation.resolved',
     });
 
-    res.json(rows[0]);
+    const recomputed = await recomputeLiveIndex(req.tenant.companyId);
+    res.json({ ...rows[0], ...recomputed });
   })
 );
 

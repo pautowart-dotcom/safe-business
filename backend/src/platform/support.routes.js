@@ -9,6 +9,21 @@ const router = express.Router();
 // зависеть от того, выбрана ли уже компания в текущей сессии.
 router.use(requireAuth);
 
+// Баг №3: раньше "Отправлено" было видно только до ухода со страницы —
+// компонент был без памяти о прошлых обращениях (только POST, без списка).
+// Возвращает обращения ЭТОГО пользователя (не всей компании — это личная
+// переписка с разработчиком, не общий раздел компании).
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT id, message, created_at FROM support_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      [req.user.id]
+    );
+    res.json(rows);
+  })
+);
+
 router.post(
   '/',
   asyncHandler(async (req, res) => {

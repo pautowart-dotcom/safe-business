@@ -16,6 +16,9 @@ node src/db/migrate.js
 echo "== Заполнение начальных данных (Super Admin) =="
 node src/db/seed.js || true
 
+echo "== Заполнение служебной смоук-тест компании (Задача 0) =="
+node src/db/seedSmokeTest.js || true
+
 echo "== Сборка frontend =="
 cd "$APP_DIR/frontend"
 npm install
@@ -32,5 +35,11 @@ echo "== Запуск backend через PM2 =="
 cd "$APP_DIR"
 pm2 startOrReload deploy/ecosystem.config.js
 pm2 save
+
+echo "== Автопроверка после деплоя (Задача 0) =="
+# Даём backend секунду на старт после pm2 reload, прежде чем стучаться в него.
+sleep 2
+cd "$APP_DIR/backend"
+node src/scripts/smokeCheck.js
 
 echo "Развёртывание завершено."

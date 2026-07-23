@@ -21,6 +21,23 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Баг №8: у "Договор аренды — дата окончания" не было способа быстро
+// прикинуть дату по стандартному сроку — 11 месяцев самый частый вариант
+// в РФ (договор на 12+ месяцев подлежит обязательной регистрации, поэтому
+// студии почти всегда заключают именно на 11). Считаем от сегодня — это
+// приближение для тех, кто ещё не подписал договор и планирует срок,
+// а не точная дата уже подписанного (её всё равно вводят вручную датой).
+function addMonthsFromToday(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+const LEASE_TERM_PRESETS = [
+  ['11 месяцев', 11],
+  ['1 год', 12],
+  ['3 года', 36],
+];
+
 // Карточка одного пункта — дата/периодичность/заметка, все поля опциональны.
 // Сохраняем только по клику "Сохранить", чтобы не слать запрос на каждое
 // нажатие клавиши в заметке.
@@ -37,6 +54,23 @@ function SlotCard({ slot, onSave, saving }) {
       <Field label="Дата">
         <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
       </Field>
+      {slot.key === 'lease_end' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -6, marginBottom: 14 }}>
+          {LEASE_TERM_PRESETS.map(([label, months]) => (
+            <button
+              key={months}
+              type="button"
+              onClick={() => setDueDate(addMonthsFromToday(months))}
+              style={{
+                padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface,
+                color: C.secondary, fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              +{label} от сегодня
+            </button>
+          ))}
+        </div>
+      )}
       <Field label="Периодичность (необязательно)">
         <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
           {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

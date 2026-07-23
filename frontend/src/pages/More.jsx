@@ -20,6 +20,7 @@ const OWNER_ITEMS = [
   { label: 'Команда', sub: 'Мастера, приглашения, удаление', icon: 'team', to: '/team' },
   { label: 'Филиалы', sub: 'Адреса студии, если их несколько', icon: 'home', to: '/branches' },
   { label: 'Настройки', sub: 'Компания, профиль, подписка', icon: 'settings', to: '/settings' },
+  { label: 'Вопросы и ответы', sub: 'Тарифы, оплата, данные', icon: 'help', to: '/legal/faq' },
   { label: 'Поддержка', sub: 'Написать разработчику', icon: 'help', to: '/support' },
 ];
 
@@ -127,6 +128,16 @@ function MasterMore() {
             <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 12, marginTop: 6, cursor: 'pointer' }}>Написать ещё</button>
           </div>
         )}
+      </Card>
+      <Card onClick={() => navigate('/legal/faq')} style={{ cursor: 'pointer' }}>
+        <ChevronRow>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="help" size={20} color={C.primary} />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Вопросы и ответы</div>
+          </div>
+        </ChevronRow>
       </Card>
       <Card onClick={() => navigate('/support')} style={{ cursor: 'pointer' }}>
         <ChevronRow>

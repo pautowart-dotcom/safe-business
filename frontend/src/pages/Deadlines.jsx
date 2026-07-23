@@ -70,11 +70,15 @@ export default function Deadlines() {
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Дедлайны</div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto' }}>
+      {/* Баг №9: overflowX:auto без видимой подсказки о прокрутке выглядел как
+          "обрезано" — категория "Юридические" и дальше были не видны и не
+          воспринимались как доступные для переключения (см. скриншот
+          владельца). flexWrap показывает все категории сразу, без скролла. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         <button
           onClick={() => setCategory('')}
           style={{
-            flexShrink: 0, padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
+            padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
             background: category === '' ? C.primary : C.bg, color: category === '' ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
           }}
         >
@@ -85,7 +89,7 @@ export default function Deadlines() {
             key={c.key}
             onClick={() => setCategory(c.key)}
             style={{
-              flexShrink: 0, padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
+              padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
               background: category === c.key ? C.primary : C.bg, color: category === c.key ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
             }}
           >

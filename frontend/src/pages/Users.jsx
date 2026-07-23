@@ -197,7 +197,9 @@ export default function Users() {
             <button onClick={() => { setInviteUrl(''); setCopied(false); setCopyFailed(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Скрыть</button>
           </div>
           <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>Отправьте сотруднику. После перехода он присоединится к компании. Ссылку можно скопировать в любой момент, пока карточка открыта.</div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', fontSize: 13, color: C.secondary, marginBottom: 12, wordBreak: 'break-all' }}>{inviteUrl}</div>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', marginBottom: 12, wordBreak: 'break-all' }}>
+            <a href={inviteUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary }}>{inviteUrl}</a>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Btn
               small

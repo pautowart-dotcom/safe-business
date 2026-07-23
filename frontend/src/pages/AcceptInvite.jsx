@@ -79,7 +79,7 @@ export default function AcceptInvite() {
     <AuthShell>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Приглашение в «{invite.companyName}»</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 24 }}>
-        Роль: {invite.role === 'owner' ? 'Владелец' : 'Мастер'}
+        Роль: {invite.role === 'owner' ? 'Владелец' : invite.role === 'admin' ? 'Администратор' : 'Мастер'}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

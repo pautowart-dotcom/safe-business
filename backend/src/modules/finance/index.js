@@ -13,14 +13,19 @@ const revenueRoutes = require('./revenue.routes');
 const BASE_PATH = '/api/modules/finance';
 
 // Сводка по компании и управление расходами — владелец и администратор
-// (netProfit при этом скрывается для admin внутри summary.routes.js).
+// (netProfit при этом скрывается для admin и master внутри summary.routes.js).
+// Задача 3 (сверка ролей): мастер получил доступ на просмотр общей сводки
+// компании (не только своих визитов) — раньше не имел вовсе, решение
+// владельца было "просмотр + свои корректировки". Мутирующие подресурсы
+// (recurring-expenses/expenses/revenue) остаются owner/admin — мастеру
+// только смотреть, не редактировать.
 // Корректировки (adjustments) доступны и мастеру (видит свои, редактировать
 // не может — роль проверяется внутри adjustments.routes.js по каждому
 // эндпоинту), так как у мастера теперь есть собственный экран "Финансы"
 // (Этап 6).
 const router = express.Router();
 router.use(requireAuth, requireTenant, requireModule('finance'));
-router.use('/summary', requireRole('owner', 'admin'), summaryRoutes);
+router.use('/summary', requireRole('owner', 'admin', 'master'), summaryRoutes);
 router.use('/recurring-expenses', requireRole('owner', 'admin'), recurringExpensesRoutes);
 router.use('/expenses', requireRole('owner', 'admin'), expenseEntriesRoutes);
 router.use('/adjustments', adjustmentsRoutes);

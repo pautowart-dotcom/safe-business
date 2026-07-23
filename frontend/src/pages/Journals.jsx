@@ -280,13 +280,19 @@ export default function Journals() {
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Журналы</div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto' }}>
+      {/* Баг №2: flex:1 на каждой кнопке заставлял их делить ширину строки
+          поровну, но flexShrink:0 не давал сжаться под длинный текст — на
+          4 вкладках это выталкивало последние за край экрана без намёка на
+          прокрутку (выглядело как "видно только 3 из 4"). flexWrap
+          гарантирует, что все вкладки видны всегда, просто переносятся на
+          вторую строку при нехватке места. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {allTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             style={{
-              flex: 1, flexShrink: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
+              padding: '9px 12px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
               background: tab === t.key ? C.primary : C.bg, color: tab === t.key ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
             }}
           >
