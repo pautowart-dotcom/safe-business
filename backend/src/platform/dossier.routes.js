@@ -62,18 +62,25 @@ router.get(
   })
 );
 
+// Раньше можно было собрать досье только за один конкретный день — не было
+// способа собрать за интервал (например, за неделю проверки). from/to
+// одинаковые = прежнее поведение "за один день", просто через тот же путь,
+// без отдельного эндпоинта.
 router.get(
-  '/date/:date/export',
+  '/period/:from/:to/export',
   asyncHandler(async (req, res) => {
-    const { date } = req.params;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const { from, to } = req.params;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       return res.status(400).json({ error: 'Некорректная дата (ожидается YYYY-MM-DD)' });
+    }
+    if (from > to) {
+      return res.status(400).json({ error: '"От" не может быть позже "До"' });
     }
 
     const [{ rows: visits }, { rows: checklistMarks }, { rows: uvLamp }, { rows: briefing }] = await Promise.all([
       pool.query(
-        `SELECT ${VISIT_COLUMNS} ${VISIT_FROM} WHERE v.company_id = $1 AND v.visit_at::date = $2 ORDER BY v.visit_at`,
-        [req.tenant.companyId, date]
+        `SELECT ${VISIT_COLUMNS} ${VISIT_FROM} WHERE v.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3 ORDER BY v.visit_at`,
+        [req.tenant.companyId, from, to]
       ),
       pool.query(
         `SELECT cm.mark_date, ci.label, ct.name AS template_name, ct.kind, cm.checked, cm.checked_at, u.name AS membership_name
@@ -82,18 +89,18 @@ router.get(
          JOIN checklist_templates ct ON ct.id = ci.template_id
          LEFT JOIN memberships m ON m.id = cm.membership_id
          LEFT JOIN users u ON u.id = m.user_id
-         WHERE cm.company_id = $1 AND cm.mark_date = $2
-         ORDER BY ct.kind, ci.sort_order`,
-        [req.tenant.companyId, date]
+         WHERE cm.company_id = $1 AND cm.mark_date BETWEEN $2 AND $3
+         ORDER BY cm.mark_date, ct.kind, ci.sort_order`,
+        [req.tenant.companyId, from, to]
       ),
       pool.query(
         `SELECT e.action, e.occurred_at, u.name AS membership_name
          FROM uv_lamp_entries e
          JOIN memberships m ON m.id = e.membership_id
          LEFT JOIN users u ON u.id = m.user_id
-         WHERE e.company_id = $1 AND e.occurred_at::date = $2
+         WHERE e.company_id = $1 AND e.occurred_at::date BETWEEN $2 AND $3
          ORDER BY e.occurred_at`,
-        [req.tenant.companyId, date]
+        [req.tenant.companyId, from, to]
       ),
       pool.query(
         `SELECT e.topic, e.created_at, uc.name AS conductor_name, ur.name AS recipient_name
@@ -102,23 +109,26 @@ router.get(
          LEFT JOIN users uc ON uc.id = mc.user_id
          JOIN memberships mr ON mr.id = e.recipient_membership_id
          LEFT JOIN users ur ON ur.id = mr.user_id
-         WHERE e.company_id = $1 AND e.created_at::date = $2
+         WHERE e.company_id = $1 AND e.created_at::date BETWEEN $2 AND $3
          ORDER BY e.created_at`,
-        [req.tenant.companyId, date]
+        [req.tenant.companyId, from, to]
       ),
     ]);
 
+    const fmt = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    const subtitle = from === to ? fmt(from) : `${fmt(from)} — ${fmt(to)}`;
+
     const pdfBuffer = await renderDossierPdf({
-      title: 'Досье за дату',
+      title: from === to ? 'Досье за дату' : 'Досье за период',
       companyName: await companyName(req.tenant.companyId),
-      subtitle: new Date(`${date}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+      subtitle,
       visits,
       checklistMarks,
       journals: { uvLamp, briefing },
     });
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="dossier-date.pdf"');
+    res.setHeader('Content-Disposition', 'attachment; filename="dossier-period.pdf"');
     res.send(pdfBuffer);
   })
 );

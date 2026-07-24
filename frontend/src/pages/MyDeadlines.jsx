@@ -71,11 +71,17 @@ function SlotCard({ slot, onSave, saving }) {
           ))}
         </div>
       )}
-      <Field label="Периодичность (необязательно)">
-        <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
-          {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
-      </Field>
+      {/* Аренда — это пересматриваемый срок договора (для этого уже есть
+          пресеты +11 мес/+1 год/+3 года выше), а не автоматически
+          повторяющаяся проверка вроде "раз в квартал" — показывать оба
+          выбора рядом для одного поля было избыточно и запутывало. */}
+      {slot.key !== 'lease_end' && (
+        <Field label="Периодичность (необязательно)">
+          <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
+            {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </Field>
+      )}
       <Field label="Заметка / контакт подрядчика (необязательно)">
         <TextInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Например, телефон обслуживающей организации" />
       </Field>

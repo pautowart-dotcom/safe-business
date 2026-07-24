@@ -12,7 +12,11 @@ function todayStr() {
 
 export default function Dossier() {
   const [roster, setRoster] = useState([]);
-  const [date, setDate] = useState(todayStr());
+  // Раньше можно было выбрать только один день — не было способа собрать
+  // досье за интервал (например, за неделю). "До" по умолчанию равен "От",
+  // так что обычный сценарий "за один день" остаётся таким же простым.
+  const [dateFrom, setDateFrom] = useState(todayStr());
+  const [dateTo, setDateTo] = useState(todayStr());
   const [membershipId, setMembershipId] = useState('');
   const [error, setError] = useState('');
 
@@ -30,11 +34,22 @@ export default function Dossier() {
       {error && <div className="alert alert-error">{error}</div>}
 
       <Card>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>По дате</div>
-        <Field label="Дата">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-        <Btn onClick={() => downloadPdf(`/platform/dossier/date/${date}/export`, `dossier-${date}.pdf`, setError)}>Сформировать</Btn>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>За период (один день — если «От» и «До» совпадают)</div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Field label="От">
+            <TextInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </Field>
+          <Field label="До">
+            <TextInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </Field>
+        </div>
+        <Btn
+          disabled={dateFrom > dateTo}
+          onClick={() => downloadPdf(`/platform/dossier/period/${dateFrom}/${dateTo}/export`, `dossier-${dateFrom}_${dateTo}.pdf`, setError)}
+        >
+          Сформировать
+        </Btn>
+        {dateFrom > dateTo && <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>«От» не может быть позже «До»</div>}
       </Card>
 
       <Card>
