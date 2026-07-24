@@ -5,12 +5,24 @@ import { Card, Badge, BackBtn, C } from '../ui/components.jsx';
 const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
 const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
 
-function CompanyDetail({ id, onBack }) {
+function CompanyDetail({ id, onBack, onDeleted }) {
   const [data, setData] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.get(`/platform/admin/companies/${id}`).then((res) => setData(res.data));
   }, [id]);
+
+  async function handleDelete() {
+    if (!confirm(`Удалить компанию «${data.company.name}» насовсем? Это необратимо — удалятся все её данные (визиты, финансы, сотрудники и т.д.).`)) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/platform/admin/companies/${id}`);
+      onDeleted();
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   if (!data) return <div className="page-loading">Загрузка...</div>;
   const { company, branches, memberships, modules } = data;
@@ -29,7 +41,7 @@ function CompanyDetail({ id, onBack }) {
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Сотрудники ({memberships.length})</div>
         {memberships.map((m) => (
           <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
-            <span>{m.user_name || m.user_email || 'Приглашение отправлено'}</span>
+            <span>{m.user_name || '—'}{m.user_email ? ` · ${m.user_email}` : ''}{!m.user_name && !m.user_email ? 'Приглашение отправлено' : ''}</span>
             <span style={{ color: C.subtle }}>{m.role}{m.invite_status === 'pending' ? ' · ожидает' : ''}</span>
           </div>
         ))}
@@ -50,6 +62,14 @@ function CompanyDetail({ id, onBack }) {
           ))}
         </div>
       </Card>
+
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        style={{ background: 'none', border: `1px solid ${C.red}`, color: C.red, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+      >
+        {deleting ? 'Удаляем...' : 'Удалить компанию насовсем'}
+      </button>
     </div>
   );
 }
@@ -65,7 +85,16 @@ export default function Companies() {
   useEffect(load, []);
 
   if (selectedId) {
-    return <CompanyDetail id={selectedId} onBack={() => setSelectedId(null)} />;
+    return (
+      <CompanyDetail
+        id={selectedId}
+        onBack={() => setSelectedId(null)}
+        onDeleted={() => {
+          setSelectedId(null);
+          load();
+        }}
+      />
+    );
   }
 
   if (!companies) return <div className="page-loading">Загрузка...</div>;
