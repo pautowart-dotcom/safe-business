@@ -10,6 +10,67 @@ const router = express.Router();
 
 router.use(requireAuth, requireSuperAdmin);
 
+// Метрики роста — раньше в "Обзоре" было всего 4 голых числа. Владельцу
+// нужно понимать реальную картину бизнеса (динамику, а не только
+// снапшот), поэтому добавлена активность по event_log (не только
+// регистрация — компания могла зарегистрироваться и ничего не делать) и
+// график регистраций по дням.
+// MRR — приближение (число оплаченных компаний × текущая цена из FAQ),
+// не факт из платёжной системы (её ещё нет, оплата активируется вручную).
+const CURRENT_PRICE_RUB = 2500;
+
+router.get(
+  '/metrics',
+  asyncHandler(async (req, res) => {
+    const [statusCounts, signupsByDay, activeLast7Days, supportCounts] = await Promise.all([
+      pool.query(
+        `SELECT subscription_status, COUNT(*) AS n,
+                COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS new_7d,
+                COUNT(*) FILTER (WHERE created_at > now() - interval '30 days') AS new_30d
+         FROM companies GROUP BY subscription_status`
+      ),
+      pool.query(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS n
+         FROM companies WHERE created_at > now() - interval '14 days'
+         GROUP BY 1 ORDER BY 1`
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT company_id) AS n FROM event_log WHERE created_at > now() - interval '7 days'`
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS last_7d
+         FROM support_requests`
+      ),
+    ]);
+
+    const byStatus = Object.fromEntries(statusCounts.rows.map((r) => [r.subscription_status, r]));
+    const totalCompanies = statusCounts.rows.reduce((sum, r) => sum + Number(r.n), 0);
+    const activeCompanies = Number(byStatus.active?.n || 0);
+    const nonTrialCompanies = totalCompanies - Number(byStatus.trial?.n || 0);
+
+    res.json({
+      totalCompanies,
+      newLast7Days: statusCounts.rows.reduce((sum, r) => sum + Number(r.new_7d), 0),
+      newLast30Days: statusCounts.rows.reduce((sum, r) => sum + Number(r.new_30d), 0),
+      byStatus: {
+        trial: Number(byStatus.trial?.n || 0),
+        active: activeCompanies,
+        past_due: Number(byStatus.past_due?.n || 0),
+        cancelled: Number(byStatus.cancelled?.n || 0),
+      },
+      // Доля компаний, дошедших до оплаты, среди тех, у кого триал уже
+      // закончился (active+past_due+cancelled) — среди тех, кто ещё в
+      // триале, рано считать конверсию.
+      trialToPaidConversionPercent: nonTrialCompanies > 0 ? Math.round((activeCompanies / nonTrialCompanies) * 1000) / 10 : null,
+      activeLast7Days: Number(activeLast7Days.rows[0].n),
+      estimatedMrrRub: activeCompanies * CURRENT_PRICE_RUB,
+      supportRequestsTotal: Number(supportCounts.rows[0].total),
+      supportRequestsLast7Days: Number(supportCounts.rows[0].last_7d),
+      signupsByDay: signupsByDay.rows.map((r) => ({ day: r.day, count: Number(r.n) })),
+    });
+  })
+);
+
 router.get(
   '/companies',
   asyncHandler(async (req, res) => {

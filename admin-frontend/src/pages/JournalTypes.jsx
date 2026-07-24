@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import api from '../api/client.js';
-import { useAuth } from '../context/AuthContext.jsx';
 import { Card, BackBtn, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
 
-// Панель Super Admin (только он) — редактирование заголовка и обязательного
-// дисклеймера журналов (Пакет 3, Этап 5), по аналогии с AdminLegalDocs.jsx:
-// текст живёт в БД (journal_types), а не в коде. Проверка прав дублируется
-// на бэкенде (requireSuperAdmin) — здесь только для UX.
-export default function AdminJournalTypes() {
-  const { isSuperAdmin } = useAuth();
+export default function JournalTypes() {
   const [types, setTypes] = useState(null);
   const [editingKey, setEditingKey] = useState(null);
   const [form, setForm] = useState({ title: '', disclaimer: '' });
@@ -41,7 +34,6 @@ export default function AdminJournalTypes() {
     }
   }
 
-  if (!isSuperAdmin) return <Navigate to="/" replace />;
   if (!types) return <div className="page-loading">Загрузка...</div>;
 
   if (editingKey) {
@@ -63,19 +55,14 @@ export default function AdminJournalTypes() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Типы журналов</div>
-      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-        Заголовок и дисклеймер живут в базе данных и видны в разделе "Журналы" у всех компаний.
-      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>Типы журналов</div>
       {saved && <div style={{ fontSize: 13, color: C.green, marginBottom: 12 }}>✓ Сохранено</div>}
       <Card style={{ padding: 0 }}>
         {types.map((t, i) => (
           <div key={t.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: i < types.length - 1 ? `1px solid ${C.border}` : 'none' }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{t.title}</div>
-              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                {t.key} · обновлено {new Date(t.updated_at).toLocaleDateString('ru-RU')}
-              </div>
+              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{t.key} · обновлено {new Date(t.updated_at).toLocaleDateString('ru-RU')}</div>
             </div>
             <Btn small onClick={() => openEdit(t)}>Изменить</Btn>
           </div>

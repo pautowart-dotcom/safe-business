@@ -26,23 +26,17 @@ const OWNER_ITEMS = [
 
 function OwnerMore() {
   const navigate = useNavigate();
-  const { isSuperAdmin, isOwner, hasModule } = useAuth();
+  const { isOwner, hasModule } = useAuth();
   // Безопасность — только владелец (политика конфиденциальности §8.4,
   // делегирования доступа администратору пока нет). Клиенты/Визиты —
   // видимость по модулю компании, как раньше в нижнем меню.
-  const base = OWNER_ITEMS
+  // Кабинет платформы (компании, метрики, поддержка, юр.документы и т.д.)
+  // теперь отдельное приложение (admin-frontend/, admin.business-safe.ru),
+  // не смешан с клиентским кабинетом — раньше всё было свалено в один
+  // список здесь, что было невозможно понять.
+  const items = OWNER_ITEMS
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
     .filter((i) => isOwner || i.to !== '/security');
-  const items = isSuperAdmin
-    ? [
-        ...base,
-        { label: 'Кабинет платформы', sub: 'Компании, метрики, обращения в поддержку', icon: 'shield', to: '/admin/dashboard' },
-        { label: 'Юридические документы', sub: 'Оферта, политика конфиденциальности (админ)', icon: 'doc', to: '/admin/legal' },
-        { label: 'Типы журналов', sub: 'Заголовки и дисклеймеры журналов (админ)', icon: 'doc', to: '/admin/journal-types' },
-        { label: 'Логи краша', sub: 'Диагностика бага №1 (временно)', icon: 'doc', to: '/admin/client-errors' },
-        { label: 'Восстановление пароля', sub: 'Ссылки для передачи вручную (пока нет email)', icon: 'doc', to: '/admin/password-resets' },
-      ]
-    : base;
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Разделы</div>

@@ -1,0 +1,5 @@
+* { box-sizing: border-box; }
+body { margin: 0; }
+.page-loading { padding: 40px 0; text-align: center; color: #ABABAB; font-size: 14px; }
+.alert { border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
+.alert-error { background: #FFF2F2; color: #DC2626; }

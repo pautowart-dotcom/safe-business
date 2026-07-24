@@ -24,6 +24,11 @@ cd "$APP_DIR/frontend"
 npm install
 npm run build
 
+echo "== Сборка кабинета платформы (admin-frontend) =="
+cd "$APP_DIR/admin-frontend"
+npm install
+npm run build
+
 echo "== Настройка nginx =="
 cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/safe-business
 ln -sf /etc/nginx/sites-available/safe-business /etc/nginx/sites-enabled/safe-business

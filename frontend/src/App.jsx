@@ -18,12 +18,7 @@ import Knowledge from './pages/Knowledge.jsx';
 import Security from './pages/Security.jsx';
 import Users from './pages/Users.jsx';
 import Branches from './pages/Branches.jsx';
-import AdminLegalDocs from './pages/AdminLegalDocs.jsx';
 import Journals from './pages/Journals.jsx';
-import AdminJournalTypes from './pages/AdminJournalTypes.jsx';
-import AdminClientErrors from './pages/AdminClientErrors.jsx';
-import AdminPasswordResets from './pages/AdminPasswordResets.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
 import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
@@ -97,14 +92,6 @@ export default function App() {
           }
         />
         <Route
-          path="admin/legal"
-          element={
-            <PrivateRoute managementOnly>
-              <AdminLegalDocs />
-            </PrivateRoute>
-          }
-        />
-        <Route
           path="feedback"
           element={
             <PrivateRoute managementOnly>
@@ -122,38 +109,6 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <Dossier />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="admin/journal-types"
-          element={
-            <PrivateRoute managementOnly>
-              <AdminJournalTypes />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="admin/dashboard"
-          element={
-            <PrivateRoute managementOnly>
-              <AdminDashboard />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="admin/client-errors"
-          element={
-            <PrivateRoute managementOnly>
-              <AdminClientErrors />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="admin/password-resets"
-          element={
-            <PrivateRoute managementOnly>
-              <AdminPasswordResets />
             </PrivateRoute>
           }
         />

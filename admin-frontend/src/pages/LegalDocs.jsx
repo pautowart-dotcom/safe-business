@@ -1,16 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import api from '../api/client.js';
-import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
 
-// Раздел админ-панели (только Super Admin) — редактирование юридических
-// документов без участия программистов: текст живёт в БД
-// (legal_documents), эта страница просто читает/пишет его через
-// /platform/admin/legal-documents. Проверка прав дублируется на бэкенде
-// (requireSuperAdmin) — фронтенд-гейт ниже только для UX.
-export default function AdminLegalDocs() {
-  const { isSuperAdmin } = useAuth();
+export default function LegalDocs() {
   const [docs, setDocs] = useState(null);
   const [editingKey, setEditingKey] = useState(null);
   const [form, setForm] = useState({ title: '', content: '' });
@@ -42,7 +34,6 @@ export default function AdminLegalDocs() {
     }
   }
 
-  if (!isSuperAdmin) return <Navigate to="/" replace />;
   if (!docs) return <div className="page-loading">Загрузка...</div>;
 
   if (editingKey) {
@@ -64,27 +55,26 @@ export default function AdminLegalDocs() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Юридические документы</div>
-      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-        Текст хранится в базе данных и виден пользователям на странице /legal/&lt;ключ&gt; и на форме приёма приглашения.
-      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>Юридические документы</div>
       {saved && <div style={{ fontSize: 13, color: C.green, marginBottom: 12 }}>✓ Сохранено</div>}
       <Card style={{ padding: 0 }}>
         {docs.map((doc, i) => (
           <div key={doc.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: i < docs.length - 1 ? `1px solid ${C.border}` : 'none' }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{doc.title}</div>
-              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                {doc.key} · обновлено {new Date(doc.updated_at).toLocaleDateString('ru-RU')}
-              </div>
+              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{doc.key} · обновлено {new Date(doc.updated_at).toLocaleDateString('ru-RU')}</div>
             </div>
             <Btn small onClick={() => openEdit(doc)}>Изменить</Btn>
           </div>
         ))}
       </Card>
-      <ST>Предпросмотр</ST>
+      <ST>Публичные страницы</ST>
       <div style={{ fontSize: 12, color: C.subtle }}>
-        Публичные страницы: <a href="/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/oferta</a>, <a href="/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/privacy_policy</a>
+        <a href="https://app.business-safe.ru/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/oferta</a>
+        {' · '}
+        <a href="https://app.business-safe.ru/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/privacy_policy</a>
+        {' · '}
+        <a href="https://app.business-safe.ru/legal/faq" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/faq</a>
       </div>
     </div>
   );
