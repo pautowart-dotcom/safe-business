@@ -25,7 +25,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   }
 
   if (!data) return <div className="page-loading">Загрузка...</div>;
-  const { company, branches, memberships, modules } = data;
+  const { company, memberships, modules } = data;
 
   return (
     <div>
@@ -44,13 +44,6 @@ function CompanyDetail({ id, onBack, onDeleted }) {
             <span>{m.user_name || '—'}{m.user_email ? ` · ${m.user_email}` : ''}{!m.user_name && !m.user_email ? 'Приглашение отправлено' : ''}</span>
             <span style={{ color: C.subtle }}>{m.role}{m.invite_status === 'pending' ? ' · ожидает' : ''}</span>
           </div>
-        ))}
-      </Card>
-
-      <Card>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Филиалы ({branches.length})</div>
-        {branches.length === 0 ? <div style={{ fontSize: 13, color: C.subtle }}>Нет</div> : branches.map((b) => (
-          <div key={b.id} style={{ fontSize: 13, padding: '5px 0' }}>{b.name}</div>
         ))}
       </Card>
 
@@ -112,7 +105,7 @@ export default function Companies() {
               <Badge color={STATUS_COLORS[c.subscription_status]} bg={C.surface}>{STATUS_LABELS[c.subscription_status]}</Badge>
             </div>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>
-              Регистрация {new Date(c.created_at).toLocaleDateString('ru-RU')} · {c.branch_count} филиал(ов) · {c.member_count} сотрудник(ов)
+              Регистрация {new Date(c.created_at).toLocaleDateString('ru-RU')} · {c.member_count} сотрудник(ов)
             </div>
           </Card>
         ))

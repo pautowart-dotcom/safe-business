@@ -17,7 +17,6 @@ import Checklists from './pages/Checklists.jsx';
 import Knowledge from './pages/Knowledge.jsx';
 import Security from './pages/Security.jsx';
 import Users from './pages/Users.jsx';
-import Branches from './pages/Branches.jsx';
 import Journals from './pages/Journals.jsx';
 import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
@@ -80,14 +79,6 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <Users />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="branches"
-          element={
-            <PrivateRoute managementOnly>
-              <Branches />
             </PrivateRoute>
           }
         />

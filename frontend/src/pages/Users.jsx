@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
-const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '', branchId: '' };
+const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '' };
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
 const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '' };
@@ -12,7 +12,6 @@ const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '' };
 export default function Users() {
   const { isOwner } = useAuth();
   const [members, setMembers] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM);
@@ -20,7 +19,7 @@ export default function Users() {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [editForm, setEditForm] = useState({ payoutPercent: '', branchId: '' });
+  const [editForm, setEditForm] = useState({ payoutPercent: '' });
   const [confirmDel, setConfirmDel] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docForm, setDocForm] = useState(null);
@@ -31,9 +30,6 @@ export default function Users() {
   }
 
   useEffect(load, []);
-  useEffect(() => {
-    api.get('/platform/branches').then((res) => setBranches(res.data));
-  }, []);
 
   async function handleInvite() {
     const { data } = await api.post('/platform/memberships/invite', inviteForm);
@@ -47,7 +43,7 @@ export default function Users() {
 
   function openEdit(member) {
     setEditing(member);
-    setEditForm({ payoutPercent: member.payout_percent || '', branchId: member.branch_id || '' });
+    setEditForm({ payoutPercent: member.payout_percent || '' });
     loadDocuments(member.id);
   }
 
@@ -102,12 +98,6 @@ export default function Users() {
             <TextInput type="number" min="0" max="100" value={inviteForm.payoutPercent} onChange={(e) => setInviteForm({ ...inviteForm, payoutPercent: e.target.value })} />
           </Field>
         )}
-        <Field label="Филиал">
-          <Select value={inviteForm.branchId} onChange={(e) => setInviteForm({ ...inviteForm, branchId: e.target.value })}>
-            <option value="">Не указан</option>
-            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </Select>
-        </Field>
         <Btn onClick={handleInvite}>Создать приглашение</Btn>
       </div>
     );
@@ -123,12 +113,6 @@ export default function Users() {
             <TextInput type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
           </Field>
         )}
-        <Field label="Филиал">
-          <Select value={editForm.branchId} onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}>
-            <option value="">Не указан</option>
-            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </Select>
-        </Field>
         <Btn onClick={handleEditSubmit}>Сохранить</Btn>
 
         <div style={{ marginTop: 24 }}>
@@ -250,7 +234,6 @@ export default function Users() {
                 <div style={{ fontSize: 12, color: C.subtle }}>
                   {ROLE_LABELS[m.role] || m.role}
                   {m.role === 'master' && m.payout_percent != null && ` · ${m.payout_percent}% от чека`}
-                  {branches.find((b) => b.id === m.branch_id) && ` · ${branches.find((b) => b.id === m.branch_id).name}`}
                 </div>
               </div>
             </div>

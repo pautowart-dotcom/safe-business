@@ -40,7 +40,12 @@ const MASTER_NAV = [
 // один из них. '/security' убран отсюда (Этап 6) — теперь у неё своя прямая
 // вкладка, подсвечивается сама, а не через "Ещё"; '/clients' и '/visits'
 // добавлены — переехали в хаб вместе с остальными.
-const OWNER_HUB_PATHS = ['/clients', '/visits', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/branches', '/settings', '/admin/legal', '/journals', '/admin/journal-types', '/dossier'];
+// '/admin/legal' и '/admin/journal-types' убраны — переехали в отдельное
+// приложение (admin-frontend/), их больше нет в этом клиентском SPA.
+// '/branches' убран — концепция "филиалов" снята: каждая новая точка это
+// отдельная компания/подписка, переключение между ними уже есть как выбор
+// компании при входе.
+const OWNER_HUB_PATHS = ['/clients', '/visits', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
 const MASTER_HUB_PATHS = ['/knowledge', '/settings', '/journals'];
 
 const TITLES = {
@@ -52,11 +57,8 @@ const TITLES = {
   '/knowledge': 'База знаний',
   '/security': 'Безопасность',
   '/team': 'Команда',
-  '/branches': 'Филиалы',
-  '/admin/legal': 'Юридические документы',
   '/journals': 'Журналы',
   '/dossier': 'Досье',
-  '/admin/journal-types': 'Типы журналов',
   '/settings': 'Настройки',
   '/feedback': 'Обратная связь',
   '/subscription': 'Подписка',
