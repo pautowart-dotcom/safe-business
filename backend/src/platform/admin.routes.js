@@ -137,6 +137,24 @@ router.patch(
   })
 );
 
+// Обращения в поддержку со всей платформы — раньше владелец никак не мог
+// их увидеть (support.routes.js отдаёт только "свои" сообщения, а своих
+// у Super Admin нет, если он не пишет сам себе). Нужно было для продажи —
+// без этого некому отвечать клиентам, писавшим "Поддержку".
+router.get(
+  '/support-requests',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT sr.id, sr.message, sr.email, sr.created_at, u.name AS user_name, c.name AS company_name
+       FROM support_requests sr
+       LEFT JOIN users u ON u.id = sr.user_id
+       LEFT JOIN companies c ON c.id = sr.company_id
+       ORDER BY sr.created_at DESC LIMIT 100`
+    );
+    res.json(rows);
+  })
+);
+
 // Восстановление пароля: пока в проекте нет отправки email (нет ни SMTP,
 // ни email-библиотеки), ссылку временно видит только Super Admin — чтобы
 // можно было вручную передать её человеку, который потерял пароль. Убрать

@@ -23,6 +23,7 @@ import Journals from './pages/Journals.jsx';
 import AdminJournalTypes from './pages/AdminJournalTypes.jsx';
 import AdminClientErrors from './pages/AdminClientErrors.jsx';
 import AdminPasswordResets from './pages/AdminPasswordResets.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
@@ -129,6 +130,14 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <AdminJournalTypes />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="admin/dashboard"
+          element={
+            <PrivateRoute managementOnly>
+              <AdminDashboard />
             </PrivateRoute>
           }
         />
