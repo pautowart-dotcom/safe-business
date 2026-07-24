@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
@@ -34,12 +35,18 @@ async function activeMembershipsForUser(userId) {
 router.post(
   '/register',
   asyncHandler(async (req, res) => {
-    const { name, email, password, companyName, industrySegment } = req.body;
+    const { name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent } = req.body;
     if (!name || !email || !password || !companyName) {
       return res.status(400).json({ error: 'Заполните имя, email, пароль и название компании' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });
+    }
+    // Раньше самостоятельная регистрация (в отличие от accept-invite) не
+    // требовала принять оферту/политику — пробел, раз это единственный
+    // публичный путь завести аккаунт (лендинг → регистрация).
+    if (!acceptedTerms) {
+      return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
     }
 
     const existing = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
@@ -56,8 +63,9 @@ router.post(
       await client.query('BEGIN');
 
       const userResult = await client.query(
-        'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email, phone, is_super_admin, onboarding_seen_at',
-        [name, email, passwordHash]
+        `INSERT INTO users (name, email, password_hash, accepted_terms_at, analytics_consent)
+         VALUES ($1, $2, $3, now(), $4) RETURNING id, name, email, phone, is_super_admin, onboarding_seen_at`,
+        [name, email, passwordHash, !!analyticsConsent]
       );
       user = userResult.rows[0];
 
@@ -306,6 +314,58 @@ router.post(
     );
 
     res.json({ token: signBaseToken(userId), user: userResult.rows[0], companyId: membership.company_id });
+  })
+);
+
+const RESET_TOKEN_TTL_MINUTES = 60;
+
+// Раньше забытый пароль не давал попасть в аккаунт никак — этой пары
+// эндпоинтов не было вовсе.
+router.post(
+  '/forgot-password',
+  asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Введите email' });
+    }
+    // Один и тот же ответ независимо от того, найден email или нет —
+    // иначе форма стала бы способом проверить чужие email на сервисе.
+    const userRes = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length > 0) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+      await pool.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, token_plain, expires_at) VALUES ($1, $2, $3, $4)`,
+        [userRes.rows[0].id, tokenHash, token, expiresAt]
+      );
+    }
+    res.json({ ok: true, message: 'Если такой email зарегистрирован, ссылка для восстановления будет доступна администратору' });
+  })
+);
+
+router.post(
+  '/reset-password',
+  asyncHandler(async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Укажите токен и новый пароль' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });
+    }
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenRes = await pool.query(
+      `SELECT id, user_id FROM password_reset_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`,
+      [tokenHash]
+    );
+    if (tokenRes.rows.length === 0) {
+      return res.status(400).json({ error: 'Ссылка недействительна или истекла — запросите новую' });
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, tokenRes.rows[0].user_id]);
+    await pool.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [tokenRes.rows[0].id]);
+    res.json({ ok: true });
   })
 );
 

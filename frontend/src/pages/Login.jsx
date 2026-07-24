@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Btn, Field, TextInput, C, F } from '../ui/components.jsx';
 
@@ -99,14 +99,89 @@ function CreateCompanyForm({ onCreate, onBack }) {
   );
 }
 
+// Раньше единственный публичный способ завести аккаунт — приглашение от
+// уже существующего владельца (AcceptInvite.jsx). Тот, кто просто пришёл
+// с лендинга, не мог зарегистрироваться сам — этой формы не было.
+function RegisterForm({ onRegister, onBack }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [analyticsConsent, setAnalyticsConsent] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!acceptedTerms) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      await onRegister({ name, email, password, companyName, acceptedTerms, analyticsConsent });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось зарегистрироваться');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AuthShell>
+      <form onSubmit={submit}>
+        {error && <div className="alert alert-error">{error}</div>}
+        <Field label="Ваше имя">
+          <TextInput value={name} onChange={(e) => setName(e.target.value)} required />
+        </Field>
+        <Field label="Email">
+          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </Field>
+        <Field label="Пароль">
+          <TextInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+        </Field>
+        <Field label="Название студии/компании">
+          <TextInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Студия на Тверской" required />
+        </Field>
+
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
+          <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
+          <span>
+            Я принимаю условия{' '}
+            <a href="/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
+            {' '}и{' '}
+            <a href="/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 20, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
+          <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно, можно отозвать позже в настройках)</span>
+        </label>
+
+        <Btn type="submit" disabled={submitting || !acceptedTerms}>{submitting ? 'Создаём аккаунт...' : 'Зарегистрироваться'}</Btn>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 13, marginTop: 14, padding: 0 }}
+        >
+          Уже есть аккаунт — войти
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
 export default function Login() {
-  const { user, currentCompany, pendingCompanies, needsCompany, isSuperAdmin, selectCompany, createCompany, login } = useAuth();
+  const { user, currentCompany, pendingCompanies, needsCompany, isSuperAdmin, selectCompany, createCompany, login, register } = useAuth();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
+  // Лендинг ведёт сразу на форму регистрации (?mode=register), обычный
+  // заход в приложение — на вход.
+  const [mode, setMode] = useState(searchParams.get('mode') === 'register' ? 'register' : 'login');
 
   // Полностью авторизован (есть и пользователь, и выбранная компания) —
   // дальше решает роутинг, здесь делать нечего.
@@ -155,6 +230,10 @@ export default function Login() {
     }
   }
 
+  if (mode === 'register') {
+    return <RegisterForm onRegister={register} onBack={() => setMode('login')} />;
+  }
+
   return (
     <AuthShell>
       <form onSubmit={handleSubmit}>
@@ -166,6 +245,16 @@ export default function Login() {
           <TextInput ref={passwordRef} type="password" required />
         </Field>
         <Btn type="submit" disabled={submitting}>{submitting ? 'Входим...' : 'Войти'}</Btn>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={() => setMode('register')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.primary, fontSize: 13, fontWeight: 600, padding: 0 }}
+          >
+            Зарегистрироваться
+          </button>
+          <Link to="/forgot-password" style={{ color: C.subtle, fontSize: 13, textDecoration: 'none' }}>Забыли пароль?</Link>
+        </div>
       </form>
     </AuthShell>
   );

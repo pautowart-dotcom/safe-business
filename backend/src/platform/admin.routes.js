@@ -137,4 +137,22 @@ router.patch(
   })
 );
 
+// Восстановление пароля: пока в проекте нет отправки email (нет ни SMTP,
+// ни email-библиотеки), ссылку временно видит только Super Admin — чтобы
+// можно было вручную передать её человеку, который потерял пароль. Убрать
+// вместе с token_plain в migrations/0041, когда подключится настоящая
+// отправка почты.
+router.get(
+  '/password-resets',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT pr.id, pr.token_plain, pr.expires_at, pr.used_at, pr.created_at, u.email, u.name
+       FROM password_reset_tokens pr JOIN users u ON u.id = pr.user_id
+       WHERE pr.expires_at > now() AND pr.used_at IS NULL
+       ORDER BY pr.created_at DESC LIMIT 50`
+    );
+    res.json(rows);
+  })
+);
+
 module.exports = router;

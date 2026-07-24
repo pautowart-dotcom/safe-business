@@ -89,6 +89,18 @@ export function AuthProvider({ children }) {
     await selectCompany(res.data.companyId);
   }
 
+  // Раньше единственный способ завести аккаунт-владельца — приглашение от
+  // уже существующего владельца (accept-invite). Публичной регистрации
+  // "с нуля" не было видно на /login вообще, хотя backend её поддерживал.
+  async function register({ name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent }) {
+    const res = await api.post('/auth/register', { name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent });
+    localStorage.setItem('token', res.data.token);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    setUser(res.data.user);
+    setCurrentCompany(null);
+    await selectCompany(res.data.companies[0].companyId);
+  }
+
   function clearSession() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -203,6 +215,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         logout,
+        register,
         acceptInvite,
         isOwner: currentCompany?.role === 'owner',
         isAdmin: currentCompany?.role === 'admin',

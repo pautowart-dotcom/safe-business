@@ -3,6 +3,8 @@ import { PrivateRoute } from './components/PrivateRoute.jsx';
 import Layout from './components/Layout.jsx';
 import { PullToRefreshProvider } from './context/PullToRefreshContext.jsx';
 import Login from './pages/Login.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import AcceptInvite from './pages/AcceptInvite.jsx';
 import LegalDocument from './pages/LegalDocument.jsx';
 import JournalVerify from './pages/JournalVerify.jsx';
@@ -20,6 +22,7 @@ import AdminLegalDocs from './pages/AdminLegalDocs.jsx';
 import Journals from './pages/Journals.jsx';
 import AdminJournalTypes from './pages/AdminJournalTypes.jsx';
 import AdminClientErrors from './pages/AdminClientErrors.jsx';
+import AdminPasswordResets from './pages/AdminPasswordResets.jsx';
 import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
@@ -32,6 +35,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/invite/:token" element={<AcceptInvite />} />
       <Route path="/legal/:key" element={<LegalDocument />} />
       <Route path="/j/:token" element={<JournalVerify />} />
@@ -132,6 +137,14 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <AdminClientErrors />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="admin/password-resets"
+          element={
+            <PrivateRoute managementOnly>
+              <AdminPasswordResets />
             </PrivateRoute>
           }
         />
