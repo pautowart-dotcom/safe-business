@@ -18,7 +18,16 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // На каждой странице параллельно летит несколько запросов — если токен
+      // протух, все они получают 401 почти одновременно, и раньше каждый
+      // независимо дёргал window.location.href, обрывая страницу жёстким
+      // переходом посреди того, как React ещё обрабатывает остальные из
+      // Promise.all(). Guard ниже не даёт делать это больше одного раза и
+      // пропускает редирект, если мы и так уже на /login.
+      if (window.location.pathname !== '/login' && !window.__redirectingToLogin) {
+        window.__redirectingToLogin = true;
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
