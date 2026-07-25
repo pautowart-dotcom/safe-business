@@ -43,6 +43,26 @@ export class ErrorBoundary extends Component {
     } catch (err) {
       // диагностика не должна сама уронить ErrorBoundary
     }
+
+    // Смягчение бага "n is not a function" (react-dom роняет рендер при
+    // переходе между страницами, причину пока не нашли — воспроизводится
+    // только у части пользователей, не ловится ни на тестовых аккаунтах,
+    // ни при подмене сети/скорости кликов). Раз данные не бьются и это
+    // именно сбой рендера, а не реальная проблема с бизнес-логикой —
+    // перезагружаем один раз сами, без ожидания клика "Обновить". Метка в
+    // sessionStorage не даёт зациклиться, если страница падает сразу же
+    // повторно — тогда показываем обычный экран с кнопкой.
+    try {
+      const key = 'errorBoundaryAutoReloadAt';
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last > 10000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        setTimeout(() => window.location.reload(), 300);
+      }
+    } catch (err) {
+      // sessionStorage может быть недоступен (приватный режим) — тогда
+      // просто показываем обычный экран с кнопкой ниже.
+    }
   }
 
   render() {
