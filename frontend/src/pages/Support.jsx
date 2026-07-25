@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
+import Linkify from '../ui/Linkify.jsx';
 
 export default function Support() {
   const { user } = useAuth();
@@ -70,7 +71,7 @@ export default function Support() {
           </div>
           {history.map((h) => (
             <Card key={h.id}>
-              <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 6 }}>{h.message}</div>
+              <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 6 }}><Linkify text={h.message} /></div>
               <div style={{ fontSize: 11, color: C.subtle }}>{new Date(h.created_at).toLocaleString('ru-RU')}</div>
             </Card>
           ))}

@@ -45,7 +45,9 @@ export default function Deadlines() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [category]);
+  useEffect(() => {
+    load();
+  }, [category]);
 
   async function markDone(id) {
     await api.patch(`/platform/deadlines/${id}`, { status: 'done' });

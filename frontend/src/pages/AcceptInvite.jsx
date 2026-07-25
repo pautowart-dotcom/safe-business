@@ -8,7 +8,7 @@ import { Btn, Field, TextInput, C } from '../ui/components.jsx';
 export default function AcceptInvite() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, acceptInvite } = useAuth();
+  const { user, acceptInvite, login } = useAuth();
 
   const [invite, setInvite] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -19,6 +19,14 @@ export default function AcceptInvite() {
   const [analyticsConsent, setAnalyticsConsent] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Баг №4: если приглашённый уже зарегистрирован (например, второй
+  // сотрудник, у которого есть аккаунт в другой компании владельца), но не
+  // залогинен в этом браузере, форма ниже раньше требовала "создать новый
+  // аккаунт" и падала 409 без пути войти в уже существующий.
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
 
   useEffect(() => {
     api
@@ -38,6 +46,21 @@ export default function AcceptInvite() {
       navigate('/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось принять приглашение');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleLoginAndAccept(e) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await login(loginEmail, loginPassword);
+      await acceptInvite({ token });
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось войти');
     } finally {
       setSubmitting(false);
     }
@@ -95,6 +118,43 @@ export default function AcceptInvite() {
         </div>
       )}
 
+      {!user && !showLogin && (
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 20, textAlign: 'center' }}>
+          Уже есть аккаунт «Безопасный бизнес»?{' '}
+          <button
+            type="button"
+            onClick={() => setShowLogin(true)}
+            style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, cursor: 'pointer', padding: 0 }}
+          >
+            Войти
+          </button>
+        </div>
+      )}
+
+      {!user && showLogin && (
+        <form onSubmit={handleLoginAndAccept} style={{ marginBottom: 24 }}>
+          <Field label="Email">
+            <TextInput type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+          </Field>
+          <Field label="Пароль">
+            <TextInput type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+          </Field>
+          <Btn type="submit" disabled={submitting}>
+            {submitting ? 'Входим...' : 'Войти и присоединиться'}
+          </Btn>
+          <div style={{ fontSize: 12, color: C.subtle, marginTop: 10, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setShowLogin(false)}
+              style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 12, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+            >
+              Нет аккаунта — создать новый
+            </button>
+          </div>
+        </form>
+      )}
+
+      {!showLogin && (
       <form onSubmit={handleSubmit}>
         <Field label="Имя">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required />
@@ -125,6 +185,7 @@ export default function AcceptInvite() {
           {submitting ? 'Создаём аккаунт...' : 'Присоединиться'}
         </Btn>
       </form>
+      )}
     </AuthShell>
   );
 }

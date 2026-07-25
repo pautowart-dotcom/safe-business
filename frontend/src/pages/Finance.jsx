@@ -157,7 +157,9 @@ function OwnerFinance() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [period.preset, period.customFrom, period.customTo]);
+  useEffect(() => {
+    load();
+  }, [period.preset, period.customFrom, period.customTo]);
   useEffect(loadRecurring, []);
   usePullToRefresh(() => Promise.all([load(), loadRecurring()]));
   useEffect(() => {
@@ -642,7 +644,9 @@ function MasterFinance() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [period.preset, period.customFrom, period.customTo]);
+  useEffect(() => {
+    load();
+  }, [period.preset, period.customFrom, period.customTo]);
   usePullToRefresh(load);
 
   if (loading) return <div className="page-loading">Загрузка...</div>;

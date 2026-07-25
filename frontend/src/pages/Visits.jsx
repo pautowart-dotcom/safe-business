@@ -100,7 +100,9 @@ export default function Visits() {
     return api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
   usePullToRefresh(load);
 
   useEffect(() => {

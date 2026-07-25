@@ -35,7 +35,9 @@ function UvLampTab({ type, roster, isManagement, error, setError }) {
     return api.get('/platform/journals/uv-lamp').then((res) => setEntries(res.data)).finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function submit() {
     if (!form.membershipId) {
@@ -117,7 +119,9 @@ function BriefingTab({ type, roster, isManagement, error, setError }) {
     return api.get('/platform/journals/briefing').then((res) => setEntries(res.data)).finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function submit() {
     if (!form.conductorMembershipId || !form.recipientMembershipId) {

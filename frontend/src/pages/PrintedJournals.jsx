@@ -28,7 +28,9 @@ export default function PrintedJournalsTab({ setError }) {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function createJournal(journalType) {
     setCreating(journalType);

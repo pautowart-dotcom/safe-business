@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { Card, C } from '../ui/components.jsx';
+import Linkify from '../ui/Linkify.jsx';
 
 export default function Support() {
   const [requests, setRequests] = useState(null);
@@ -23,7 +24,7 @@ export default function Support() {
               <div style={{ fontSize: 13, fontWeight: 700 }}>{r.user_name || '—'}{r.company_name ? ` · ${r.company_name}` : ''}</div>
               <div style={{ fontSize: 11, color: C.subtle }}>{new Date(r.created_at).toLocaleString('ru-RU')}</div>
             </div>
-            <div style={{ fontSize: 14, color: C.secondary, marginBottom: 6 }}>{r.message}</div>
+            <div style={{ fontSize: 14, color: C.secondary, marginBottom: 6 }}><Linkify text={r.message} /></div>
             <a href={`mailto:${r.email}`} style={{ fontSize: 12, color: C.primary }}>{r.email}</a>
           </Card>
         ))

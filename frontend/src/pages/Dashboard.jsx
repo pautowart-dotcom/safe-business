@@ -125,7 +125,9 @@ function ManagementDashboard() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function addTask() {
     if (!newTask.trim()) return;

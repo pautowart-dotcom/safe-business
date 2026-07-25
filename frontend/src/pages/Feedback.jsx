@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { Card, C } from '../ui/components.jsx';
+import Linkify from '../ui/Linkify.jsx';
 
 export default function Feedback() {
   const [messages, setMessages] = useState([]);
@@ -32,7 +33,7 @@ export default function Feedback() {
               <div style={{ fontSize: 13, fontWeight: 700 }}>{m.from_name || 'Мастер'}</div>
               <div style={{ fontSize: 11, color: C.subtle }}>{new Date(m.created_at).toLocaleString('ru-RU')}</div>
             </div>
-            <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}>{m.message}</div>
+            <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}><Linkify text={m.message} /></div>
             {!m.read && (
               <button
                 onClick={() => markRead(m.id)}
