@@ -93,6 +93,14 @@ export default function Layout() {
   // приложения), но данные грузит страница — см. PullToRefreshContext.
   // Работает, только если текущая страница зарегистрировала свою load().
   function handleTouchStart(e) {
+    // Быстрый переход между страницами (клик по нижней навигации сразу
+    // после начала касания) мог оставить scrollRef указывающим на уже
+    // отмонтированный контейнер предыдущей страницы — обращение к нему
+    // здесь не должно ронять рендер.
+    if (!scrollRef.current) {
+      pullingRef.current = false;
+      return;
+    }
     if (refreshing || !ptr?.hasHandler()) {
       pullingRef.current = false;
       return;

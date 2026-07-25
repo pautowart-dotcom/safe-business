@@ -17,7 +17,18 @@ export function PullToRefreshProvider({ children }) {
   }, []);
 
   const trigger = useCallback(() => {
-    return handlerRef.current ? Promise.resolve(handlerRef.current()) : Promise.resolve();
+    // Жест мог начаться на одной странице, а завершиться уже после перехода
+    // на другую (быстрый свайп во время навигации) — к этому моменту
+    // handlerRef может указывать на load() уже размонтированной страницы.
+    // Без try/catch ошибка внутри него падает как необработанное
+    // исключение рендера и ловится ErrorBoundary, хотя это не реальный
+    // сбой интерфейса, а просто устаревший обработчик.
+    if (!handlerRef.current) return Promise.resolve();
+    try {
+      return Promise.resolve(handlerRef.current()).catch(() => {});
+    } catch (err) {
+      return Promise.resolve();
+    }
   }, []);
 
   const hasHandler = useCallback(() => !!handlerRef.current, []);
