@@ -6,7 +6,7 @@ import { Card, C } from '../ui/components.jsx';
 export default function PasswordResets() {
   const [resets, setResets] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
-  const appUrl = import.meta.env.VITE_CLIENT_APP_URL || 'https://app.business-safe.ru';
+  const appUrl = import.meta.env.VITE_CLIENT_APP_URL || 'https://lk.business-safe.ru';
 
   useEffect(() => {
     api.get('/platform/admin/password-resets').then((res) => setResets(res.data));
