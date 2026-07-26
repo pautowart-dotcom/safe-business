@@ -17,6 +17,7 @@ const generatedJournalsRoutes = require('./generated-journals.routes');
 const dossierRoutes = require('./dossier.routes');
 const pushRoutes = require('./push.routes');
 const clientErrorsRoutes = require('./client-errors.routes');
+const subscriptionRoutes = require('./subscription.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -35,5 +36,6 @@ platformRouter.use('/generated-journals', generatedJournalsRoutes);
 platformRouter.use('/dossier', dossierRoutes);
 platformRouter.use('/push', pushRoutes);
 platformRouter.use('/client-errors', clientErrorsRoutes);
+platformRouter.use('/subscription', subscriptionRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

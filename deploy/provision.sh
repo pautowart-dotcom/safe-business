@@ -50,4 +50,8 @@ echo "== Cron: удаление фото визитов старше 6 меся�
 CRON_CMD="cd $APP_DIR/backend && node src/db/retentionCleanup.js >> /var/log/safe-business-retention.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "retentionCleanup.js" ; echo "0 3 * * * $CRON_CMD" ) | crontab -
 
+echo "== Cron: ежемесячные автосписания подписки ЮKassa =="
+SUB_CRON_CMD="cd $APP_DIR/backend && node src/scripts/chargeRecurringSubscriptions.js >> /var/log/safe-business-subscriptions.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "chargeRecurringSubscriptions.js" ; echo "15 4 * * * $SUB_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."
