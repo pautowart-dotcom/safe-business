@@ -16,14 +16,17 @@ if ! command -v node >/dev/null 2>&1; then
   apt-get install -y nodejs
 fi
 
-echo "== Системные библиотеки для Puppeteer (генерация печатных PDF-журналов) =="
+echo "== Системный Chromium для Puppeteer (генерация печатных PDF-журналов) =="
 # Puppeteer скачивает свой Chromium через npm postinstall (см. backend/package.json),
-# но самому Chromium для ЗАПУСКА нужны системные разделяемые библиотеки (libnss3,
-# libatk и т.д.), которых на голом сервере нет — без них generateJournalPdf()
-# падает при первом же скачивании печатного журнала. Ставим пакет chromium —
-# он подтягивает весь нужный набор библиотек через apt, сам бинарник не
-# используется (Puppeteer запускает свой собственный, скачанный npm'ом).
+# но список системных библиотек, нужных ему для ЗАПУСКА, отличается между
+# версиями Debian/Ubuntu и легко даёт "cannot open shared object file" на
+# конкретной библиотеке (проверено на практике — libnspr4 и т.п., даже после
+# установки apt-get install -y chromium ниже, который вроде должен был их
+# подтянуть). Поэтому дополнительно указываем Puppeteer использовать
+# системный chromium напрямую через PUPPETEER_EXECUTABLE_PATH в .env — см.
+# backend/.env.example — вместо своего скачанного бинарника.
 apt-get install -y chromium
+echo "Chromium установлен: $(command -v chromium || command -v chromium-browser || echo 'путь не найден — проверьте вручную')"
 
 echo "== Установка PM2 =="
 if ! command -v pm2 >/dev/null 2>&1; then

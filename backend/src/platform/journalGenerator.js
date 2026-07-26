@@ -196,7 +196,16 @@ async function generateJournalPdf({ type, companyName, journalNumber, verifyUrl 
   const pageDocs = buildPageDocuments(type, { companyName, journalNumber, qrDataUrl });
   const [widthMm, heightMm] = type.pageSizeMm;
 
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  // PUPPETEER_EXECUTABLE_PATH — на случай, если системных библиотек для
+  // Chromium, скачанного самим Puppeteer, на сервере не хватает: тогда
+  // используем системный chromium (apt поставит его вместе со всеми
+  // нужными зависимостями сам, под конкретную версию ОС), а не гадаем со
+  // списком отдельных библиотек.
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+  });
   try {
     const page = await browser.newPage();
     const pdfBuffers = [];
