@@ -159,7 +159,9 @@ function OwnerFinance() {
   useEffect(() => {
     load();
   }, [period.preset, period.customFrom, period.customTo]);
-  useEffect(loadRecurring, []);
+  useEffect(() => {
+    loadRecurring();
+  }, []);
   usePullToRefresh(() => Promise.all([load(), loadRecurring()]));
   useEffect(() => {
     api.get('/platform/memberships').then((res) => setMasters(res.data.filter((m) => m.role === 'master' && m.user_id)));
