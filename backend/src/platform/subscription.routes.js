@@ -6,7 +6,7 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment, getPayment } = require('../core/yookassa');
 
-const SUBSCRIPTION_PRICE_RUB = 1490;
+const SUBSCRIPTION_PRICE_RUB = 1990;
 
 const router = express.Router();
 

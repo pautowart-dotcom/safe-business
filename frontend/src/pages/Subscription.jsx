@@ -75,7 +75,7 @@ export default function Subscription() {
       </Card>
 
       <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_price_rub || 1490} ₽/мес</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_price_rub || 1990} ₽/мес</div>
         {company?.subscription_status === 'active' ? (
           <div style={{ fontSize: 13, color: C.subtle }}>
             Списывается автоматически {periodEnd ? `до ${periodEnd}` : 'каждый месяц'} — ничего делать не нужно.
