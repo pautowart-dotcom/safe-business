@@ -209,8 +209,15 @@ router.get(
         journalNumber: row.journal_number,
         verifyUrl: `${publicBaseUrl(req)}/j/${row.qr_token}`,
       });
+      // journal_number содержит кириллический префикс (УФ/СТ/ПС/ИН/ДЗ) —
+      // голый filename="..." в HTTP-заголовке обязан быть ASCII, Node кидает
+      // ERR_INVALID_CHAR на не-ASCII байтах. filename — безопасный ASCII-
+      // вариант для заголовка, filename* (RFC 5987) — настоящее имя с
+      // кириллицей для браузеров, которые его читают.
+      const asciiFilename = `journal-${row.journal_number.replace(/[^\x20-\x7E]/g, '')}.pdf`;
+      const utf8Filename = encodeURIComponent(`${row.journal_number}.pdf`);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${row.journal_number}.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`);
       res.send(pdfBuffer);
     } catch (err) {
       if (err.code === 'TEMPLATE_NOT_READY') {
