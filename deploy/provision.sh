@@ -16,6 +16,15 @@ if ! command -v node >/dev/null 2>&1; then
   apt-get install -y nodejs
 fi
 
+echo "== Системные библиотеки для Puppeteer (генерация печатных PDF-журналов) =="
+# Puppeteer скачивает свой Chromium через npm postinstall (см. backend/package.json),
+# но самому Chromium для ЗАПУСКА нужны системные разделяемые библиотеки (libnss3,
+# libatk и т.д.), которых на голом сервере нет — без них generateJournalPdf()
+# падает при первом же скачивании печатного журнала. Ставим пакет chromium —
+# он подтягивает весь нужный набор библиотек через apt, сам бинарник не
+# используется (Puppeteer запускает свой собственный, скачанный npm'ом).
+apt-get install -y chromium
+
 echo "== Установка PM2 =="
 if ! command -v pm2 >/dev/null 2>&1; then
   npm install -g pm2
