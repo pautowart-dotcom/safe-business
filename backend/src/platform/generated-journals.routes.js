@@ -9,6 +9,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
+const { requirePaidPlan } = require('../core/middleware/subscription');
 const { logEvent } = require('../core/eventLog');
 const { registerDeadline, clearAction } = require('../core/deadlines');
 const {
@@ -140,6 +141,7 @@ router.get(
 router.post(
   '/',
   requireRole('owner', 'admin'),
+  requirePaidPlan,
   asyncHandler(async (req, res) => {
     const { journalType } = req.body;
     const type = JOURNAL_TYPE_BY_KEY[journalType];
@@ -163,6 +165,7 @@ router.post(
 router.post(
   '/:id/reprint',
   requireRole('owner', 'admin'),
+  requirePaidPlan,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       'SELECT journal_type FROM generated_journals WHERE id = $1 AND company_id = $2',
@@ -185,6 +188,7 @@ router.post(
 router.get(
   '/:id/download',
   requireRole('owner', 'admin'),
+  requirePaidPlan,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT gj.journal_type, gj.journal_number, gj.qr_token, c.name AS company_name
