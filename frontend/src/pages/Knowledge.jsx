@@ -19,7 +19,6 @@ export default function Knowledge() {
   const [renamingSectionId, setRenamingSectionId] = useState(null);
 
   function load() {
-    setLoading(true);
     api.get('/modules/knowledge/sections').then((res) => setSections(res.data)).finally(() => setLoading(false));
   }
 

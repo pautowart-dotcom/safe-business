@@ -23,7 +23,6 @@ export default function Checklists() {
   const today = new Date().toISOString().slice(0, 10);
 
   function load() {
-    setLoading(true);
     Promise.all([api.get('/modules/checklists/templates'), api.get('/modules/checklists/marks', { params: { date: today } })])
       .then(([tpl, m]) => {
         setTemplates(tpl.data);

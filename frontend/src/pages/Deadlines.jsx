@@ -38,7 +38,6 @@ export default function Deadlines() {
   const visibleCategories = isAdmin ? CATEGORIES.filter((c) => c.key !== 'tax') : CATEGORIES;
 
   function load() {
-    setLoading(true);
     return api
       .get('/platform/deadlines', { params: category ? { category } : {} })
       .then((res) => setItems(res.data))

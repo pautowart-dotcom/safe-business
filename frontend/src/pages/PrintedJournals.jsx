@@ -16,7 +16,6 @@ export default function PrintedJournalsTab({ setError }) {
   const [showPicker, setShowPicker] = useState(false);
 
   function load() {
-    setLoading(true);
     return Promise.all([
       api.get('/platform/generated-journals/types'),
       api.get('/platform/generated-journals'),

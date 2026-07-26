@@ -20,7 +20,6 @@ export default function Clients() {
   const firstNameRef = useRef(null);
 
   function load(searchTerm) {
-    setLoading(true);
     return api
       .get('/modules/clients', { params: searchTerm ? { search: searchTerm } : {} })
       .then((res) => setClients(res.data))

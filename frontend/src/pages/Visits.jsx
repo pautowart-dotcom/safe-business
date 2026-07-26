@@ -96,7 +96,6 @@ export default function Visits() {
   const priceRef = useRef(null);
 
   function load() {
-    setLoading(true);
     return api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 

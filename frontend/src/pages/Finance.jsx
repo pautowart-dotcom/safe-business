@@ -134,7 +134,6 @@ function OwnerFinance() {
 
   function load() {
     if (!period.ready) return Promise.resolve();
-    setLoading(true);
     return api
       .get('/modules/finance/summary', { params: period.params })
       .then((res) => {
@@ -625,7 +624,6 @@ function MasterFinance() {
 
   function load() {
     if (!period.ready) return Promise.resolve();
-    setLoading(true);
     const { from, to } = computePeriodRange(period.preset, period.customFrom, period.customTo);
     return Promise.all([
       api.get('/modules/visits', { params: { dateFrom: `${from}T00:00:00`, dateTo: `${to}T23:59:59` } }),

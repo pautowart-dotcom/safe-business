@@ -31,7 +31,6 @@ function UvLampTab({ type, roster, isManagement, error, setError }) {
   const [saving, setSaving] = useState(false);
 
   function load() {
-    setLoading(true);
     return api.get('/platform/journals/uv-lamp').then((res) => setEntries(res.data)).finally(() => setLoading(false));
   }
 
@@ -115,7 +114,6 @@ function BriefingTab({ type, roster, isManagement, error, setError }) {
   const [saving, setSaving] = useState(false);
 
   function load() {
-    setLoading(true);
     return api.get('/platform/journals/briefing').then((res) => setEntries(res.data)).finally(() => setLoading(false));
   }
 

@@ -18,7 +18,6 @@ export default function Supplies() {
   const [editingId, setEditingId] = useState(null);
 
   function load() {
-    setLoading(true);
     api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
   }
 
