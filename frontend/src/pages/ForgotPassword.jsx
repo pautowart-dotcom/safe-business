@@ -29,7 +29,7 @@ export default function ForgotPassword() {
       <AuthShell>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Запрос отправлен</div>
         <div style={{ fontSize: 14, color: C.subtle, lineHeight: 1.5, marginBottom: 20 }}>
-          Если такой email зарегистрирован — свяжитесь с администратором сервиса, он передаст ссылку для смены пароля.
+          Если такой email зарегистрирован — на него отправлено письмо со ссылкой для смены пароля. Проверьте папку "Спам", если письмо не пришло в течение нескольких минут.
         </div>
         <Link to="/login" style={{ color: C.primary, fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>← Назад ко входу</Link>
       </AuthShell>
