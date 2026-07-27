@@ -11,6 +11,7 @@ const { logAudit } = require('../core/auditLog');
 const { uploadPhoto } = require('../core/uploads');
 const { saveImage, getFileUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
+const { sendMail } = require('../core/mailer');
 
 const router = express.Router();
 
@@ -109,6 +110,14 @@ router.post(
         entityType: 'company',
         entityId: company.id,
       });
+
+      // Письмо не должно уронить регистрацию, если почта временно недоступна
+      // или ещё не настроена — аккаунт уже создан и рабочий без него.
+      sendMail({
+        to: user.email,
+        subject: 'Добро пожаловать в «Безопасный бизнес»',
+        html: `<p>Здравствуйте, ${user.name}!</p><p>Аккаунт «${company.name}» создан. Заходите в личный кабинет и начинайте с бесплатной диагностики.</p>`,
+      }).catch((err) => console.error('[mail] не удалось отправить письмо о регистрации:', err.message));
 
       res.status(201).json({
         token: signBaseToken(user.id),
@@ -339,8 +348,14 @@ router.post(
         `INSERT INTO password_reset_tokens (user_id, token_hash, token_plain, expires_at) VALUES ($1, $2, $3, $4)`,
         [userRes.rows[0].id, tokenHash, token, expiresAt]
       );
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+      sendMail({
+        to: email,
+        subject: 'Восстановление пароля — «Безопасный бизнес»',
+        html: `<p>Ссылка действует ${RESET_TOKEN_TTL_MINUTES} минут:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Если это были не вы — просто проигнорируйте письмо.</p>`,
+      }).catch((err) => console.error('[mail] не удалось отправить письмо о сбросе пароля:', err.message));
     }
-    res.json({ ok: true, message: 'Если такой email зарегистрирован, ссылка для восстановления будет доступна администратору' });
+    res.json({ ok: true, message: 'Если такой email зарегистрирован, на него отправлена ссылка для восстановления' });
   })
 );
 
