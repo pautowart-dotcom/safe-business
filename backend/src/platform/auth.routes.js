@@ -353,7 +353,9 @@ router.post(
         to: email,
         subject: 'Восстановление пароля — «Безопасный бизнес»',
         html: `<p>Ссылка действует ${RESET_TOKEN_TTL_MINUTES} минут:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Если это были не вы — просто проигнорируйте письмо.</p>`,
-      }).catch((err) => console.error('[mail] не удалось отправить письмо о сбросе пароля:', err.message));
+      })
+        .then(() => console.log('[mail] письмо о сбросе пароля отправлено на', email))
+        .catch((err) => console.error('[mail] не удалось отправить письмо о сбросе пароля:', err.message));
     }
     res.json({ ok: true, message: 'Если такой email зарегистрирован, на него отправлена ссылка для восстановления' });
   })
