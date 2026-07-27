@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client.js';
-import { AuthShell } from './Login.jsx';
+import { AuthShell, VerifyCodeForm } from './Login.jsx';
 import { Btn, Field, TextInput, C } from '../ui/components.jsx';
 
 export default function AcceptInvite() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, acceptInvite, login } = useAuth();
+  const { user, acceptInvite, login, verifyCode } = useAuth();
 
   const [invite, setInvite] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -27,6 +27,9 @@ export default function AcceptInvite() {
   const [showLogin, setShowLogin] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  // Вход с ещё не подтверждённого устройства требует код с почты — тот же
+  // механизм, что и на обычном /login (см. AuthContext.jsx).
+  const [verifyEmail, setVerifyEmail] = useState(null);
 
   useEffect(() => {
     api
@@ -56,7 +59,11 @@ export default function AcceptInvite() {
     setError('');
     setSubmitting(true);
     try {
-      await login(loginEmail, loginPassword);
+      const result = await login(loginEmail, loginPassword);
+      if (result?.requiresDeviceVerification) {
+        setVerifyEmail(result.email);
+        return;
+      }
       await acceptInvite({ token });
       navigate('/', { replace: true });
     } catch (err) {
@@ -64,6 +71,12 @@ export default function AcceptInvite() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleVerifyAndAccept(email, code) {
+    await verifyCode(email, code);
+    await acceptInvite({ token });
+    navigate('/', { replace: true });
   }
 
   async function handleSubmit(e) {
@@ -79,6 +92,10 @@ export default function AcceptInvite() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (verifyEmail) {
+    return <VerifyCodeForm email={verifyEmail} onVerify={handleVerifyAndAccept} onBack={() => setVerifyEmail(null)} />;
   }
 
   if (loadError) {

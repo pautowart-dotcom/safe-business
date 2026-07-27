@@ -92,13 +92,38 @@ export function AuthProvider({ children }) {
   // Раньше единственный способ завести аккаунт-владельца — приглашение от
   // уже существующего владельца (accept-invite). Публичной регистрации
   // "с нуля" не было видно на /login вообще, хотя backend её поддерживал.
+  // Аккаунт создаётся сразу, но токен выдаётся только после кода с почты
+  // (backend/platform/auth.routes.js: loginOrRequireVerification) — первый
+  // вход всегда с "неподтверждённого" устройства, поэтому регистрация и
+  // подтверждение нового устройства при входе технически одно и то же.
   async function register({ name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent }) {
     const res = await api.post('/auth/register', { name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent });
-    localStorage.setItem('token', res.data.token);
-    localStorage.setItem('user', JSON.stringify(res.data.user));
-    setUser(res.data.user);
+    return res.data; // { requiresDeviceVerification: true, email }
+  }
+
+  function applyAuthResult(data) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    if (data.deviceToken) localStorage.setItem('deviceToken', data.deviceToken);
+    setUser(data.user);
     setCurrentCompany(null);
-    await selectCompany(res.data.companies[0].companyId);
+
+    const { companies } = data;
+    if (companies.length === 0) {
+      setNeedsCompany(true);
+      return;
+    }
+    if (companies.length === 1) {
+      return selectCompany(companies[0].companyId);
+    }
+    setPendingCompanies(companies);
+  }
+
+  // Код с почты — общий шаг и после регистрации, и после входа с нового
+  // устройства (см. комментарий у register выше).
+  async function verifyCode(email, code) {
+    const res = await api.post('/auth/verify-code', { email, code });
+    return applyAuthResult(res.data);
   }
 
   function clearSession() {
@@ -128,22 +153,12 @@ export function AuthProvider({ children }) {
   }
 
   async function login(email, password) {
-    const res = await api.post('/auth/login', { email, password });
-    localStorage.setItem('token', res.data.token);
-    localStorage.setItem('user', JSON.stringify(res.data.user));
-    setUser(res.data.user);
-    setCurrentCompany(null);
-
-    const { companies } = res.data;
-    if (companies.length === 0) {
-      setNeedsCompany(true);
-      return;
+    const deviceToken = localStorage.getItem('deviceToken') || undefined;
+    const res = await api.post('/auth/login', { email, password, deviceToken });
+    if (res.data.requiresDeviceVerification) {
+      return res.data; // { requiresDeviceVerification: true, email } — Login.jsx покажет ввод кода
     }
-    if (companies.length === 1) {
-      await selectCompany(companies[0].companyId);
-    } else {
-      setPendingCompanies(companies);
-    }
+    return applyAuthResult(res.data);
   }
 
   function logout() {
@@ -216,6 +231,7 @@ export function AuthProvider({ children }) {
         login,
         logout,
         register,
+        verifyCode,
         acceptInvite,
         isOwner: currentCompany?.role === 'owner',
         isAdmin: currentCompany?.role === 'admin',

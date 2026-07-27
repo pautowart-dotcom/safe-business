@@ -1,4 +1,5 @@
 require('dotenv').config();
+const SMOKE_DEVICE_TOKEN = require('../core/smokeDeviceToken');
 
 // Автопроверка после деплоя (Задача 0, docs/задача-баги-и-автопроверка.txt).
 // Запускается deploy.sh сразу после перезапуска backend — печатает
@@ -83,7 +84,7 @@ async function checkRole({ role, label, email, password }) {
     const login = await request('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, deviceToken: SMOKE_DEVICE_TOKEN }),
     });
     if (login.status !== 200) {
       record(`${label}: логин`, false, `HTTP ${login.status} — ${login.body?.error || 'без деталей'}`);

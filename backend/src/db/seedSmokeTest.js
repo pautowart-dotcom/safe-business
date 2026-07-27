@@ -1,7 +1,9 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const pool = require('./pool');
 const { studioOsBundleKeys } = require('../core/modules-registry');
+const SMOKE_DEVICE_TOKEN = require('../core/smokeDeviceToken');
 require('../modules'); // регистрирует модули в REGISTRY (side effect require, как в app.js)
 
 // Отдельная "служебная" компания только для автопроверки после деплоя
@@ -20,6 +22,18 @@ async function ensureUser(client, { name, email, password }) {
     [name, email, passwordHash]
   );
   return rows[0].id;
+}
+
+// Без этого первый же /auth/login смоук-аккаунта упёрся бы в код
+// подтверждения устройства (auth.routes.js) — у скрипта нет способа
+// прочитать письмо. deviceToken тут захардкожен и известен smokeCheck.js.
+async function ensureTrustedDevice(client, userId) {
+  const tokenHash = crypto.createHash('sha256').update(SMOKE_DEVICE_TOKEN).digest('hex');
+  await client.query(
+    `INSERT INTO trusted_devices (user_id, device_token_hash) VALUES ($1, $2)
+     ON CONFLICT (user_id, device_token_hash) DO NOTHING`,
+    [userId, tokenHash]
+  );
 }
 
 async function seed() {
@@ -45,7 +59,16 @@ async function seed() {
       [MARKER]
     );
     if (existingCompany.rows.length > 0) {
-      console.log('Смоук-компания уже существует, пропускаем.');
+      // Компания уже была заведена раньше — но доверенное устройство для
+      // смоук-аккаунтов могло появиться позже (login_device_verification),
+      // поэтому досоздаём его отдельно, не пересоздавая всё остальное.
+      for (const account of accounts) {
+        const userRes = await client.query('SELECT id FROM users WHERE email = $1', [account.email]);
+        if (userRes.rows.length > 0) {
+          await ensureTrustedDevice(client, userRes.rows[0].id);
+        }
+      }
+      console.log('Смоук-компания уже существует, доверенные устройства проверены.');
       return;
     }
 
@@ -64,6 +87,7 @@ async function seed() {
         `INSERT INTO memberships (user_id, company_id, role, invite_status) VALUES ($1, $2, $3, 'active')`,
         [userId, companyId, account.role]
       );
+      await ensureTrustedDevice(client, userId);
     }
 
     for (const moduleKey of studioOsBundleKeys()) {

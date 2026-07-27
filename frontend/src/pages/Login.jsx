@@ -170,8 +170,60 @@ function RegisterForm({ onRegister, onBack }) {
   );
 }
 
+// Один и тот же экран для двух поводов: код сразу после регистрации и код
+// при входе с ещё не подтверждённого устройства (см. AuthContext.jsx —
+// backend не различает эти случаи).
+export function VerifyCodeForm({ email, onVerify, onBack }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await onVerify(email, code);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось подтвердить код');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AuthShell>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Код из письма</div>
+      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20, lineHeight: 1.5 }}>
+        Отправили код на {email}. Проверьте папку "Спам", если письмо не пришло за пару минут.
+      </div>
+      <form onSubmit={submit}>
+        {error && <div className="alert alert-error">{error}</div>}
+        <Field label="Код">
+          <TextInput
+            autoFocus
+            inputMode="numeric"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            required
+          />
+        </Field>
+        <Btn type="submit" disabled={submitting || code.length < 6}>{submitting ? 'Проверяем...' : 'Подтвердить'}</Btn>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 13, marginTop: 14, padding: 0 }}
+        >
+          Назад
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
 export default function Login() {
-  const { user, currentCompany, pendingCompanies, needsCompany, isSuperAdmin, selectCompany, createCompany, login, register } = useAuth();
+  const { user, currentCompany, pendingCompanies, needsCompany, isSuperAdmin, selectCompany, createCompany, login, register, verifyCode } = useAuth();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const emailRef = useRef(null);
@@ -179,9 +231,16 @@ export default function Login() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
+  // Заполняется email'ом, когда регистрация или вход требуют код с почты —
+  // рендерим VerifyCodeForm вместо обычной формы, пока не подтвердят.
+  const [verifyEmail, setVerifyEmail] = useState(null);
   // Лендинг ведёт сразу на форму регистрации (?mode=register), обычный
   // заход в приложение — на вход.
   const [mode, setMode] = useState(searchParams.get('mode') === 'register' ? 'register' : 'login');
+
+  if (verifyEmail) {
+    return <VerifyCodeForm email={verifyEmail} onVerify={verifyCode} onBack={() => setVerifyEmail(null)} />;
+  }
 
   // Полностью авторизован (есть и пользователь, и выбранная компания) —
   // дальше решает роутинг, здесь делать нечего.
@@ -220,9 +279,12 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
-      await login(emailRef.current.value, passwordRef.current.value);
-      // Дальше решает состояние: выбор компании автоматом/вручную/создание —
-      // без явной навигации отсюда.
+      const result = await login(emailRef.current.value, passwordRef.current.value);
+      if (result?.requiresDeviceVerification) {
+        setVerifyEmail(result.email);
+      }
+      // Иначе дальше решает состояние: выбор компании автоматом/вручную/
+      // создание — без явной навигации отсюда.
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось войти');
     } finally {
@@ -230,8 +292,15 @@ export default function Login() {
     }
   }
 
+  async function handleRegister(data) {
+    const result = await register(data);
+    if (result?.requiresDeviceVerification) {
+      setVerifyEmail(result.email);
+    }
+  }
+
   if (mode === 'register') {
-    return <RegisterForm onRegister={register} onBack={() => setMode('login')} />;
+    return <RegisterForm onRegister={handleRegister} onBack={() => setMode('login')} />;
   }
 
   return (

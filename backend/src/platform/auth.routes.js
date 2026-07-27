@@ -15,6 +15,61 @@ const { sendMail } = require('../core/mailer');
 
 const router = express.Router();
 
+const VERIFICATION_CODE_TTL_MINUTES = 10;
+
+// Общий механизм для двух разных поводов ("подтвердите email при
+// регистрации" и "подтвердите новое устройство при входе") — оба сводятся
+// к одному и тому же: доказать владение почтой одноразовым кодом. Код
+// хранится хэшем, как пароль (см. password_reset_tokens — та же логика).
+async function sendVerificationCode(userId, email) {
+  const code = String(crypto.randomInt(100000, 1000000));
+  const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+  const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MINUTES * 60 * 1000);
+  await pool.query(
+    'INSERT INTO login_verification_codes (user_id, code_hash, expires_at) VALUES ($1, $2, $3)',
+    [userId, codeHash, expiresAt]
+  );
+  await sendMail({
+    to: email,
+    subject: 'Код подтверждения — «Безопасный бизнес»',
+    html: `<p>Код: <b style="font-size:20px">${code}</b></p><p>Действует ${VERIFICATION_CODE_TTL_MINUTES} минут. Если это были не вы — просто проигнорируйте письмо.</p>`,
+  });
+}
+
+// Общая развязка для /register и /login: устройство уже подтверждено
+// (deviceToken совпал с сохранённым хэшем) — пускаем сразу, иначе просим
+// код с почты. Регистрация вызывает это без deviceToken вообще, поэтому
+// первый вход после регистрации гарантированно требует код — отдельного
+// "подтвердите email" механизма не нужно, это тот же самый случай
+// "устройство ещё не подтверждено".
+async function loginOrRequireVerification(res, user, deviceToken, status = 200) {
+  // Единственный супер-админ (сам владелец) заходит и в клиентский ЛК, и в
+  // office.business-safe.ru (admin-frontend) — там нет экрана ввода кода,
+  // добавлять его ради одного аккаунта не стали. У супер-админа и так root
+  // на сервере/БД, код с почты не добавляет реальной защиты именно ему.
+  let deviceTrusted = !!user.is_super_admin;
+  if (!deviceTrusted && deviceToken) {
+    const tokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+    const deviceRes = await pool.query(
+      'SELECT id FROM trusted_devices WHERE user_id = $1 AND device_token_hash = $2',
+      [user.id, tokenHash]
+    );
+    if (deviceRes.rows.length > 0) {
+      deviceTrusted = true;
+      await pool.query('UPDATE trusted_devices SET last_used_at = now() WHERE id = $1', [deviceRes.rows[0].id]);
+    }
+  }
+
+  if (!deviceTrusted) {
+    await sendVerificationCode(user.id, user.email);
+    return res.status(status).json({ requiresDeviceVerification: true, email: user.email });
+  }
+
+  delete user.password_hash;
+  const companies = await activeMembershipsForUser(user.id);
+  return res.status(status).json({ token: signBaseToken(user.id), user, companies });
+}
+
 async function activeMembershipsForUser(userId) {
   const { rows } = await pool.query(
     `SELECT m.id AS membership_id, m.role, m.branch_id, c.id AS company_id, c.name AS company_name
@@ -111,27 +166,12 @@ router.post(
         entityId: company.id,
       });
 
-      // Письмо не должно уронить регистрацию, если почта временно недоступна
-      // или ещё не настроена — аккаунт уже создан и рабочий без него.
-      sendMail({
-        to: user.email,
-        subject: 'Добро пожаловать в «Безопасный бизнес»',
-        html: `<p>Здравствуйте, ${user.name}!</p><p>Аккаунт «${company.name}» создан. Заходите в личный кабинет и начинайте с бесплатной диагностики.</p>`,
-      }).catch((err) => console.error('[mail] не удалось отправить письмо о регистрации:', err.message));
-
-      res.status(201).json({
-        token: signBaseToken(user.id),
-        user,
-        companies: [
-          {
-            companyId: company.id,
-            companyName: company.name,
-            membershipId: membership.id,
-            role: membership.role,
-            branchId: membership.branch_id,
-          },
-        ],
-      });
+      // Аккаунт уже создан и рабочий на этом этапе — код ниже не отменяет
+      // регистрацию, если письмо не уйдёт (см. loginOrRequireVerification),
+      // просто без кода войти не получится, пока не запросят его заново
+      // через обычный вход (тот же механизм).
+      await loginOrRequireVerification(res, user, undefined, 201);
+      return;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -144,7 +184,7 @@ router.post(
 router.post(
   '/login',
   asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, deviceToken } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Введите email и пароль' });
     }
@@ -177,10 +217,54 @@ router.post(
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
-    delete user.password_hash;
-    const companies = await activeMembershipsForUser(user.id);
+    await loginOrRequireVerification(res, user, deviceToken);
+  })
+);
 
-    res.json({ token: signBaseToken(user.id), user, companies });
+// Один и тот же код закрывает оба случая: подтверждение почты сразу после
+// регистрации и подтверждение нового устройства при обычном входе — оба
+// раза loginOrRequireVerification сохраняет код одинаково (login_verification_codes).
+router.post(
+  '/verify-code',
+  asyncHandler(async (req, res) => {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Укажите email и код' });
+    }
+
+    const allowed = await checkLoginAllowed(req.ip, `verify:${email}`);
+    if (!allowed) {
+      return res.status(429).json({ error: 'Слишком много попыток. Попробуйте снова через 15 минут.' });
+    }
+
+    const userRes = await pool.query(
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE email = $1',
+      [email]
+    );
+    const user = userRes.rows[0];
+    if (!user) {
+      await recordFailedLogin(req.ip, `verify:${email}`);
+      return res.status(400).json({ error: 'Код неверный или истёк' });
+    }
+
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+    const codeRes = await pool.query(
+      `SELECT id FROM login_verification_codes
+       WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL AND expires_at > now()`,
+      [user.id, codeHash]
+    );
+    if (codeRes.rows.length === 0) {
+      await recordFailedLogin(req.ip, `verify:${email}`);
+      return res.status(400).json({ error: 'Код неверный или истёк' });
+    }
+    await pool.query('UPDATE login_verification_codes SET used_at = now() WHERE id = $1', [codeRes.rows[0].id]);
+
+    const deviceToken = crypto.randomBytes(32).toString('hex');
+    const deviceTokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+    await pool.query('INSERT INTO trusted_devices (user_id, device_token_hash) VALUES ($1, $2)', [user.id, deviceTokenHash]);
+
+    const companies = await activeMembershipsForUser(user.id);
+    res.json({ token: signBaseToken(user.id), user, companies, deviceToken });
   })
 );
 
