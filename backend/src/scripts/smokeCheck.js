@@ -39,7 +39,8 @@ const CHECKS_BY_ROLE = {
     { name: 'Дедлайны', path: '/api/platform/deadlines', expect: [200] },
     { name: 'Журналы (УФ-лампа)', path: '/api/platform/journals/uv-lamp', expect: [200] },
     { name: 'Склад (категории)', path: '/api/modules/supplies/categories', expect: [200] },
-    { name: 'Финансы (ожидаемо 403)', path: '/api/modules/finance/summary', expect: [403] },
+    // Мастеру сводка доступна (без netProfit — см. finance/summary.routes.js), не 403.
+    { name: 'Финансы (сводка, без netProfit)', path: '/api/modules/finance/summary', expect: [200] },
     { name: 'Безопасность (ожидаемо 403)', path: '/api/modules/security/sessions', expect: [403] },
   ],
 };
