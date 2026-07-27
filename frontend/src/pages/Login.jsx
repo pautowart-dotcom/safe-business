@@ -177,9 +177,17 @@ export function VerifyCodeForm({ email, onVerify, onBack }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Флаг в ref, а не только в state — React обновляет state не мгновенно,
+  // и двойной клик/Enter+клик почти одновременно успевали пройти оба до
+  // ре-рендера с disabled. Код одноразовый: второй запрос с тем же кодом
+  // видел его уже использованным и показывал "неверный", хотя первый уже
+  // успешно входил — сбивало с толку.
+  const submittingRef = useRef(false);
 
   async function submit(e) {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError('');
     setSubmitting(true);
     try {
@@ -187,6 +195,7 @@ export function VerifyCodeForm({ email, onVerify, onBack }) {
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось подтвердить код');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }

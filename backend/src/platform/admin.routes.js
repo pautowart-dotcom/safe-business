@@ -128,9 +128,20 @@ router.get(
 router.delete(
   '/companies/:id',
   asyncHandler(async (req, res) => {
+    const members = await pool.query('SELECT DISTINCT user_id FROM memberships WHERE company_id = $1', [req.params.id]);
     const { rowCount } = await pool.query('DELETE FROM companies WHERE id = $1', [req.params.id]);
     if (rowCount === 0) {
       return res.status(404).json({ error: 'Компания не найдена' });
+    }
+    // Иначе email считался бы "уже зарегистрирован" навсегда, хотя вся
+    // компания и данные уже удалены — только для тех, кто реально остался
+    // без единой компании (не супер-админ, не состоит больше нигде).
+    for (const { user_id: userId } of members.rows) {
+      await pool.query(
+        `DELETE FROM users WHERE id = $1 AND is_super_admin = false
+         AND NOT EXISTS (SELECT 1 FROM memberships WHERE user_id = $1)`,
+        [userId]
+      );
     }
     res.status(204).end();
   })
