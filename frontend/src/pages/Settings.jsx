@@ -6,6 +6,12 @@ import { Card, Field, TextInput, Select, Btn, Icon, C } from '../ui/components.j
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
+const SUBSCRIPTION_STATUS_LABELS = {
+  trial: 'Бесплатный период',
+  active: 'Подписка активна',
+  past_due: 'Проблема с оплатой',
+  cancelled: 'Подписка отменена',
+};
 const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 const NOTIFICATION_CATEGORIES = [
@@ -198,12 +204,22 @@ export default function Settings() {
         </Card>
       )}
 
-      {isManagement && company?.subscription_status === 'trial' && (
-        <Card style={{ background: C.greenBg, borderColor: C.green + '44', cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>🎉 Бесплатный период</div>
-          <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>
-          <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — {company?.subscription_price_rub || 1990} ₽/мес</div>
-        </Card>
+      {isManagement && company && (
+        company.subscription_status === 'trial' ? (
+          <Card style={{ background: C.greenBg, borderColor: C.green + '44', cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>🎉 Бесплатный период</div>
+            <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — {company?.subscription_price_rub || 1990} ₽/мес</div>
+          </Card>
+        ) : (
+          <Card style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={() => navigate('/subscription')}>
+            <div>
+              <div style={{ fontSize: 12, color: C.subtle, marginBottom: 2 }}>Подписка</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{SUBSCRIPTION_STATUS_LABELS[company.subscription_status] || '—'}</div>
+            </div>
+            <span style={{ fontSize: 20, color: C.border }}>›</span>
+          </Card>
+        )
       )}
 
       {isManagement && notificationSettings && (

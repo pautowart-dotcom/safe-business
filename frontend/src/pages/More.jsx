@@ -18,8 +18,7 @@ const OWNER_ITEMS = [
   { label: 'Сформировать досье', sub: 'По дате или по мастеру (по клиенту — в его карточке)', icon: 'doc', to: '/dossier' },
   { label: 'Обратная связь', sub: 'Сообщения от мастеров', icon: 'msg', to: '/feedback' },
   { label: 'Команда', sub: 'Мастера, приглашения, удаление', icon: 'team', to: '/team' },
-  { label: 'Подписка', sub: 'Статус, оплата, продление', icon: 'finance', to: '/subscription' },
-  { label: 'Настройки', sub: 'Компания, профиль', icon: 'settings', to: '/settings' },
+  { label: 'Настройки', sub: 'Компания, профиль, подписка', icon: 'settings', to: '/settings' },
   { label: 'Вопросы и ответы', sub: 'Тарифы, оплата, данные', icon: 'help', to: '/legal/faq' },
   { label: 'Поддержка', sub: 'Написать разработчику', icon: 'help', to: '/support' },
 ];
