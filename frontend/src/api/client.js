@@ -29,6 +29,14 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    // Бесплатный период закончился (backend/core/middleware/tenancy.js) —
+    // тот же guard от параллельных запросов, что и для 401 выше.
+    if (error.response?.status === 402 && error.response?.data?.requiresSubscription) {
+      if (window.location.pathname !== '/subscription' && !window.__redirectingToSubscription) {
+        window.__redirectingToSubscription = true;
+        window.location.href = '/subscription';
+      }
+    }
     return Promise.reject(error);
   }
 );
