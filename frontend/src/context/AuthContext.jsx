@@ -64,8 +64,16 @@ export function AuthProvider({ children }) {
           setPendingCompanies(companies);
         }
       })
-      .catch(() => {
-        clearSession();
+      .catch((err) => {
+        // 402 (бесплатный период закончился, tenancy.js) — это ВАЛИДНАЯ
+        // сессия, просто заблокированная по оплате: interceptor в
+        // api/client.js уже сам ведёт на /subscription. Раньше clearSession()
+        // срабатывал и на 402 тоже (loadModules() внутри .then() выше мог
+        // упасть с 402), из-за чего человека выкидывало обратно на /login
+        // вместо экрана оплаты — сессия была валидной, но её стирали сами.
+        if (err.response?.status !== 402) {
+          clearSession();
+        }
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
