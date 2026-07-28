@@ -243,6 +243,7 @@ router.post(
     );
     const user = userRes.rows[0];
     if (!user) {
+      console.log('[verify-debug] пользователь не найден по email =', email);
       await recordFailedLogin(req.ip, `verify:${email}`);
       return res.status(400).json({ error: 'Код неверный или истёк' });
     }
@@ -254,6 +255,15 @@ router.post(
       [user.id, codeHash]
     );
     if (codeRes.rows.length === 0) {
+      // Считаем ещё живые (не использованные, не истёкшие) коды на этого
+      // пользователя — если их больше одного, значит письмо запросили
+      // повторно (ещё одна попытка входа/регистрации), а ввели код не из
+      // последнего письма.
+      const { rows: activeCodes } = await pool.query(
+        `SELECT COUNT(*) AS n FROM login_verification_codes WHERE user_id = $1 AND used_at IS NULL AND expires_at > now()`,
+        [user.id]
+      );
+      console.log('[verify-debug] код не подошёл, email =', email, 'id =', user.id, 'живых кодов сейчас =', activeCodes[0].n);
       await recordFailedLogin(req.ip, `verify:${email}`);
       return res.status(400).json({ error: 'Код неверный или истёк' });
     }
@@ -263,6 +273,7 @@ router.post(
     const deviceTokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
     await pool.query('INSERT INTO trusted_devices (user_id, device_token_hash) VALUES ($1, $2)', [user.id, deviceTokenHash]);
 
+    console.log('[verify-debug] код подтверждён, email =', email, 'id =', user.id);
     const companies = await activeMembershipsForUser(user.id);
     res.json({ token: signBaseToken(user.id), user, companies, deviceToken });
   })
