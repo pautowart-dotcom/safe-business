@@ -353,17 +353,15 @@ router.post(
     const membership = invite.rows[0];
 
     let userId;
-    const header = req.headers.authorization;
-    if (header && header.startsWith('Bearer ')) {
-      try {
-        userId = verifyToken(header.slice('Bearer '.length)).sub;
-      } catch (err) {
-        return res.status(401).json({ error: 'Недействительный или истёкший токен' });
-      }
-    } else {
-      if (!name || !email || !password) {
-        return res.status(400).json({ error: 'Заполните имя, email и пароль, либо войдите в существующий аккаунт' });
-      }
+    // Явно переданные name+email+password означают "создать отдельный
+    // аккаунт" — приоритет НАД заголовком Authorization. Раньше было
+    // наоборот: если браузер уже залогинен кем-то другим (например, сам
+    // владелец тестирует приглашение в своём же браузере), api-клиент всё
+    // равно прикреплял его Authorization ко всем запросам, и форма "создать
+    // отдельный аккаунт" молча игнорировалась — приглашённый всегда
+    // присоединялся как уже залогиненный пользователь, с непонятной
+    // ошибкой "вы уже состоите в этой компании".
+    if (name && email && password) {
       if (password.length < 8) {
         return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });
       }
@@ -381,6 +379,17 @@ router.post(
         [name, email, passwordHash, !!analyticsConsent]
       );
       userId = created.rows[0].id;
+    } else {
+      const header = req.headers.authorization;
+      if (header && header.startsWith('Bearer ')) {
+        try {
+          userId = verifyToken(header.slice('Bearer '.length)).sub;
+        } catch (err) {
+          return res.status(401).json({ error: 'Недействительный или истёкший токен' });
+        }
+      } else {
+        return res.status(400).json({ error: 'Заполните имя, email и пароль, либо войдите в существующий аккаунт' });
+      }
     }
 
     const dup = await pool.query(
