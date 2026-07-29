@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client.js';
 import { Card, Btn, TextArea, ChevronRow, Icon, C } from '../ui/components.jsx';
+import OnboardingModal from '../components/OnboardingModal.jsx';
 
 // Пакет 4, Этап 6: Клиенты/Визиты переехали сюда из нижнего меню (место
 // освободила "Безопасность" — новый пункт нижней навигации). moduleKey — та
@@ -21,11 +22,13 @@ const OWNER_ITEMS = [
   { label: 'Настройки', sub: 'Компания, профиль, подписка', icon: 'settings', to: '/settings' },
   { label: 'Вопросы и ответы', sub: 'Тарифы, оплата, данные', icon: 'help', to: '/legal/faq' },
   { label: 'Поддержка', sub: 'Написать разработчику', icon: 'help', to: '/support' },
+  { label: 'Как пользоваться', sub: 'Вступительная инструкция по разделам', icon: 'shield', action: 'instructions' },
 ];
 
 function OwnerMore() {
   const navigate = useNavigate();
   const { isOwner, hasModule } = useAuth();
+  const [showInstructions, setShowInstructions] = useState(false);
   // Безопасность — только владелец (политика конфиденциальности §8.4,
   // делегирования доступа администратору пока нет). Клиенты/Визиты —
   // видимость по модулю компании, как раньше в нижнем меню.
@@ -38,11 +41,17 @@ function OwnerMore() {
   const items = OWNER_ITEMS
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
     .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/legal/faq'));
+
+  function handleClick(item) {
+    if (item.action === 'instructions') setShowInstructions(true);
+    else navigate(item.to);
+  }
+
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Разделы</div>
       {items.map((item) => (
-        <Card key={item.to} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }} onClick={() => navigate(item.to)}>
+        <Card key={item.to || item.action} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }} onClick={() => handleClick(item)}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Icon name={item.icon} size={20} color={C.primary} />
           </div>
@@ -53,6 +62,7 @@ function OwnerMore() {
           <span style={{ fontSize: 20, color: C.border }}>›</span>
         </Card>
       ))}
+      {showInstructions && <OnboardingModal onClose={() => setShowInstructions(false)} />}
     </div>
   );
 }
@@ -63,6 +73,7 @@ function MasterMore() {
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [showInstructions, setShowInstructions] = useState(false);
 
   async function send() {
     if (!message.trim()) return;
@@ -163,6 +174,17 @@ function MasterMore() {
           </div>
         </ChevronRow>
       </Card>
+      <Card onClick={() => setShowInstructions(true)} style={{ cursor: 'pointer' }}>
+        <ChevronRow>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="shield" size={20} color={C.primary} />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Как пользоваться</div>
+          </div>
+        </ChevronRow>
+      </Card>
+      {showInstructions && <OnboardingModal onClose={() => setShowInstructions(false)} />}
     </div>
   );
 }
