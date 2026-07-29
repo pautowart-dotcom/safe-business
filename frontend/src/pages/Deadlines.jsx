@@ -114,6 +114,32 @@ export default function Deadlines() {
           // без due_date, поэтому считать дни/показывать дату для них нельзя.
           const isAction = item.kind === 'action' || !item.due_date;
           const left = isAction ? null : daysLeft(item.due_date);
+
+          // Владелец: мастеру не нужны точные сроки/давление ("Просрочено на
+          // X дн.") — только дата в кружке и название, без урджент-бейджей.
+          // Общий календарь для всех ролей — отдельная задача на будущее.
+          if (!isManagement) {
+            return (
+              <Card key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 40, height: 40, minWidth: 40, borderRadius: '50%', background: C.surface,
+                    border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 800, color: C.primary, flexShrink: 0,
+                  }}
+                >
+                  {isAction ? '–' : new Date(item.due_date).getDate()}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div>
+                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
+                    {isAction ? 'Требует внимания' : new Date(item.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+              </Card>
+            );
+          }
+
           return (
             <Card key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <div style={{ minWidth: 0, flex: 1 }}>

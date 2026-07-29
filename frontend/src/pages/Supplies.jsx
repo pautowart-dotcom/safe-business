@@ -123,10 +123,13 @@ export default function Supplies() {
         <Field label="Минимум (порог)"><TextInput type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} placeholder="2" /></Field>
         <Field label="Единица"><TextInput value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="шт" /></Field>
         <Field label="Ссылка на товар"><TextInput type="url" value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} placeholder="https://..." /></Field>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.isDisinfectant} onChange={(e) => setForm({ ...form, isDisinfectant: e.target.checked })} />
           <span style={{ fontSize: 14 }}>Дезинфицирующее средство</span>
         </label>
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 20 }}>
+          Приход/списание этой позиции автоматически попадает в журнал "Дезсредства" (раздел "Журналы") — отмечайте только реальные дезсредства.
+        </div>
         <Btn onClick={handleCreate}>{editingId ? 'Сохранить изменения' : 'Добавить'}</Btn>
       </div>
     );

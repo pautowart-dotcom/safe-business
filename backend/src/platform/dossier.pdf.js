@@ -39,7 +39,7 @@ function sectionHeader(text) {
 }
 
 function visitBlock(v) {
-  const photos = [v.photo_before_url, v.photo_after_url].map(imageDataUri).filter(Boolean);
+  const photos = [v.photo_before_url, v.photo_before_url_2, v.photo_after_url, v.photo_after_url_2].map(imageDataUri).filter(Boolean);
   return {
     margin: [0, 0, 0, 12],
     stack: [

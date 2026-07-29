@@ -17,7 +17,7 @@ function nowLocal() {
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
   masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: '0',
-  visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', supplies: [],
+  visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', photoBeforeUrl2: '', photoAfterUrl2: '', supplies: [],
 };
 
 function money(v) {
@@ -150,6 +150,8 @@ export default function Visits() {
       visitAt: v.visit_at ? toLocalInputValue(v.visit_at) : nowLocal(),
       photoBeforeUrl: v.photo_before_url || '',
       photoAfterUrl: v.photo_after_url || '',
+      photoBeforeUrl2: v.photo_before_url_2 || '',
+      photoAfterUrl2: v.photo_after_url_2 || '',
       supplies: (v.supplies || []).map((s) => ({ supplyId: s.supplyId, quantity: String(s.quantity), name: s.name, unit: s.unit })),
     });
     setEditingId(v.id);
@@ -213,6 +215,8 @@ export default function Visits() {
         masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
         photoBeforeUrl: form.photoBeforeUrl || null,
         photoAfterUrl: form.photoAfterUrl || null,
+        photoBeforeUrl2: form.photoBeforeUrl2 || null,
+        photoAfterUrl2: form.photoAfterUrl2 || null,
         supplies: form.supplies.map((s) => ({ supplyId: s.supplyId, quantity: Number(s.quantity) })),
       };
 
@@ -331,10 +335,14 @@ export default function Visits() {
             </div>
           )}
 
-          <Field label="Фото">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Фото (до 2 на каждую сторону)">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} />
+              <PhotoUploadCell label="до (2)" url={form.photoBeforeUrl2} onUploaded={(url) => setForm({ ...form, photoBeforeUrl2: url })} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <PhotoUploadCell label="после" url={form.photoAfterUrl} onUploaded={(url) => setForm({ ...form, photoAfterUrl: url })} />
+              <PhotoUploadCell label="после (2)" url={form.photoAfterUrl2} onUploaded={(url) => setForm({ ...form, photoAfterUrl2: url })} />
             </div>
           </Field>
 

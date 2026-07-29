@@ -29,7 +29,7 @@ const SELECT_COLUMNS = `
   ROUND(v.amount * v.discount_percent / 100, 2) AS discount_amount,
   ROUND(v.amount - (v.amount * v.discount_percent / 100), 2) AS final_amount,
   ROUND(v.amount * v.master_payout_percent / 100, 2) AS master_earnings,
-  v.photo_before_url, v.photo_after_url, v.visit_at, v.created_at,
+  v.photo_before_url, v.photo_after_url, v.photo_before_url_2, v.photo_after_url_2, v.visit_at, v.created_at,
   c.first_name AS client_first_name, c.last_name AS client_last_name,
   mu.name AS master_name
 `;
@@ -182,6 +182,8 @@ router.post(
       branchId,
       photoBeforeUrl,
       photoAfterUrl,
+      photoBeforeUrl2,
+      photoAfterUrl2,
       masterMembershipId,
       supplies,
     } = req.body;
@@ -220,8 +222,8 @@ router.post(
         `INSERT INTO visits (
            company_id, branch_id, client_id, master_membership_id, service, materials,
            amount, discount_percent, master_payout_percent, photo_before_url, photo_after_url,
-           visit_at, created_by_user_id
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, now()), $13)
+           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, now()), $15)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -235,6 +237,8 @@ router.post(
           payoutPercent,
           photoBeforeUrl || null,
           photoAfterUrl || null,
+          photoBeforeUrl2 || null,
+          photoAfterUrl2 || null,
           visitAt || null,
           req.user.id,
         ]
@@ -303,8 +307,10 @@ router.patch(
     }
     const current = existing.rows[0];
 
-    const { clientId, service, materials, amount, discountPercent, visitAt, branchId, photoBeforeUrl, photoAfterUrl, masterMembershipId, supplies } =
-      req.body;
+    const {
+      clientId, service, materials, amount, discountPercent, visitAt, branchId,
+      photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, supplies,
+    } = req.body;
 
     let masterMembershipToSet = current.master_membership_id;
     let payoutPercentToSet = current.master_payout_percent;
@@ -344,10 +350,12 @@ router.patch(
            branch_id = COALESCE($6, branch_id),
            photo_before_url = COALESCE($7, photo_before_url),
            photo_after_url = COALESCE($8, photo_after_url),
-           visit_at = COALESCE($9, visit_at),
-           master_membership_id = $10,
-           master_payout_percent = $11
-         WHERE id = $12`,
+           photo_before_url_2 = COALESCE($9, photo_before_url_2),
+           photo_after_url_2 = COALESCE($10, photo_after_url_2),
+           visit_at = COALESCE($11, visit_at),
+           master_membership_id = $12,
+           master_payout_percent = $13
+         WHERE id = $14`,
         [
           clientId || null,
           service || null,
@@ -357,6 +365,8 @@ router.patch(
           branchId || null,
           photoBeforeUrl !== undefined ? photoBeforeUrl : null,
           photoAfterUrl !== undefined ? photoAfterUrl : null,
+          photoBeforeUrl2 !== undefined ? photoBeforeUrl2 : null,
+          photoAfterUrl2 !== undefined ? photoAfterUrl2 : null,
           visitAt || null,
           masterMembershipToSet,
           payoutPercentToSet,
