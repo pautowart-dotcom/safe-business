@@ -6,6 +6,53 @@ import { Card, BackBtn, Field, TextInput, TextArea, Btn, Avatar, C } from '../ui
 import { downloadPdf } from '../utils/downloadPdf.js';
 
 const EMPTY_FORM = { firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '' };
+const EMPTY_WAITLIST_FORM = { service: '', comment: '' };
+
+// Лёгкий лист ожидания (владелец, 29.07.2026): нет расписания/слотов в
+// приложении, поэтому это просто список "клиент хочет записаться" с ручной
+// отметкой "связался" — без автоматики про свободное время, её физически
+// неоткуда взять без календаря визитов на будущее.
+function WaitlistView({ entries, loading, onMarkDone, onDelete }) {
+  const waiting = entries.filter((e) => e.status === 'waiting');
+  const done = entries.filter((e) => e.status === 'done');
+
+  if (loading) return <div className="page-loading">Загрузка...</div>;
+
+  return (
+    <div>
+      {waiting.length === 0 && done.length === 0 && (
+        <div className="empty-hint">Список пуст — добавляйте клиентов со страницы клиента, кнопка "+ В лист ожидания"</div>
+      )}
+      {waiting.map((e) => (
+        <Card key={e.id}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{e.client_last_name} {e.client_first_name}</div>
+          {e.service && <div style={{ fontSize: 13, color: C.secondary, marginTop: 2 }}>{e.service}</div>}
+          {e.comment && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{e.comment}</div>}
+          <div style={{ fontSize: 11, color: C.subtle, marginTop: 4 }}>
+            {new Date(e.created_at).toLocaleDateString('ru-RU')}{e.created_by_name ? ` · ${e.created_by_name}` : ''}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <Btn small onClick={() => onMarkDone(e.id)}>✓ Связался, записали</Btn>
+            <Btn small variant="secondary" onClick={() => onDelete(e.id)}>Убрать</Btn>
+          </div>
+        </Card>
+      ))}
+      {done.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase', margin: '20px 0 10px' }}>
+            Обработано
+          </div>
+          {done.map((e) => (
+            <Card key={e.id} style={{ opacity: 0.6 }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{e.client_last_name} {e.client_first_name}</div>
+              {e.service && <div style={{ fontSize: 13, color: C.secondary, marginTop: 2 }}>{e.service}</div>}
+            </Card>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function Clients() {
   const { isManagement } = useAuth();
@@ -17,6 +64,11 @@ export default function Clients() {
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState(null);
   const [dossierError, setDossierError] = useState('');
+  const [tab, setTab] = useState('clients');
+  const [waitlist, setWaitlist] = useState([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(true);
+  const [showWaitlistForm, setShowWaitlistForm] = useState(false);
+  const [waitlistForm, setWaitlistForm] = useState(EMPTY_WAITLIST_FORM);
   const firstNameRef = useRef(null);
 
   function load(searchTerm) {
@@ -26,13 +78,44 @@ export default function Clients() {
       .finally(() => setLoading(false));
   }
 
+  function loadWaitlist() {
+    setWaitlistLoading(true);
+    return api.get('/modules/clients/waitlist').then((res) => setWaitlist(res.data)).finally(() => setWaitlistLoading(false));
+  }
+
   useEffect(() => {
     const timer = setTimeout(() => load(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Грузим сразу при монтировании (не только при переключении вкладки) —
+  // иначе счётчик "(N)" на вкладке был бы пустым, пока не зайти в неё хотя бы раз.
+  useEffect(() => {
+    loadWaitlist();
+  }, []);
+  useEffect(() => {
+    if (tab === 'waitlist') loadWaitlist();
+  }, [tab]);
+
   const refresh = () => load(search);
   usePullToRefresh(refresh);
+
+  async function submitWaitlist() {
+    await api.post(`/modules/clients/${selected.id}/waitlist`, waitlistForm);
+    setShowWaitlistForm(false);
+    setWaitlistForm(EMPTY_WAITLIST_FORM);
+    loadWaitlist();
+  }
+
+  async function markWaitlistDone(id) {
+    await api.patch(`/modules/clients/waitlist/${id}`, { status: 'done' });
+    loadWaitlist();
+  }
+
+  async function deleteWaitlistEntry(id) {
+    await api.delete(`/modules/clients/waitlist/${id}`);
+    loadWaitlist();
+  }
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -125,6 +208,7 @@ export default function Clients() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           <Btn small onClick={() => openEdit(selected)}>Изменить</Btn>
           <Btn small variant="secondary" onClick={() => handleDelete(selected.id)}>Удалить</Btn>
+          <Btn small variant="secondary" onClick={() => setShowWaitlistForm((v) => !v)}>+ В лист ожидания</Btn>
           {isManagement && (
             <Btn
               small
@@ -135,6 +219,23 @@ export default function Clients() {
             </Btn>
           )}
         </div>
+        {showWaitlistForm && (
+          <Card>
+            <div style={{ fontSize: 13, color: C.subtle, marginBottom: 10 }}>
+              Клиент хочет записаться, но сейчас всё занято — добавьте в лист ожидания, отметите вручную, когда появится время.
+            </div>
+            <Field label="Услуга (необязательно)">
+              <TextInput value={waitlistForm.service} onChange={(e) => setWaitlistForm({ ...waitlistForm, service: e.target.value })} placeholder="Маникюр + гель-лак" />
+            </Field>
+            <Field label="Комментарий (необязательно)">
+              <TextInput value={waitlistForm.comment} onChange={(e) => setWaitlistForm({ ...waitlistForm, comment: e.target.value })} placeholder="Ждёт любое окно на этой неделе" />
+            </Field>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn small onClick={submitWaitlist}>Добавить</Btn>
+              <Btn small variant="secondary" onClick={() => setShowWaitlistForm(false)}>Отмена</Btn>
+            </div>
+          </Card>
+        )}
         {dossierError && <div className="alert alert-error">{dossierError}</div>}
         {selected.allergies && (
           <Card style={{ background: C.redBg, borderColor: `${C.red}33` }}>
@@ -162,32 +263,53 @@ export default function Clients() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>Клиенты</div>
-        <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Клиент</button>
+        {tab === 'clients' && (
+          <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Клиент</button>
+        )}
       </div>
-      <TextInput placeholder="Поиск по фамилии или имени" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
 
-      {loading ? (
-        <div className="page-loading">Загрузка...</div>
+      <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
+        {[['clients', 'Клиенты'], ['waitlist', `Лист ожидания${waitlist.filter((e) => e.status === 'waiting').length > 0 ? ` (${waitlist.filter((e) => e.status === 'waiting').length})` : ''}`]].map(([k, l]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', cursor: 'pointer', background: tab === k ? C.bg : 'transparent', color: tab === k ? C.primary : C.subtle, fontSize: 13, fontWeight: tab === k ? 700 : 400, boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'waitlist' ? (
+        <WaitlistView entries={waitlist} loading={waitlistLoading} onMarkDone={markWaitlistDone} onDelete={deleteWaitlistEntry} />
       ) : (
-        <Card style={{ padding: 0 }}>
-          {clients.map((c, i) => (
-            <div
-              key={c.id}
-              onClick={() => setSelected(c)}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < clients.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Avatar letter={c.last_name?.[0]} />
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{c.last_name} {c.first_name}</div>
-                  {c.phone && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{c.phone}</div>}
+        <>
+          <TextInput placeholder="Поиск по фамилии или имени" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
+
+          {loading ? (
+            <div className="page-loading">Загрузка...</div>
+          ) : (
+            <Card style={{ padding: 0 }}>
+              {clients.map((c, i) => (
+                <div
+                  key={c.id}
+                  onClick={() => setSelected(c)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < clients.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Avatar letter={c.last_name?.[0]} />
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{c.last_name} {c.first_name}</div>
+                      {c.phone && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{c.phone}</div>}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 20, color: C.border }}>›</span>
                 </div>
-              </div>
-              <span style={{ fontSize: 20, color: C.border }}>›</span>
-            </div>
-          ))}
-          {clients.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Клиенты не найдены</div>}
-        </Card>
+              ))}
+              {clients.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Клиенты не найдены</div>}
+            </Card>
+          )}
+        </>
       )}
     </div>
   );

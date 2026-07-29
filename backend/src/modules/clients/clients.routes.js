@@ -36,6 +36,85 @@ router.get(
   })
 );
 
+// Лёгкий лист ожидания (владелец, 29.07.2026) — без расписания/слотов,
+// которых в приложении нет: просто список "клиент хочет записаться",
+// вручную отмечается "связался/записали", когда реально появится время.
+// Роут-статик '/waitlist' должен идти РАНЬШЕ '/:id' ниже — иначе Express
+// принял бы "waitlist" за :id и запрос упал бы с ошибкой типа в Postgres.
+router.get(
+  '/waitlist',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT w.id, w.client_id, w.service, w.comment, w.status, w.created_at, w.resolved_at,
+              c.first_name AS client_first_name, c.last_name AS client_last_name,
+              u.name AS created_by_name
+       FROM client_waitlist w
+       JOIN clients c ON c.id = w.client_id
+       LEFT JOIN memberships m ON m.id = w.created_by_membership_id
+       LEFT JOIN users u ON u.id = m.user_id
+       WHERE w.company_id = $1
+       ORDER BY (w.status = 'waiting') DESC, w.created_at DESC`,
+      [req.tenant.companyId]
+    );
+    res.json(rows);
+  })
+);
+
+router.post(
+  '/:id/waitlist',
+  asyncHandler(async (req, res) => {
+    const { service, comment } = req.body;
+    const client = await pool.query('SELECT 1 FROM clients WHERE id = $1 AND company_id = $2', [
+      req.params.id,
+      req.tenant.companyId,
+    ]);
+    if (client.rows.length === 0) {
+      return res.status(404).json({ error: 'Клиент не найден' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO client_waitlist (company_id, client_id, service, comment, created_by_membership_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, client_id, service, comment, status, created_at, resolved_at`,
+      [req.tenant.companyId, req.params.id, service || null, comment || null, req.tenant.membershipId || null]
+    );
+    res.status(201).json(rows[0]);
+  })
+);
+
+router.patch(
+  '/waitlist/:entryId',
+  asyncHandler(async (req, res) => {
+    const { status } = req.body;
+    if (!['waiting', 'done'].includes(status)) {
+      return res.status(400).json({ error: 'Некорректный статус' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE client_waitlist SET status = $1, resolved_at = CASE WHEN $1 = 'done' THEN now() ELSE NULL END
+       WHERE id = $2 AND company_id = $3
+       RETURNING id, client_id, service, comment, status, created_at, resolved_at`,
+      [status, req.params.entryId, req.tenant.companyId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Запись не найдена' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+router.delete(
+  '/waitlist/:entryId',
+  asyncHandler(async (req, res) => {
+    const { rowCount } = await pool.query('DELETE FROM client_waitlist WHERE id = $1 AND company_id = $2', [
+      req.params.entryId,
+      req.tenant.companyId,
+    ]);
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Запись не найдена' });
+    }
+    res.status(204).end();
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
