@@ -17,7 +17,7 @@ router.use(requireAuth, requireSuperAdmin);
 // график регистраций по дням.
 // MRR — приближение (число оплаченных компаний × текущая цена из FAQ),
 // не факт из платёжной системы (её ещё нет, оплата активируется вручную).
-const CURRENT_PRICE_RUB = 2500;
+const CURRENT_PRICE_RUB = 1990;
 
 router.get(
   '/metrics',
@@ -118,6 +118,37 @@ router.get(
       memberships: memberships.rows,
       modules: modules.rows,
     });
+  })
+);
+
+// Ручная активация подписки — до боевого режима ЮKassa нужен способ дать
+// компании (свой тестовый аккаунт, партнёр, комплиментарный доступ) полный
+// доступ без реального платежа. tenancy.js блокирует только по условию
+// subscription_status='trial' И trial_ends_at в прошлом — простановка
+// 'active' снимает блокировку независимо от даты. Обратимо: тот же роут с
+// status='trial' возвращает как было (и снова сработает обычная логика
+// пробного периода по trial_ends_at).
+router.patch(
+  '/companies/:id/subscription',
+  asyncHandler(async (req, res) => {
+    const { status, periodEndDays } = req.body;
+    const allowed = ['trial', 'active', 'past_due', 'cancelled'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `Статус должен быть одним из: ${allowed.join(', ')}` });
+    }
+    const days = status === 'active' ? Number(periodEndDays) || 365 : null;
+    const { rows } = await pool.query(
+      `UPDATE companies SET
+         subscription_status = $1,
+         subscription_current_period_end = CASE WHEN $2::int IS NULL THEN subscription_current_period_end ELSE now() + ($2::int || ' days')::interval END
+       WHERE id = $3
+       RETURNING id, name, subscription_status, subscription_current_period_end, trial_ends_at`,
+      [status, days, req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Компания не найдена' });
+    }
+    res.json(rows[0]);
   })
 );
 

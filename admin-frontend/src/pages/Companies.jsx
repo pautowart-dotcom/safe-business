@@ -8,10 +8,13 @@ const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cance
 function CompanyDetail({ id, onBack, onDeleted }) {
   const [data, setData] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [updatingSubscription, setUpdatingSubscription] = useState(false);
 
-  useEffect(() => {
+  function load() {
     api.get(`/platform/admin/companies/${id}`).then((res) => setData(res.data));
-  }, [id]);
+  }
+
+  useEffect(load, [id]);
 
   async function handleDelete() {
     if (!confirm(`Удалить компанию «${data.company.name}» насовсем? Это необратимо — удалятся все её данные (визиты, финансы, сотрудники и т.д.).`)) return;
@@ -24,6 +27,21 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     }
   }
 
+  // Ручная активация подписки — без реального платежа (свой тестовый
+  // аккаунт, партнёр, комплиментарный доступ). До подключения боевой
+  // ЮKassa — единственный способ дать компании доступ без реальных денег.
+  async function setSubscription(status) {
+    if (status === 'active' && !confirm('Отметить компанию оплаченной вручную (без реального платежа) на 365 дней?')) return;
+    if (status === 'trial' && !confirm('Вернуть компании обычный статус пробного периода (снять ручную отметку)?')) return;
+    setUpdatingSubscription(true);
+    try {
+      await api.patch(`/platform/admin/companies/${id}/subscription`, { status });
+      load();
+    } finally {
+      setUpdatingSubscription(false);
+    }
+  }
+
   if (!data) return <div className="page-loading">Загрузка...</div>;
   const { company, memberships, modules } = data;
 
@@ -32,9 +50,31 @@ function CompanyDetail({ id, onBack, onDeleted }) {
       <BackBtn onClick={onBack} label="К списку компаний" />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{company.name}</div>
       <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
-      <div style={{ fontSize: 12, color: C.subtle, margin: '10px 0 24px' }}>
+      <div style={{ fontSize: 12, color: C.subtle, margin: '10px 0 12px' }}>
         Регистрация {new Date(company.created_at).toLocaleDateString('ru-RU')}
         {company.trial_ends_at && ` · пробный период до ${new Date(company.trial_ends_at).toLocaleDateString('ru-RU')}`}
+        {company.subscription_current_period_end && ` · оплачено до ${new Date(company.subscription_current_period_end).toLocaleDateString('ru-RU')}`}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+        {company.subscription_status !== 'active' && (
+          <button
+            onClick={() => setSubscription('active')}
+            disabled={updatingSubscription}
+            style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Отметить оплаченной вручную
+          </button>
+        )}
+        {company.subscription_status === 'active' && (
+          <button
+            onClick={() => setSubscription('trial')}
+            disabled={updatingSubscription}
+            style={{ background: 'none', border: `1px solid ${C.border}`, color: C.secondary, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Снять ручную отметку
+          </button>
+        )}
       </div>
 
       <Card>
