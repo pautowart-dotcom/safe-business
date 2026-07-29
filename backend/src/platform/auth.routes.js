@@ -441,6 +441,19 @@ router.post(
     if (!email) {
       return res.status(400).json({ error: 'Введите email' });
     }
+
+    // Тот же механизм, что и у /login и /verify-code (core/loginRateLimit.js) —
+    // без него запрос можно слать без ограничений: инструмент завалить чужой
+    // ящик письмами о сбросе пароля или прощупывать зарегистрированные email
+    // по времени ответа. Считаем сам факт запроса (не только "неудачу" —
+    // здесь нет понятия неудачи, ответ всегда одинаковый), отдельным ключом
+    // 'forgot:', чтобы не путать со счётчиком неудачных попыток входа.
+    const allowed = await checkLoginAllowed(req.ip, `forgot:${email}`);
+    if (!allowed) {
+      return res.status(429).json({ error: 'Слишком много попыток. Попробуйте снова через 15 минут.' });
+    }
+    await recordFailedLogin(req.ip, `forgot:${email}`);
+
     // Один и тот же ответ независимо от того, найден email или нет —
     // иначе форма стала бы способом проверить чужие email на сервисе.
     const userRes = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
