@@ -415,7 +415,20 @@ router.get(
     const violations = violationsRes.rows
       .map((row) => ({ ...matrix.find((v) => v.code === row.violation_code), status: row.status }))
       .filter((v) => v.code);
-    res.json({ session, violations: scoring.sortByRisk(violations) });
+
+    // Владелец подтвердил: тест не должен запрещать сочетание "самозанятый +
+    // есть сотрудники" (можно привлекать подрядчиков по ГПХ), но по закону
+    // самозанятый не может нанимать сотрудников по трудовому договору — это
+    // предупреждение, а не блокировка выбора в самой сегментации.
+    const profile = await loadProfile(req.tenant.companyId);
+    const warnings = [];
+    if (profile?.legalForm === 'self_employed' && (profile.workModel === 'employees' || profile.workModel === 'mixed')) {
+      warnings.push(
+        'Вы указали "Самозанятый" и при этом наличие сотрудников. По закону самозанятый (НПД) не может нанимать сотрудников по трудовому договору — можно привлекать других самозанятых или подрядчиков по договору ГПХ, но не оформлять в штат. Проверьте формы сотрудничества с людьми, которые у вас работают.'
+      );
+    }
+
+    res.json({ session, violations: scoring.sortByRisk(violations), warnings });
   })
 );
 

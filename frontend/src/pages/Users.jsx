@@ -225,18 +225,18 @@ export default function Users() {
       <Card>
         <ST>Сотрудники · {members.length}</ST>
         {members.map((m, i, arr) => (
-          <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div key={m.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '13px 0', borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 180px' }}>
               <Avatar letter={(m.user_name || m.invited_email || '?')[0].toUpperCase()} size={40} />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{m.user_name || m.invited_email || 'Приглашение отправлено'}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.user_name || m.invited_email || 'Приглашение отправлено'}</div>
                 <div style={{ fontSize: 12, color: C.subtle }}>
                   {ROLE_LABELS[m.role] || m.role}
                   {m.role === 'master' && m.payout_percent != null && ` · ${m.payout_percent}% от чека`}
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <Badge color={m.invite_status === 'active' ? C.green : C.subtle} bg={m.invite_status === 'active' ? C.greenBg : C.surface}>
                 {m.invite_status === 'active' ? 'Активен' : 'Ожидает'}
               </Badge>

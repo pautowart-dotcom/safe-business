@@ -131,7 +131,20 @@ export function AuthProvider({ children }) {
   // устройства (см. комментарий у register выше).
   async function verifyCode(email, code) {
     const res = await api.post('/auth/verify-code', { email, code });
-    return applyAuthResult(res.data);
+    // Код уже принят сервером на этом этапе (иначе api.post выше бы упал) —
+    // applyAuthResult уже успел записать token/user в localStorage до
+    // возможного падения на select-company. Раньше любая ошибка здесь (даже
+    // сетевой сбой на следующем шаге) ловилась в Login.jsx как "неверный
+    // код", хотя сессия уже была сохранена — человек видел ошибку, но
+    // обновление страницы всё равно пускало его (bootstrap в useEffect
+    // подхватывал уже сохранённый токен). Помечаем ошибку отдельным флагом,
+    // чтобы показать правильное сообщение вместо "код неверный".
+    try {
+      return await applyAuthResult(res.data);
+    } catch (err) {
+      err.codeAcceptedButFollowupFailed = true;
+      throw err;
+    }
   }
 
   function clearSession() {

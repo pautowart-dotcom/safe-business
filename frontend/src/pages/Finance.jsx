@@ -520,7 +520,10 @@ function MastersTab({ byMaster, adjustmentsByMaster, onSelectMaster, onAddAdjust
             <div onClick={() => onSelectMaster(m)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{m.masterName || '—'}</div>
-                <div style={{ fontSize: 12, color: C.subtle }}>{m.visitsCount} визитов · комиссия {money(m.earnings)}</div>
+                <div style={{ fontSize: 12, color: C.subtle }}>
+                  {m.visitsCount} визитов · комиссия {money(m.earnings)}
+                  {m.revenue > 0 && ` · выручка вручную ${money(m.revenue)}`}
+                </div>
               </div>
               <span style={{ fontSize: 20, color: C.border }}>›</span>
             </div>

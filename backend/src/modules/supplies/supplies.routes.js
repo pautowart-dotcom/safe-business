@@ -261,10 +261,11 @@ async function applyMovement(req, type, quantity) {
   }
 }
 
-// "Пришло" — приход товара, только владелец.
+// "Пришло" — приход товара. Раньше только владелец/админ, теперь и мастер
+// тоже может пополнять остаток, не только списывать (владелец: мастер видит
+// расходники "в одну сторону", это было неудобно на практике).
 router.post(
   '/:id/receive',
-  requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const quantity = parseFloat(req.body.quantity);
     if (!quantity || quantity <= 0) {

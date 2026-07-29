@@ -193,7 +193,11 @@ export function VerifyCodeForm({ email, onVerify, onBack }) {
     try {
       await onVerify(email, code);
     } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось подтвердить код');
+      if (err.codeAcceptedButFollowupFailed) {
+        setError('Код принят, но не удалось войти — обновите страницу, вход уже должен сработать.');
+      } else {
+        setError(err.response?.data?.error || 'Не удалось подтвердить код');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);

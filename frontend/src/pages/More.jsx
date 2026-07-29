@@ -33,9 +33,11 @@ function OwnerMore() {
   // теперь отдельное приложение (admin-frontend/, office.business-safe.ru),
   // не смешан с клиентским кабинетом — раньше всё было свалено в один
   // список здесь, что было невозможно понять.
+  // "Вопросы и ответы" тоже только владельцу — тарифы/оплата/подписка не
+  // касаются администратора и мастера, для них это не действие.
   const items = OWNER_ITEMS
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
-    .filter((i) => isOwner || i.to !== '/security');
+    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/legal/faq'));
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Разделы</div>
@@ -57,6 +59,7 @@ function OwnerMore() {
 
 function MasterMore() {
   const navigate = useNavigate();
+  const { hasModule } = useAuth();
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -76,6 +79,21 @@ function MasterMore() {
   return (
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Ещё</div>
+      {hasModule('visits') && (
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/visits')}>
+          <ChevronRow>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="visit" size={20} color={C.primary} />
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>Визиты</div>
+                <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Календарь визитов и услуг</div>
+              </div>
+            </div>
+          </ChevronRow>
+        </Card>
+      )}
       <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/knowledge')}>
         <ChevronRow>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -124,16 +142,6 @@ function MasterMore() {
             <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 12, marginTop: 6, cursor: 'pointer' }}>Написать ещё</button>
           </div>
         )}
-      </Card>
-      <Card onClick={() => navigate('/legal/faq')} style={{ cursor: 'pointer' }}>
-        <ChevronRow>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="help" size={20} color={C.primary} />
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Вопросы и ответы</div>
-          </div>
-        </ChevronRow>
       </Card>
       <Card onClick={() => navigate('/support')} style={{ cursor: 'pointer' }}>
         <ChevronRow>

@@ -46,7 +46,7 @@ const MASTER_NAV = [
 // отдельная компания/подписка, переключение между ними уже есть как выбор
 // компании при входе.
 const OWNER_HUB_PATHS = ['/clients', '/visits', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
-const MASTER_HUB_PATHS = ['/knowledge', '/settings', '/journals'];
+const MASTER_HUB_PATHS = ['/visits', '/knowledge', '/settings', '/journals'];
 
 const TITLES = {
   '/clients': 'Клиенты',

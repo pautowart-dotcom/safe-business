@@ -6,17 +6,13 @@ const { logAudit } = require('../../core/auditLog');
 
 const router = express.Router();
 
-// Мастеру показываем только последние 4 цифры телефона клиента (Этап 5) —
-// маскируем на уровне сервера, а не полагаемся на фронтенд.
-function maskPhone(phone) {
-  if (!phone) return phone;
-  const last4 = phone.replace(/\D/g, '').slice(-4);
-  return last4 ? `•••• ${last4}` : phone;
-}
-
+// Мастеру номер телефона клиента не показываем вообще (владелец: "мастер не
+// должен видеть номер телефона") — скрываем на уровне сервера, а не
+// полагаемся на фронтенд. Раньше показывались последние 4 цифры — решили
+// убрать и это.
 function sanitize(client, role) {
   if (role === 'master' && client.phone) {
-    return { ...client, phone: maskPhone(client.phone) };
+    return { ...client, phone: null };
   }
   return client;
 }

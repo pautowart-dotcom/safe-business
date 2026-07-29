@@ -423,6 +423,9 @@ function AuditResult({ result, onClose, onDownload }) {
       <BackBtn onClick={onClose} label="К панели безопасности" />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Аудит завершён</div>
       <IndexHero percent={result.session.index_percent} zone={zone} subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${result.violations.length}`} />
+      {result.warnings?.map((w, i) => (
+        <div key={i} className="alert alert-error" style={{ marginBottom: 12 }}>{w}</div>
+      ))}
       <Btn onClick={onDownload}>Скачать PDF-отчёт</Btn>
     </div>
   );
