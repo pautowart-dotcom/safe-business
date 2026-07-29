@@ -15,9 +15,9 @@ const SEGMENTS = [
     hasNicheStep: true,
     niches: [
       { key: 'manicure', label: 'Маникюр и педикюр', paidAudit: true },
-      { key: 'lashes_brows', label: 'Ресницы и брови', paidAudit: false },
-      { key: 'hair', label: 'Волосы (парикмахерские услуги)', paidAudit: false },
-      { key: 'massage', label: 'Массаж (без медицинской лицензии)', paidAudit: false },
+      { key: 'lashes_brows', label: 'Ресницы и брови', paidAudit: true },
+      { key: 'hair', label: 'Волосы (парикмахерские услуги)', paidAudit: true },
+      { key: 'massage', label: 'Массаж (без медицинской лицензии)', paidAudit: true },
     ],
   },
   {

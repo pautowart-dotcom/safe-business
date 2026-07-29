@@ -14,18 +14,30 @@ const { SEGMENTS, findSegment, findNiche } = require('./segments');
 
 const PAID_QUESTIONS_BY_NICHE = {
   manicure: require('./paid-questions/manicure'),
+  lashes_brows: require('./paid-questions/lashes-brows'),
+  hair: require('./paid-questions/hair'),
+  massage: require('./paid-questions/massage'),
 };
 
 const VIOLATIONS_BY_NICHE = {
   manicure: require('./violations/manicure'),
+  lashes_brows: require('./violations/lashes-brows'),
+  hair: require('./violations/hair'),
+  massage: require('./violations/massage'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
   manicure: require('./pdf/mandatory-documents/manicure'),
+  lashes_brows: require('./pdf/mandatory-documents/lashes-brows'),
+  hair: require('./pdf/mandatory-documents/hair'),
+  massage: require('./pdf/mandatory-documents/massage'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
   manicure: require('./pdf/attention-zones/manicure'),
+  lashes_brows: require('./pdf/attention-zones/lashes-brows'),
+  hair: require('./pdf/attention-zones/hair'),
+  massage: require('./pdf/attention-zones/massage'),
 };
 
 async function getSegments() {
