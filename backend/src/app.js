@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('./modules');
 const { authRoutes, platformRouter, legalRoutes } = require('./platform');
 const { mountModules } = require('./core/modules-registry');
-const { UPLOADS_DIR } = require('./core/fileStorage');
+const { UPLOADS_DIR, verifyFileUrlSignature } = require('./core/fileStorage');
 
 function buildApp() {
   const app = express();
@@ -24,7 +25,22 @@ function buildApp() {
   app.use('/api/legal', legalRoutes);
   // Под /api/, чтобы отдавалось через тот же nginx/vite-прокси, что и
   // остальной бэкенд — без отдельного правила проксирования.
-  app.use('/api/uploads', express.static(UPLOADS_DIR));
+  // Раньше был голый express.static (любой, у кого оказалась ссылка, мог
+  // скачать чужой файл бессрочно) — теперь отдаём только по подписанной
+  // короткоживущей ссылке (core/fileStorage.js: signFileUrl/
+  // verifyFileUrlSignature). Сама авторизация уже произошла один раз, там,
+  // где URL достаётся из БД и отдаётся клиенту в JSON — этот роут просто
+  // проверяет, что ссылка не поддельная и не просрочена.
+  app.get('/api/uploads/:filename', (req, res) => {
+    const { filename } = req.params;
+    const { exp, sig } = req.query;
+    if (!verifyFileUrlSignature(filename, exp, sig)) {
+      return res.status(403).json({ error: 'Ссылка на файл недействительна или истекла — обновите страницу' });
+    }
+    res.sendFile(path.join(UPLOADS_DIR, filename), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
   mountModules(app);
 
   app.use((req, res) => {

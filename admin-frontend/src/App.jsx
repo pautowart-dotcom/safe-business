@@ -5,7 +5,6 @@ import Login from './pages/Login.jsx';
 import Overview from './pages/Overview.jsx';
 import Companies from './pages/Companies.jsx';
 import Support from './pages/Support.jsx';
-import PasswordResets from './pages/PasswordResets.jsx';
 import ClientErrors from './pages/ClientErrors.jsx';
 import LegalDocs from './pages/LegalDocs.jsx';
 import JournalTypes from './pages/JournalTypes.jsx';
@@ -32,7 +31,6 @@ export default function App() {
         <Route index element={<Overview />} />
         <Route path="companies" element={<Companies />} />
         <Route path="support" element={<Support />} />
-        <Route path="password-resets" element={<PasswordResets />} />
         <Route path="client-errors" element={<ClientErrors />} />
         <Route path="legal" element={<LegalDocs />} />
         <Route path="journal-types" element={<JournalTypes />} />

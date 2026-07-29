@@ -58,12 +58,71 @@ function getFileUrl(filename) {
   return `/api/uploads/${filename}`;
 }
 
+// Аудит безопасности (29.07.2026): /api/uploads раньше отдавался как голый
+// express.static — любой, у кого оказалась ссылка (лог, шаринг экрана,
+// реферер), мог скачать чужой файл бессрочно, включая документы раздела
+// "Безопасность" (owner-only по политике §8.4). Подписанная ссылка с
+// истечением — минимальное изменение без переделки авторизации: сама
+// авторизация уже происходит один раз, там, где строка с URL достаётся из
+// БД и отдаётся клиенту (там уже проверены company_id/роль) — signFileUrl
+// просто ставит на неё короткоживущую печать вместо голого пути.
+//
+// Важно: signFileUrl вызывается ТОЛЬКО при отдаче клиенту (в JSON-ответах),
+// НЕ при сохранении — в БД остаётся "голый" путь без подписи. Если бы
+// подпись попадала в БД, она протухла бы там навсегда и старые фото стали
+// бы недоступны без миграции данных.
+const SIGN_TTL_MS = 60 * 60 * 1000; // 60 минут — с запасом на то, что вкладка/страница останется открытой
+
+function signature(filename, exp) {
+  const secret = process.env.JWT_SECRET || 'dev-secret';
+  return crypto.createHmac('sha256', secret).update(`${filename}:${exp}`).digest('hex').slice(0, 32);
+}
+
+function signFileUrl(url) {
+  // security_documents.file_url может быть и внешней ссылкой, вставленной
+  // пользователем вручную (Google Docs и т.п.), не только своей загрузкой —
+  // подписывать нужно только собственные /api/uploads/..., внешние ссылки
+  // отдаём как есть.
+  if (!url || !url.startsWith('/api/uploads/')) return url;
+  const filename = path.basename(url);
+  const exp = Date.now() + SIGN_TTL_MS;
+  return `/api/uploads/${filename}?exp=${exp}&sig=${signature(filename, exp)}`;
+}
+
+function verifyFileUrlSignature(filename, exp, sig) {
+  if (!exp || !sig) return false;
+  if (Date.now() > Number(exp)) return false;
+  const expected = signature(filename, exp);
+  const expectedBuf = Buffer.from(expected);
+  const sigBuf = Buffer.from(String(sig));
+  if (expectedBuf.length !== sigBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, sigBuf);
+}
+
 // Обратная операция — из сохранённого в БД URL достать имя файла на
 // диске (для удаления). Не пытается парсить чужие/внешние URL — только
 // свой собственный формат, отданный getFileUrl().
 function filenameFromUrl(url) {
   if (!url) return null;
-  return path.basename(url);
+  // .split('?')[0] — url может прийти уже подписанным (?exp=...&sig=...,
+  // signFileUrl выше), например если фронтенд эхом отправляет обратно то,
+  // что сам же получил при загрузке/показе. path.basename не занимается
+  // query-строкой сам по себе — без явного среза "sig=..." попал бы в имя
+  // файла как есть.
+  return path.basename(url.split('?')[0]);
+}
+
+// Приводит СВОЙ URL (голый или подписанный) к каноническому "голому" виду
+// перед сохранением в БД — иначе туда попала бы подпись с истечением
+// (например: открыли форму редактирования документа, где поле уже
+// заполнено подписанной ссылкой из ответа сервера, и пересохранили не
+// поменяв файл — раньше протухшая ссылка осталась бы в БД навсегда).
+// Внешние ссылки (Google Docs и т.п., см. security_documents.file_url)
+// пропускаются как есть — они не наши, обрезать у них нечего.
+function bareFileUrl(url) {
+  if (!url || !url.startsWith('/api/uploads/')) return url;
+  const filename = filenameFromUrl(url);
+  return filename ? getFileUrl(filename) : null;
 }
 
 async function deleteFile(filename) {
@@ -75,4 +134,4 @@ async function deleteFile(filename) {
   }
 }
 
-module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, getFileUrl, filenameFromUrl, deleteFile };
+module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, verifyFileUrlSignature };

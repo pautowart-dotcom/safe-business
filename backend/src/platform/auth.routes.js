@@ -192,9 +192,6 @@ router.post(
     // Этап 9: ограничение попыток входа — проверяем ДО обращения к
     // паролю, чтобы сам перебор (даже без правильного email) считался.
     const allowed = await checkLoginAllowed(req.ip, email);
-    // Временная диагностика (docs/bug-login-401.txt) — не логируем пароль,
-    // только факт срабатывания rate-limit. Убрать после подтверждения причины.
-    console.log('[login-debug] попытка входа, email =', email, 'rate-limit allowed =', allowed);
     if (!allowed) {
       return res.status(429).json({ error: 'Слишком много попыток входа. Попробуйте снова через 15 минут.' });
     }
@@ -204,14 +201,12 @@ router.post(
       [email]
     );
     const user = result.rows[0];
-    console.log('[login-debug] пользователь найден по email =', !!user, user ? `id=${user.id}` : '');
     if (!user) {
       await recordFailedLogin(req.ip, email);
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    console.log('[login-debug] совпадение пароля =', valid, 'hash начинается с =', user.password_hash?.slice(0, 7));
     if (!valid) {
       await recordFailedLogin(req.ip, email);
       return res.status(401).json({ error: 'Неверный email или пароль' });
@@ -243,7 +238,6 @@ router.post(
     );
     const user = userRes.rows[0];
     if (!user) {
-      console.log('[verify-debug] пользователь не найден по email =', email);
       await recordFailedLogin(req.ip, `verify:${email}`);
       return res.status(400).json({ error: 'Код неверный или истёк' });
     }
@@ -255,15 +249,6 @@ router.post(
       [user.id, codeHash]
     );
     if (codeRes.rows.length === 0) {
-      // Считаем ещё живые (не использованные, не истёкшие) коды на этого
-      // пользователя — если их больше одного, значит письмо запросили
-      // повторно (ещё одна попытка входа/регистрации), а ввели код не из
-      // последнего письма.
-      const { rows: activeCodes } = await pool.query(
-        `SELECT COUNT(*) AS n FROM login_verification_codes WHERE user_id = $1 AND used_at IS NULL AND expires_at > now()`,
-        [user.id]
-      );
-      console.log('[verify-debug] код не подошёл, email =', email, 'id =', user.id, 'живых кодов сейчас =', activeCodes[0].n);
       await recordFailedLogin(req.ip, `verify:${email}`);
       return res.status(400).json({ error: 'Код неверный или истёк' });
     }
@@ -273,7 +258,6 @@ router.post(
     const deviceTokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
     await pool.query('INSERT INTO trusted_devices (user_id, device_token_hash) VALUES ($1, $2)', [user.id, deviceTokenHash]);
 
-    console.log('[verify-debug] код подтверждён, email =', email, 'id =', user.id);
     const companies = await activeMembershipsForUser(user.id);
     res.json({ token: signBaseToken(user.id), user, companies, deviceToken });
   })
@@ -462,8 +446,8 @@ router.post(
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
       const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
       await pool.query(
-        `INSERT INTO password_reset_tokens (user_id, token_hash, token_plain, expires_at) VALUES ($1, $2, $3, $4)`,
-        [userRes.rows[0].id, tokenHash, token, expiresAt]
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+        [userRes.rows[0].id, tokenHash, expiresAt]
       );
       const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
       sendMail({
@@ -497,7 +481,11 @@ router.post(
       return res.status(400).json({ error: 'Ссылка недействительна или истекла — запросите новую' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, tokenRes.rows[0].user_id]);
+    // password_changed_at — старые выданные токены (действуют до 30 дней,
+    // core/jwt.js) перестают приниматься сразу после смены пароля, а не
+    // только когда истекут сами (core/middleware/auth.js сверяет с этим
+    // полем). Аудит безопасности 29.07.2026.
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = now() WHERE id = $2', [passwordHash, tokenRes.rows[0].user_id]);
     await pool.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [tokenRes.rows[0].id]);
     res.json({ ok: true });
   })

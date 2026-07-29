@@ -6,7 +6,7 @@ const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 const { encrypt, decrypt } = require('../../core/crypto');
 const { uploadDocument } = require('../../core/uploads');
-const { saveDocumentFile, getFileUrl } = require('../../core/fileStorage');
+const { saveDocumentFile, getFileUrl, signFileUrl, bareFileUrl } = require('../../core/fileStorage');
 const repository = require('./content/repository');
 const { filterVisible } = require('./content/visibility');
 const scoring = require('./content/scoring');
@@ -510,7 +510,7 @@ router.get(
       `SELECT id, category, name, file_url, uploaded_at FROM security_documents WHERE company_id = $1 ORDER BY category, name`,
       [req.tenant.companyId]
     );
-    res.json(rows);
+    res.json(rows.map((r) => ({ ...r, file_url: signFileUrl(r.file_url) })));
   })
 );
 
@@ -542,7 +542,7 @@ router.post(
   uploadDocument,
   asyncHandler(async (req, res) => {
     const { category, name } = req.body;
-    let fileUrl = req.body.fileUrl;
+    let fileUrl = bareFileUrl(req.body.fileUrl);
     if (req.file) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
       fileUrl = getFileUrl(filename);
@@ -565,7 +565,7 @@ router.post(
       action: 'security_document.created',
     });
 
-    res.status(201).json(rows[0]);
+    res.status(201).json({ ...rows[0], file_url: signFileUrl(rows[0].file_url) });
   })
 );
 
@@ -574,7 +574,7 @@ router.patch(
   uploadDocument,
   asyncHandler(async (req, res) => {
     const { category, name } = req.body;
-    let fileUrl = req.body.fileUrl;
+    let fileUrl = bareFileUrl(req.body.fileUrl);
     if (req.file) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
       fileUrl = getFileUrl(filename);
@@ -599,7 +599,7 @@ router.patch(
       action: 'security_document.updated',
     });
 
-    res.json(rows[0]);
+    res.json({ ...rows[0], file_url: signFileUrl(rows[0].file_url) });
   })
 );
 

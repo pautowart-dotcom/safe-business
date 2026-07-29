@@ -16,14 +16,24 @@ const requireAuth = asyncHandler(async (req, res, next) => {
   }
 
   const { rows } = await pool.query(
-    'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE id = $1',
+    'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at, password_changed_at FROM users WHERE id = $1',
     [payload.sub]
   );
   if (rows.length === 0) {
     return res.status(401).json({ error: 'Пользователь не найден' });
   }
 
-  req.user = rows[0];
+  // Аудит безопасности 29.07.2026: токены живут до 30 дней (core/jwt.js) —
+  // без этой проверки токен, выданный ДО сброса пароля, продолжал бы
+  // работать после него вплоть до истечения срока. payload.iat — секунды,
+  // password_changed_at — дата; сравниваем в одних единицах.
+  const user = rows[0];
+  if (user.password_changed_at && payload.iat * 1000 < new Date(user.password_changed_at).getTime()) {
+    return res.status(401).json({ error: 'Пароль был изменён — войдите заново' });
+  }
+  delete user.password_changed_at;
+
+  req.user = user;
   req.authSession = payload;
   next();
 });

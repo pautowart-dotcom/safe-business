@@ -4,7 +4,7 @@ const asyncHandler = require('../../utils/asyncHandler');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 const { uploadPhoto } = require('../../core/uploads');
-const { saveImage, getFileUrl } = require('../../core/fileStorage');
+const { saveImage, getFileUrl, signFileUrl, bareFileUrl } = require('../../core/fileStorage');
 const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
@@ -17,7 +17,14 @@ router.post(
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
     const filename = await saveImage(req.file.buffer);
-    res.status(201).json({ url: getFileUrl(filename) });
+    // Превью сразу после загрузки (до сохранения визита) рендерится как
+    // <img src>, значит тоже должно быть подписанной ссылкой — иначе новый
+    // роут раздачи файлов (app.js) сразу ответит 403 на неподписанный URL.
+    // В форму визита отправляется именно эта ссылка, но сохраняется в БД —
+    // при PATCH/создании визита сервер сам достаёт "голое" имя файла из
+    // неё (path.basename съедает query-параметры подписи), так что лишняя
+    // подпись в сохранённой строке не остаётся.
+    res.status(201).json({ url: signFileUrl(getFileUrl(filename)) });
   })
 );
 
@@ -57,7 +64,18 @@ async function attachSupplies(rows) {
   for (const r of vs) {
     (byVisit[r.visit_id] ||= []).push({ supplyId: r.supply_id, quantity: r.quantity, name: r.name, unit: r.unit });
   }
-  return rows.map((r) => ({ ...r, supplies: byVisit[r.id] || [] }));
+  return rows.map((r) => ({
+    ...r,
+    supplies: byVisit[r.id] || [],
+    // Аудит безопасности 29.07.2026 — фото визитов теперь отдаются только
+    // по короткоживущей подписанной ссылке (fileStorage.js), не голым
+    // путём. В БД остаётся неподписанный путь (см. комментарий в
+    // signFileUrl) — подписываем именно тут, на выходе клиенту.
+    photo_before_url: signFileUrl(r.photo_before_url),
+    photo_after_url: signFileUrl(r.photo_after_url),
+    photo_before_url_2: signFileUrl(r.photo_before_url_2),
+    photo_after_url_2: signFileUrl(r.photo_after_url_2),
+  }));
 }
 
 // Списывает расходники визита внутри уже открытой транзакции. Возвращает
@@ -235,10 +253,10 @@ router.post(
           amount,
           discountPercent || 0,
           payoutPercent,
-          photoBeforeUrl || null,
-          photoAfterUrl || null,
-          photoBeforeUrl2 || null,
-          photoAfterUrl2 || null,
+          bareFileUrl(photoBeforeUrl) || null,
+          bareFileUrl(photoAfterUrl) || null,
+          bareFileUrl(photoBeforeUrl2) || null,
+          bareFileUrl(photoAfterUrl2) || null,
           visitAt || null,
           req.user.id,
         ]
@@ -363,10 +381,10 @@ router.patch(
           amount === undefined || amount === null ? null : amount,
           discountPercent === undefined || discountPercent === null ? null : discountPercent,
           branchId || null,
-          photoBeforeUrl !== undefined ? photoBeforeUrl : null,
-          photoAfterUrl !== undefined ? photoAfterUrl : null,
-          photoBeforeUrl2 !== undefined ? photoBeforeUrl2 : null,
-          photoAfterUrl2 !== undefined ? photoAfterUrl2 : null,
+          photoBeforeUrl !== undefined ? bareFileUrl(photoBeforeUrl) : null,
+          photoAfterUrl !== undefined ? bareFileUrl(photoAfterUrl) : null,
+          photoBeforeUrl2 !== undefined ? bareFileUrl(photoBeforeUrl2) : null,
+          photoAfterUrl2 !== undefined ? bareFileUrl(photoAfterUrl2) : null,
           visitAt || null,
           masterMembershipToSet,
           payoutPercentToSet,

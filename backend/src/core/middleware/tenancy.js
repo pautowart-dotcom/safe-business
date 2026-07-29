@@ -22,11 +22,25 @@ const requireTenant = asyncHandler(async (req, res, next) => {
     return res.status(401).json({ error: 'Выберите компанию для продолжения' });
   }
 
+  // Аудит безопасности 29.07.2026: компани-токен живёт до 30 дней
+  // (core/jwt.js) и раньше req.tenant заполнялся целиком из его подписи —
+  // уволенный сотрудник (удалённое членство) или смена роли владельцем
+  // продолжали действовать до истечения токена, а не сразу. Теперь
+  // членство и роль перепроверяются по факту на каждый запрос.
+  const membershipRes = await pool.query(
+    `SELECT role, branch_id FROM memberships
+     WHERE id = $1 AND company_id = $2 AND user_id = $3 AND invite_status = 'active'`,
+    [req.authSession.membershipId, req.authSession.companyId, req.authSession.sub]
+  );
+  if (membershipRes.rows.length === 0) {
+    return res.status(401).json({ error: 'Доступ к этой компании больше недоступен — войдите заново' });
+  }
+
   req.tenant = {
     companyId: req.authSession.companyId,
     membershipId: req.authSession.membershipId,
-    role: req.authSession.role,
-    branchId: req.authSession.branchId || null,
+    role: membershipRes.rows[0].role,
+    branchId: membershipRes.rows[0].branch_id || null,
   };
 
   if (!isExempt(req)) {

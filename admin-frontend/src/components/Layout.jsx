@@ -7,7 +7,6 @@ const NAV = [
   { to: '/', label: 'Обзор', icon: 'home', end: true },
   { to: '/companies', label: 'Компании', icon: 'team' },
   { to: '/support', label: 'Поддержка', icon: 'msg' },
-  { to: '/password-resets', label: 'Восстановление пароля', icon: 'key' },
   { to: '/client-errors', label: 'Логи краша', icon: 'bug' },
   { to: '/legal', label: 'Юридические документы', icon: 'doc' },
   { to: '/journal-types', label: 'Типы журналов', icon: 'doc' },
