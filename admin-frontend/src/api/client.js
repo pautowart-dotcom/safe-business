@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// timeout — та же причина, что и в клиентском приложении (frontend/src/api/client.js):
+// без него зависший запрос на плохом соединении держит экран на "Загрузка..."
+// бесконечно, без единой ошибки.
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
+  timeout: 20000,
 });
 
 api.interceptors.request.use((config) => {
