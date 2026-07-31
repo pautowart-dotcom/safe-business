@@ -99,7 +99,7 @@ router.post(
       membershipId: rows[0].id,
       role: rows[0].role,
       inviteToken,
-      inviteUrl: `${publicBaseUrl(req)}/invite/${inviteToken}`,
+      inviteUrl: `${publicBaseUrl(req)}/lk/invite/${inviteToken}`,
     });
   })
 );

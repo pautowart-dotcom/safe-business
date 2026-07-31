@@ -11,14 +11,17 @@ import './styles.css';
 // navigator.serviceWorker.ready, которому нужна уже стартовавшая регистрация.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => console.error('SW registration failed:', err));
+    // Регистрация под /lk/ — scope браузер берёт из пути самого файла,
+    // так что push-уведомления и клики по ним останутся привязаны к
+    // приложению, а не ко всему домену (там же лендинг).
+    navigator.serviceWorker.register('/lk/sw.js').catch((err) => console.error('SW registration failed:', err));
   });
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename="/lk">
         <AuthProvider>
           <App />
         </AuthProvider>

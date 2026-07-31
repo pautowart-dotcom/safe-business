@@ -43,7 +43,10 @@ router.post(
 
 // Вебхук ЮKassa — публичный маршрут (без requireAuth), ЮKassa стучится сюда
 // сама, без пользовательской сессии. URL нужно один раз указать в настройках
-// магазина ЮKassa: https://lk.business-safe.ru/api/platform/subscription/webhook
+// магазина ЮKassa: https://business-safe.ru/api/platform/subscription/webhook
+// (сменился с lk.business-safe.ru/... при переезде на однодоменную схему,
+// см. deploy/nginx.conf — если уже был указан старый URL в личном кабинете
+// ЮKassa, его нужно обновить там вручную, отдельным шагом)
 router.post(
   '/webhook',
   asyncHandler(async (req, res) => {

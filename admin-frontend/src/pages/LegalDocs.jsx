@@ -70,11 +70,11 @@ export default function LegalDocs() {
       </Card>
       <ST>Публичные страницы</ST>
       <div style={{ fontSize: 12, color: C.subtle }}>
-        <a href="https://lk.business-safe.ru/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/oferta</a>
+        <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/oferta</a>
         {' · '}
-        <a href="https://lk.business-safe.ru/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/privacy_policy</a>
+        <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/privacy_policy</a>
         {' · '}
-        <a href="https://lk.business-safe.ru/legal/faq" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/faq</a>
+        <a href="/lk/legal/faq" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/faq</a>
       </div>
     </div>
   );

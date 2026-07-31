@@ -207,7 +207,7 @@ router.get(
         type,
         companyName: row.company_name || '',
         journalNumber: row.journal_number,
-        verifyUrl: `${publicBaseUrl(req)}/j/${row.qr_token}`,
+        verifyUrl: `${publicBaseUrl(req)}/lk/j/${row.qr_token}`,
       });
       // journal_number содержит кириллический префикс (УФ/СТ/ПС/ИН/ДЗ) —
       // голый filename="..." в HTTP-заголовке обязан быть ASCII, Node кидает

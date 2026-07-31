@@ -44,7 +44,7 @@ async function sendVerificationCode(userId, email) {
 // "устройство ещё не подтверждено".
 async function loginOrRequireVerification(res, user, deviceToken, status = 200) {
   // Единственный супер-админ (сам владелец) заходит и в клиентский ЛК, и в
-  // office.business-safe.ru (admin-frontend) — там нет экрана ввода кода,
+  // business-safe.ru/office/ (admin-frontend) — там нет экрана ввода кода,
   // добавлять его ради одного аккаунта не стали. У супер-админа и так root
   // на сервере/БД, код с почты не добавляет реальной защиты именно ему.
   let deviceTrusted = !!user.is_super_admin;
