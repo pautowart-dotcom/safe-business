@@ -41,7 +41,9 @@ router.post(
       );
       const membership = membershipResult.rows[0];
 
-      for (const moduleKey of studioOsBundleKeys()) {
+      // См. комментарий в auth.routes.js (register) — то же решение
+      // владельца (31.07.2026), тот же список по умолчанию.
+      for (const moduleKey of [...studioOsBundleKeys(), 'clients', 'visits']) {
         await client.query(
           `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
            ON CONFLICT (company_id, module_key) DO NOTHING`,

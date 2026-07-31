@@ -140,7 +140,12 @@ router.post(
       );
       const membership = membershipResult.rows[0];
 
-      for (const moduleKey of studioOsBundleKeys()) {
+      // Владелец решил (31.07.2026): "Клиенты"/"Визиты" — тоже сразу включены
+      // новым компаниям, а не только по ручному включению. Модули остаются
+      // переключаемыми (toggleable: true) — можно выключить в любой момент
+      // через POST /modules/:key/disable, поэтому здесь просто добавлены к
+      // общему списку по умолчанию, а не переведены в studioOsBundleKeys().
+      for (const moduleKey of [...studioOsBundleKeys(), 'clients', 'visits']) {
         await client.query(
           `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
            ON CONFLICT (company_id, module_key) DO NOTHING`,
