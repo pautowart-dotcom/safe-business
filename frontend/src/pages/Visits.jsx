@@ -197,10 +197,32 @@ export default function Visits() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    // Раньше эти поля проверял только нативный required у браузера — на
+    // длинной форме (мастер стоит близко к началу, а кнопка "Сохранить" в
+    // самом низу) подсказка браузера легко оставалась не на виду, и
+    // казалось, что кнопка вообще не реагирует. Проверяем сами и показываем
+    // понятную причину в баннере наверху формы.
+    if (!form.clientId && (!form.lastName || !form.firstName)) {
+      setError('Укажите фамилию и имя клиента');
+      return;
+    }
+    if (isManagement && !form.masterMembershipId) {
+      setError('Выберите мастера, который выполнил визит');
+      return;
+    }
+    if (!form.service) {
+      setError('Укажите услугу');
+      return;
+    }
+    if (!form.amount || Number(form.amount) <= 0) {
+      setError('Укажите сумму визита');
+      return;
+    }
+
     let clientId = form.clientId;
     try {
       if (!clientId) {
-        if (!form.lastName || !form.firstName) return;
         const created = await api.post('/modules/clients', { firstName: form.firstName, lastName: form.lastName });
         clientId = created.data.id;
       }
