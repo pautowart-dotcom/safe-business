@@ -267,7 +267,7 @@ router.post(
       // finance_entries (источник выручки), а не расчёт налету из visits.
       await dbClient.query(
         `INSERT INTO finance_entries (company_id, source, visit_id, membership_id, amount, occurred_at, created_by_user_id)
-         VALUES ($1, 'auto_from_visit', $2, $3, ROUND($4 - ($4 * $5 / 100), 2), $6::timestamptz::date, $7)`,
+         VALUES ($1, 'auto_from_visit', $2, $3, ROUND($4::numeric - ($4::numeric * $5::numeric / 100), 2), $6::timestamptz::date, $7)`,
         [req.tenant.companyId, visitId, resolvedMasterId, amount, discountPercent || 0, insert.rows[0].visit_at, req.user.id]
       );
 
