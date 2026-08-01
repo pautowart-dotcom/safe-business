@@ -187,9 +187,9 @@ export default function AcceptInvite() {
           <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
           <span>
             Я принимаю условия{' '}
-            <a href="/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
+            <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
             {' '}и{' '}
-            <a href="/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
+            <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
           </span>
         </label>
 
