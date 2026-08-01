@@ -13,17 +13,20 @@ const router = express.Router();
 
 router.use(requireAuth, requireTenant);
 
-// FRONTEND_URL — необязательный явный оверрайд (например, если API когда-то
-// будет доступен не только через тот же публичный домен, что и фронтенд).
-// Если не задан (как оказалось на проде — .env разошёлся с ожиданиями),
-// берём хост из самого запроса: nginx прокидывает оригинальный Host клиента
-// (deploy/nginx.conf: proxy_set_header Host $host), так что req.get('host')
-// всегда совпадает с тем, что видит браузер в адресной строке — само
-// подстраивается под домен/TLS, если они появятся позже.
+// Возвращает БАЗОВЫЙ URL клиентского приложения целиком, включая /lk —
+// вызывающий код просто дописывает свой путь (/invite/token и т.п.), не
+// думая о префиксе. FRONTEND_URL — явный оверрайд, на проде уже стоит
+// https://business-safe.ru/lk. Без него (например, локально) собираем из
+// самого запроса: nginx прокидывает оригинальный Host клиента (deploy/
+// nginx.conf: proxy_set_header Host $host). Раньше эта функция возвращала
+// URL БЕЗ /lk, а /lk дописывался в каждом вызове отдельно — из-за этого при
+// заданном FRONTEND_URL (который уже с /lk) получалось задвоение
+// business-safe.ru/lk/lk/invite/..., и ссылка вела в никуда (белый экран —
+// такого маршрута в React Router нет).
 function publicBaseUrl(req) {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
   const proto = req.get('x-forwarded-proto') || req.protocol;
-  return `${proto}://${req.get('host')}`;
+  return `${proto}://${req.get('host')}/lk`;
 }
 
 // Лёгкий список сотрудников (id + имя) для пикеров вроде "ответственный" в
@@ -99,7 +102,7 @@ router.post(
       membershipId: rows[0].id,
       role: rows[0].role,
       inviteToken,
-      inviteUrl: `${publicBaseUrl(req)}/lk/invite/${inviteToken}`,
+      inviteUrl: `${publicBaseUrl(req)}/invite/${inviteToken}`,
     });
   })
 );

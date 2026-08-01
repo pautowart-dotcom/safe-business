@@ -74,14 +74,13 @@ async function createGeneratedJournal({ companyId, userId, type }) {
   return { id, journalType: type.key, journalNumber, pagesCount, label: type.label };
 }
 
-// Совпадает по духу с publicBaseUrl() в memberships.routes.js: без явного
-// FRONTEND_URL берём хост из самого запроса (nginx прокидывает оригинальный
-// Host, deploy/nginx.conf), чтобы QR вёл на тот же домен, с которого его
-// сгенерировали, без ручной синхронизации .env.
+// Совпадает по духу с publicBaseUrl() в memberships.routes.js (см. её
+// комментарий про баг с задвоением /lk/lk/) — возвращает базовый URL уже
+// вместе с /lk, вызывающий код просто дописывает свой путь.
 function publicBaseUrl(req) {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
   const proto = req.get('x-forwarded-proto') || req.protocol;
-  return `${proto}://${req.get('host')}`;
+  return `${proto}://${req.get('host')}/lk`;
 }
 
 const router = express.Router();
@@ -207,7 +206,7 @@ router.get(
         type,
         companyName: row.company_name || '',
         journalNumber: row.journal_number,
-        verifyUrl: `${publicBaseUrl(req)}/lk/j/${row.qr_token}`,
+        verifyUrl: `${publicBaseUrl(req)}/j/${row.qr_token}`,
       });
       // journal_number содержит кириллический префикс (УФ/СТ/ПС/ИН/ДЗ) —
       // голый filename="..." в HTTP-заголовке обязан быть ASCII, Node кидает
