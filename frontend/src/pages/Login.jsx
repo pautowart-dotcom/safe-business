@@ -251,14 +251,21 @@ export default function Login() {
   // заход в приложение — на вход.
   const [mode, setMode] = useState(searchParams.get('mode') === 'register' ? 'register' : 'login');
 
-  if (verifyEmail) {
-    return <VerifyCodeForm email={verifyEmail} onVerify={verifyCode} onBack={() => setVerifyEmail(null)} />;
-  }
-
   // Полностью авторизован (есть и пользователь, и выбранная компания) —
-  // дальше решает роутинг, здесь делать нечего.
+  // проверяем это ПЕРЕД экраном ввода кода. Раньше было наоборот: если код
+  // на самом деле уже был принят (например, гоночная ситуация — автоподста-
+  // новка кода из письма и ручное нажатие "Подтвердить" почти одновременно,
+  // один запрос успевал войти, другой видел код уже использованным и падал),
+  // экран ввода кода всё равно оставался поверх и показывал последнюю
+  // ошибку — переход в приложение никогда не наступал сам, помогало только
+  // обновление страницы. Теперь как только сессия реально готова, уходим
+  // дальше сразу, независимо от того, что ещё показывает verifyEmail.
   if (user && currentCompany) {
     return <Navigate to={location.state?.from || '/'} replace />;
+  }
+
+  if (verifyEmail) {
+    return <VerifyCodeForm email={verifyEmail} onVerify={verifyCode} onBack={() => setVerifyEmail(null)} />;
   }
 
   // Ни одной компании ещё нет. Для Super Admin это ожидаемо при первом
