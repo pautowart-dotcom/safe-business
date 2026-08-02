@@ -284,12 +284,16 @@ export default function Login() {
     if (addingCompany) {
       return <CreateCompanyForm onCreate={createCompany} onBack={() => setAddingCompany(false)} />;
     }
+    // Заводить новую компанию может только владелец (backend/platform/
+    // companies.routes.js) — не показываем кнопку тем, кто нигде не owner,
+    // чтобы не предлагать действие, которое всё равно отклонится.
+    const canAddCompany = pendingCompanies.some((c) => c.role === 'owner');
     return (
       <CompanyPicker
         companies={pendingCompanies}
         error={error}
         onPick={(id) => selectCompany(id).catch((err) => setError(err.response?.data?.error || 'Не удалось выбрать компанию'))}
-        onAdd={() => setAddingCompany(true)}
+        onAdd={canAddCompany ? () => setAddingCompany(true) : undefined}
       />
     );
   }

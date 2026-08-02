@@ -22,6 +22,25 @@ router.post(
       return res.status(400).json({ error: 'Укажите название компании' });
     }
 
+    // requireAuth (не requireTenant) — так и должно быть: этим же роутом
+    // заводит самую первую компанию человек, у которого их вообще ещё нет
+    // (Super Admin при первом входе). Но раньше здесь не было вообще
+    // никакой проверки роли для случая "компании уже есть" — админ или
+    // мастер, оказавшись на экране "Сменить компанию" → "+ Добавить
+    // студию", тоже мог бы завести отдельную новую компанию и стать её
+    // владельцем, хотя по смыслу это действие только для владельца.
+    const existingMemberships = await pool.query(
+      `SELECT 1 FROM memberships WHERE user_id = $1 AND invite_status = 'active' AND role = 'owner' LIMIT 1`,
+      [req.user.id]
+    );
+    const hasAnyMembership = await pool.query(
+      `SELECT 1 FROM memberships WHERE user_id = $1 AND invite_status = 'active' LIMIT 1`,
+      [req.user.id]
+    );
+    if (hasAnyMembership.rows.length > 0 && existingMemberships.rows.length === 0) {
+      return res.status(403).json({ error: 'Заводить новую компанию может только владелец' });
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
