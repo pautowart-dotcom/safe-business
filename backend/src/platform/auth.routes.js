@@ -9,7 +9,7 @@ const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { uploadPhoto } = require('../core/uploads');
-const { saveImage, getFileUrl } = require('../core/fileStorage');
+const { saveImage, getFileUrl, signFileUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
 
@@ -66,6 +66,12 @@ async function loginOrRequireVerification(res, user, deviceToken, status = 200) 
   }
 
   delete user.password_hash;
+  // Аудит безопасности 29.07.2026 подписал ссылки на визитные фото/документы,
+  // но не тронул аватар (тогда решили — низкая чувствительность) — а роут
+  // раздачи /api/uploads стал требовать подпись у ЛЮБОГО файла без
+  // исключений. С тех пор аватар отдавался неподписанной ссылкой, которую
+  // сервер сам же отклонял: битая картинка вместо фото в личном кабинете.
+  if (user.avatar_url) user.avatar_url = signFileUrl(user.avatar_url);
   const companies = await activeMembershipsForUser(user.id);
   return res.status(status).json({ token: signBaseToken(user.id), user, companies });
 }
@@ -414,8 +420,10 @@ router.post(
       'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE id = $1',
       [userId]
     );
+    const acceptedUser = userResult.rows[0];
+    if (acceptedUser.avatar_url) acceptedUser.avatar_url = signFileUrl(acceptedUser.avatar_url);
 
-    res.json({ token: signBaseToken(userId), user: userResult.rows[0], companyId: membership.company_id });
+    res.json({ token: signBaseToken(userId), user: acceptedUser, companyId: membership.company_id });
   })
 );
 
@@ -551,7 +559,10 @@ router.post(
     const filename = await saveImage(req.file.buffer);
     const url = getFileUrl(filename);
     await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [url, req.user.id]);
-    res.status(201).json({ avatarUrl: url });
+    // В БД остаётся голый путь (та же схема, что и у фото визитов) —
+    // подписываем только на выходе клиенту, иначе подпись протухла бы
+    // в БД навсегда.
+    res.status(201).json({ avatarUrl: signFileUrl(url) });
   })
 );
 

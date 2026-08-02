@@ -1,5 +1,6 @@
 const pool = require('../../db/pool');
 const { verifyToken } = require('../jwt');
+const { signFileUrl } = require('../fileStorage');
 const asyncHandler = require('../../utils/asyncHandler');
 
 const requireAuth = asyncHandler(async (req, res, next) => {
@@ -32,6 +33,14 @@ const requireAuth = asyncHandler(async (req, res, next) => {
     return res.status(401).json({ error: 'Пароль был изменён — войдите заново' });
   }
   delete user.password_changed_at;
+  // Аудит безопасности 29.07.2026 подписал ссылки на визитные фото/документы
+  // короткоживущей подписью, но аватар тогда сознательно не тронули (низкая
+  // чувствительность) — а сама раздача /api/uploads стала требовать подпись
+  // у ЛЮБОГО файла без исключений. С тех пор аватар отдавался неподписанной
+  // ссылкой, которую сервер сам же отклонял: битая картинка вместо фото в
+  // личном кабинете. req.user проходит буквально через каждый авторизованный
+  // запрос — самое надёжное единое место починить это разом.
+  if (user.avatar_url) user.avatar_url = signFileUrl(user.avatar_url);
 
   req.user = user;
   req.authSession = payload;
