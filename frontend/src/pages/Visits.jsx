@@ -85,6 +85,10 @@ export default function Visits() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [clientMatches, setClientMatches] = useState([]);
+  // Пожелания/аллергии выбранного клиента (из карточки, GET /modules/clients
+  // их уже отдаёт) — держим отдельно от clientMatches, потому что тот
+  // очищается сразу после выбора, а показать нужно и после.
+  const [selectedClientNote, setSelectedClientNote] = useState(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [supplyPick, setSupplyPick] = useState('');
@@ -130,6 +134,7 @@ export default function Visits() {
     setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: [] });
     setEditingId(null);
     setClientMatches([]);
+    setSelectedClientNote(null);
     setSaved(false);
     setError('');
     setSupplyPick('');
@@ -156,6 +161,10 @@ export default function Visits() {
     });
     setEditingId(v.id);
     setClientMatches([]);
+    // Пожелания/аллергии здесь не подставляем — GET /modules/visits их не
+    // отдаёт (это данные карточки клиента, не визита), а отдельный запрос
+    // ради этого не делаем; появляются только при поиске/выборе клиента.
+    setSelectedClientNote(null);
     setSaved(false);
     setError('');
     setSupplyPick('');
@@ -194,10 +203,12 @@ export default function Visits() {
   function pickClient(client) {
     setForm({ ...form, clientId: client.id, lastName: client.last_name, firstName: client.first_name });
     setClientMatches([]);
+    setSelectedClientNote(client.preferences || client.allergies ? { preferences: client.preferences, allergies: client.allergies } : null);
   }
 
   function clearClient() {
     setForm({ ...form, clientId: null });
+    setSelectedClientNote(null);
   }
 
   function handleEnter(e, nextRef) {
@@ -324,16 +335,28 @@ export default function Visits() {
             <div style={{ background: C.orangeBg, border: `1px solid ${C.orange}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, marginBottom: 6 }}>⚡ Найден клиент</div>
               {clientMatches.map((c) => (
-                <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, color: C.secondary, flex: 1 }}>{c.last_name} {c.first_name}</span>
-                  <Btn small onClick={() => pickClient(c)}>Это он/она</Btn>
+                <div key={c.id} style={{ marginBottom: 6 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: C.secondary, flex: 1 }}>{c.last_name} {c.first_name}</span>
+                    <Btn small onClick={() => pickClient(c)}>Это он/она</Btn>
+                  </div>
+                  {c.preferences && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Пожелания: {c.preferences}</div>}
+                  {c.allergies && <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>⚠ Аллергии: {c.allergies}</div>}
                 </div>
               ))}
             </div>
           )}
           {form.clientId && (
-            <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
-              Клиент выбран. <span style={{ color: C.primary, cursor: 'pointer', fontWeight: 600 }} onClick={clearClient}>Другой человек</span>
+            <div style={{ marginTop: -8, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: C.subtle }}>
+                Клиент выбран. <span style={{ color: C.primary, cursor: 'pointer', fontWeight: 600 }} onClick={clearClient}>Другой человек</span>
+              </div>
+              {selectedClientNote?.preferences && (
+                <div style={{ fontSize: 12, color: C.secondary, marginTop: 4 }}>Пожелания: {selectedClientNote.preferences}</div>
+              )}
+              {selectedClientNote?.allergies && (
+                <div style={{ fontSize: 12, color: C.red, marginTop: 4, fontWeight: 600 }}>⚠ Аллергии: {selectedClientNote.allergies}</div>
+              )}
             </div>
           )}
 
