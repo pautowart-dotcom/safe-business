@@ -85,8 +85,15 @@ export default function Supplies() {
 
   async function handleDelete(id) {
     if (!confirm('Удалить позицию склада?')) return;
-    await api.delete(`/modules/supplies/${id}`);
-    load();
+    try {
+      await api.delete(`/modules/supplies/${id}`);
+      load();
+    } catch (err) {
+      // Раньше ошибка (например, "расходник уже использован в визитах" —
+      // ON DELETE RESTRICT в БД, защита от потери учёта) нигде не
+      // показывалась: запрос падал, а на экране просто ничего не менялось.
+      alert(err.response?.data?.error || 'Не удалось удалить позицию');
+    }
   }
 
   function openMovement(supply, type) {
