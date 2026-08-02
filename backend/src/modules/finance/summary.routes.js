@@ -96,17 +96,31 @@ router.get(
       [companyId, from, to]
     );
 
+    // Постоянные расходы (аренда и т.п.) вводятся как сумма ₽/мес — раньше
+    // делились на 30 и умножались на число дней в периоде, чтобы "неделя"
+    // тоже получала свою долю аренды. На практике это выглядело как
+    // сломанный расчёт: владелец вводит 70 000, а в любом периоде короче
+    // месяца видит случайную маленькую долю без понятной связи с введённой
+    // суммой. Простое и понятное правило вместо этого: "Месяц"/"Прошлый
+    // месяц" — это буквально расходы за месяц, показываем их целиком; любой
+    // более короткий или произвольный период про постоянные расходы просто
+    // не спрашивает (0), там нет вменяемого способа "поделить" месячный
+    // счёт на день/неделю, который бы не выглядел как ошибка.
+    const isFullMonthView = req.query.period === 'month' || req.query.period === 'lastMonth';
+
     const recurring = await pool.query(
       `SELECT kind, amount FROM recurring_expenses WHERE company_id = $1 AND active = true`,
       [companyId]
     );
     let fixedExpenses = 0;
     let percentRate = 0;
-    for (const row of recurring.rows) {
-      if (row.kind === 'fixed') {
-        fixedExpenses += (parseFloat(row.amount) / 30) * days;
-      } else {
-        percentRate += parseFloat(row.amount);
+    if (isFullMonthView) {
+      for (const row of recurring.rows) {
+        if (row.kind === 'fixed') {
+          fixedExpenses += parseFloat(row.amount);
+        } else {
+          percentRate += parseFloat(row.amount);
+        }
       }
     }
     const percentExpenses = (revenue * percentRate) / 100;
@@ -127,6 +141,10 @@ router.get(
     // сводку, что и администратор — netProfit ему тоже не отдаём.
     const summary = {
       period: { from, to, days },
+      // Фронтенду нужно знать, учитываются ли постоянные/% расходы в этом
+      // периоде вообще, чтобы не показывать их сумму строк расходов
+      // отдельно от "Итого" (которое всегда 0 вне месячного вида).
+      recurringCountedThisPeriod: isFullMonthView,
       revenue: round2(revenue),
       masterSalaries: round2(masterSalaries),
       fixedExpenses: round2(fixedExpenses),

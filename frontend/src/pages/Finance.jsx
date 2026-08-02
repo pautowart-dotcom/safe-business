@@ -438,25 +438,14 @@ function OverviewTab({
         {recurringForm && recurringForm.kind === 'fixed' && (
           <RecurringForm form={recurringForm} setForm={setRecurringForm} onSubmit={submitRecurring} onCancel={closeRecurringForm} unitLabel="Сумма ₽/мес" editing={!!editingRecurringId} />
         )}
-        {recurring.filter((r) => r.kind === 'fixed').map((r) => {
-          // Расход вводится как сумма в месяц, но за выбранный период в
-          // "Итого" ниже (и в общей выручке) входит доля, пропорциональная
-          // числу дней (backend/finance/summary.routes.js: amount/30*days) —
-          // раньше здесь показывалась полная месячная сумма, а в "Итого" уже
-          // применённая, и цифры не сходились, будто расчёт был неверным.
-          const prorated = Math.round((Number(r.amount) / 30) * summary.period.days);
-          return (
-            <ExpRow
-              key={r.id}
-              label={`${r.name} · ${money(r.amount)}/мес`}
-              value={money(prorated)}
-              onEdit={() => openEditRecurring(r)}
-              onDel={() => deleteRecurring(r.id)}
-            />
-          );
-        })}
+        {recurring.filter((r) => r.kind === 'fixed').map((r) => (
+          <ExpRow key={r.id} label={r.name} value={money(r.amount)} onEdit={() => openEditRecurring(r)} onDel={() => deleteRecurring(r.id)} />
+        ))}
+        {!summary.recurringCountedThisPeriod && recurring.some((r) => r.kind === 'fixed') && (
+          <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>Учитывается в прибыли только за целый месяц — переключитесь на «Месяц» или «Прошлый месяц»</div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', marginTop: 4, borderTop: `2px solid ${C.border}` }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого за период</span>
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(summary.fixedExpenses)}</span>
         </div>
       </Card>
@@ -472,10 +461,19 @@ function OverviewTab({
           <RecurringForm form={recurringForm} setForm={setRecurringForm} onSubmit={submitRecurring} onCancel={closeRecurringForm} unitLabel="% от выручки" editing={!!editingRecurringId} />
         )}
         {recurring.filter((r) => r.kind === 'percent').map((r) => (
-          <ExpRow key={r.id} label={`${r.name} (${r.amount}%)`} value={money(Math.round((summary.revenue * r.amount) / 100))} onEdit={() => openEditRecurring(r)} onDel={() => deleteRecurring(r.id)} />
+          <ExpRow
+            key={r.id}
+            label={`${r.name} (${r.amount}%)`}
+            value={summary.recurringCountedThisPeriod ? money(Math.round((summary.revenue * r.amount) / 100)) : `${r.amount}%`}
+            onEdit={() => openEditRecurring(r)}
+            onDel={() => deleteRecurring(r.id)}
+          />
         ))}
+        {!summary.recurringCountedThisPeriod && recurring.some((r) => r.kind === 'percent') && (
+          <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>Учитывается в прибыли только за целый месяц — переключитесь на «Месяц» или «Прошлый месяц»</div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', marginTop: 4, borderTop: `2px solid ${C.border}` }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого за период</span>
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(summary.percentExpenses)}</span>
         </div>
       </Card>
