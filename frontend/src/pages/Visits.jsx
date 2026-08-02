@@ -127,7 +127,16 @@ export default function Visits() {
   }, [form.lastName, form.clientId]);
 
   function openCreate() {
-    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: [] });
+    // Расходники с заданной "нормой на клиента" (supplies.default_quantity_
+    // per_visit) сами подставляются в новый визит — не нужно выбирать
+    // вручную каждый раз одно и то же (гель-лак и т.п.). Помечены auto:true
+    // только для подписи в списке — списываются точно так же, как и
+    // добавленные вручную. Только для НОВОГО визита: при редактировании
+    // уже сохранённого ничего доп. не подставляем, там реальная история.
+    const autoSupplies = supplies
+      .filter((s) => s.default_quantity_per_visit)
+      .map((s) => ({ supplyId: s.id, quantity: String(s.default_quantity_per_visit), name: s.name, unit: s.unit, auto: true }));
+    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: autoSupplies });
     setEditingId(null);
     setClientMatches([]);
     setSaved(false);
@@ -371,7 +380,10 @@ export default function Visits() {
           <Field label="Расходники (необязательно)">
             {form.supplies.map((s, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
-                <span style={{ flex: 1, fontSize: 13 }}>{s.name}</span>
+                <span style={{ flex: 1, fontSize: 13 }}>
+                  {s.name}
+                  {s.auto && <span style={{ color: C.subtle, fontWeight: 400 }}> · авто</span>}
+                </span>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{s.quantity} {s.unit}</span>
                 <button type="button" onClick={() => removeSupplyFromForm(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 14 }}>✕</button>
               </div>

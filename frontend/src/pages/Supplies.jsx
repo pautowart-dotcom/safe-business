@@ -3,7 +3,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false, categoryId: '' };
+const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false, categoryId: '', defaultQuantityPerVisit: '' };
 
 export default function Supplies() {
   const { isManagement } = useAuth();
@@ -45,6 +45,7 @@ export default function Supplies() {
       lowStockThreshold: String(s.low_stock_threshold ?? '0'),
       isDisinfectant: !!s.is_disinfectant,
       categoryId: s.category_id ? String(s.category_id) : '',
+      defaultQuantityPerVisit: s.default_quantity_per_visit != null ? String(s.default_quantity_per_visit) : '',
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -63,6 +64,7 @@ export default function Supplies() {
         lowStockThreshold: form.lowStockThreshold,
         isDisinfectant: form.isDisinfectant,
         categoryId: form.categoryId || null,
+        defaultQuantityPerVisit: form.defaultQuantityPerVisit || null,
       });
     } else {
       await api.post('/modules/supplies', payload);
@@ -122,6 +124,12 @@ export default function Supplies() {
         )}
         <Field label="Минимум (порог)"><TextInput type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} placeholder="2" /></Field>
         <Field label="Единица"><TextInput value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="шт" /></Field>
+        <Field label="Расход на клиента (необязательно)">
+          <TextInput type="number" min="0" step="0.01" value={form.defaultQuantityPerVisit} onChange={(e) => setForm({ ...form, defaultQuantityPerVisit: e.target.value })} placeholder="Например, 15" />
+        </Field>
+        <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
+          Если указано — при создании нового визита эта позиция сама подставится в расходники с этим количеством, мастеру не нужно выбирать вручную.
+        </div>
         <Field label="Ссылка на товар"><TextInput type="url" value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} placeholder="https://..." /></Field>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.isDisinfectant} onChange={(e) => setForm({ ...form, isDisinfectant: e.target.checked })} />
