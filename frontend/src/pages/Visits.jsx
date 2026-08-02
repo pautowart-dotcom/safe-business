@@ -127,16 +127,7 @@ export default function Visits() {
   }, [form.lastName, form.clientId]);
 
   function openCreate() {
-    // Расходники с заданной "нормой на клиента" (supplies.default_quantity_
-    // per_visit) сами подставляются в новый визит — не нужно выбирать
-    // вручную каждый раз одно и то же (гель-лак и т.п.). Помечены auto:true
-    // только для подписи в списке — списываются точно так же, как и
-    // добавленные вручную. Только для НОВОГО визита: при редактировании
-    // уже сохранённого ничего доп. не подставляем, там реальная история.
-    const autoSupplies = supplies
-      .filter((s) => s.default_quantity_per_visit)
-      .map((s) => ({ supplyId: s.id, quantity: String(s.default_quantity_per_visit), name: s.name, unit: s.unit, auto: true }));
-    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: autoSupplies });
+    setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: [] });
     setEditingId(null);
     setClientMatches([]);
     setSaved(false);
@@ -182,6 +173,18 @@ export default function Visits() {
     });
     setSupplyPick('');
     setSupplyQty('');
+  }
+
+  // Кнопка-подсказка для расходника с заданной нормой на клиента (Склад
+  // расходников → "Расход на клиента") — мастер сам решает, какой именно
+  // материал использовал (их может быть несколько с нормой, например разные
+  // цвета геля), количество просто не нужно вводить руками. Ничего не
+  // списывается, пока мастер явно не нажал на конкретный расходник.
+  function addSupplyByDefault(supply) {
+    setForm({
+      ...form,
+      supplies: [...form.supplies, { supplyId: supply.id, quantity: String(supply.default_quantity_per_visit), name: supply.name, unit: supply.unit }],
+    });
   }
 
   function removeSupplyFromForm(idx) {
@@ -380,14 +383,27 @@ export default function Visits() {
           <Field label="Расходники (необязательно)">
             {form.supplies.map((s, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
-                <span style={{ flex: 1, fontSize: 13 }}>
-                  {s.name}
-                  {s.auto && <span style={{ color: C.subtle, fontWeight: 400 }}> · авто</span>}
-                </span>
+                <span style={{ flex: 1, fontSize: 13 }}>{s.name}</span>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{s.quantity} {s.unit}</span>
                 <button type="button" onClick={() => removeSupplyFromForm(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 14 }}>✕</button>
               </div>
             ))}
+            {supplies.some((s) => s.default_quantity_per_visit && !form.supplies.some((fs) => String(fs.supplyId) === String(s.id))) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {supplies
+                  .filter((s) => s.default_quantity_per_visit && !form.supplies.some((fs) => String(fs.supplyId) === String(s.id)))
+                  .map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => addSupplyByDefault(s)}
+                      style={{ background: C.orangeBg, border: `1px solid ${C.orange}33`, borderRadius: 20, padding: '6px 12px', fontSize: 12, color: C.orange, cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      + {s.name} · {s.default_quantity_per_visit} {s.unit}
+                    </button>
+                  ))}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <Select value={supplyPick} onChange={(e) => setSupplyPick(e.target.value)} style={{ flex: 2 }}>
                 <option value="">Выберите расходник</option>
