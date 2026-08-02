@@ -3,7 +3,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C } from '../ui/components.jsx';
 
-const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false, categoryId: '', defaultQuantityPerVisit: '' };
+const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false, categoryId: '', defaultQuantityPerVisit: '', containerSize: '' };
 
 export default function Supplies() {
   const { isManagement } = useAuth();
@@ -16,6 +16,12 @@ export default function Supplies() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
+  // { id, type: 'receive'|'deduct' } — какая позиция сейчас показывает
+  // инлайн-поле количества вместо кнопок "Пришло"/"Списать". Раньше кнопки
+  // сразу прибавляли/убавляли 1 — неудобно для расходников в мл/г (пришла
+  // баночка геля 500 мл, а не "1 штука").
+  const [movement, setMovement] = useState(null);
+  const [movementQty, setMovementQty] = useState('');
 
   function load() {
     api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
@@ -46,6 +52,7 @@ export default function Supplies() {
       isDisinfectant: !!s.is_disinfectant,
       categoryId: s.category_id ? String(s.category_id) : '',
       defaultQuantityPerVisit: s.default_quantity_per_visit != null ? String(s.default_quantity_per_visit) : '',
+      containerSize: s.container_size != null ? String(s.container_size) : '',
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -65,6 +72,7 @@ export default function Supplies() {
         isDisinfectant: form.isDisinfectant,
         categoryId: form.categoryId || null,
         defaultQuantityPerVisit: form.defaultQuantityPerVisit || null,
+        containerSize: form.containerSize || null,
       });
     } else {
       await api.post('/modules/supplies', payload);
@@ -81,8 +89,22 @@ export default function Supplies() {
     load();
   }
 
-  async function adjust(id, type, delta) {
-    await api.post(`/modules/supplies/${id}/${type}`, { quantity: delta });
+  function openMovement(supply, type) {
+    setMovement({ id: supply.id, type });
+    // "Пришло" сразу предлагает объём тары, если он задан — обычно приходит
+    // целая баночка/упаковка; "Списать" ничем не предзаполняем, это чаще
+    // разовая корректировка (порча, ошибка), не привязанная к таре.
+    setMovementQty(type === 'receive' && supply.container_size ? String(supply.container_size) : '');
+  }
+  function closeMovement() {
+    setMovement(null);
+    setMovementQty('');
+  }
+  async function confirmMovement() {
+    const qty = Number(movementQty);
+    if (!qty || qty <= 0) return;
+    await api.post(`/modules/supplies/${movement.id}/${movement.type}`, { quantity: qty });
+    closeMovement();
     load();
   }
 
@@ -128,7 +150,13 @@ export default function Supplies() {
           <TextInput type="number" min="0" step="0.01" value={form.defaultQuantityPerVisit} onChange={(e) => setForm({ ...form, defaultQuantityPerVisit: e.target.value })} placeholder="Например, 15" />
         </Field>
         <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
-          Если указано — при создании нового визита эта позиция сама подставится в расходники с этим количеством, мастеру не нужно выбирать вручную.
+          Если указано — при создании нового визита появится кнопка-подсказка с этим количеством, мастеру не нужно вводить вручную.
+        </div>
+        <Field label="Объём одной тары (необязательно)">
+          <TextInput type="number" min="0" step="0.01" value={form.containerSize} onChange={(e) => setForm({ ...form, containerSize: e.target.value })} placeholder="Например, 500" />
+        </Field>
+        <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
+          Если указано — кнопка "Пришло" сама предложит это количество (пришла целая баночка/упаковка), а не всегда +1. Число перед подтверждением можно поменять.
         </div>
         <Field label="Ссылка на товар"><TextInput type="url" value={form.productUrl} onChange={(e) => setForm({ ...form, productUrl: e.target.value })} placeholder="https://..." /></Field>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, cursor: 'pointer' }}>
@@ -234,9 +262,26 @@ export default function Supplies() {
                     <div style={{ fontSize: 16, fontWeight: 800, color: low ? C.red : C.primary }}>{Number(s.quantity)} {s.unit}</div>
                   </div>
                 </div>
+                {movement && movement.id === s.id ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <TextInput
+                      autoFocus
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={movementQty}
+                      onChange={(e) => setMovementQty(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && confirmMovement()}
+                      placeholder={s.unit ? `Кол-во, ${s.unit}` : 'Кол-во'}
+                      style={{ flex: 1 }}
+                    />
+                    <Btn small onClick={confirmMovement}>{movement.type === 'receive' ? 'Пришло' : 'Списать'}</Btn>
+                    <Btn small variant="secondary" onClick={closeMovement}>Отмена</Btn>
+                  </div>
+                ) : (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => adjust(s.id, 'receive', 1)} style={{ background: C.greenBg, border: `1px solid ${C.green}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.green, cursor: 'pointer', fontWeight: 600 }}>+ Пришло</button>
-                  <button onClick={() => adjust(s.id, 'deduct', 1)} style={{ background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.red, cursor: 'pointer', fontWeight: 600 }}>− Списать</button>
+                  <button onClick={() => openMovement(s, 'receive')} style={{ background: C.greenBg, border: `1px solid ${C.green}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.green, cursor: 'pointer', fontWeight: 600 }}>+ Пришло</button>
+                  <button onClick={() => openMovement(s, 'deduct')} style={{ background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.red, cursor: 'pointer', fontWeight: 600 }}>− Списать</button>
                   {s.product_url && (
                     <a href={s.product_url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.secondary, textDecoration: 'none' }}>
                       <Icon name="link" size={12} color={C.secondary} />Купить
@@ -249,6 +294,7 @@ export default function Supplies() {
                     <button onClick={() => handleDelete(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>
                   )}
                 </div>
+                )}
               </div>
             );
           })}

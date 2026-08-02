@@ -86,7 +86,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT s.id, s.name, s.unit, s.product_url, s.quantity, s.low_stock_threshold, s.is_disinfectant,
-              s.category_id, sc.name AS category_name, s.default_quantity_per_visit, s.created_at
+              s.category_id, sc.name AS category_name, s.default_quantity_per_visit, s.container_size, s.created_at
        FROM supplies s
        LEFT JOIN supply_categories sc ON sc.id = s.category_id
        WHERE s.company_id = $1 ORDER BY s.name`,
@@ -102,7 +102,7 @@ router.post(
   '/',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit } = req.body;
+    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Укажите название позиции' });
     }
@@ -113,10 +113,10 @@ router.post(
       }
     }
     const { rows } = await pool.query(
-      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, created_at`,
-      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant, categoryId || null, defaultQuantityPerVisit || null]
+      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, created_at`,
+      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant, categoryId || null, defaultQuantityPerVisit || null, containerSize || null]
     );
 
     await logEvent({
@@ -136,14 +136,15 @@ router.patch(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit } = req.body;
-    // is_disinfectant/category_id/default_quantity_per_visit — false/NULL
-    // тоже валидные значения (снять тег, снять категорию, убрать норму
-    // расхода), поэтому обычный COALESCE (как для остальных полей) сюда не
-    // подходит: обновляем, только если поле реально пришло в запросе — та
-    // же схема, что и kind в checklists.routes.js.
+    const { name, unit, productUrl, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize } = req.body;
+    // is_disinfectant/category_id/default_quantity_per_visit/container_size —
+    // false/NULL тоже валидные значения (снять тег, снять категорию, убрать
+    // норму расхода/объём тары), поэтому обычный COALESCE (как для остальных
+    // полей) сюда не подходит: обновляем, только если поле реально пришло в
+    // запросе — та же схема, что и kind в checklists.routes.js.
     const categoryProvided = 'categoryId' in req.body;
     const defaultQtyProvided = 'defaultQuantityPerVisit' in req.body;
+    const containerSizeProvided = 'containerSize' in req.body;
     if (categoryProvided && categoryId) {
       const cat = await pool.query('SELECT 1 FROM supply_categories WHERE id = $1 AND company_id = $2', [categoryId, req.tenant.companyId]);
       if (cat.rows.length === 0) {
@@ -158,9 +159,10 @@ router.patch(
          low_stock_threshold = COALESCE($4, low_stock_threshold),
          is_disinfectant = CASE WHEN $7 THEN $8 ELSE is_disinfectant END,
          category_id = CASE WHEN $9 THEN $10 ELSE category_id END,
-         default_quantity_per_visit = CASE WHEN $11 THEN $12 ELSE default_quantity_per_visit END
+         default_quantity_per_visit = CASE WHEN $11 THEN $12 ELSE default_quantity_per_visit END,
+         container_size = CASE WHEN $13 THEN $14 ELSE container_size END
        WHERE id = $5 AND company_id = $6
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, created_at`,
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, created_at`,
       [
         name || null,
         unit || null,
@@ -174,6 +176,8 @@ router.patch(
         categoryId || null,
         defaultQtyProvided,
         defaultQuantityPerVisit || null,
+        containerSizeProvided,
+        containerSize || null,
       ]
     );
     if (rows.length === 0) {
