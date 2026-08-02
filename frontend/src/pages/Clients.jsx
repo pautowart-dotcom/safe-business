@@ -140,10 +140,27 @@ export default function Clients() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.lastName.trim() || !form.firstName.trim()) return;
-    if (editingId) {
-      await api.patch(`/modules/clients/${editingId}`, form);
-    } else {
-      await api.post('/modules/clients', form);
+    try {
+      if (editingId) {
+        await api.patch(`/modules/clients/${editingId}`, form);
+      } else {
+        await api.post('/modules/clients', form);
+      }
+    } catch (err) {
+      // Раньше двух клиентов с одинаковым телефоном ничто не мешало
+      // завести — сервер теперь предупреждает (409 duplicate_phone).
+      // Спрашиваем, точно ли это разные люди, а не блокируем наглухо —
+      // телефон иногда реально общий (например, у пары).
+      if (err.response?.status === 409 && err.response.data?.error === 'duplicate_phone') {
+        const existing = err.response.data.existingClient;
+        const proceed = confirm(`Клиент с таким телефоном уже есть: ${existing.lastName} ${existing.firstName}. Это точно другой человек? Сохранить всё равно?`);
+        if (!proceed) return;
+        const payload = { ...form, confirmDuplicate: true };
+        if (editingId) await api.patch(`/modules/clients/${editingId}`, payload);
+        else await api.post('/modules/clients', payload);
+      } else {
+        throw err;
+      }
     }
     setShowForm(false);
     load(search);
@@ -284,7 +301,7 @@ export default function Clients() {
         <WaitlistView entries={waitlist} loading={waitlistLoading} onMarkDone={markWaitlistDone} onDelete={deleteWaitlistEntry} />
       ) : (
         <>
-          <TextInput placeholder="Поиск по фамилии или имени" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
+          <TextInput placeholder="Поиск по фамилии, имени или телефону" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
 
           {loading ? (
             <div className="page-loading">Загрузка...</div>

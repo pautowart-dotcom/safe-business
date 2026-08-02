@@ -25,7 +25,17 @@ router.get(
     let where = 'company_id = $1';
     if (search) {
       params.push(`${search}%`);
-      where += ` AND (last_name ILIKE $${params.length} OR first_name ILIKE $${params.length})`;
+      let clause = `(last_name ILIKE $${params.length} OR first_name ILIKE $${params.length})`;
+      // Поиск по телефону — сравниваем только цифры (телефон вводится
+      // свободным текстом: "+7 900 123-45-67", "89001234567" и т.п.
+      // считаем одним и тем же номером). Ищем ПОДстроку, не префикс —
+      // удобно найти клиента по последним цифрам номера.
+      const searchDigits = search.replace(/\D/g, '');
+      if (searchDigits) {
+        params.push(`%${searchDigits}%`);
+        clause = `(${clause} OR regexp_replace(phone, '\\D', '', 'g') ILIKE $${params.length})`;
+      }
+      where += ` AND ${clause}`;
     }
     const { rows } = await pool.query(
       `SELECT id, first_name, last_name, phone, preferences, notes, allergies, created_at FROM clients
@@ -129,12 +139,38 @@ router.get(
   })
 );
 
+// Раньше два клиента с одним и тем же телефоном спокойно создавались —
+// ничего не сверялось. Сравниваем по цифрам номера (форматы вроде
+// "+7 900..." и "8900..." — один и тот же номер), не по точному тексту.
+// Возвращает существующего клиента с таким же номером или null.
+async function findClientByPhone(companyId, phone, excludeId) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  const params = [companyId, digits];
+  let where = `company_id = $1 AND regexp_replace(phone, '\\D', '', 'g') = $2`;
+  if (excludeId) {
+    params.push(excludeId);
+    where += ` AND id != $${params.length}`;
+  }
+  const { rows } = await pool.query(`SELECT id, first_name, last_name FROM clients WHERE ${where} LIMIT 1`, params);
+  return rows[0] || null;
+}
+
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { firstName, lastName, phone, preferences, notes, allergies } = req.body;
+    const { firstName, lastName, phone, preferences, notes, allergies, confirmDuplicate } = req.body;
     if (!firstName || !lastName) {
       return res.status(400).json({ error: 'Укажите имя и фамилию клиента' });
+    }
+    if (phone && !confirmDuplicate) {
+      const existing = await findClientByPhone(req.tenant.companyId, phone);
+      if (existing) {
+        return res.status(409).json({
+          error: 'duplicate_phone',
+          existingClient: { id: existing.id, firstName: existing.first_name, lastName: existing.last_name },
+        });
+      }
     }
     const { rows } = await pool.query(
       `INSERT INTO clients (company_id, first_name, last_name, phone, preferences, notes, allergies, created_by_user_id)
@@ -159,7 +195,16 @@ router.post(
 router.patch(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { firstName, lastName, phone, preferences, notes, allergies } = req.body;
+    const { firstName, lastName, phone, preferences, notes, allergies, confirmDuplicate } = req.body;
+    if (phone && !confirmDuplicate) {
+      const existing = await findClientByPhone(req.tenant.companyId, phone, req.params.id);
+      if (existing) {
+        return res.status(409).json({
+          error: 'duplicate_phone',
+          existingClient: { id: existing.id, firstName: existing.first_name, lastName: existing.last_name },
+        });
+      }
+    }
     const { rows } = await pool.query(
       `UPDATE clients SET
          first_name = COALESCE($1, first_name),
