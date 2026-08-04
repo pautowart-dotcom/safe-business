@@ -28,7 +28,8 @@ function money(v) {
 // рамка → камера → отмеченное состояние), но с реальной загрузкой файла
 // на сервер вместо мокового переключателя.
 function PhotoUploadCell({ label, url, onUploaded }) {
-  const inputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,24 +53,37 @@ function PhotoUploadCell({ label, url, onUploaded }) {
 
   return (
     <div>
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} />
-      <div
-        onClick={() => inputRef.current?.click()}
-        style={{
-          border: `1.5px ${url ? 'solid' : 'dashed'} ${url ? C.green : C.border}`,
-          borderRadius: 12, padding: 16, textAlign: 'center', cursor: 'pointer',
-          background: url ? C.greenBg : C.surface,
-        }}
-      >
-        {url ? (
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} />
+      <input ref={galleryInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+      {url ? (
+        <div
+          onClick={() => galleryInputRef.current?.click()}
+          style={{
+            border: `1.5px solid ${C.green}`,
+            borderRadius: 12, padding: 16, textAlign: 'center', cursor: 'pointer',
+            background: C.greenBg,
+          }}
+        >
           <img src={url} alt={`Фото ${label}`} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
-        ) : (
-          <Icon name="camera" size={22} color={C.subtle} />
-        )}
-        <div style={{ fontSize: 12, color: url ? C.green : C.subtle, marginTop: 8, fontWeight: url ? 600 : 400 }}>
-          {uploading ? 'Загрузка...' : `Фото ${label}${url ? ' ✓' : ''}`}
+          <div style={{ fontSize: 12, color: C.green, marginTop: 8, fontWeight: 600 }}>
+            {uploading ? 'Загрузка...' : `Фото ${label} ✓`}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ border: `1.5px dashed ${C.border}`, borderRadius: 12, padding: 12, textAlign: 'center', background: C.surface }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 14 }}>
+            <div onClick={() => cameraInputRef.current?.click()} style={{ cursor: 'pointer', padding: 4 }} title="Сделать фото">
+              <Icon name="camera" size={22} color={C.subtle} />
+            </div>
+            <div onClick={() => galleryInputRef.current?.click()} style={{ cursor: 'pointer', padding: 4 }} title="Выбрать из галереи">
+              <Icon name="photo" size={22} color={C.subtle} />
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>
+            {uploading ? 'Загрузка...' : `Фото ${label}`}
+          </div>
+        </div>
+      )}
       {error && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>{error}</div>}
     </div>
   );
