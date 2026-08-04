@@ -257,7 +257,6 @@ function OwnerFinance() {
     return <MasterDetailView master={selectedMaster} dateFrom={summary.period.from} dateTo={summary.period.to} onBack={() => setSelectedMaster(null)} />;
   }
 
-  const totalExpenses = summary.masterSalaries + summary.fixedExpenses + summary.percentExpenses + summary.variableExpenses;
   const adjustmentsByMaster = {};
   for (const a of adjustments) (adjustmentsByMaster[a.master_membership_id] ||= []).push(a);
 
@@ -281,7 +280,6 @@ function OwnerFinance() {
       {tab === 'overview' && (
         <OverviewTab
           summary={summary}
-          totalExpenses={totalExpenses}
           recurring={recurring}
           expenses={expenses}
           revenue={revenue}
@@ -379,8 +377,21 @@ function RevenueForm({ form, setForm, masters, onSubmit, onCancel }) {
   );
 }
 
+// Строка П&Л: без sign — просто строка (выручка), с sign="−" — вычитаемая
+// статья расходов. По просьбе владельца (04.08.2026) заменили плитки-грид на
+// понятный "сверху вниз": видно, как выручка превращается в прибыль, не
+// нужно складывать числа в уме.
+function PnlRow({ label, value, sign }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0' }}>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{sign ? `${sign} ${label}` : label}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>{money(value)}</div>
+    </div>
+  );
+}
+
 function OverviewTab({
-  summary, totalExpenses, recurring, expenses, revenue, masters,
+  summary, recurring, expenses, revenue, masters,
   revenueForm, setRevenueForm, openAddRevenue, closeRevenueForm, submitRevenue, deleteRevenue,
   recurringForm, setRecurringForm, editingRecurringId, openAddRecurring, openEditRecurring, closeRecurringForm, submitRecurring, deleteRecurring,
   expenseForm, setExpenseForm, editingExpenseId, openAddExpense, openEditExpense, closeExpenseForm, submitExpense, deleteExpense,
@@ -388,20 +399,20 @@ function OverviewTab({
   return (
     <div>
       <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
+        <PnlRow label="Выручка" value={summary.revenue} />
+        <PnlRow label="Зарплаты" value={summary.masterSalaries} sign="−" />
+        <PnlRow label="Пост. расходы" value={summary.fixedExpenses} sign="−" />
+        <PnlRow label="% расходы" value={summary.percentExpenses} sign="−" />
+        <PnlRow label="Перем. расходы" value={summary.variableExpenses} sign="−" />
         {summary.netProfit != null && (
           <>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Чистая прибыль</div>
-            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-1.5px', color: summary.netProfit >= 0 ? '#FFF' : '#FCA5A5' }}>{money(summary.netProfit)}</div>
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.25)', margin: '12px 0 10px' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>= Чистая прибыль</div>
+              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1px', color: summary.netProfit >= 0 ? '#FFF' : '#FCA5A5' }}>{money(summary.netProfit)}</div>
+            </div>
           </>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: summary.netProfit != null ? 16 : 0 }}>
-          {[['Выручка', summary.revenue], ['Зарплаты', summary.masterSalaries], ['Пост. расходы', summary.fixedExpenses], ['% расходы', summary.percentExpenses], ['Перем. расходы', summary.variableExpenses], ['Всего расходов', totalExpenses]].map(([l, v]) => (
-            <div key={l}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{money(v)}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{l}</div>
-            </div>
-          ))}
-        </div>
       </div>
 
       <Card>
