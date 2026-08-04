@@ -14,9 +14,17 @@ function nowLocal() {
   return toLocalInputValue(new Date());
 }
 
+const PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: 'Не указан' },
+  { value: 'cash', label: 'Наличные' },
+  { value: 'card', label: 'Карта' },
+  { value: 'transfer', label: 'Перевод' },
+  { value: 'other', label: 'Другое' },
+];
+
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
-  masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: '0',
+  masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: '0', paymentMethod: '',
   visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', photoBeforeUrl2: '', photoAfterUrl2: '', supplies: [],
 };
 
@@ -59,11 +67,19 @@ function PhotoUploadCell({ label, url, onUploaded }) {
         <div
           onClick={() => galleryInputRef.current?.click()}
           style={{
+            position: 'relative',
             border: `1.5px solid ${C.green}`,
             borderRadius: 12, padding: 16, textAlign: 'center', cursor: 'pointer',
             background: C.greenBg,
           }}
         >
+          <div
+            onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}
+            title="Переснять камерой"
+            style={{ position: 'absolute', top: 6, right: 6, cursor: 'pointer', padding: 4, background: C.bg, borderRadius: 8 }}
+          >
+            <Icon name="camera" size={14} color={C.subtle} />
+          </div>
           <img src={url} alt={`Фото ${label}`} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
           <div style={{ fontSize: 12, color: C.green, marginTop: 8, fontWeight: 600 }}>
             {uploading ? 'Загрузка...' : `Фото ${label} ✓`}
@@ -166,6 +182,7 @@ export default function Visits() {
       materials: v.materials || '',
       amount: String(v.amount ?? ''),
       discountPercent: String(v.discount_percent ?? '0'),
+      paymentMethod: v.payment_method || '',
       visitAt: v.visit_at ? toLocalInputValue(v.visit_at) : nowLocal(),
       photoBeforeUrl: v.photo_before_url || '',
       photoAfterUrl: v.photo_after_url || '',
@@ -270,6 +287,7 @@ export default function Visits() {
         materials: form.materials || null,
         amount: Number(form.amount),
         discountPercent: Number(form.discountPercent) || 0,
+        paymentMethod: form.paymentMethod || null,
         visitAt: form.visitAt ? new Date(form.visitAt).toISOString() : undefined,
         masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
         photoBeforeUrl: form.photoBeforeUrl || null,
@@ -398,6 +416,12 @@ export default function Visits() {
               <TextInput type="number" min="0" max="100" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} />
             </Field>
           </div>
+
+          <Field label="Способ оплаты">
+            <Select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}>
+              {PAYMENT_METHOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+          </Field>
 
           {priceNum > 0 && (
             <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>

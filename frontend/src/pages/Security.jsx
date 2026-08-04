@@ -190,20 +190,30 @@ export default function Security() {
       await api.post(`/modules/security/sessions/${activeAudit.session.id}/complete`);
 
       // Ниша пройдена — если в плане этого захода есть ещё ниши, сразу
-      // (без промежуточного экрана) переходим к следующей.
+      // (без промежуточного экрана) переходим к следующей. Эта сессия уже
+      // завершена на сервере, назад в неё вернуться нельзя — если старт
+      // следующей ниши не удастся (например контент для неё внезапно снят
+      // с публикации), выходим на дашборд с ошибкой, а не оставляем экран
+      // вопросника "подвисшим" на уже закрытой сессии.
       const { plan, planIndex } = activeAudit;
       const nextIndex = planIndex + 1;
       if (plan && nextIndex < plan.length) {
-        const { data } = await api.post('/modules/security/sessions', { niche: plan[nextIndex] });
-        setActiveAudit({
-          session: data.session,
-          questions: data.questions,
-          index: 0,
-          answers: {},
-          plan,
-          planIndex: nextIndex,
-          nicheLabel: data.nicheLabel,
-        });
+        try {
+          const { data } = await api.post('/modules/security/sessions', { niche: plan[nextIndex] });
+          setActiveAudit({
+            session: data.session,
+            questions: data.questions,
+            index: 0,
+            answers: {},
+            plan,
+            planIndex: nextIndex,
+            nicheLabel: data.nicheLabel,
+          });
+        } catch (nextErr) {
+          setActiveAudit(null);
+          setError(nextErr.response?.data?.error || 'Не удалось начать следующую нишу');
+          await loadDashboardData();
+        }
         return;
       }
 
