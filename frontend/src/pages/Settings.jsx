@@ -79,6 +79,7 @@ export default function Settings() {
     try {
       await api.post('/platform/push/test', { category: testCategory });
       setTestSent(true);
+      setTimeout(() => setTestSent(false), 5000);
     } catch (err) {
       setPushError(err.response?.data?.error || 'Не удалось отправить тестовое уведомление');
     } finally {

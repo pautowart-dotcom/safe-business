@@ -31,6 +31,13 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
+  /* На iOS в режиме "установлено на Домой" (standalone) нет отдельного окна
+     Safari вокруг страницы — без этого системная резинка всей страницы
+     иногда перехватывает жест "потянуть вниз" раньше, чем наш собственный
+     pull-to-refresh (Layout.jsx) успевает его увидеть. В обычной вкладке
+     Safari работало и так, потому что резинку показывал сам Safari, не
+     страница. */
+  overscroll-behavior-y: none;
 }
 
 h1, h2, h3, h4 { margin: 0 0 0.5rem; }

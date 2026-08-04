@@ -1,6 +1,6 @@
 const pool = require('../../db/pool');
 const { verifyToken } = require('../jwt');
-const { signFileUrl } = require('../fileStorage');
+const { signAvatarUrl } = require('../fileStorage');
 const asyncHandler = require('../../utils/asyncHandler');
 
 const requireAuth = asyncHandler(async (req, res, next) => {
@@ -40,7 +40,7 @@ const requireAuth = asyncHandler(async (req, res, next) => {
   // ссылкой, которую сервер сам же отклонял: битая картинка вместо фото в
   // личном кабинете. req.user проходит буквально через каждый авторизованный
   // запрос — самое надёжное единое место починить это разом.
-  if (user.avatar_url) user.avatar_url = signFileUrl(user.avatar_url);
+  if (user.avatar_url) user.avatar_url = signAvatarUrl(user.avatar_url);
 
   req.user = user;
   req.authSession = payload;

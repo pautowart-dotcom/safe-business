@@ -213,7 +213,15 @@ export default function Layout() {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto' }}
+        // overscrollBehaviorY: 'contain' — без этого в установленной на
+        // "Домой" версии (standalone, нет окна Safari вокруг страницы) жест
+        // "потянуть вниз" на scrollTop=0 иногда перехватывается системной
+        // резинкой всей страницы раньше, чем его увидит touchmove-обработчик
+        // ниже — pull-to-refresh молча не срабатывает именно в этом режиме,
+        // хотя в обычной вкладке Safari работает (там резинка — Safari, не
+        // страницы). webkitOverflowScrolling — инерционная прокрутка на
+        // старых iOS, безопасно оставить всегда.
+        style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
         <div
           style={{

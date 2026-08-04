@@ -72,21 +72,33 @@ function getFileUrl(filename) {
 // подпись попадала в БД, она протухла бы там навсегда и старые фото стали
 // бы недоступны без миграции данных.
 const SIGN_TTL_MS = 60 * 60 * 1000; // 60 минут — с запасом на то, что вкладка/страница останется открытой
+// Аватар — сознательно "низкой чувствительности" (см. аудит 29.07.2026),
+// подписывается только из-за общего требования /api/uploads на ЛЮБОЙ файл,
+// а не потому что это чувствительные данные как визиты/аудит безопасности.
+// Короткий TTL для него был лишним и давал баг: фото профиля "пропадало"
+// (ссылка протухала), если открытая вкладка/установленное на экран "Домой"
+// приложение жило дольше часа без повторного /auth/me. Долгий срок — не
+// ослабление защиты, просто соответствие реальной чувствительности файла.
+const AVATAR_SIGN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней
 
 function signature(filename, exp) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
   return crypto.createHmac('sha256', secret).update(`${filename}:${exp}`).digest('hex').slice(0, 32);
 }
 
-function signFileUrl(url) {
+function signFileUrl(url, ttlMs = SIGN_TTL_MS) {
   // security_documents.file_url может быть и внешней ссылкой, вставленной
   // пользователем вручную (Google Docs и т.п.), не только своей загрузкой —
   // подписывать нужно только собственные /api/uploads/..., внешние ссылки
   // отдаём как есть.
   if (!url || !url.startsWith('/api/uploads/')) return url;
   const filename = path.basename(url);
-  const exp = Date.now() + SIGN_TTL_MS;
+  const exp = Date.now() + ttlMs;
   return `/api/uploads/${filename}?exp=${exp}&sig=${signature(filename, exp)}`;
+}
+
+function signAvatarUrl(url) {
+  return signFileUrl(url, AVATAR_SIGN_TTL_MS);
 }
 
 function verifyFileUrlSignature(filename, exp, sig) {
@@ -134,4 +146,4 @@ async function deleteFile(filename) {
   }
 }
 
-module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, verifyFileUrlSignature };
+module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, signAvatarUrl, verifyFileUrlSignature };

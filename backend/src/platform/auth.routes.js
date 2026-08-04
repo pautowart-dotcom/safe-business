@@ -9,7 +9,7 @@ const { studioOsBundleKeys } = require('../core/modules-registry');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { uploadPhoto } = require('../core/uploads');
-const { saveImage, getFileUrl, signFileUrl } = require('../core/fileStorage');
+const { saveImage, getFileUrl, signAvatarUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
 
@@ -71,7 +71,7 @@ async function loginOrRequireVerification(res, user, deviceToken, status = 200) 
   // раздачи /api/uploads стал требовать подпись у ЛЮБОГО файла без
   // исключений. С тех пор аватар отдавался неподписанной ссылкой, которую
   // сервер сам же отклонял: битая картинка вместо фото в личном кабинете.
-  if (user.avatar_url) user.avatar_url = signFileUrl(user.avatar_url);
+  if (user.avatar_url) user.avatar_url = signAvatarUrl(user.avatar_url);
   const companies = await activeMembershipsForUser(user.id);
   return res.status(status).json({ token: signBaseToken(user.id), user, companies });
 }
@@ -421,7 +421,7 @@ router.post(
       [userId]
     );
     const acceptedUser = userResult.rows[0];
-    if (acceptedUser.avatar_url) acceptedUser.avatar_url = signFileUrl(acceptedUser.avatar_url);
+    if (acceptedUser.avatar_url) acceptedUser.avatar_url = signAvatarUrl(acceptedUser.avatar_url);
 
     res.json({ token: signBaseToken(userId), user: acceptedUser, companyId: membership.company_id });
   })
@@ -562,7 +562,7 @@ router.post(
     // В БД остаётся голый путь (та же схема, что и у фото визитов) —
     // подписываем только на выходе клиенту, иначе подпись протухла бы
     // в БД навсегда.
-    res.status(201).json({ avatarUrl: signFileUrl(url) });
+    res.status(201).json({ avatarUrl: signAvatarUrl(url) });
   })
 );
 
