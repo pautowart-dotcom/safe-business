@@ -9,6 +9,8 @@ const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
+const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'];
+
 // Фото до/после визита — сжимаются и сохраняются через core/fileStorage.js
 // (Этап 10), отдаём URL для записи в visits.photo_before_url/after_url.
 router.post(
@@ -32,7 +34,7 @@ router.post(
 // чтобы не расходиться в округлении между разными эндпоинтами.
 const SELECT_COLUMNS = `
   v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.materials,
-  v.amount, v.discount_percent, v.master_payout_percent,
+  v.amount, v.discount_percent, v.master_payout_percent, v.payment_method,
   ROUND(v.amount * v.discount_percent / 100, 2) AS discount_amount,
   ROUND(v.amount - (v.amount * v.discount_percent / 100), 2) AS final_amount,
   ROUND(v.amount * v.master_payout_percent / 100, 2) AS master_earnings,
@@ -203,11 +205,15 @@ router.post(
       photoBeforeUrl2,
       photoAfterUrl2,
       masterMembershipId,
+      paymentMethod,
       supplies,
     } = req.body;
 
     if (!clientId || !service || amount === undefined || amount === null) {
       return res.status(400).json({ error: 'Укажите клиента, услугу и сумму визита' });
+    }
+    if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Некорректный способ оплаты' });
     }
 
     const client = await pool.query('SELECT 1 FROM clients WHERE id = $1 AND company_id = $2', [
@@ -240,8 +246,8 @@ router.post(
         `INSERT INTO visits (
            company_id, branch_id, client_id, master_membership_id, service, materials,
            amount, discount_percent, master_payout_percent, photo_before_url, photo_after_url,
-           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, now()), $15)
+           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, now()), $15, $16)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -259,6 +265,7 @@ router.post(
           bareFileUrl(photoAfterUrl2) || null,
           visitAt || null,
           req.user.id,
+          paymentMethod || null,
         ]
       );
       visitId = insert.rows[0].id;
@@ -327,8 +334,12 @@ router.patch(
 
     const {
       clientId, service, materials, amount, discountPercent, visitAt, branchId,
-      photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, supplies,
+      photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, paymentMethod, supplies,
     } = req.body;
+
+    if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Некорректный способ оплаты' });
+    }
 
     let masterMembershipToSet = current.master_membership_id;
     let payoutPercentToSet = current.master_payout_percent;
@@ -372,7 +383,8 @@ router.patch(
            photo_after_url_2 = COALESCE($10, photo_after_url_2),
            visit_at = COALESCE($11, visit_at),
            master_membership_id = $12,
-           master_payout_percent = $13
+           master_payout_percent = $13,
+           payment_method = COALESCE($15, payment_method)
          WHERE id = $14`,
         [
           clientId || null,
@@ -389,6 +401,7 @@ router.patch(
           masterMembershipToSet,
           payoutPercentToSet,
           req.params.id,
+          paymentMethod || null,
         ]
       );
 

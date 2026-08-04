@@ -10,6 +10,8 @@ const EMPTY_RECURRING_FORM = { name: '', kind: 'fixed', amount: '' };
 const EMPTY_ADJUSTMENT_FORM = { masterMembershipId: '', amount: '', comment: '', occurredAt: '' };
 const EMPTY_REVENUE_FORM = { amount: '', membershipId: '', comment: '', occurredAt: '' };
 
+const PAYMENT_METHOD_LABELS = { cash: 'Наличные', card: 'Карта', transfer: 'Перевод', other: 'Другое', unspecified: 'Не указан' };
+
 function money(v) {
   return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
 }
@@ -427,6 +429,19 @@ function OverviewTab({
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(summary.revenue)}</span>
         </div>
       </Card>
+
+      {summary.byPaymentMethod && (
+        <Card>
+          <ST>Выручка по способу оплаты (визиты)</ST>
+          {summary.byPaymentMethod.map((row) => (
+            <div key={row.method} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>{PAYMENT_METHOD_LABELS[row.method] || row.method} <span style={{ color: C.subtle }}>· {row.visitsCount}</span></span>
+              <span style={{ fontWeight: 700 }}>{money(row.revenue)}</span>
+            </div>
+          ))}
+          {summary.byPaymentMethod.length === 0 && <div style={{ fontSize: 13, color: C.subtle }}>Визитов за период нет</div>}
+        </Card>
+      )}
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

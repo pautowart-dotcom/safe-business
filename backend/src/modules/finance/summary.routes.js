@@ -163,6 +163,28 @@ router.get(
     };
     if (req.tenant.role === 'owner') {
       summary.netProfit = round2(netProfit);
+
+      // Разбивка выручки по способу оплаты визита (План 04.08.2026, п.3) —
+      // владелец видит, кто вводит поле (мастер/админ при самом визите) не
+      // ограничено, но сводку по способам оплаты за период показываем
+      // только ему: это раскрывает реальную выручку студии включая
+      // наличные, не видные налоговой — не менее чувствительно, чем данные
+      // аудита безопасности (см. комментарий в security.routes.js §8
+      // политики), поэтому та же owner-only граница.
+      const byPaymentMethodRes = await pool.query(
+        `SELECT COALESCE(payment_method, 'unspecified') AS method,
+                COUNT(*) AS visits_count,
+                COALESCE(SUM(amount - (amount * discount_percent / 100)), 0) AS revenue
+         FROM visits
+         WHERE company_id = $1 AND visit_at::date BETWEEN $2 AND $3
+         GROUP BY method`,
+        [companyId, from, to]
+      );
+      summary.byPaymentMethod = byPaymentMethodRes.rows.map((r) => ({
+        method: r.method,
+        visitsCount: Number(r.visits_count),
+        revenue: round2(parseFloat(r.revenue)),
+      }));
     }
     res.json(summary);
   })
