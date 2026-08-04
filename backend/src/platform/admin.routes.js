@@ -5,6 +5,7 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireSuperAdmin } = require('../core/middleware/role');
+const securityRepository = require('../modules/security/content/repository');
 
 const router = express.Router();
 
@@ -270,6 +271,90 @@ router.get(
        ORDER BY sr.created_at DESC LIMIT 100`
     );
     res.json(rows);
+  })
+);
+
+// Внутренняя бизнес-аналитика (План 04.08.2026, п.2А) — операторские данные
+// самого сервиса (не данные клиентов студий), поэтому без ограничений
+// анонимности §10 политики. Три блока, которых не было в /metrics:
+// удержание по когортам регистрации, кто из платящих компаний "затих", и
+// какие пункты чек-листа безопасности проваливаются чаще всего — В ЦЕЛОМ
+// ПО БАЗЕ, без имени компании рядом (граница из плана, п.2А vs "красная
+// линия" — данные аудита конкретной компании сюда не попадают, только
+// агрегированный счётчик по коду нарушения).
+router.get(
+  '/analytics',
+  asyncHandler(async (req, res) => {
+    const [cohorts, inactive, violationCounts] = await Promise.all([
+      // Когорты по месяцу регистрации (последние 6) — доля компаний в
+      // каждом статусе сейчас. cancelled/трудности видно по когортам
+      // старше пары месяцев, где триал уже точно закончился у всех.
+      pool.query(
+        `SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS cohort,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE subscription_status = 'active') AS active,
+                COUNT(*) FILTER (WHERE subscription_status = 'past_due') AS past_due,
+                COUNT(*) FILTER (WHERE subscription_status = 'cancelled') AS cancelled,
+                COUNT(*) FILTER (WHERE subscription_status = 'trial') AS trial
+         FROM companies
+         WHERE created_at > now() - interval '6 months'
+         GROUP BY 1 ORDER BY 1`
+      ),
+      // Платящие компании без единого события за 14+ дней (или вообще без
+      // событий) — практический список "кому написать", не наказание,
+      // просто сигнал что человек мог забросить продукт.
+      pool.query(
+        `SELECT c.id, c.name, c.subscription_status, MAX(e.created_at) AS last_event_at
+         FROM companies c
+         LEFT JOIN event_log e ON e.company_id = c.id
+         WHERE c.subscription_status IN ('active', 'past_due')
+         GROUP BY c.id, c.name, c.subscription_status
+         HAVING MAX(e.created_at) IS NULL OR MAX(e.created_at) < now() - interval '14 days'
+         ORDER BY last_event_at ASC NULLS FIRST`
+      ),
+      // Счётчик по коду нарушения без company_id в выборке вообще —
+      // UNIQUE(company_id, violation_code) на таблице означает COUNT(*)
+      // здесь равен числу РАЗНЫХ компаний с этим нарушением, не событий.
+      pool.query(
+        `SELECT violation_code, COUNT(*) AS n FROM security_violations GROUP BY violation_code ORDER BY n DESC LIMIT 15`
+      ),
+    ]);
+
+    // Код нарушения однозначно принадлежит одной нише (префикс MN-/LB-/HR-/MS-,
+    // см. content/violations/*.js) — ищем деталь по всем 4 нишам с готовым
+    // контентом, без обращения к профилю/сессиям конкретной компании.
+    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage'];
+    const matricesByNiche = {};
+    for (const niche of NICHES_WITH_CONTENT) {
+      matricesByNiche[niche] = await securityRepository.getViolationMatrix(niche);
+    }
+    const topViolations = violationCounts.rows
+      .map((row) => {
+        for (const niche of NICHES_WITH_CONTENT) {
+          const details = matricesByNiche[niche]?.find((v) => v.code === row.violation_code);
+          if (details) return { code: row.violation_code, niche, title: details.title, risk: details.risk, companiesCount: Number(row.n) };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    res.json({
+      cohorts: cohorts.rows.map((r) => ({
+        cohort: r.cohort,
+        total: Number(r.total),
+        active: Number(r.active),
+        pastDue: Number(r.past_due),
+        cancelled: Number(r.cancelled),
+        trial: Number(r.trial),
+      })),
+      inactivePayingCompanies: inactive.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        subscriptionStatus: r.subscription_status,
+        lastEventAt: r.last_event_at,
+      })),
+      topViolations,
+    });
   })
 );
 

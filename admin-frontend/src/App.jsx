@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Overview from './pages/Overview.jsx';
+import Analytics from './pages/Analytics.jsx';
 import Companies from './pages/Companies.jsx';
 import Support from './pages/Support.jsx';
 import ClientErrors from './pages/ClientErrors.jsx';
@@ -29,6 +30,7 @@ export default function App() {
         }
       >
         <Route index element={<Overview />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="companies" element={<Companies />} />
         <Route path="support" element={<Support />} />
         <Route path="client-errors" element={<ClientErrors />} />
