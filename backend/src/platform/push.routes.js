@@ -59,7 +59,7 @@ router.post(
     const category = ['staff', 'premises', 'documents', 'tax', 'journals', 'financial'].includes(req.body.category)
       ? req.body.category
       : 'documents';
-    await sendPushToCompany({
+    const result = await sendPushToCompany({
       companyId: req.tenant.companyId,
       category,
       title: 'Тестовое уведомление',
@@ -67,7 +67,20 @@ router.post(
       url: '/settings',
       onlyMembershipId: req.tenant.membershipId,
     });
-    res.json({ ok: true });
+
+    if (result.subscriptions === 0) {
+      return res.status(400).json({ error: 'Нет активной подписки на этом устройстве — включите уведомления заново' });
+    }
+    if (result.sent === 0) {
+      // Самая частая причина — устройство подписано на старые VAPID-ключи
+      // (например ключи сервера пересоздали) — служба push отвечает
+      // ошибкой, но не 404/410, поэтому подписка не чистится сама.
+      const detail = result.errors[0]?.message || result.errors[0]?.statusCode || 'неизвестная ошибка';
+      return res.status(502).json({
+        error: `Push не дошёл (${detail}) — попробуйте отключить и снова включить уведомления в Настройках, чтобы обновить подписку`,
+      });
+    }
+    res.json({ ok: true, sent: result.sent, failed: result.failed });
   })
 );
 

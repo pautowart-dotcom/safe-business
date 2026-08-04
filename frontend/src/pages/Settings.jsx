@@ -259,9 +259,9 @@ export default function Settings() {
         )}
         {(pushState === 'subscribed' || pushState === 'unsubscribed') && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: pushState === 'subscribed' ? 12 : 0 }}>
-              <span style={{ fontSize: 14 }}>{pushState === 'subscribed' ? 'Уведомления включены на этом устройстве' : 'Уведомления выключены на этом устройстве'}</span>
-              <Btn small variant={pushState === 'subscribed' ? 'secondary' : 'primary'} disabled={pushBusy} onClick={togglePush}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: pushState === 'subscribed' ? 12 : 0 }}>
+              <span style={{ fontSize: 14, flex: 1, minWidth: 0 }}>{pushState === 'subscribed' ? 'Уведомления включены на этом устройстве' : 'Уведомления выключены на этом устройстве'}</span>
+              <Btn small variant={pushState === 'subscribed' ? 'secondary' : 'primary'} disabled={pushBusy} onClick={togglePush} style={{ flexShrink: 0 }}>
                 {pushState === 'subscribed' ? 'Отключить' : 'Включить'}
               </Btn>
             </div>
