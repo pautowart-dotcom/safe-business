@@ -55,16 +55,27 @@ function CohortBar({ cohort }) {
   );
 }
 
+const MODULE_LABELS = { visits: 'Визиты', clients: 'Клиенты', finance: 'Финансы', security: 'Безопасность', journals: 'Журналы' };
+
 export default function Analytics() {
   const [data, setData] = useState(null);
+  const [sellable, setSellable] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/platform/admin/analytics').then((res) => setData(res.data)).catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
+    Promise.all([
+      api.get('/platform/admin/analytics'),
+      api.get('/platform/admin/sellable-stats'),
+    ])
+      .then(([analyticsRes, sellableRes]) => {
+        setData(analyticsRes.data);
+        setSellable(sellableRes.data);
+      })
+      .catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
   }, []);
 
   if (error) return <div className="alert alert-error">{error}</div>;
-  if (!data) return <div className="page-loading">Загрузка...</div>;
+  if (!data || !sellable) return <div className="page-loading">Загрузка...</div>;
 
   return (
     <div>
@@ -129,6 +140,37 @@ export default function Analytics() {
           ))
         )}
       </Card>
+
+      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 28, marginBottom: 4 }}>Продаваемая агрегированная статистика</div>
+      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
+        Только компании, чей владелец дал согласие на аналитику. Ниша целиком скрыта, если давших согласие компаний меньше {sellable.anonymityThreshold} — данные аудита безопасности сюда осознанно не включены (решение после юридического ревью §8 vs §10 политики).
+      </div>
+      {sellable.niches.length === 0 ? (
+        <Card><div style={{ fontSize: 13, color: C.subtle }}>Пока ни по одной нише нет {sellable.anonymityThreshold}+ компаний с согласием на аналитику</div></Card>
+      ) : (
+        sellable.niches.map((n) => (
+          <Card key={n.niche}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <ST>{NICHE_LABELS[n.niche] || n.niche}</ST>
+              <span style={{ fontSize: 11, color: C.subtle }}>{n.eligibleCompanies} компаний с согласием</span>
+            </div>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+              {[['active', 'Оплачено'], ['pastDue', 'Просрочено'], ['trial', 'Пробный период'], ['cancelled', 'Отменено']].map(([key, label]) => (
+                <div key={key}>
+                  <div style={{ fontSize: 16, fontWeight: 800 }}>{n.statusBreakdownPercent[key]}%</div>
+                  <div style={{ fontSize: 11, color: C.subtle }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Используют модуль</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {Object.entries(n.moduleAdoptionPercent).map(([key, pct]) => (
+                <Badge key={key} color={C.secondary} bg={C.surface}>{MODULE_LABELS[key] || key}: {pct}%</Badge>
+              ))}
+            </div>
+          </Card>
+        ))
+      )}
     </div>
   );
 }

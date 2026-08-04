@@ -358,4 +358,81 @@ router.get(
   })
 );
 
+// Продаваемая агрегированная статистика (План 04.08.2026, п.2Б) — НАМЕРЕННО
+// не включает данные аудита безопасности (нарушения/индекс). Разбирали это
+// с legal-reviewer отдельно: §8.3 политики — закрытый список исключений
+// («не передаётся третьим лицам, за исключением раздела 9 либо отдельного
+// согласия владельца») без ссылки на §10, и общий чекбокс analytics_consent
+// не является тем "отдельным согласием" под конкретно эту категорию,
+// которого требует §8.3 (152-ФЗ ст.9 — согласие должно быть информированным
+// именно под цель обработки). Решение владельца по итогам ревью — эту
+// категорию не агрегировать вообще, ни для внутреннего, ни тем более для
+// продаваемого среза. Сюда попадают только операторские метрики (статус
+// подписки, состав включённых модулей) по компаниям, чей ВЛАДЕЛЕЦ дал
+// analytics_consent (§10.3 — согласие индивидуальное; здесь агрегация на
+// уровне компании, поэтому берём согласие владельца как решение всей
+// компании — весь модуль подписки/модулей управляется только им).
+//
+// Порог анонимности N=10 защищает не только числитель (сколько компаний с
+// каким статусом), но и ЗНАМЕНАТЕЛЬ — ниша с суммарно <10 давших согласие
+// компаний не попадает в выдачу целиком, а не просто прячет отдельные
+// цифры, иначе маленькую нишу можно вычислить по остатку.
+const SELLABLE_STATS_ANONYMITY_THRESHOLD = 10;
+
+router.get(
+  '/sellable-stats',
+  asyncHandler(async (req, res) => {
+    const eligibleRes = await pool.query(
+      `SELECT spn.niche, c.id AS company_id, c.subscription_status
+       FROM security_profile_niches spn
+       JOIN companies c ON c.id = spn.company_id
+       JOIN memberships m ON m.company_id = c.id AND m.role = 'owner'
+       JOIN users u ON u.id = m.user_id
+       WHERE u.analytics_consent = true`
+    );
+
+    const rowsByNiche = {};
+    for (const row of eligibleRes.rows) {
+      (rowsByNiche[row.niche] ||= []).push(row);
+    }
+
+    const stats = [];
+    const companyIdsByNiche = {};
+    for (const [niche, rows] of Object.entries(rowsByNiche)) {
+      if (rows.length < SELLABLE_STATS_ANONYMITY_THRESHOLD) continue;
+      companyIdsByNiche[niche] = rows.map((r) => r.company_id);
+
+      const counts = { trial: 0, active: 0, past_due: 0, cancelled: 0 };
+      for (const r of rows) counts[r.subscription_status] = (counts[r.subscription_status] || 0) + 1;
+      const total = rows.length;
+      const pct = (n) => Math.round((n / total) * 1000) / 10;
+
+      stats.push({
+        niche,
+        eligibleCompanies: total,
+        statusBreakdownPercent: {
+          trial: pct(counts.trial),
+          active: pct(counts.active),
+          pastDue: pct(counts.past_due),
+          cancelled: pct(counts.cancelled),
+        },
+      });
+    }
+
+    for (const stat of stats) {
+      const companyIds = companyIdsByNiche[stat.niche];
+      const modulesRes = await pool.query(
+        `SELECT module_key, COUNT(*) FILTER (WHERE enabled) AS enabled_count
+         FROM company_modules WHERE company_id = ANY($1) GROUP BY module_key`,
+        [companyIds]
+      );
+      stat.moduleAdoptionPercent = Object.fromEntries(
+        modulesRes.rows.map((r) => [r.module_key, Math.round((Number(r.enabled_count) / companyIds.length) * 1000) / 10])
+      );
+    }
+
+    res.json({ anonymityThreshold: SELLABLE_STATS_ANONYMITY_THRESHOLD, niches: stats });
+  })
+);
+
 module.exports = router;
