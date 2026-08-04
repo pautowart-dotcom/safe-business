@@ -20,9 +20,11 @@ const WORK_MODEL_OPTIONS = [
 
 // Дублирует backend/src/modules/security/content/segments.js для отображения —
 // правила видимости и заглушек считает сервер (см. POST /profile, /sessions).
+// multiNiche — единственный сегмент, где выбор нескольких ниш разрешён
+// (задача про мультивыбор в "Красота и здоровье"), см. segments.js.
 const SEGMENTS = [
   {
-    key: 'beauty', label: 'Красота и здоровье',
+    key: 'beauty', label: 'Красота и здоровье', multiNiche: true,
     niches: [
       { key: 'manicure', label: 'Маникюр и педикюр' },
       { key: 'lashes_brows', label: 'Ресницы и брови' },
@@ -42,6 +44,10 @@ const SEGMENTS = [
   { key: 'food', label: 'Общепит', niches: [] },
   { key: 'other', label: 'Другое', niches: [] },
 ];
+
+function nicheLabel(key) {
+  return SEGMENTS.flatMap((s) => s.niches).find((n) => n.key === key)?.label || key;
+}
 
 const DOCUMENT_CATEGORIES = [
   'Регистрационные документы', 'Документы по работе с клиентами', 'Санитарная документация',
@@ -95,7 +101,7 @@ export default function Security() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState(null);
-  const [sessions, setSessions] = useState([]);
+  const [status, setStatus] = useState(null);
   const [violations, setViolations] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [documentSections, setDocumentSections] = useState([]);
@@ -110,14 +116,14 @@ export default function Security() {
   const [topTab, setTopTab] = useState('test');
 
   async function loadDashboardData() {
-    const [sessionsRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
-      api.get('/modules/security/sessions'),
+    const [statusRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
+      api.get('/modules/security/status'),
       api.get('/modules/security/violations'),
       api.get('/modules/security/documents'),
       api.get('/modules/security/documents/sections'),
       api.get('/modules/security/products'),
     ]);
-    setSessions(sessionsRes.data);
+    setStatus(statusRes.data);
     setViolations(violationsRes.data);
     setDocuments(documentsRes.data);
     setDocumentSections(sectionsRes.data);
@@ -143,12 +149,30 @@ export default function Security() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function startAudit() {
+  // opts: {} — продолжить с непройденных ниш (или начать с первой, если ещё
+  // ничего не пройдено); { retakeAll: true } — пройти заново все выбранные
+  // ниши. plan в ответе — весь список ниш этого захода целиком (сервер
+  // считает его один раз здесь), дальше фронт сам идёт по нему без повторных
+  // запросов "что дальше" — см. submitAnswer.
+  async function startAudit(opts = {}) {
     setError('');
     try {
-      const { data } = await api.post('/modules/security/sessions', {});
-      setActiveAudit({ session: data.session, questions: data.questions, index: 0, answers: {} });
+      const { data } = await api.post('/modules/security/sessions', opts);
+      setActiveAudit({
+        session: data.session,
+        questions: data.questions,
+        index: 0,
+        answers: {},
+        plan: data.plan,
+        planIndex: 0,
+        nicheLabel: data.nicheLabel,
+      });
     } catch (err) {
+      if (err.response?.status === 403 && err.response?.data?.waitlisted) {
+        setError(err.response.data.error);
+        await loadDashboardData();
+        return;
+      }
       setError(err.response?.data?.error || 'Не удалось начать аудит');
     }
   }
@@ -160,13 +184,33 @@ export default function Security() {
       const nextAnswers = { ...activeAudit.answers, [question.code]: answerIndex };
       if (activeAudit.index + 1 < activeAudit.questions.length) {
         setActiveAudit({ ...activeAudit, index: activeAudit.index + 1, answers: nextAnswers });
-      } else {
-        await api.post(`/modules/security/sessions/${activeAudit.session.id}/complete`);
-        const resultRes = await api.get(`/modules/security/sessions/${activeAudit.session.id}/result`);
-        setAuditResult(resultRes.data);
-        setActiveAudit(null);
-        await loadDashboardData();
+        return;
       }
+
+      await api.post(`/modules/security/sessions/${activeAudit.session.id}/complete`);
+
+      // Ниша пройдена — если в плане этого захода есть ещё ниши, сразу
+      // (без промежуточного экрана) переходим к следующей.
+      const { plan, planIndex } = activeAudit;
+      const nextIndex = planIndex + 1;
+      if (plan && nextIndex < plan.length) {
+        const { data } = await api.post('/modules/security/sessions', { niche: plan[nextIndex] });
+        setActiveAudit({
+          session: data.session,
+          questions: data.questions,
+          index: 0,
+          answers: {},
+          plan,
+          planIndex: nextIndex,
+          nicheLabel: data.nicheLabel,
+        });
+        return;
+      }
+
+      const resultRes = await api.get(`/modules/security/sessions/${activeAudit.session.id}/result`);
+      setAuditResult(resultRes.data);
+      setActiveAudit(null);
+      await loadDashboardData();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить ответ');
     }
@@ -179,18 +223,10 @@ export default function Security() {
   async function resolveViolation(id) {
     const { data } = await api.patch(`/modules/security/violations/${id}/resolve`);
     setViolations(violations.map((v) => (v.id === id ? { ...v, status: 'resolved' } : v)));
-    // Баг №6: бэкенд пересчитывает индекс последней завершённой сессии тем же
-    // способом, каким его посчитал сам тест (вопросы с устранёнными
-    // нарушениями засчитываются на полный балл) — обновляем ту же запись в
-    // sessions локально, без перезагрузки всей страницы.
+    // Индекс/зона теперь всегда объединённые по всем актуальным нишам
+    // (status.js на бэкенде) — просто обновляем ту же строку локально.
     if (data?.indexPercent !== undefined) {
-      setSessions((prev) => {
-        const idx = prev.findIndex((s) => s.status === 'completed');
-        if (idx === -1) return prev;
-        const next = [...prev];
-        next[idx] = { ...next[idx], index_percent: data.indexPercent, zone: data.zone };
-        return next;
-      });
+      setStatus((prev) => (prev ? { ...prev, indexPercent: data.indexPercent, zone: data.zone } : prev));
     }
   }
 
@@ -252,7 +288,7 @@ export default function Security() {
       ) : (
         <SecurityDashboard
           profile={profile}
-          sessions={sessions}
+          status={status}
           violations={violations}
           documents={documents}
           documentSections={documentSections}
@@ -274,20 +310,57 @@ export default function Security() {
 
 // ---------- Сегментация ----------
 
+function Chips({ options, value, onChange, labelKey = 'label', valueKey = 'value', multiple = false }) {
+  function isSelected(o) {
+    return multiple ? (value || []).includes(o[valueKey]) : value === o[valueKey];
+  }
+  function handleClick(o) {
+    if (!multiple) {
+      onChange(o[valueKey]);
+      return;
+    }
+    const current = value || [];
+    onChange(current.includes(o[valueKey]) ? current.filter((v) => v !== o[valueKey]) : [...current, o[valueKey]]);
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 4 }}>
+      {options.map((o) => {
+        const selected = isSelected(o);
+        return (
+          <button
+            key={o[valueKey]}
+            type="button"
+            onClick={() => handleClick(o)}
+            style={{
+              padding: '11px', borderRadius: 10, border: `1.5px solid ${selected ? C.primary : C.border}`,
+              background: selected ? C.primary : C.bg, color: selected ? '#FFF' : C.primary,
+              fontWeight: selected ? 700 : 500, cursor: 'pointer', fontSize: 13,
+            }}
+          >
+            {o[labelKey]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SegmentationForm({ initial, onSaved, onCancel }) {
   const [legalForm, setLegalForm] = useState(initial?.legalForm || '');
   const [workModel, setWorkModel] = useState(initial?.workModel || '');
   const [segment, setSegment] = useState(initial?.segment || '');
-  const [niche, setNiche] = useState(initial?.niche || '');
+  const [niches, setNiches] = useState(initial?.niches || []);
   const [stubMessage, setStubMessage] = useState('');
   const [error, setError] = useState('');
 
   const segmentContent = SEGMENTS.find((s) => s.key === segment);
+  const multiNiche = !!segmentContent?.multiNiche;
 
   async function submit() {
     setError('');
     try {
-      const { data } = await api.post('/modules/security/profile', { legalForm, workModel, segment, niche: niche || null });
+      const { data } = await api.post('/modules/security/profile', { legalForm, workModel, segment, niches });
       if (data.stub) setStubMessage(data.message);
       else onSaved(false);
     } catch (err) {
@@ -305,30 +378,6 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
     );
   }
 
-  function Chips({ options, value, onChange, labelKey = 'label', valueKey = 'value' }) {
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 4 }}>
-        {options.map((o) => {
-          const selected = value === o[valueKey];
-          return (
-            <button
-              key={o[valueKey]}
-              type="button"
-              onClick={() => onChange(o[valueKey])}
-              style={{
-                padding: '11px', borderRadius: 10, border: `1.5px solid ${selected ? C.primary : C.border}`,
-                background: selected ? C.primary : C.bg, color: selected ? '#FFF' : C.primary,
-                fontWeight: selected ? 700 : 500, cursor: 'pointer', fontSize: 13,
-              }}
-            >
-              {o[labelKey]}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
     <div>
       {onCancel && <BackBtn onClick={onCancel} />}
@@ -342,17 +391,23 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
         <Chips options={WORK_MODEL_OPTIONS} value={workModel} onChange={setWorkModel} />
       </Field>
       <Field label="Сфера деятельности">
-        <Chips options={SEGMENTS} value={segment} onChange={(v) => { setSegment(v); setNiche(''); }} valueKey="key" />
+        <Chips options={SEGMENTS} value={segment} onChange={(v) => { setSegment(v); setNiches([]); }} valueKey="key" />
       </Field>
       {segmentContent && segmentContent.niches.length > 0 && (
-        <Field label="Ниша">
-          <Chips options={segmentContent.niches} value={niche} onChange={setNiche} valueKey="key" />
+        <Field label={multiNiche ? 'Ниши (можно выбрать несколько)' : 'Ниша'}>
+          <Chips
+            options={segmentContent.niches}
+            value={multiNiche ? niches : (niches[0] || '')}
+            onChange={(v) => setNiches(multiNiche ? v : [v])}
+            valueKey="key"
+            multiple={multiNiche}
+          />
         </Field>
       )}
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      <Btn onClick={submit} disabled={!legalForm || !workModel || !segment || (segmentContent?.niches.length > 0 && !niche)}>
+      <Btn onClick={submit} disabled={!legalForm || !workModel || !segment || (segmentContent?.niches.length > 0 && niches.length === 0)}>
         Продолжить
       </Btn>
     </div>
@@ -362,7 +417,7 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
 // ---------- Опросник ----------
 
 function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) {
-  const { questions, index } = activeAudit;
+  const { questions, index, nicheLabel: currentNicheLabel, plan, planIndex } = activeAudit;
   const question = questions[index];
   const progress = Math.round(((index + 1) / questions.length) * 100);
 
@@ -379,6 +434,12 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) 
         <span style={{ fontSize: 13, color: C.subtle }}>Вопрос {index + 1} из {questions.length}</span>
         <button onClick={onCancel} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 13, cursor: 'pointer' }}>Прервать</button>
       </div>
+      {currentNicheLabel && (
+        <div style={{ fontSize: 12, color: C.primary, fontWeight: 700, marginBottom: 8 }}>
+          {currentNicheLabel}
+          {plan && plan.length > 1 ? ` · ниша ${planIndex + 1} из ${plan.length}` : ''}
+        </div>
+      )}
       <div style={{ height: 6, background: C.border, borderRadius: 999, overflow: 'hidden', marginBottom: 24 }}>
         <div style={{ height: '100%', width: `${progress}%`, background: C.primary, transition: 'width 0.2s' }} />
       </div>
@@ -417,13 +478,14 @@ function IndexHero({ percent, zone, subtitle, note }) {
 }
 
 function AuditResult({ result, onClose, onDownload }) {
-  const zone = result.session.zone;
+  const { status, warnings } = result;
+  const zone = status.zone;
   return (
     <div>
       <BackBtn onClick={onClose} label="К панели безопасности" />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Аудит завершён</div>
-      <IndexHero percent={result.session.index_percent} zone={zone} subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${result.violations.length}`} />
-      {result.warnings?.map((w, i) => (
+      <IndexHero percent={status.indexPercent} zone={zone} subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${status.violations.length}`} />
+      {warnings?.map((w, i) => (
         <div key={i} className="alert alert-error" style={{ marginBottom: 12 }}>{w}</div>
       ))}
       <Btn onClick={onDownload}>Скачать PDF-отчёт</Btn>
@@ -434,13 +496,13 @@ function AuditResult({ result, onClose, onDownload }) {
 // ---------- Главная панель ----------
 
 function SecurityDashboard({
-  profile, sessions, violations, documents, documentSections, products, isManagement, error,
+  profile, status, violations, documents, documentSections, products, isManagement, error,
   onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange, hideTitle,
 }) {
   const [tab, setTab] = useState('overview');
 
-  const lastCompleted = sessions.find((s) => s.status === 'completed');
-  const nicheLabel = SEGMENTS.flatMap((s) => s.niches).find((n) => n.key === profile.niche)?.label || profile.niche;
+  const nicheLabels = (profile.niches || []).map(nicheLabel);
+  const hasResult = status?.indexPercent != null;
   const openCount = violations.filter((v) => v.status === 'open').length;
   const doneCount = violations.filter((v) => v.status === 'resolved').length;
 
@@ -448,21 +510,25 @@ function SecurityDashboard({
     <div>
       {!hideTitle && <div style={{ fontSize: 20, fontWeight: 800 }}>Безопасность</div>}
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-        {nicheLabel} · {LEGAL_FORM_OPTIONS.find((o) => o.value === profile.legalForm)?.label}
+        {nicheLabels.join(', ') || '—'} · {LEGAL_FORM_OPTIONS.find((o) => o.value === profile.legalForm)?.label}
         {isManagement && <span onClick={onEditProfile} style={{ color: C.primary, fontWeight: 600, cursor: 'pointer', marginLeft: 8 }}>Изменить</span>}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {lastCompleted && (
+      {hasResult && (
         <IndexHero
-          percent={lastCompleted.index_percent}
-          zone={lastCompleted.zone}
-          subtitle={ZONE_LABELS[lastCompleted.zone]}
-          note="Обновляется по мере отметки нарушений устранёнными — не только в момент теста"
+          percent={status.indexPercent}
+          zone={status.zone}
+          subtitle={ZONE_LABELS[status.zone]}
+          note={
+            status.outstandingNiches?.length > 0
+              ? `Пока по ${status.testedNiches.length} из ${profile.niches.length} ниш — не пройдено: ${status.outstandingNiches.map(nicheLabel).join(', ')}`
+              : 'Обновляется по мере отметки нарушений устранёнными — не только в момент теста'
+          }
         />
       )}
-      {lastCompleted && violations.length > 0 && (
+      {hasResult && violations.length > 0 && (
         <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '0 4px' }}>
           {[[violations.length, 'Нарушений'], [doneCount, 'Устранено'], [openCount, 'Осталось']].map(([v, l]) => (
             <div key={l}><div style={{ fontSize: 18, fontWeight: 800 }}>{v}</div><div style={{ fontSize: 11, color: C.subtle }}>{l}</div></div>
@@ -483,7 +549,7 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab lastCompleted={lastCompleted} products={products} isManagement={isManagement} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
+        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} />}
@@ -491,24 +557,46 @@ function SecurityDashboard({
   );
 }
 
-function OverviewTab({ lastCompleted, products, isManagement, onStartAudit, onJoinWaitlist, onDownloadReport }) {
+function OverviewTab({ profile, status, products, isManagement, onStartAudit, onJoinWaitlist, onDownloadReport }) {
+  const hasResult = status?.indexPercent != null;
+  const outstanding = status?.outstandingNiches || [];
+
+  // Три состояния кнопки: ничего не пройдено ("Пройти тест безопасности"),
+  // есть непройденные ниши, например только что добавленная ("Пройти тест
+  // по новой нише" — идёт только по ним, без повтора уже пройденных), всё
+  // уже пройдено (явный повтор всех ниш по кнопке "Пройти заново").
+  let continueLabel = 'Пройти ещё раз';
+  let continueAction = () => onStartAudit();
+  if (hasResult && outstanding.length > 0) {
+    continueLabel = outstanding.length === 1
+      ? `Пройти тест по нише «${nicheLabel(outstanding[0])}»`
+      : 'Пройти тест по новым нишам';
+  } else if (hasResult) {
+    continueLabel = 'Пройти заново';
+    continueAction = () => onStartAudit({ retakeAll: true });
+  }
+
   return (
     <div>
       <Card>
         <ST>Тест безопасности</ST>
-        {lastCompleted ? (
+        {hasResult ? (
           <div>
-            <Badge color={ZONE_COLOR[lastCompleted.zone]} bg={ZONE_BG[lastCompleted.zone]}>{ZONE_LABELS[lastCompleted.zone]}</Badge>
-            <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {lastCompleted.index_percent}%</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {isManagement && <Btn small variant="secondary" onClick={onStartAudit}>Пройти ещё раз</Btn>}
-              {isManagement && <Btn small onClick={() => onDownloadReport(lastCompleted.id)}>Скачать PDF</Btn>}
+            <Badge color={ZONE_COLOR[status.zone]} bg={ZONE_BG[status.zone]}>{ZONE_LABELS[status.zone]}</Badge>
+            <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {status.indexPercent}%</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {isManagement && <Btn small variant="secondary" onClick={continueAction}>{continueLabel}</Btn>}
+              {isManagement && <Btn small onClick={() => onDownloadReport(status.anchorSessionId)}>Скачать PDF</Btn>}
             </div>
           </div>
         ) : products?.audit.available ? (
           <div>
-            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>34 вопроса, бесплатно. Полная карта нарушений, дорожная карта устранения и персональный PDF-отчёт.</div>
-            {isManagement && <Btn onClick={onStartAudit}>Пройти тест безопасности</Btn>}
+            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+              {profile.niches.length > 1
+                ? `34 вопроса на каждую из ${profile.niches.length} ниш, бесплатно. Полная карта нарушений, дорожная карта устранения и один общий PDF-отчёт.`
+                : '34 вопроса, бесплатно. Полная карта нарушений, дорожная карта устранения и персональный PDF-отчёт.'}
+            </div>
+            {isManagement && <Btn onClick={() => onStartAudit()}>Пройти тест безопасности</Btn>}
           </div>
         ) : (
           <div>

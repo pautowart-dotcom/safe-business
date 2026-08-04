@@ -110,15 +110,17 @@ function ManagementDashboard() {
           api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }),
           // Данные аудита безопасности видит только владелец (политика
           // конфиденциальности §8.4) — админу этот эндпоинт отвечает 403,
-          // поэтому не запрашиваем его вовсе, если isOwner=false.
-          isOwner ? api.get('/modules/security/sessions') : Promise.resolve({ data: [] }),
+          // поэтому не запрашиваем его вовсе, если isOwner=false. Объединённый
+          // индекс/зона по всем сейчас выбранным нишам — см. status.js на
+          // бэкенде (не одна "последняя завершённая сессия", как раньше).
+          isOwner ? api.get('/modules/security/status') : Promise.resolve({ data: null }),
           api.get('/platform/daily-tasks'),
           api.get('/platform/deadlines'),
         ]);
       })
-      .then(([fin, sessions, dailyTasks, deadlinesRes]) => {
+      .then(([fin, statusRes, dailyTasks, deadlinesRes]) => {
         setRevenue(fin.data.revenue);
-        setSecurity(sessions.data.find((s) => s.status === 'completed') || null);
+        setSecurity(statusRes.data?.indexPercent != null ? statusRes.data : null);
         setTasks(dailyTasks.data);
         setDeadlines(deadlinesRes.data);
       })
@@ -225,10 +227,10 @@ function ManagementDashboard() {
         <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>Безопасность</span>
-            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}>{security.index_percent}%</Badge>
+            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}>{security.indexPercent}%</Badge>
           </div>
           <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${security.index_percent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
+            <div style={{ height: '100%', width: `${security.indexPercent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
           </div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>{ZONE_LABEL[security.zone]} · Открыть →</div>
         </Card>

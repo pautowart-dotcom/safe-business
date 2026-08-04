@@ -4,8 +4,10 @@ const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
 const { requirePaidPlan } = require('../../core/middleware/subscription');
 const { logEvent } = require('../../core/eventLog');
-const { decrypt } = require('../../core/crypto');
 const repository = require('./content/repository');
+const { mergeDocumentSections, mergeAttentionZones } = require('./content/mergeSections');
+const { loadProfile } = require('./profile');
+const { computeSecurityStatus } = require('./status');
 const { buildReport } = require('./report/build');
 const { renderPdf } = require('./report/pdf');
 
@@ -16,39 +18,23 @@ const router = express.Router();
 // ось (подписка на платформу), не заменяет ролевую проверку.
 router.use(requireRole('owner'));
 
-async function loadProfile(companyId) {
-  const { rows } = await pool.query('SELECT * FROM security_profiles WHERE company_id = $1', [companyId]);
-  return rows[0]
-    ? { legalForm: rows[0].legal_form, workModel: rows[0].work_model, segment: rows[0].segment, niche: rows[0].niche }
-    : null;
-}
+// Отчёт всегда собирается по ТЕКУЩЕМУ состоянию (актуальные ниши профиля,
+// последняя завершённая сессия каждой) — не только по нише той сессии,
+// которую только что завершили. Если владелец, например, вчера добавил
+// нишу и прошёл только её тест сегодня, а маникюр проходил месяц назад,
+// отчёт всё равно объединяет обе — computeSecurityStatus.js уже считает
+// именно так.
+async function loadReportInputs(companyId, profile) {
+  const status = await computeSecurityStatus(companyId);
 
-// Собирает report/build.js входные данные для завершённой платной сессии:
-// нарушения, найденные в ЭТОЙ сессии (с их текущим статусом open/resolved —
-// он персистентен на компанию), и баллы по вопросам с привязкой к блоку.
-async function loadReportInputs(session, profile) {
-  const matrix = await repository.getViolationMatrix(session.niche);
-  const violationsRes = await pool.query(
-    `SELECT violation_code, status FROM security_violations
-     WHERE company_id = $1 AND (first_session_id = $2 OR last_confirmed_session_id = $2)`,
-    [session.company_id, session.id]
-  );
-  const violations = violationsRes.rows
-    .map((row) => {
-      const details = matrix.find((v) => v.code === row.violation_code);
-      return details ? { ...details, status: row.status } : null;
-    })
-    .filter(Boolean);
+  const sectionsPerNiche = await Promise.all(status.testedNiches.map((n) => repository.getMandatoryDocuments(n)));
+  const zonesPerNiche = await Promise.all(status.testedNiches.map((n) => repository.getAttentionZones(n)));
 
-  const questions = await repository.getPaidQuestions(session.niche);
-  const answersRes = await pool.query('SELECT question_code, points, points_enc FROM security_answers WHERE session_id = $1', [session.id]);
-  const answersWithBlocks = answersRes.rows.map((row) => ({
-    code: row.question_code,
-    points: row.points_enc ? Number(decrypt(row.points_enc)) : row.points,
-    block: questions.find((q) => q.code === row.question_code)?.block,
-  }));
-
-  return { violations, answersWithBlocks };
+  return {
+    status,
+    mandatoryDocuments: mergeDocumentSections(sectionsPerNiche.filter(Boolean)),
+    attentionZones: mergeAttentionZones(zonesPerNiche.filter(Boolean)),
+  };
 }
 
 router.post(
@@ -121,9 +107,11 @@ router.get(
   })
 );
 
-// PDF не хранится на диске — пересобирается из session+violations по
-// требованию (данные детерминированы, дешевле не держать файловое хранилище
-// для MVP). Если позже понадобится кэш/S3 — меняется только этот роут.
+// PDF не хранится на диске — пересобирается из текущего состояния по
+// требованию (данные детерминированы на момент скачивания — если владелец
+// с тех пор устранил нарушение или прошёл ещё одну нишу, PDF это учтёт,
+// хотя report_number/сама запись отчёта остаются привязаны к той сессии,
+// после которой их впервые запросили — см. POST /sessions/:id/report).
 //
 // Сам тест и результат (индекс, зона, карта нарушений) бесплатны всем —
 // paywall стоит только на этом роуте (скачивание файла), не на генерации
@@ -139,16 +127,20 @@ router.get(
     const reportRow = rows[0];
     if (!reportRow) return res.status(404).json({ error: 'Отчёт не найден' });
 
-    const sessionRes = await pool.query('SELECT * FROM security_sessions WHERE id = $1', [reportRow.session_id]);
-    const session = sessionRes.rows[0];
     const profile = await loadProfile(req.tenant.companyId);
+    const { status, mandatoryDocuments, attentionZones } = await loadReportInputs(req.tenant.companyId, profile);
 
-    const { violations, answersWithBlocks } = await loadReportInputs(session, profile);
     const report = await buildReport({
-      session,
+      niches: status.testedNiches,
       profile,
-      violations,
-      answersWithBlocks,
+      score: status.answersWithBlocks.reduce((sum, a) => sum + a.points, 0),
+      maxScore: status.answersWithBlocks.length,
+      indexPercent: status.indexPercent,
+      zone: status.zone,
+      violations: status.violations,
+      answersWithBlocks: status.answersWithBlocks,
+      mandatoryDocuments,
+      attentionZones,
       reportNumber: reportRow.report_number,
     });
 

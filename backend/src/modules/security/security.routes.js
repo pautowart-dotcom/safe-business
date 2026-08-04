@@ -8,8 +8,10 @@ const { encrypt, decrypt } = require('../../core/crypto');
 const { uploadDocument } = require('../../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl, bareFileUrl } = require('../../core/fileStorage');
 const repository = require('./content/repository');
-const { filterVisible } = require('./content/visibility');
+const { mergeDocumentSections } = require('./content/mergeSections');
 const scoring = require('./content/scoring');
+const { loadProfile } = require('./profile');
+const { computeSecurityStatus, visiblePaidQuestions } = require('./status');
 const { registerAction, clearAction } = require('../../core/deadlines');
 
 // Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
@@ -47,22 +49,6 @@ const router = express.Router();
 // owner+admin как большинство остальных разделов (Этап 5).
 router.use(requireRole('owner'));
 
-function toProfileShape(row) {
-  if (!row) return null;
-  return {
-    legalForm: row.legal_form,
-    workModel: row.work_model,
-    segment: row.segment,
-    niche: row.niche,
-    updatedAt: row.updated_at,
-  };
-}
-
-async function loadProfile(companyId) {
-  const { rows } = await pool.query('SELECT * FROM security_profiles WHERE company_id = $1', [companyId]);
-  return toProfileShape(rows[0]);
-}
-
 // Отдаём клиенту вопрос без баллов и служебных полей — это внутренняя логика сервера.
 function serializeQuestion(question) {
   return {
@@ -74,63 +60,6 @@ function serializeQuestion(question) {
   };
 }
 
-async function visiblePaidQuestions(profile) {
-  const all = await repository.getPaidQuestions(profile.niche);
-  if (!all) return null;
-  return filterVisible(all, { legalForm: profile.legalForm, workModel: profile.workModel });
-}
-
-// Баг №6 (по решению владельца, вариант 3): после отметки нарушения
-// устранённым индекс безопасности пересчитывается тем же способом, каким
-// был посчитан изначально (evaluateAnswer по ответам последней завершённой
-// сессии) — просто вопросы, чьё нарушение теперь resolved, засчитываются на
-// максимальный балл, как будто на них ответили без нарушения. Это не новая
-// придуманная формула, а та же scoring.js с одной подстановкой — поэтому
-// цифра не должна расходиться по смыслу с тем, что показывал сам тест.
-// Перезаписывает score/index_percent/zone у сессии (единственное число в
-// интерфейсе, второго "живого" процента рядом не появляется).
-async function recomputeLiveIndex(companyId) {
-  const sessionRes = await pool.query(
-    `SELECT id FROM security_sessions WHERE company_id = $1 AND status = 'completed' ORDER BY completed_at DESC LIMIT 1`,
-    [companyId]
-  );
-  const session = sessionRes.rows[0];
-  if (!session) return;
-
-  const profile = await loadProfile(companyId);
-  if (!profile || !profile.niche) return;
-  const questions = await visiblePaidQuestions(profile);
-  if (!questions) return;
-
-  const [answersRes, violationsRes] = await Promise.all([
-    pool.query(
-      `SELECT question_code, answer_index, answer_index_enc FROM security_answers WHERE session_id = $1`,
-      [session.id]
-    ),
-    pool.query(`SELECT violation_code FROM security_violations WHERE company_id = $1 AND status = 'resolved'`, [companyId]),
-  ]);
-  const resolvedCodes = new Set(violationsRes.rows.map((r) => r.violation_code));
-
-  let score = 0;
-  for (const question of questions) {
-    const answerRow = answersRes.rows.find((r) => r.question_code === question.code);
-    if (!answerRow) continue;
-    const answerIndex = answerRow.answer_index_enc ? Number(decrypt(answerRow.answer_index_enc)) : answerRow.answer_index;
-    const evaluated = scoring.evaluateAnswer(question, answerIndex);
-    const resolved = evaluated.createsViolation && resolvedCodes.has(evaluated.violationCode);
-    score += resolved ? 1 : evaluated.points;
-  }
-
-  const maxScore = questions.length;
-  const percent = scoring.indexPercent(score, maxScore);
-  const zone = scoring.zoneForPercent(percent).key;
-  await pool.query(
-    `UPDATE security_sessions SET score = $1, index_percent = $2, zone = $3 WHERE id = $4`,
-    [score, percent, zone, session.id]
-  );
-  return { indexPercent: percent, zone };
-}
-
 async function addWaitlistEntry({ companyId, segment, niche, productKey }) {
   await pool.query(
     `INSERT INTO security_waitlist (company_id, segment, niche, product_key)
@@ -140,7 +69,7 @@ async function addWaitlistEntry({ companyId, segment, niche, productKey }) {
   );
 }
 
-// ---------- Сегментация (Файл 01 §6, Файл 02) ----------
+// ---------- Сегментация (Файл 01 §6, Файл 02) — теперь niches: string[] ----------
 
 router.get(
   '/profile',
@@ -153,7 +82,7 @@ router.get(
 router.post(
   '/profile',
   asyncHandler(async (req, res) => {
-    const { legalForm, workModel, segment, niche } = req.body;
+    const { legalForm, workModel, segment, niches } = req.body;
     if (!legalForm || !workModel || !segment) {
       return res.status(400).json({ error: 'Заполните форму работы, модель и сферу деятельности' });
     }
@@ -164,34 +93,27 @@ router.post(
     }
 
     // Сегмент без шага выбора ниши (Розничная торговля / Общепит / Другое) —
-    // сразу лист ожидания, профиль сохраняется без ниши (Файл 02 §1).
+    // сразу лист ожидания, профиль сохраняется без ниш (Файл 02 §1).
     if (!segmentContent.hasNicheStep) {
-      await pool.query(
-        `INSERT INTO security_profiles (company_id, legal_form, work_model, segment, niche, updated_at)
-         VALUES ($1, $2, $3, $4, NULL, now())
-         ON CONFLICT (company_id) DO UPDATE SET
-           legal_form = EXCLUDED.legal_form, work_model = EXCLUDED.work_model,
-           segment = EXCLUDED.segment, niche = NULL, updated_at = now()`,
-        [req.tenant.companyId, legalForm, workModel, segment]
-      );
+      await upsertProfile({ companyId: req.tenant.companyId, legalForm, workModel, segment, niches: [] });
       await addWaitlistEntry({ companyId: req.tenant.companyId, segment, niche: null, productKey: 'segment_unsupported' });
       return res.json({ stub: true, message: 'Сейчас эта сфера деятельности ещё не поддерживается. Мы можем уведомить вас после запуска.' });
     }
 
-    const nicheContent = niche ? await repository.getNiche(segment, niche) : null;
-    if (!nicheContent) {
-      return res.status(400).json({ error: 'Выберите нишу из списка' });
+    const nicheList = [...new Set(Array.isArray(niches) ? niches.filter(Boolean) : [])];
+    if (nicheList.length === 0) {
+      return res.status(400).json({ error: 'Выберите хотя бы одну нишу из списка' });
+    }
+    if (!segmentContent.multiNiche && nicheList.length > 1) {
+      return res.status(400).json({ error: 'Для этой сферы деятельности можно выбрать только одну нишу' });
+    }
+    for (const n of nicheList) {
+      if (!(await repository.getNiche(segment, n))) {
+        return res.status(400).json({ error: 'Выберите нишу из списка' });
+      }
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO security_profiles (company_id, legal_form, work_model, segment, niche, updated_at)
-       VALUES ($1, $2, $3, $4, $5, now())
-       ON CONFLICT (company_id) DO UPDATE SET
-         legal_form = EXCLUDED.legal_form, work_model = EXCLUDED.work_model,
-         segment = EXCLUDED.segment, niche = EXCLUDED.niche, updated_at = now()
-       RETURNING *`,
-      [req.tenant.companyId, legalForm, workModel, segment, niche]
-    );
+    await upsertProfile({ companyId: req.tenant.companyId, legalForm, workModel, segment, niches: nicheList });
 
     await logEvent({
       companyId: req.tenant.companyId,
@@ -202,27 +124,68 @@ router.post(
     });
     await syncTestAction(req.tenant.companyId);
 
-    res.json({ stub: false, profile: toProfileShape(rows[0]) });
+    const profile = await loadProfile(req.tenant.companyId);
+    res.json({ stub: false, profile });
+  })
+);
+
+// Полная замена списка ниш в транзакции — так «изменить/дополнить нишу
+// позже» (задача про мультивыбор) не оставляет рассинхронизированных строк
+// между security_profiles и security_profile_niches. История сессий/
+// нарушений не затрагивается (обе таблицы ссылаются на company_id, не на
+// список ниш профиля) — убрать нишу из профиля не удаляет её прошлые данные.
+async function upsertProfile({ companyId, legalForm, workModel, segment, niches }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO security_profiles (company_id, legal_form, work_model, segment, updated_at)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (company_id) DO UPDATE SET
+         legal_form = EXCLUDED.legal_form, work_model = EXCLUDED.work_model,
+         segment = EXCLUDED.segment, updated_at = now()`,
+      [companyId, legalForm, workModel, segment]
+    );
+    await client.query('DELETE FROM security_profile_niches WHERE company_id = $1', [companyId]);
+    for (const niche of niches) {
+      await client.query('INSERT INTO security_profile_niches (company_id, niche) VALUES ($1, $2)', [companyId, niche]);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ---------- Текущее состояние (объединённый индекс/нарушения по актуальным нишам) ----------
+
+router.get(
+  '/status',
+  asyncHandler(async (req, res) => {
+    const status = await computeSecurityStatus(req.tenant.companyId);
+    res.json(status);
   })
 );
 
 // ---------- Каталог продуктов (Файл 05) ----------
-// Тест безопасности (34 вопроса, полный отчёт и PDF) бесплатен для всех —
-// монетизация на уровне подписки на платформу целиком, а не этого модуля.
-// available=false здесь означает только одно: контент для ниши ещё не готов
-// (например, не "маникюр") — это не платёжный барьер.
+// Тест безопасности (34 вопроса на нишу, полный отчёт и PDF) бесплатен для
+// всех — монетизация на уровне подписки на платформу целиком, а не этого
+// модуля. available=false здесь означает только одно: контент ни для одной
+// выбранной ниши ещё не готов — это не платёжный барьер.
 
 router.get(
   '/products',
   asyncHandler(async (req, res) => {
     const profile = await loadProfile(req.tenant.companyId);
-    if (!profile || !profile.niche) {
+    if (!profile || profile.niches.length === 0) {
       return res.status(400).json({ error: 'Сначала пройдите сегментацию' });
     }
-    const niche = await repository.getNiche(profile.segment, profile.niche);
+    const niches = await Promise.all(profile.niches.map((n) => repository.getNiche(profile.segment, n)));
 
     res.json({
-      audit: { available: !!niche?.paidAudit },
+      audit: { available: niches.some((n) => n?.paidAudit) },
       documentPackage: { available: false },
       subscriptionCalm: { available: false },
     });
@@ -240,7 +203,7 @@ router.post(
     await addWaitlistEntry({
       companyId: req.tenant.companyId,
       segment: profile?.segment || null,
-      niche: profile?.niche || null,
+      niche: profile?.niches?.[0] || null,
       productKey,
     });
     res.status(201).json({ ok: true });
@@ -248,36 +211,49 @@ router.post(
 );
 
 // ---------- Сессии аудита (Файл 03, 04, 06, 09) ----------
-
-router.get(
-  '/sessions',
-  asyncHandler(async (req, res) => {
-    const { rows } = await pool.query(
-      `SELECT id, type, niche, status, score, max_score, index_percent, zone, started_at, completed_at
-       FROM security_sessions WHERE company_id = $1 ORDER BY started_at DESC`,
-      [req.tenant.companyId]
-    );
-    res.json(rows);
-  })
-);
+//
+// Каждая сессия по-прежнему про ровно одну нишу (как до мультивыбора).
+// Несколько ниш проходятся как несколько последовательных сессий одного
+// "захода": первый POST /sessions без niche считает план (какие ниши ещё не
+// пройдены — или все нишы профиля при retakeAll/первом прохождении) и
+// возвращает его целиком фронту; дальше фронт сам идёт по этому плану,
+// передавая niche явно на каждый следующий шаг — сервер ничего не
+// пересчитывает "по ходу", чтобы не терять/не путать план при частичном
+// повторном прохождении.
 
 router.post(
   '/sessions',
   asyncHandler(async (req, res) => {
     const profile = await loadProfile(req.tenant.companyId);
-    if (!profile || !profile.niche) {
+    if (!profile || profile.niches.length === 0) {
       return res.status(400).json({ error: 'Сначала пройдите сегментацию' });
     }
-    const niche = await repository.getNiche(profile.segment, profile.niche);
 
-    if (!niche.paidAudit) {
-      await addWaitlistEntry({ companyId: req.tenant.companyId, segment: profile.segment, niche: profile.niche, productKey: 'paid_audit' });
+    let plan = null;
+    let targetNiche = req.body?.niche;
+    if (targetNiche) {
+      if (!profile.niches.includes(targetNiche)) {
+        return res.status(400).json({ error: 'Ниша не выбрана в профиле' });
+      }
+    } else {
+      if (req.body?.retakeAll) {
+        plan = profile.niches;
+      } else {
+        const status = await computeSecurityStatus(req.tenant.companyId);
+        plan = status.outstandingNiches.length > 0 ? status.outstandingNiches : profile.niches;
+      }
+      targetNiche = plan[0];
+    }
+
+    const nicheContent = await repository.getNiche(profile.segment, targetNiche);
+    if (!nicheContent?.paidAudit) {
+      await addWaitlistEntry({ companyId: req.tenant.companyId, segment: profile.segment, niche: targetNiche, productKey: 'paid_audit' });
       return res.status(403).json({
-        error: `Тест безопасности для ниши «${niche.label}» сейчас в разработке. Мы уведомим вас, как только он будет готов.`,
+        error: `Тест безопасности для ниши «${nicheContent?.label || targetNiche}» сейчас в разработке. Мы уведомим вас, как только он будет готов.`,
         waitlisted: true,
       });
     }
-    const questions = await visiblePaidQuestions(profile);
+    const questions = await visiblePaidQuestions(targetNiche, profile);
 
     // type исторически 'free'/'paid' (см. миграцию 0008) — тест теперь один
     // и всегда бесплатный, значение сохраняем как есть, чтобы не трогать схему
@@ -285,7 +261,7 @@ router.post(
     const { rows } = await pool.query(
       `INSERT INTO security_sessions (company_id, type, niche, total_questions)
        VALUES ($1, 'paid', $2, $3) RETURNING id, type, niche, status, total_questions, started_at`,
-      [req.tenant.companyId, profile.niche, questions.length]
+      [req.tenant.companyId, targetNiche, questions.length]
     );
 
     await logEvent({
@@ -297,7 +273,13 @@ router.post(
       action: 'security_session.started',
     });
 
-    res.status(201).json({ session: rows[0], questions: questions.map(serializeQuestion) });
+    res.status(201).json({
+      session: rows[0],
+      questions: questions.map(serializeQuestion),
+      niche: targetNiche,
+      nicheLabel: nicheContent.label,
+      plan,
+    });
   })
 );
 
@@ -318,7 +300,7 @@ router.post(
 
     const { questionCode, answerIndex } = req.body;
     const profile = await loadProfile(req.tenant.companyId);
-    const questions = await visiblePaidQuestions(profile);
+    const questions = await visiblePaidQuestions(session.niche, profile);
     const question = questions.find((q) => q.code === questionCode);
     if (!question) return res.status(400).json({ error: 'Вопрос не найден для этой сессии' });
 
@@ -348,7 +330,7 @@ router.post(
     if (session.status !== 'in_progress') return res.status(400).json({ error: 'Аудит уже завершён' });
 
     const profile = await loadProfile(req.tenant.companyId);
-    const questions = await visiblePaidQuestions(profile);
+    const questions = await visiblePaidQuestions(session.niche, profile);
 
     const answersRes = await pool.query('SELECT question_code, answer_index, answer_index_enc FROM security_answers WHERE session_id = $1', [session.id]);
     const answersByCode = {};
@@ -379,7 +361,7 @@ router.post(
          VALUES ($1, $2, $3, $4, $4)
          ON CONFLICT (company_id, violation_code) DO UPDATE SET last_confirmed_session_id = EXCLUDED.last_confirmed_session_id
          RETURNING *`,
-        [req.tenant.companyId, code, profile.niche, session.id]
+        [req.tenant.companyId, code, session.niche, session.id]
       );
       violationsPersisted.push(rows[0]);
     }
@@ -400,21 +382,28 @@ router.post(
 );
 
 router.get(
+  '/sessions',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT id, type, niche, status, score, max_score, index_percent, zone, started_at, completed_at
+       FROM security_sessions WHERE company_id = $1 ORDER BY started_at DESC`,
+      [req.tenant.companyId]
+    );
+    res.json(rows);
+  })
+);
+
+router.get(
   '/sessions/:id/result',
   asyncHandler(async (req, res) => {
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
     if (session.status !== 'completed') return res.status(400).json({ error: 'Аудит ещё не завершён' });
 
-    const matrix = await repository.getViolationMatrix(session.niche);
-    const violationsRes = await pool.query(
-      `SELECT violation_code, status FROM security_violations
-       WHERE company_id = $1 AND (first_session_id = $2 OR last_confirmed_session_id = $2)`,
-      [req.tenant.companyId, session.id]
-    );
-    const violations = violationsRes.rows
-      .map((row) => ({ ...matrix.find((v) => v.code === row.violation_code), status: row.status }))
-      .filter((v) => v.code);
+    // Результат — объединённый по всем сейчас выбранным нишам (не только по
+    // только что пройденной), см. status.js: пользователь мог до этого уже
+    // пройти другие ниши, а сейчас просто добавил ещё одну.
+    const status = await computeSecurityStatus(req.tenant.companyId);
 
     // Владелец подтвердил: тест не должен запрещать сочетание "самозанятый +
     // есть сотрудники" (можно привлекать подрядчиков по ГПХ), но по закону
@@ -428,7 +417,7 @@ router.get(
       );
     }
 
-    res.json({ session, violations: scoring.sortByRisk(violations), warnings });
+    res.json({ session, status, warnings });
   })
 );
 
@@ -452,26 +441,24 @@ router.post(
 );
 
 // ---------- Нарушения — персистентный список компании (Файл 10, 11) ----------
+// Не фильтруется по актуальным нишам профиля намеренно — уборка ниши из
+// профиля не должна прятать уже найденные (и тем более неустранённые)
+// нарушения по ней, история/ответственность владельца сохраняется.
 
 router.get(
   '/violations',
   asyncHandler(async (req, res) => {
-    const profile = await loadProfile(req.tenant.companyId);
-    if (!profile || !profile.niche) return res.json([]);
-
-    const matrix = await repository.getViolationMatrix(profile.niche);
-    if (!matrix) return res.json([]);
-
     const { rows } = await pool.query(
-      `SELECT id, violation_code, status, resolved_at FROM security_violations WHERE company_id = $1 ORDER BY created_at DESC`,
+      `SELECT id, violation_code, niche, status, resolved_at FROM security_violations WHERE company_id = $1 ORDER BY created_at DESC`,
       [req.tenant.companyId]
     );
-    const withDetails = rows
-      .map((row) => {
-        const details = matrix.find((v) => v.code === row.violation_code);
-        return details ? { id: row.id, status: row.status, resolvedAt: row.resolved_at, ...details } : null;
-      })
-      .filter(Boolean);
+    const matrixCache = {};
+    const withDetails = [];
+    for (const row of rows) {
+      if (!(row.niche in matrixCache)) matrixCache[row.niche] = await repository.getViolationMatrix(row.niche);
+      const details = matrixCache[row.niche]?.find((v) => v.code === row.violation_code);
+      if (details) withDetails.push({ id: row.id, status: row.status, resolvedAt: row.resolved_at, ...details });
+    }
 
     res.json(scoring.sortByRisk(withDetails));
   })
@@ -496,8 +483,8 @@ router.patch(
       action: 'security_violation.resolved',
     });
 
-    const recomputed = await recomputeLiveIndex(req.tenant.companyId);
-    res.json({ ...rows[0], ...recomputed });
+    const status = await computeSecurityStatus(req.tenant.companyId);
+    res.json({ ...rows[0], indexPercent: status.indexPercent, zone: status.zone });
   })
 );
 
@@ -517,14 +504,17 @@ router.get(
 // Разделы и ожидаемые документы в каждом — тот же список и порядок, что и
 // в mandatoryDocuments PDF-отчёта (report/build.js), чтобы вкладка "Документы"
 // была структурирована так же, как отчёт, а не произвольным плоским списком.
+// При нескольких нишах разделы объединяются по названию (mergeSections.js) —
+// справочник, не зависит от того, пройден ли уже тест по каждой нише.
 router.get(
   '/documents/sections',
   asyncHandler(async (req, res) => {
     const profile = await loadProfile(req.tenant.companyId);
-    if (!profile || !profile.niche) return res.json([]);
+    if (!profile || profile.niches.length === 0) return res.json([]);
 
     const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
-    const sections = (await repository.getMandatoryDocuments(profile.niche)) || [];
+    const sectionsPerNiche = await Promise.all(profile.niches.map((n) => repository.getMandatoryDocuments(n)));
+    const sections = mergeDocumentSections(sectionsPerNiche.filter(Boolean));
     res.json(
       sections
         .filter((s) => !s.employerOnly || hasEmployees)

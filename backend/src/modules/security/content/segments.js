@@ -13,6 +13,10 @@ const SEGMENTS = [
     key: 'beauty',
     label: 'Красота и здоровье',
     hasNicheStep: true,
+    // Единственный сегмент, где разрешён мульти-выбор ниш (все 4 ниши имеют
+    // готовый контент теста) — остальные сегменты сознательно остаются
+    // одно-нишевыми, см. задачу про мультивыбор в docs/security-engine.
+    multiNiche: true,
     niches: [
       { key: 'manicure', label: 'Маникюр и педикюр', paidAudit: true },
       { key: 'lashes_brows', label: 'Ресницы и брови', paidAudit: true },

@@ -57,37 +57,42 @@ function summaryByBlock(answersWithBlocks, hasEmployees) {
   });
 }
 
-// violations — уже: результат JOIN security_violations x матрица для данной
-// сессии (код, статус, все поля из Файла 10), не отсортирован.
-// answersWithBlocks — [{ code, block, points }] по вопросам этой сессии.
-async function buildReport({ session, profile, violations, answersWithBlocks, reportNumber }) {
+// violations — результат JOIN security_violations x матрица(ы) актуальных
+// ниш (код, статус, все поля из Файла 10), не отсортирован.
+// answersWithBlocks — [{ code, block, points }] по вопросам всех учтённых
+// сессий (по одной на нишу). mandatoryDocuments/attentionZones — уже
+// объединены по нескольким нишам (mergeSections.js), сюда приходят готовыми.
+// niches — массив ключей ниш, вошедших в отчёт (для заголовка).
+async function buildReport({ niches, profile, score, maxScore, indexPercent, zone, violations, answersWithBlocks, mandatoryDocuments, attentionZones, reportNumber }) {
   const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
   const sortedViolations = scoring.sortByRisk(violations);
 
   const roadmap = buildRoadmap(sortedViolations);
-  const forecast = buildForecast({ score: Number(session.score), maxScore: Number(session.max_score), roadmap });
-  const recommendations = buildRecommendations({ violations: sortedViolations, zone: session.zone, forecast });
+  const forecast = buildForecast({ score, maxScore, roadmap });
+  const recommendations = buildRecommendations({ violations: sortedViolations, zone, forecast });
 
-  const mandatoryDocuments = (await repository.getMandatoryDocuments(profile.niche) || [])
-    .filter((section) => !section.employerOnly || hasEmployees);
-  const attentionZones = (await repository.getAttentionZones(profile.niche)) || [];
+  const filteredMandatoryDocuments = (mandatoryDocuments || []).filter((section) => !section.employerOnly || hasEmployees);
 
   const criticalCount = sortedViolations.filter((v) => v.risk >= 9).length;
   const worstViolation = sortedViolations[0] || null;
-  const nicheContent = await repository.getNiche(profile.segment, profile.niche);
+  const nicheLabels = [];
+  for (const niche of niches) {
+    const nicheContent = await repository.getNiche(profile.segment, niche);
+    nicheLabels.push(nicheContent ? nicheContent.label : niche);
+  }
 
   return {
     titlePage: {
-      niche: nicheContent ? nicheContent.label : profile.niche,
+      niche: nicheLabels.length > 0 ? nicheLabels.join(' + ') : '—',
       legalForm: LEGAL_FORM_LABELS[profile.legalForm],
       generatedAt: new Date(),
       reportNumber,
-      zone: session.zone,
-      zoneLabel: ZONE_LABELS[session.zone],
+      zone,
+      zoneLabel: ZONE_LABELS[zone],
     },
     summary: {
-      indexPercent: Number(session.index_percent),
-      zoneLabel: ZONE_LABELS[session.zone],
+      indexPercent: Number(indexPercent),
+      zoneLabel: ZONE_LABELS[zone],
       violationsCount: sortedViolations.length,
       criticalCount,
       estimatedFineMax: sortedViolations.reduce((sum, v) => sum + (v.fineMax || 0), 0),
@@ -98,8 +103,8 @@ async function buildReport({ session, profile, violations, answersWithBlocks, re
     },
     vulnerabilityMap: sortedViolations,
     roadmap,
-    mandatoryDocuments,
-    attentionZones,
+    mandatoryDocuments: filteredMandatoryDocuments,
+    attentionZones: attentionZones || [],
     recommendations,
     authorities: AUTHORITIES,
     nextSteps: NEXT_STEPS,

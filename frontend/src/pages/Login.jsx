@@ -244,6 +244,12 @@ export default function Login() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
+  // Отмечаем, что компания только что создана (регистрация или "+ Добавить
+  // студию"), чтобы один раз направить владельца сразу на выбор сферы/ниши
+  // безопасности вместо дашборда — необязательный шаг, экран "Безопасность"
+  // и так открывается по любой ссылке в приложении, здесь просто ускоряем
+  // первое знакомство. Не блокирует ничего — обычная навигация, можно уйти.
+  const [justCreatedCompany, setJustCreatedCompany] = useState(false);
   // Заполняется email'ом, когда регистрация или вход требуют код с почты —
   // рендерим VerifyCodeForm вместо обычной формы, пока не подтвердят.
   const [verifyEmail, setVerifyEmail] = useState(null);
@@ -261,7 +267,7 @@ export default function Login() {
   // обновление страницы. Теперь как только сессия реально готова, уходим
   // дальше сразу, независимо от того, что ещё показывает verifyEmail.
   if (user && currentCompany) {
-    return <Navigate to={location.state?.from || '/'} replace />;
+    return <Navigate to={justCreatedCompany ? '/security' : (location.state?.from || '/')} replace />;
   }
 
   if (verifyEmail) {
@@ -274,7 +280,11 @@ export default function Login() {
   // компании (например, приглашение отозвали) показываем прежнее
   // сообщение — самостоятельно заводить компанию он не должен.
   if (user && needsCompany) {
-    return isSuperAdmin ? <CreateCompanyForm onCreate={createCompany} /> : <NoCompanyAccess />;
+    return isSuperAdmin ? (
+      <CreateCompanyForm onCreate={async (name) => { await createCompany(name); setJustCreatedCompany(true); }} />
+    ) : (
+      <NoCompanyAccess />
+    );
   }
 
   // Компаний несколько — нужно спросить, с какой работать, прежде чем
@@ -282,7 +292,12 @@ export default function Login() {
   // экрана можно завести ещё одну студию (owner может иметь несколько).
   if (user && pendingCompanies) {
     if (addingCompany) {
-      return <CreateCompanyForm onCreate={createCompany} onBack={() => setAddingCompany(false)} />;
+      return (
+        <CreateCompanyForm
+          onCreate={async (name) => { await createCompany(name); setJustCreatedCompany(true); }}
+          onBack={() => setAddingCompany(false)}
+        />
+      );
     }
     // Заводить новую компанию может только владелец (backend/platform/
     // companies.routes.js) — не показываем кнопку тем, кто нигде не owner,
@@ -318,6 +333,10 @@ export default function Login() {
 
   async function handleRegister(data) {
     const result = await register(data);
+    // /auth/register всегда заводит новую компанию (см. backend) — код с
+    // почты идёт следующим шагом, а currentCompany появится только после
+    // него (applyAuthResult), поэтому флаг ставим уже тут.
+    setJustCreatedCompany(true);
     if (result?.requiresDeviceVerification) {
       setVerifyEmail(result.email);
     }
