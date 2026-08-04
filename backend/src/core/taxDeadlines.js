@@ -56,10 +56,17 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
     };
 
     if (regime === 'usn_income' || regime === 'usn_income_expense') {
-      slots.usn_q1 = { title: `УСН: авансовый платёж за 1 квартал ${year}`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year) };
-      slots.usn_q2 = { title: `УСН: авансовый платёж за полугодие ${year}`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year) };
-      slots.usn_q3 = { title: `УСН: авансовый платёж за 9 месяцев ${year}`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year) };
-      slots.usn_annual = { title: `УСН: итоговый налог и декларация за ${year} год`, dueDate: `${year + 1}-04-30`, quarterEnd: QUARTER_END.q4(year) };
+      // Даты актуализированы 04.08.2026 (law-compliance-monitor) под реформу
+      // ЕНП 2023 года: сам платёж по авансу — 28-е число (25-е — срок подачи
+      // отдельного уведомления об исчисленных суммах, не платежа); годовая
+      // декларация УСН для ИП — 25 апреля, не 30-е (для организаций — 25
+      // марта, но продукт ориентирован на ИП). Точный сдвиг на выходные/
+      // праздники конкретного года (например 27/27/26 в 2026-м) намеренно
+      // не считаем — см. дисклеймер в шапке файла, "сверьте с бухгалтером".
+      slots.usn_q1 = { title: `УСН: авансовый платёж за 1 квартал ${year}`, dueDate: `${year}-04-28`, quarterEnd: QUARTER_END.q1(year) };
+      slots.usn_q2 = { title: `УСН: авансовый платёж за полугодие ${year}`, dueDate: `${year}-07-28`, quarterEnd: QUARTER_END.q2(year) };
+      slots.usn_q3 = { title: `УСН: авансовый платёж за 9 месяцев ${year}`, dueDate: `${year}-10-28`, quarterEnd: QUARTER_END.q3(year) };
+      slots.usn_annual = { title: `УСН: итоговый налог и декларация за ${year} год`, dueDate: `${year + 1}-04-25`, quarterEnd: QUARTER_END.q4(year) };
     }
   }
 
@@ -69,7 +76,14 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
     slots.emp_q1 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за 1 квартал ${year}`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year) };
     slots.emp_q2 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за полугодие ${year}`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year) };
     slots.emp_q3 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за 9 месяцев ${year}`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year) };
-    slots.emp_annual = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за ${year} год`, dueDate: `${year + 1}-02-25`, quarterEnd: QUARTER_END.q4(year) };
+    // Годовые РСВ и 6-НДФЛ актуализированы 04.08.2026 — раньше были слиты в
+    // один слот с одной датой (25 февраля), но у них разные сроки: РСВ за
+    // год — до 25 января следующего года, 6-НДФЛ за год — до 25 февраля.
+    // emp_annual сохранил старый ключ (без изменения related_entity_type,
+    // чтобы не плодить осиротевшие записи в deadlines у уже настроивших
+    // сроки компаний) и стал более ранним, РСВ-сроком; 6-НДФЛ — новый слот.
+    slots.emp_annual = { title: `Отчётность за сотрудников (РСВ) за ${year} год`, dueDate: `${year + 1}-01-25`, quarterEnd: QUARTER_END.q4(year) };
+    slots.emp_annual_6ndfl = { title: `Отчётность за сотрудников (6-НДФЛ) за ${year} год`, dueDate: `${year + 1}-02-25`, quarterEnd: QUARTER_END.q4(year) };
   }
 
   if (ipRegisteredAt) {
@@ -84,7 +98,7 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
 const ALL_SLOT_KEYS = [
   'insurance_fixed', 'insurance_extra',
   'usn_q1', 'usn_q2', 'usn_q3', 'usn_annual',
-  'emp_q1', 'emp_q2', 'emp_q3', 'emp_annual',
+  'emp_q1', 'emp_q2', 'emp_q3', 'emp_annual', 'emp_annual_6ndfl',
 ];
 
 // Пересчитывает налоговые дедлайны компании под текущий режим/исходные
