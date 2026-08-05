@@ -25,6 +25,7 @@ import More from './pages/More.jsx';
 import Subscription from './pages/Subscription.jsx';
 import Support from './pages/Support.jsx';
 import Deadlines from './pages/Deadlines.jsx';
+import PhotoReports from './pages/PhotoReports.jsx';
 
 export default function App() {
   return (
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
         <Route path="journals" element={<Journals />} />
+        <Route path="photo-reports" element={<PhotoReports />} />
         <Route
           path="dossier"
           element={

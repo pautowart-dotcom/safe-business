@@ -162,6 +162,13 @@ router.get(
       params.push(req.query.dateTo);
       where += ` AND v.visit_at <= $${params.length}`;
     }
+    // Для "Фотоотчётов" (More.jsx) — без этого LIMIT 200 ниже съедался бы
+    // визитами без единого фото, и в галерею попадали бы не последние
+    // отчёты с фото, а просто последние 200 визитов вообще.
+    if (req.query.hasPhotos) {
+      where += ` AND (v.photo_before_url IS NOT NULL OR v.photo_after_url IS NOT NULL
+                       OR v.photo_before_url_2 IS NOT NULL OR v.photo_after_url_2 IS NOT NULL)`;
+    }
 
     const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} ${FROM_CLAUSE}

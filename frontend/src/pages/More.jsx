@@ -11,6 +11,7 @@ import OnboardingModal from '../components/OnboardingModal.jsx';
 const OWNER_ITEMS = [
   { label: 'Клиенты', sub: 'База клиентов, история визитов', icon: 'clients', to: '/clients', moduleKey: 'clients' },
   { label: 'Визиты', sub: 'Календарь визитов и услуг', icon: 'visit', to: '/visits', moduleKey: 'visits' },
+  { label: 'Фотоотчёты', sub: 'Фото до/после по визитам', icon: 'photo', to: '/photo-reports', moduleKey: 'visits' },
   { label: 'Склад расходников', sub: 'Остатки, списание, пополнение', icon: 'supply', to: '/supplies' },
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
@@ -100,6 +101,21 @@ function MasterMore() {
               <div>
                 <div style={{ fontSize: 15, fontWeight: 600 }}>Визиты</div>
                 <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Календарь визитов и услуг</div>
+              </div>
+            </div>
+          </ChevronRow>
+        </Card>
+      )}
+      {hasModule('visits') && (
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/photo-reports')}>
+          <ChevronRow>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="photo" size={20} color={C.primary} />
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>Фотоотчёты</div>
+                <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Фото до/после по своим визитам</div>
               </div>
             </div>
           </ChevronRow>
