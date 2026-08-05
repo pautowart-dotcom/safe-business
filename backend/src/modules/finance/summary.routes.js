@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const { moscowDateStr } = require('../../utils/moscowDate');
 
 const router = express.Router();
 
@@ -9,28 +10,30 @@ const toDateStr = (d) => d.toISOString().slice(0, 10);
 // Пресеты Этапа 6: сегодня / неделя (скользящее окно, 7 дней) / месяц
 // (текущий календарный, с 1-го числа) / прошлый месяц (полный календарный).
 // dateFrom/dateTo в запросе — произвольный диапазон, переопределяет period.
+// Раньше "сегодня" бралось как new Date() — календарный день по часовому
+// поясу ПРОЦЕССА (сервер в UTC), а не студии (Москва) — см. utils/moscowDate.js
+// и тот же класс бага в dashboard.routes.js.
 function resolvePeriod(query) {
-  const today = new Date();
-  const toStr = toDateStr(today);
-
   if (query.dateFrom && query.dateTo) {
     return { from: query.dateFrom, to: query.dateTo };
   }
 
+  const toStr = moscowDateStr();
+  const [y, m, d] = toStr.split('-').map(Number);
+
   if (query.period === 'lastMonth') {
-    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(Date.UTC(y, m - 1, 0));
+    const lastMonthStart = new Date(Date.UTC(y, m - 2, 1));
     return { from: toDateStr(lastMonthStart), to: toDateStr(lastMonthEnd) };
   }
 
   if (query.period === 'month') {
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthStart = new Date(Date.UTC(y, m - 1, 1));
     return { from: toDateStr(monthStart), to: toStr };
   }
 
   if (query.period === 'week') {
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - 6);
+    const weekStart = new Date(Date.UTC(y, m - 1, d - 6));
     return { from: toDateStr(weekStart), to: toStr };
   }
 
@@ -174,7 +177,7 @@ router.get(
       const byPaymentMethodRes = await pool.query(
         `SELECT COALESCE(payment_method, 'unspecified') AS method,
                 COUNT(*) AS visits_count,
-                COALESCE(SUM(amount - (amount * discount_percent / 100)), 0) AS revenue
+                COALESCE(SUM(amount - COALESCE(discount_fixed_amount, amount * discount_percent / 100)), 0) AS revenue
          FROM visits
          WHERE company_id = $1 AND visit_at::date BETWEEN $2 AND $3
          GROUP BY method`,
@@ -222,7 +225,7 @@ router.get(
          SELECT date_trunc('month', visit_at)::date AS month_start,
                 SUM(amount * master_payout_percent / 100) AS master_salaries,
                 COUNT(*) AS visits_count,
-                SUM(amount - amount * discount_percent / 100) AS visits_revenue
+                SUM(amount - COALESCE(discount_fixed_amount, amount * discount_percent / 100)) AS visits_revenue
          FROM visits
          WHERE company_id = $1 AND visit_at >= now() - make_interval(months => $2)
          GROUP BY 1

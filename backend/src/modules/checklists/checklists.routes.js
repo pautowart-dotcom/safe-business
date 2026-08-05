@@ -5,6 +5,7 @@ const emptyToNull = require('../../utils/emptyToNull');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
+const { moscowDateStr } = require('../../utils/moscowDate');
 
 const router = express.Router();
 
@@ -234,7 +235,7 @@ router.get(
       where += ` AND ci.template_id = $${params.length}`;
     }
 
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const date = req.query.date || moscowDateStr();
     params.push(date);
     where += ` AND cm.mark_date = $${params.length}`;
 
@@ -263,7 +264,7 @@ router.post(
   requireRole('master', 'owner', 'admin'),
   asyncHandler(async (req, res) => {
     const checked = req.body.checked !== false;
-    const date = req.body.date || new Date().toISOString().slice(0, 10);
+    const date = req.body.date || moscowDateStr();
 
     const item = await pool.query('SELECT id FROM checklist_items WHERE id = $1 AND company_id = $2', [
       req.params.itemId,

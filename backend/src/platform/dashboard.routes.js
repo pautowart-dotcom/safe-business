@@ -3,6 +3,7 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
+const { moscowDateStr, moscowHour } = require('../utils/moscowDate');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -11,12 +12,18 @@ router.use(requireAuth, requireTenant);
 // сменой/отчётностью показывают вчерашний (полный) день, после — сегодня
 // (который ещё наполняется). Общее для "Внимание сегодня", выручки,
 // количества отчётов, команды.
+// Раньше здесь стоял now.getHours() — час СЕРВЕРА, а не студии. Сервер в UTC,
+// так что "12:00" реально наступало в 15:00 по Москве, а с полуночи до этого
+// момента экран показывал вчерашнюю выручку под видом сегодняшней/вчерашней
+// невпопад — отсюда жалоба "нет выручки за сегодня, хотя визиты внесены".
 function resolveTargetDate() {
-  const now = new Date();
-  const isAfterNoon = now.getHours() >= 12;
-  const target = new Date(now);
-  if (!isAfterNoon) target.setDate(target.getDate() - 1);
-  return { date: target.toISOString().slice(0, 10), isToday: isAfterNoon };
+  const hour = moscowHour();
+  const isAfterNoon = hour >= 12;
+  const todayStr = moscowDateStr();
+  if (isAfterNoon) return { date: todayStr, isToday: true };
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const yesterday = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+  return { date: yesterday, isToday: false };
 }
 
 const ACTION_LABELS = {
