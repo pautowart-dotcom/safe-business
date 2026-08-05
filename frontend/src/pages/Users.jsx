@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
@@ -29,6 +30,7 @@ export default function Users() {
   }
 
   useEffect(load, []);
+  usePullToRefresh(load);
 
   async function handleInvite() {
     const { data } = await api.post('/platform/memberships/invite', inviteForm);

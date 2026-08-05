@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
 
@@ -30,6 +31,7 @@ export default function PrintedJournalsTab({ setError }) {
   useEffect(() => {
     load();
   }, []);
+  usePullToRefresh(load);
 
   async function createJournal(journalType) {
     setCreating(journalType);

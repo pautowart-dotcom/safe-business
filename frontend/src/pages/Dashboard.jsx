@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
 import IosPushBanner from '../components/IosPushBanner.jsx';
+import { localDateStr } from '../utils/localDate.js';
 
 const ZONE_LABEL = { green: 'Зелёная зона', yellow: 'Жёлтая зона · Есть нарушения', red: 'Красная зона · Есть нарушения' };
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
@@ -23,7 +25,7 @@ function money(v) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr();
 }
 
 // Пакет 4, Этап 5: "Центр действий" — единый список дедлайнов+действий из
@@ -130,6 +132,7 @@ function ManagementDashboard() {
   useEffect(() => {
     load();
   }, []);
+  usePullToRefresh(load);
 
   async function addTask() {
     if (!newTask.trim()) return;
@@ -284,9 +287,9 @@ function MasterDashboard() {
   const [deadlines, setDeadlines] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function load() {
     const today = todayStr();
-    Promise.all([
+    return Promise.all([
       api.get('/platform/dashboard/summary'),
       api.get('/modules/visits', { params: { dateFrom: `${today}T00:00:00`, dateTo: `${today}T23:59:59` } }),
       api.get('/modules/checklists/templates'),
@@ -300,7 +303,12 @@ function MasterDashboard() {
         setDeadlines(dl.data);
       })
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
   }, []);
+  usePullToRefresh(load);
 
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
 

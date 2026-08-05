@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
 import { TrendLineChart, StatTile, StackedBarBreakdown, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
+import { localDateStr } from '../utils/localDate.js';
 
 const PERIOD_PRESETS = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['lastMonth', 'Прошлый месяц']];
 const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '' };
@@ -18,16 +19,21 @@ function money(v) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr();
 }
 
 // Дублирует календарную логику backend/src/modules/finance/summary.routes.js
 // (resolvePeriod) — экрану мастера period.from/to сервер не отдаёт (нет
 // вызова /summary), поэтому диапазон для /visits и /finance/adjustments
 // считается тем же способом на клиенте.
+// toDateStr раньше был d.toISOString().slice(0, 10) — для start/end,
+// сконструированных как new Date(y, m, d) (местная полночь), toISOString
+// уводил календарный день на сутки назад при положительном часовом поясе
+// (Москва, UTC+3) ВСЕГДА, а не только у полуночи: "Месяц" начинался с
+// последнего дня предыдущего месяца. localDateStr берёт локальные
+// год/месяц/день без конвертации в UTC.
 function computePeriodRange(preset, customFrom, customTo) {
   const today = new Date();
-  const toDateStr = (d) => d.toISOString().slice(0, 10);
 
   if (preset === 'custom') {
     return { from: customFrom, to: customTo };
@@ -35,18 +41,18 @@ function computePeriodRange(preset, customFrom, customTo) {
   if (preset === 'lastMonth') {
     const end = new Date(today.getFullYear(), today.getMonth(), 0);
     const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    return { from: toDateStr(start), to: toDateStr(end) };
+    return { from: localDateStr(start), to: localDateStr(end) };
   }
   if (preset === 'month') {
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { from: toDateStr(start), to: toDateStr(today) };
+    return { from: localDateStr(start), to: localDateStr(today) };
   }
   if (preset === 'week') {
     const start = new Date(today);
     start.setDate(start.getDate() - 6);
-    return { from: toDateStr(start), to: toDateStr(today) };
+    return { from: localDateStr(start), to: localDateStr(today) };
   }
-  return { from: toDateStr(today), to: toDateStr(today) };
+  return { from: localDateStr(today), to: localDateStr(today) };
 }
 
 function usePeriodParams() {

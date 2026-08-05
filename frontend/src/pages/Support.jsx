@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
 
@@ -24,6 +25,7 @@ export default function Support() {
   useEffect(() => {
     loadHistory();
   }, []);
+  usePullToRefresh(loadHistory);
 
   async function send() {
     if (!message.trim() || !email.trim()) return;

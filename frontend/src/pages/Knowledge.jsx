@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, TextArea, Select, Btn, C } from '../ui/components.jsx';
 
 const EMPTY_ARTICLE_FORM = { title: '', content: '', sectionId: '' };
@@ -23,6 +24,7 @@ export default function Knowledge() {
   }
 
   useEffect(load, []);
+  usePullToRefresh(load);
 
   async function openArticle(id) {
     const res = await api.get(`/modules/knowledge/articles/${id}`);

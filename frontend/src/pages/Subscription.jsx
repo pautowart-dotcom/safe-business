@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Btn, C } from '../ui/components.jsx';
 
 const STATUS_LABELS = {
@@ -23,6 +24,7 @@ export default function Subscription() {
   useEffect(() => {
     load();
   }, []);
+  usePullToRefresh(load);
 
   // Возврат со страницы оплаты ЮKassa (?payment=done) — реальный статус
   // приходит вебхуком асинхронно, иногда с задержкой в несколько секунд,

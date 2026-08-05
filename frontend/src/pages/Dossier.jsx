@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { Card, Field, Select, TextInput, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
+import { localDateStr } from '../utils/localDate.js';
 
 // Пакет 3, Этап 8: "Сформировать досье" по дате/по мастеру (по клиенту —
 // кнопка прямо в карточке клиента, см. Clients.jsx). Собирает визиты,
 // чек-листы и журналы в один PDF (backend/src/platform/dossier.routes.js).
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr();
 }
 
 export default function Dossier() {

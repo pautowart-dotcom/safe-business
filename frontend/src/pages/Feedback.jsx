@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
 
@@ -13,6 +14,7 @@ export default function Feedback() {
   }
 
   useEffect(load, []);
+  usePullToRefresh(load);
 
   async function markRead(id) {
     await api.patch(`/modules/feedback/${id}`);

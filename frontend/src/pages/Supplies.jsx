@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C } from '../ui/components.jsx';
 
 const EMPTY_FORM = { name: '', unit: 'шт', productUrl: '', quantity: '0', lowStockThreshold: '0', isDisinfectant: false, categoryId: '', defaultQuantityPerVisit: '', containerSize: '' };
@@ -35,6 +36,7 @@ export default function Supplies() {
     load();
     loadCategories();
   }, []);
+  usePullToRefresh(() => Promise.all([load(), loadCategories()]));
 
   function openCreate() {
     setForm(EMPTY_FORM);

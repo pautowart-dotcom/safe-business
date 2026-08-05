@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Field, TextInput, Select, Btn, C } from '../ui/components.jsx';
+import { localDateStr } from '../utils/localDate.js';
 
 // Пакет 4, Этап 2: "Мои сроки" — вкладка внутри "Безопасности", где владелец
 // по желанию вносит конкретные даты для календаря ("Дедлайны"). Всё
@@ -30,7 +32,7 @@ function fmtDate(d) {
 function addMonthsFromToday(months) {
   const d = new Date();
   d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 const LEASE_TERM_PRESETS = [
   ['11 месяцев', 11],
@@ -119,6 +121,7 @@ export default function MyDeadlinesTab() {
     load();
     api.get('/platform/deadlines', { params: { category: 'tax' } }).then((res) => setTaxDeadlines(res.data));
   }, []);
+  usePullToRefresh(load);
 
   async function saveSlot(key, payload) {
     setSavingKey(key);

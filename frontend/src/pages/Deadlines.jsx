@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Badge, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
 
@@ -47,6 +48,7 @@ export default function Deadlines() {
   useEffect(() => {
     load();
   }, [category]);
+  usePullToRefresh(load);
 
   async function markDone(id) {
     await api.patch(`/platform/deadlines/${id}`, { status: 'done' });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Field, TextInput, Select, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
 import PrintedJournalsTab from './PrintedJournals.jsx';
@@ -37,6 +38,7 @@ function UvLampTab({ type, roster, isManagement, error, setError }) {
   useEffect(() => {
     load();
   }, []);
+  usePullToRefresh(load);
 
   async function submit() {
     if (!form.membershipId) {
@@ -120,6 +122,7 @@ function BriefingTab({ type, roster, isManagement, error, setError }) {
   useEffect(() => {
     load();
   }, []);
+  usePullToRefresh(load);
 
   async function submit() {
     if (!form.conductorMembershipId || !form.recipientMembershipId) {
@@ -220,10 +223,15 @@ function DisinfectantLogTab({ type, isManagement, error, setError }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function load() {
     setLoading(true);
-    api.get('/platform/journals/disinfectant-log').then((res) => setEntries(res.data)).finally(() => setLoading(false));
+    return api.get('/platform/journals/disinfectant-log').then((res) => setEntries(res.data)).finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
   }, []);
+  usePullToRefresh(load);
 
   return (
     <div>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, TextArea, Select, Btn, Icon, C } from '../ui/components.jsx';
+import { localDateStr } from '../utils/localDate.js';
 
 const EMPTY_FORM = { name: '', description: '', kind: '', items: [''] };
 const ROLE_LABELS = { owner: 'владелец', admin: 'администратор', master: 'мастер' };
@@ -20,7 +22,7 @@ export default function Checklists() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [newItemLabel, setNewItemLabel] = useState('');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
 
   function load() {
     Promise.all([api.get('/modules/checklists/templates'), api.get('/modules/checklists/marks', { params: { date: today } })])
@@ -32,6 +34,7 @@ export default function Checklists() {
   }
 
   useEffect(load, []);
+  usePullToRefresh(load);
 
   function marksForItem(itemId) {
     return marks.filter((m) => m.item_id === itemId && m.checked);
