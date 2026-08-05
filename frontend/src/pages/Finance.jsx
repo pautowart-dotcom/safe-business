@@ -3,6 +3,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
+import { TrendLineChart, StatTile, StackedBarBreakdown, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 
 const PERIOD_PRESETS = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['lastMonth', 'Прошлый месяц']];
 const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '' };
@@ -133,6 +134,9 @@ function OwnerFinance() {
   const [selectedMaster, setSelectedMaster] = useState(null);
   const [adjustmentForm, setAdjustmentForm] = useState(null);
   const [revenueForm, setRevenueForm] = useState(null);
+  // Тренды (05.08.2026) — независимы от выбора периода вверху (тот
+  // управляет "Обзором"/"По мастерам"), всегда последние 12 месяцев.
+  const [trends, setTrends] = useState(null);
 
   function load() {
     if (!period.ready) return Promise.resolve();
@@ -156,6 +160,9 @@ function OwnerFinance() {
   function loadRecurring() {
     return api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
   }
+  function loadTrends() {
+    return api.get('/modules/finance/trends', { params: { months: 12 } }).then((res) => setTrends(res.data.trends));
+  }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -164,7 +171,10 @@ function OwnerFinance() {
   useEffect(() => {
     loadRecurring();
   }, []);
-  usePullToRefresh(() => Promise.all([load(), loadRecurring()]));
+  useEffect(() => {
+    loadTrends();
+  }, []);
+  usePullToRefresh(() => Promise.all([load(), loadRecurring(), loadTrends()]));
   useEffect(() => {
     api.get('/platform/memberships').then((res) => setMasters(res.data.filter((m) => m.role === 'master' && m.user_id)));
   }, []);
@@ -266,7 +276,7 @@ function OwnerFinance() {
       <PeriodBar {...period} />
 
       <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
-        {[['overview', 'Обзор'], ['masters', 'По мастерам']].map(([k, l]) => (
+        {[['overview', 'Обзор'], ['masters', 'По мастерам'], ['analytics', 'Аналитика']].map(([k, l]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -317,6 +327,7 @@ function OwnerFinance() {
           onDeleteAdjustment={deleteAdjustment}
         />
       )}
+      {tab === 'analytics' && <AnalyticsTab trends={trends} />}
 
       {adjustmentForm && (
         <AdjustmentModal form={adjustmentForm} setForm={setAdjustmentForm} masters={masters} onSubmit={submitAdjustment} onClose={() => setAdjustmentForm(null)} />
@@ -616,6 +627,142 @@ function AdjustmentModal({ form, setForm, masters, onSubmit, onClose }) {
       </div>
     </div>
   );
+}
+
+// ---------- Аналитика (05.08.2026) ----------
+// Слой 1 (графики) + слой 2 (автовыводы) из плана — тренд выручки/прибыли,
+// средний чек, маржа, структура расходов, и несколько текстовых выводов
+// сравнением последних двух месяцев. "Что если"-калькулятор и сравнение с
+// другими студиями — следующие слои, сознательно не в этой итерации.
+
+function pctChange(curr, prev) {
+  if (!prev) return null;
+  return Math.round(((curr - prev) / Math.abs(prev)) * 1000) / 10;
+}
+
+function buildInsights(trends) {
+  if (!trends || trends.length < 2) return [];
+  const curr = trends[trends.length - 1];
+  const prev = trends[trends.length - 2];
+  const insights = [];
+
+  const revChange = pctChange(curr.revenue, prev.revenue);
+  if (revChange != null && Math.abs(revChange) >= 1) {
+    insights.push(`Выручка ${revChange >= 0 ? 'выросла' : 'упала'} на ${Math.abs(revChange)}% к прошлому месяцу (${money(prev.revenue)} → ${money(curr.revenue)}).`);
+  }
+
+  if (curr.netProfit != null && prev.netProfit != null && Math.abs(curr.netProfit - prev.netProfit) > 1) {
+    const drivers = [
+      { label: 'выручка', delta: curr.revenue - prev.revenue, isRevenue: true },
+      { label: 'постоянные расходы', delta: curr.fixedExpenses - prev.fixedExpenses },
+      { label: 'переменные расходы', delta: curr.variableExpenses - prev.variableExpenses },
+      { label: 'зарплаты мастеров', delta: curr.masterSalaries - prev.masterSalaries },
+    ];
+    const biggest = drivers.reduce((a, b) => (Math.abs(b.delta) > Math.abs(a.delta) ? b : a));
+    if (Math.abs(biggest.delta) > 1) {
+      const verb = biggest.isRevenue ? (biggest.delta >= 0 ? 'выросла' : 'упала') : biggest.delta >= 0 ? 'выросли' : 'снизились';
+      insights.push(
+        `Прибыль ${curr.netProfit >= prev.netProfit ? 'выросла' : 'снизилась'} — больше всего повлияли: ${biggest.label} ${verb} на ${money(Math.abs(biggest.delta))}.`
+      );
+    }
+  }
+
+  const ticketChange = pctChange(curr.avgTicket, prev.avgTicket);
+  if (ticketChange != null && Math.abs(ticketChange) >= 5 && curr.avgTicket > 0 && prev.avgTicket > 0) {
+    insights.push(`Средний чек ${ticketChange >= 0 ? 'вырос' : 'упал'} на ${Math.abs(ticketChange)}% (${money(prev.avgTicket)} → ${money(curr.avgTicket)}).`);
+  }
+
+  return insights.slice(0, 3);
+}
+
+const MONTH_LABELS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+function monthLabel(ym) {
+  const [, m] = ym.split('-');
+  return MONTH_LABELS[Number(m) - 1] || ym;
+}
+
+function AnalyticsTab({ trends }) {
+  if (!trends) return <div className="page-loading">Загрузка...</div>;
+  if (trends.every((t) => t.revenue === 0 && t.visitsCount === 0)) {
+    return <div className="empty-hint">Пока нет данных за последние месяцы — тренды появятся по мере ведения визитов и финансов.</div>;
+  }
+
+  const isOwner = trends[0]?.netProfit !== undefined;
+  const insights = buildInsights(trends);
+  const curr = trends[trends.length - 1];
+  const prev = trends[trends.length - 2];
+
+  const chartPoints = trends.map((t) => ({
+    x: monthLabel(t.month),
+    values: isOwner ? { revenue: t.revenue, netProfit: t.netProfit } : { revenue: t.revenue },
+  }));
+  const series = isOwner
+    ? [
+        { key: 'revenue', label: 'Выручка', color: CHART_COLORS.blue },
+        { key: 'netProfit', label: 'Прибыль', color: CHART_COLORS.orange },
+      ]
+    : [{ key: 'revenue', label: 'Выручка', color: CHART_COLORS.blue }];
+
+  const latestWithRevenue = [...trends].reverse().find((t) => t.revenue > 0 && t.fixedExpenses !== undefined);
+
+  return (
+    <div>
+      {insights.length > 0 && (
+        <Card>
+          <ST>Что заметно за последний месяц</ST>
+          {insights.map((text, i) => (
+            <div key={i} style={{ fontSize: 13, color: C.secondary, marginBottom: i < insights.length - 1 ? 8 : 0, lineHeight: 1.5 }}>{text}</div>
+          ))}
+        </Card>
+      )}
+
+      <Card>
+        <ST>Выручка{isOwner ? ' и прибыль' : ''} по месяцам</ST>
+        <TrendLineChart points={chartPoints} series={series} formatY={compactMoney} />
+      </Card>
+
+      <Card>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <StatTile
+            label="Средний чек"
+            value={money(curr.avgTicket)}
+            delta={prev ? (() => { const d = pctChange(curr.avgTicket, prev.avgTicket); return d == null ? null : `${d >= 0 ? '+' : ''}${d}% к прошлому`; })() : null}
+            deltaGood={prev && curr.avgTicket !== prev.avgTicket ? curr.avgTicket > prev.avgTicket : null}
+            trend={trends.map((t) => t.avgTicket)}
+            trendColor={CHART_COLORS.blue}
+          />
+          {isOwner && (
+            <StatTile
+              label="Маржа"
+              value={`${curr.marginPercent}%`}
+              delta={prev ? `${curr.marginPercent >= prev.marginPercent ? '+' : ''}${round1(curr.marginPercent - prev.marginPercent)} п.п.` : null}
+              deltaGood={prev ? curr.marginPercent >= prev.marginPercent : null}
+              trend={trends.map((t) => t.marginPercent)}
+              trendColor={CHART_COLORS.orange}
+            />
+          )}
+        </div>
+      </Card>
+
+      {isOwner && latestWithRevenue && (
+        <Card>
+          <ST>Структура расходов ({monthLabel(latestWithRevenue.month)})</ST>
+          <StackedBarBreakdown
+            segments={[
+              { key: 'salaries', label: 'Зарплаты', value: latestWithRevenue.masterSalaries, color: CHART_COLORS.blue },
+              { key: 'fixed', label: 'Пост. расходы', value: latestWithRevenue.fixedExpenses, color: CHART_COLORS.orange },
+              { key: 'percent', label: '% расходы', value: latestWithRevenue.percentExpenses, color: CHART_COLORS.aqua },
+              { key: 'variable', label: 'Перем. расходы', value: latestWithRevenue.variableExpenses, color: CHART_COLORS.yellow },
+            ]}
+          />
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function round1(n) {
+  return Math.round(n * 10) / 10;
 }
 
 function MasterDetailView({ master, dateFrom, dateTo, onBack }) {
