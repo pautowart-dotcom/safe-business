@@ -237,19 +237,23 @@ export default function Users() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <Badge color={m.invite_status === 'active' ? C.green : C.subtle} bg={m.invite_status === 'active' ? C.greenBg : C.surface}>
-                {m.invite_status === 'active' ? 'Активен' : 'Ожидает'}
-              </Badge>
-              {m.role !== 'owner' && (
+              {m.active === false ? (
+                <Badge color={C.subtle} bg={C.surface}>Уволен</Badge>
+              ) : (
+                <Badge color={m.invite_status === 'active' ? C.green : C.subtle} bg={m.invite_status === 'active' ? C.greenBg : C.surface}>
+                  {m.invite_status === 'active' ? 'Активен' : 'Ожидает'}
+                </Badge>
+              )}
+              {m.role !== 'owner' && m.active !== false && (
                 confirmDel === m.id ? (
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <Btn small variant="red" onClick={() => handleRemove(m.id)}>Удалить</Btn>
+                    <Btn small variant="red" onClick={() => handleRemove(m.id)}>Уволить</Btn>
                     <Btn small variant="secondary" onClick={() => setConfirmDel(null)}>Отмена</Btn>
                   </div>
                 ) : (
                   <>
                     <button onClick={() => openEdit(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.secondary }}>Изменить</button>
-                    <button onClick={() => setConfirmDel(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.red }}>Удалить</button>
+                    <button onClick={() => setConfirmDel(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.red }}>Уволить</button>
                   </>
                 )
               )}

@@ -396,7 +396,9 @@ export default function Visits() {
             <Field label="Мастер">
               <Select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
                 <option value="">Выберите мастера</option>
-                {masters.map((m) => <option key={m.id} value={m.id}>{m.user_name}</option>)}
+                {masters
+                  .filter((m) => m.active !== false || String(m.id) === String(form.masterMembershipId))
+                  .map((m) => <option key={m.id} value={m.id}>{m.user_name}{m.active === false ? ' (уволен)' : ''}</option>)}
               </Select>
             </Field>
           )}

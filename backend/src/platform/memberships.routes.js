@@ -40,7 +40,7 @@ router.get(
       `SELECT m.id, m.role, u.name
        FROM memberships m
        JOIN users u ON u.id = m.user_id
-       WHERE m.company_id = $1 AND m.invite_status = 'active'
+       WHERE m.company_id = $1 AND m.invite_status = 'active' AND m.active = true
        ORDER BY u.name`,
       [req.tenant.companyId]
     );
@@ -48,12 +48,15 @@ router.get(
   })
 );
 
+// Полный список, включая уволенных (active = false) — Users.jsx показывает их
+// с пометкой, Finance.jsx использует для аналитики за прошлые периоды, где
+// уволенный мастер мог быть активен. Фильтровать active здесь нельзя.
 router.get(
   '/',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.invite_status, m.invited_email, m.created_at,
+      `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.invite_status, m.invited_email, m.created_at, m.active,
               u.id AS user_id, u.name AS user_name, u.email AS user_email
        FROM memberships m
        LEFT JOIN users u ON u.id = m.user_id
@@ -153,12 +156,18 @@ router.patch(
   })
 );
 
+// Деактивация вместо удаления: visits.master_membership_id — ON DELETE
+// RESTRICT (0003_visits.sql), физическое удаление мастера с визитами всегда
+// упадёт на уровне БД. Деактивированный участник перестаёт логиниться
+// (tenancy.js) и предлагаться в пикерах (roster/visits/adjustments), но его
+// визиты и выплаты остаются в истории как есть.
 router.delete(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rowCount } = await pool.query(
-      `DELETE FROM memberships WHERE id = $1 AND company_id = $2 AND role IN ('master', 'admin')`,
+      `UPDATE memberships SET active = false
+       WHERE id = $1 AND company_id = $2 AND role IN ('master', 'admin') AND active = true`,
       [req.params.id, req.tenant.companyId]
     );
     if (rowCount === 0) {
@@ -171,12 +180,12 @@ router.delete(
       userId: req.user.id,
       entityType: 'membership',
       entityId: Number(req.params.id),
-      action: 'membership.removed',
+      action: 'membership.deactivated',
     });
     await logAudit({
       companyId: req.tenant.companyId,
       userId: req.user.id,
-      action: 'membership.removed',
+      action: 'membership.deactivated',
       entityType: 'membership',
       entityId: Number(req.params.id),
     });

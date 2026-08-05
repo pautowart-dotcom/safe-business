@@ -27,9 +27,13 @@ const requireTenant = asyncHandler(async (req, res, next) => {
   // уволенный сотрудник (удалённое членство) или смена роли владельцем
   // продолжали действовать до истечения токена, а не сразу. Теперь
   // членство и роль перепроверяются по факту на каждый запрос.
+  // С 0060_membership_deactivation.sql увольнение — это active=false, а не
+  // DELETE (визиты уволенного мастера нельзя терять — ON DELETE RESTRICT в
+  // 0003_visits.sql), так что active тоже обязателен в этом условии, иначе
+  // уволенный сохранит доступ до истечения токена, как и было до фикса выше.
   const membershipRes = await pool.query(
     `SELECT role, branch_id FROM memberships
-     WHERE id = $1 AND company_id = $2 AND user_id = $3 AND invite_status = 'active'`,
+     WHERE id = $1 AND company_id = $2 AND user_id = $3 AND invite_status = 'active' AND active = true`,
     [req.authSession.membershipId, req.authSession.companyId, req.authSession.sub]
   );
   if (membershipRes.rows.length === 0) {

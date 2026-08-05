@@ -41,7 +41,7 @@ const ACTION_LABELS = {
   'security_violation.resolved': () => 'Устранено нарушение безопасности',
   'membership.invited': () => 'Приглашён сотрудник',
   'membership.accepted': () => 'Сотрудник присоединился к команде',
-  'membership.removed': () => 'Сотрудник удалён из команды',
+  'membership.deactivated': () => 'Сотрудник уволен из команды',
   'feedback_message.sent': () => 'Отправлено сообщение в обратную связь',
   'calendar_event.created': () => 'Добавлено событие в календарь',
 };
@@ -129,7 +129,7 @@ router.get(
       if (role !== 'master') {
         const masters = await pool.query(
           `SELECT m.id, u.name FROM memberships m LEFT JOIN users u ON u.id = m.user_id
-           WHERE m.company_id = $1 AND m.role = 'master' AND m.user_id IS NOT NULL ORDER BY u.name`,
+           WHERE m.company_id = $1 AND m.role = 'master' AND m.user_id IS NOT NULL AND m.active = true ORDER BY u.name`,
           [companyId]
         );
         byMaster = masters.rows.map((mstr) => {

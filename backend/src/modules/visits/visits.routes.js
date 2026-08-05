@@ -126,7 +126,7 @@ async function resolveMasterMembership(companyId, tenant, requestedMasterMembers
     return null; // владелец обязан указать мастера — проверяется вызывающим кодом
   }
   const { rows } = await pool.query(
-    `SELECT id FROM memberships WHERE id = $1 AND company_id = $2 AND role = 'master'`,
+    `SELECT id FROM memberships WHERE id = $1 AND company_id = $2 AND role = 'master' AND active = true`,
     [requestedMasterMembershipId, companyId]
   );
   return rows.length > 0 ? rows[0].id : null;

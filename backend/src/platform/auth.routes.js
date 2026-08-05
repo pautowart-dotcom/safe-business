@@ -81,7 +81,7 @@ async function activeMembershipsForUser(userId) {
     `SELECT m.id AS membership_id, m.role, m.branch_id, c.id AS company_id, c.name AS company_name
      FROM memberships m
      JOIN companies c ON c.id = m.company_id
-     WHERE m.user_id = $1 AND m.invite_status = 'active'
+     WHERE m.user_id = $1 AND m.invite_status = 'active' AND m.active = true
      ORDER BY c.name`,
     [userId]
   );
@@ -287,7 +287,7 @@ router.post(
       `SELECT m.id AS membership_id, m.role, m.branch_id, c.id AS company_id, c.name AS company_name
        FROM memberships m
        JOIN companies c ON c.id = m.company_id
-       WHERE m.user_id = $1 AND m.company_id = $2 AND m.invite_status = 'active'`,
+       WHERE m.user_id = $1 AND m.company_id = $2 AND m.invite_status = 'active' AND m.active = true`,
       [req.user.id, companyId]
     );
     const membership = rows[0];
