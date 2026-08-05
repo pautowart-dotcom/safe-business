@@ -237,10 +237,21 @@ router.patch(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query('DELETE FROM clients WHERE id = $1 AND company_id = $2', [
-      req.params.id,
-      req.tenant.companyId,
-    ]);
+    let rowCount;
+    try {
+      ({ rowCount } = await pool.query('DELETE FROM clients WHERE id = $1 AND company_id = $2', [
+        req.params.id,
+        req.tenant.companyId,
+      ]));
+    } catch (err) {
+      // visits.client_id -> clients(id) ON DELETE RESTRICT: у клиента уже есть
+      // визиты, нельзя стереть без потери финансовой истории. Тот же паттерн,
+      // что и для расходников (supplies.routes.js).
+      if (err.code === '23503') {
+        return res.status(400).json({ error: 'Нельзя удалить: у клиента уже есть визиты' });
+      }
+      throw err;
+    }
     if (rowCount === 0) {
       return res.status(404).json({ error: 'Клиент не найден' });
     }

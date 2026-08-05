@@ -168,9 +168,13 @@ export default function Clients() {
 
   async function handleDelete(id) {
     if (!confirm('Удалить клиента? Это действие необратимо.')) return;
-    await api.delete(`/modules/clients/${id}`);
-    setSelected(null);
-    load(search);
+    try {
+      await api.delete(`/modules/clients/${id}`);
+      setSelected(null);
+      load(search);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Не удалось удалить клиента');
+    }
   }
 
   if (showForm) {
