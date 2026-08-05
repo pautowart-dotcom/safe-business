@@ -339,7 +339,7 @@ router.post(
     }
 
     const invite = await pool.query(
-      `SELECT id, company_id, role FROM memberships WHERE invite_token = $1 AND invite_status = 'pending'`,
+      `SELECT id, company_id, role, branch_id, payout_percent FROM memberships WHERE invite_token = $1 AND invite_status = 'pending'`,
       [token]
     );
     if (invite.rows.length === 0) {
@@ -387,25 +387,47 @@ router.post(
       }
     }
 
-    const dup = await pool.query(
-      `SELECT 1 FROM memberships WHERE user_id = $1 AND company_id = $2 AND invite_status = 'active'`,
+    // Раньше это был просто дубль-чек по invite_status — не учитывал
+    // 0060_membership_deactivation.sql (увольнение = active=false, не
+    // удаление строки). Из-за этого повторное приглашение уволенного на ту
+    // же компанию либо блокировалось "вы уже состоите в этой компании" (его
+    // старая неактивная запись всё ещё существует), либо упало бы на
+    // уникальном индексе idx_memberships_user_company при попытке присвоить
+    // user_id новой pending-записи — тот же (user_id, company_id) уже занят.
+    // Раз старая запись уже есть — реактивируем именно её (id мог
+    // фигурировать в визитах/выплатах), а новую pending-запись приглашения
+    // удаляем вместо использования.
+    const existingMembership = await pool.query(
+      `SELECT id, active FROM memberships WHERE user_id = $1 AND company_id = $2`,
       [userId, membership.company_id]
     );
-    if (dup.rows.length > 0) {
-      return res.status(409).json({ error: 'Вы уже состоите в этой компании' });
-    }
 
-    await pool.query(
-      `UPDATE memberships SET user_id = $1, invite_status = 'active', invite_token = NULL WHERE id = $2`,
-      [userId, membership.id]
-    );
+    let membershipId = membership.id;
+    if (existingMembership.rows.length > 0) {
+      const existing = existingMembership.rows[0];
+      if (existing.active) {
+        return res.status(409).json({ error: 'Вы уже состоите в этой компании' });
+      }
+      await pool.query(
+        `UPDATE memberships SET role = $1, branch_id = $2, payout_percent = $3, active = true, invite_status = 'active', invite_token = NULL
+         WHERE id = $4`,
+        [membership.role, membership.branch_id, membership.payout_percent, existing.id]
+      );
+      await pool.query(`DELETE FROM memberships WHERE id = $1`, [membership.id]);
+      membershipId = existing.id;
+    } else {
+      await pool.query(
+        `UPDATE memberships SET user_id = $1, invite_status = 'active', invite_token = NULL WHERE id = $2`,
+        [userId, membership.id]
+      );
+    }
 
     await logEvent({
       companyId: membership.company_id,
       moduleKey: 'platform',
       userId,
       entityType: 'membership',
-      entityId: membership.id,
+      entityId: membershipId,
       action: 'membership.accepted',
     });
     await logAudit({
@@ -413,7 +435,7 @@ router.post(
       userId,
       action: 'membership.accepted',
       entityType: 'membership',
-      entityId: membership.id,
+      entityId: membershipId,
     });
 
     const userResult = await pool.query(
