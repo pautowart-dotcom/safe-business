@@ -188,9 +188,11 @@ export default function Supplies() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>Склад расходников</div>
-        {isManagement && (
-          <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>
-        )}
+        {/* 05.08.2026: раньше кнопка была только owner/admin (isManagement) —
+            владелец попросил разрешить и мастеру заводить новые позиции,
+            просто без права редактировать чужие/удалять (см. "Изменить"/
+            "Удалить" ниже — те по-прежнему isManagement-only). */}
+        <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: isManagement ? 8 : 16, overflowX: 'auto' }}>

@@ -13,8 +13,8 @@ const router = express.Router();
 router.use(requireAuth, requireTenant, requireRole('owner', 'admin'));
 
 const VISIT_COLUMNS = `
-  v.id, v.service, v.materials, v.amount, v.discount_percent,
-  ROUND(v.amount - (v.amount * v.discount_percent / 100), 2) AS final_amount,
+  v.id, v.service, v.materials, v.amount, v.discount_percent, v.discount_fixed_amount,
+  ROUND(v.amount - COALESCE(v.discount_fixed_amount, v.amount * v.discount_percent / 100), 2) AS final_amount,
   v.photo_before_url, v.photo_after_url, v.photo_before_url_2, v.photo_after_url_2, v.visit_at,
   c.first_name AS client_first_name, c.last_name AS client_last_name,
   mu.name AS master_name

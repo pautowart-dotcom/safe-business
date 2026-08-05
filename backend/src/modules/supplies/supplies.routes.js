@@ -96,11 +96,14 @@ router.get(
   })
 );
 
-// Управление позициями — только владелец (README: "Расходники — приход +
-// списание, управление позициями" у владельца, "только списание" у мастера).
+// Добавление новых позиций — раньше только владелец/админ (README:
+// "Расходники — приход + списание, управление позициями" у владельца,
+// "только списание" у мастера), 05.08.2026 владелец попросил разрешить и
+// мастеру заводить новые расходники — но не редактировать чужие/удалять
+// (PATCH/DELETE ниже по-прежнему только owner/admin).
 router.post(
   '/',
-  requireRole('owner', 'admin'),
+  requireRole('owner', 'admin', 'master'),
   asyncHandler(async (req, res) => {
     const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize } = req.body;
     if (!name) {

@@ -24,7 +24,8 @@ const PAYMENT_METHOD_OPTIONS = [
 
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
-  masterMembershipId: '', service: '', materials: '', amount: '', discountPercent: '0', paymentMethod: '',
+  masterMembershipId: '', service: '', materials: '', amount: '',
+  discountType: 'percent', discountPercent: '0', discountFixedAmount: '', paymentMethod: '',
   visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', photoBeforeUrl2: '', photoAfterUrl2: '', supplies: [],
 };
 
@@ -181,7 +182,9 @@ export default function Visits() {
       service: v.service || '',
       materials: v.materials || '',
       amount: String(v.amount ?? ''),
+      discountType: v.discount_fixed_amount > 0 ? 'fixed' : 'percent',
       discountPercent: String(v.discount_percent ?? '0'),
+      discountFixedAmount: v.discount_fixed_amount > 0 ? String(v.discount_fixed_amount) : '',
       paymentMethod: v.payment_method || '',
       visitAt: v.visit_at ? toLocalInputValue(v.visit_at) : nowLocal(),
       photoBeforeUrl: v.photo_before_url || '',
@@ -213,18 +216,6 @@ export default function Visits() {
     });
     setSupplyPick('');
     setSupplyQty('');
-  }
-
-  // Кнопка-подсказка для расходника с заданной нормой на клиента (Склад
-  // расходников → "Расход на клиента") — мастер сам решает, какой именно
-  // материал использовал (их может быть несколько с нормой, например разные
-  // цвета геля), количество просто не нужно вводить руками. Ничего не
-  // списывается, пока мастер явно не нажал на конкретный расходник.
-  function addSupplyByDefault(supply) {
-    setForm({
-      ...form,
-      supplies: [...form.supplies, { supplyId: supply.id, quantity: String(supply.default_quantity_per_visit), name: supply.name, unit: supply.unit }],
-    });
   }
 
   function removeSupplyFromForm(idx) {
@@ -286,7 +277,8 @@ export default function Visits() {
         service: form.service,
         materials: form.materials || null,
         amount: Number(form.amount),
-        discountPercent: Number(form.discountPercent) || 0,
+        discountPercent: form.discountType === 'fixed' ? 0 : Number(form.discountPercent) || 0,
+        discountFixedAmount: form.discountType === 'fixed' ? Number(form.discountFixedAmount) || null : null,
         paymentMethod: form.paymentMethod || null,
         visitAt: form.visitAt ? new Date(form.visitAt).toISOString() : undefined,
         masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
@@ -317,7 +309,8 @@ export default function Visits() {
 
   const priceNum = Number(form.amount) || 0;
   const discPct = Number(form.discountPercent) || 0;
-  const discRub = Math.round((priceNum * discPct) / 100);
+  const discFixed = Number(form.discountFixedAmount) || 0;
+  const discRub = form.discountType === 'fixed' ? discFixed : Math.round((priceNum * discPct) / 100);
   const finalPrice = priceNum - discRub;
   const suggestedMaster = masters.find((m) => String(m.id) === String(form.masterMembershipId));
 
@@ -414,8 +407,33 @@ export default function Visits() {
             <Field label="Сумма, ₽">
               <TextInput ref={priceRef} required type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="2500" />
             </Field>
-            <Field label="Скидка, %">
-              <TextInput type="number" min="0" max="100" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} />
+            <Field
+              label={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Скидка</span>
+                  <div style={{ display: 'flex', gap: 2, background: C.surface, borderRadius: 8, padding: 2 }}>
+                    {[['percent', '%'], ['fixed', '₽']].map(([k, l]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setForm({ ...form, discountType: k })}
+                        style={{
+                          border: 'none', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                          background: form.discountType === k ? C.bg : 'transparent', color: form.discountType === k ? C.primary : C.subtle,
+                        }}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              }
+            >
+              {form.discountType === 'fixed' ? (
+                <TextInput type="number" min="0" value={form.discountFixedAmount} onChange={(e) => setForm({ ...form, discountFixedAmount: e.target.value })} placeholder="200" />
+              ) : (
+                <TextInput type="number" min="0" max="100" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} />
+              )}
             </Field>
           </div>
 
@@ -427,7 +445,11 @@ export default function Visits() {
 
           {priceNum > 0 && (
             <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
-              {discPct > 0 && <div style={{ color: C.orange, marginBottom: 4 }}>Скидка {discPct}% = {discRub.toLocaleString('ru-RU')} ₽ · Клиент платит: {finalPrice.toLocaleString('ru-RU')} ₽</div>}
+              {discRub > 0 && (
+                <div style={{ color: C.orange, marginBottom: 4 }}>
+                  Скидка {form.discountType === 'fixed' ? `${discRub.toLocaleString('ru-RU')} ₽` : `${discPct}% = ${discRub.toLocaleString('ru-RU')} ₽`} · Клиент платит: {finalPrice.toLocaleString('ru-RU')} ₽
+                </div>
+              )}
               {suggestedMaster && <div style={{ color: C.green, fontWeight: 600 }}>Заработок мастера ({suggestedMaster.payout_percent}% от {priceNum.toLocaleString('ru-RU')} ₽): {Math.round((priceNum * (suggestedMaster.payout_percent || 0)) / 100).toLocaleString('ru-RU')} ₽</div>}
             </div>
           )}
@@ -451,24 +473,22 @@ export default function Visits() {
                 <button type="button" onClick={() => removeSupplyFromForm(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 14 }}>✕</button>
               </div>
             ))}
-            {supplies.some((s) => s.default_quantity_per_visit && !form.supplies.some((fs) => String(fs.supplyId) === String(s.id))) && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                {supplies
-                  .filter((s) => s.default_quantity_per_visit && !form.supplies.some((fs) => String(fs.supplyId) === String(s.id)))
-                  .map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => addSupplyByDefault(s)}
-                      style={{ background: C.orangeBg, border: `1px solid ${C.orange}33`, borderRadius: 20, padding: '6px 12px', fontSize: 12, color: C.orange, cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      + {s.name} · {s.default_quantity_per_visit} {s.unit}
-                    </button>
-                  ))}
-              </div>
-            )}
+            {/* Раньше здесь был ряд кнопок под каждый расходник с нормой на
+                клиента (несколько цветов геля — несколько кнопок) — при
+                десятках цветов это была стена кнопок на весь экран формы
+                визита. Выбор свёрнут в тот же список ниже — при выборе
+                расходника с нормой количество просто подставляется само,
+                вводить руками не нужно, но экран не занят до открытия списка. */}
             <div style={{ display: 'flex', gap: 8 }}>
-              <Select value={supplyPick} onChange={(e) => setSupplyPick(e.target.value)} style={{ flex: 2 }}>
+              <Select
+                value={supplyPick}
+                onChange={(e) => {
+                  const supply = supplies.find((s) => String(s.id) === e.target.value);
+                  setSupplyPick(e.target.value);
+                  if (supply?.default_quantity_per_visit) setSupplyQty(String(supply.default_quantity_per_visit));
+                }}
+                style={{ flex: 2 }}
+              >
                 <option value="">Выберите расходник</option>
                 {supplies.map((s) => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ''}</option>)}
               </Select>
@@ -514,7 +534,9 @@ export default function Visits() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{money(v.final_amount)}</div>
-                  {Number(v.discount_percent) > 0 && <div style={{ fontSize: 11, color: C.orange }}>−{v.discount_percent}%</div>}
+                  {Number(v.discount_fixed_amount) > 0
+                    ? <div style={{ fontSize: 11, color: C.orange }}>−{Number(v.discount_fixed_amount).toLocaleString('ru-RU')} ₽</div>
+                    : Number(v.discount_percent) > 0 && <div style={{ fontSize: 11, color: C.orange }}>−{v.discount_percent}%</div>}
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); handleDelete(v.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 14 }}>✕</button>
               </div>

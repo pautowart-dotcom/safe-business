@@ -46,7 +46,7 @@ function visitBlock(v) {
       { text: `${new Date(v.visit_at).toLocaleString('ru-RU')} — ${v.service}`, bold: true },
       { text: `Клиент: ${v.client_last_name} ${v.client_first_name}` },
       { text: `Мастер: ${v.master_name || 'Сотрудник'}` },
-      { text: `Сумма: ${Number(v.final_amount ?? v.amount).toLocaleString('ru-RU')} ₽${v.discount_percent > 0 ? ` (скидка ${v.discount_percent}%)` : ''}` },
+      { text: `Сумма: ${Number(v.final_amount ?? v.amount).toLocaleString('ru-RU')} ₽${v.discount_fixed_amount > 0 ? ` (скидка ${Number(v.discount_fixed_amount).toLocaleString('ru-RU')} ₽)` : v.discount_percent > 0 ? ` (скидка ${v.discount_percent}%)` : ''}` },
       v.materials ? { text: `Материалы: ${v.materials}` } : null,
       photos.length > 0
         ? { columns: photos.map((img) => ({ image: img, width: 150, margin: [0, 4, 8, 0] })) }

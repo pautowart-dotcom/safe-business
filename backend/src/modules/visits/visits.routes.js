@@ -32,11 +32,15 @@ router.post(
 
 // Общий SELECT: считаем сумму скидки, итог и заработок мастера прямо в SQL,
 // чтобы не расходиться в округлении между разными эндпоинтами.
+// Скидка бывает в % (discount_percent) или в рублях (discount_fixed_amount,
+// 0061_visit_discount_fixed_amount.sql) — взаимоисключающе, фиксированная
+// сумма приоритетнее, когда задана (COALESCE).
+const DISCOUNT_AMOUNT_SQL = 'COALESCE(v.discount_fixed_amount, ROUND(v.amount * v.discount_percent / 100, 2))';
 const SELECT_COLUMNS = `
   v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.materials,
-  v.amount, v.discount_percent, v.master_payout_percent, v.payment_method,
-  ROUND(v.amount * v.discount_percent / 100, 2) AS discount_amount,
-  ROUND(v.amount - (v.amount * v.discount_percent / 100), 2) AS final_amount,
+  v.amount, v.discount_percent, v.discount_fixed_amount, v.master_payout_percent, v.payment_method,
+  ${DISCOUNT_AMOUNT_SQL} AS discount_amount,
+  ROUND(v.amount - (${DISCOUNT_AMOUNT_SQL}), 2) AS final_amount,
   ROUND(v.amount * v.master_payout_percent / 100, 2) AS master_earnings,
   v.photo_before_url, v.photo_after_url, v.photo_before_url_2, v.photo_after_url_2, v.visit_at, v.created_at,
   c.first_name AS client_first_name, c.last_name AS client_last_name,
@@ -198,6 +202,7 @@ router.post(
       materials,
       amount,
       discountPercent,
+      discountFixedAmount,
       visitAt,
       branchId,
       photoBeforeUrl,
@@ -214,6 +219,9 @@ router.post(
     }
     if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Некорректный способ оплаты' });
+    }
+    if (discountFixedAmount && Number(discountFixedAmount) > Number(amount)) {
+      return res.status(400).json({ error: 'Скидка в рублях не может быть больше суммы визита' });
     }
 
     const client = await pool.query('SELECT 1 FROM clients WHERE id = $1 AND company_id = $2', [
@@ -245,9 +253,9 @@ router.post(
       const insert = await dbClient.query(
         `INSERT INTO visits (
            company_id, branch_id, client_id, master_membership_id, service, materials,
-           amount, discount_percent, master_payout_percent, photo_before_url, photo_after_url,
+           amount, discount_percent, discount_fixed_amount, master_payout_percent, photo_before_url, photo_after_url,
            photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, now()), $15, $16)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()), $16, $17)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -258,6 +266,7 @@ router.post(
           materials || null,
           amount,
           discountPercent || 0,
+          discountFixedAmount || null,
           payoutPercent,
           bareFileUrl(photoBeforeUrl) || null,
           bareFileUrl(photoAfterUrl) || null,
@@ -272,10 +281,12 @@ router.post(
 
       // Пакет 3, Этап 1.2: у каждого визита — своя auto_from_visit-запись в
       // finance_entries (источник выручки), а не расчёт налету из visits.
+      // Скидка в рублях (если задана) приоритетнее процентной — та же логика,
+      // что и в DISCOUNT_AMOUNT_SQL выше, здесь просто на параметрах запроса.
       await dbClient.query(
         `INSERT INTO finance_entries (company_id, source, visit_id, membership_id, amount, occurred_at, created_by_user_id)
-         VALUES ($1, 'auto_from_visit', $2, $3, ROUND($4::numeric - ($4::numeric * $5::numeric / 100), 2), $6::timestamptz::date, $7)`,
-        [req.tenant.companyId, visitId, resolvedMasterId, amount, discountPercent || 0, insert.rows[0].visit_at, req.user.id]
+         VALUES ($1, 'auto_from_visit', $2, $3, ROUND($4::numeric - COALESCE($5::numeric, $4::numeric * $6::numeric / 100), 2), $7::timestamptz::date, $8)`,
+        [req.tenant.companyId, visitId, resolvedMasterId, amount, discountFixedAmount || null, discountPercent || 0, insert.rows[0].visit_at, req.user.id]
       );
 
       if (Array.isArray(supplies) && supplies.length > 0) {
@@ -333,12 +344,22 @@ router.patch(
     const current = existing.rows[0];
 
     const {
-      clientId, service, materials, amount, discountPercent, visitAt, branchId,
+      clientId, service, materials, amount, discountPercent, discountFixedAmount, visitAt, branchId,
       photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, paymentMethod, supplies,
     } = req.body;
+    // discount_fixed_amount может понадобиться явно СБРОСИТЬ в NULL (мастер
+    // переключился с "₽" обратно на "%") — обычный COALESCE-если-передано не
+    // подходит, тот же паттерн, что и nullable-поля в supplies.routes.js.
+    const discountFixedAmountProvided = 'discountFixedAmount' in req.body;
 
     if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Некорректный способ оплаты' });
+    }
+    if (discountFixedAmount) {
+      const effectiveAmount = amount ?? current.amount;
+      if (Number(discountFixedAmount) > Number(effectiveAmount)) {
+        return res.status(400).json({ error: 'Скидка в рублях не может быть больше суммы визита' });
+      }
     }
 
     let masterMembershipToSet = current.master_membership_id;
@@ -376,6 +397,7 @@ router.patch(
            materials = COALESCE($3, materials),
            amount = COALESCE($4, amount),
            discount_percent = COALESCE($5, discount_percent),
+           discount_fixed_amount = CASE WHEN $16 THEN $17 ELSE discount_fixed_amount END,
            branch_id = COALESCE($6, branch_id),
            photo_before_url = COALESCE($7, photo_before_url),
            photo_after_url = COALESCE($8, photo_after_url),
@@ -402,6 +424,8 @@ router.patch(
           payoutPercentToSet,
           req.params.id,
           paymentMethod || null,
+          discountFixedAmountProvided,
+          discountFixedAmount || null,
         ]
       );
 
@@ -410,7 +434,7 @@ router.patch(
       // созданной auto_from_visit-записью (Пакет 3, Этап 1.2).
       await dbClient.query(
         `UPDATE finance_entries fe SET
-           amount = ROUND(v.amount - (v.amount * v.discount_percent / 100), 2),
+           amount = ROUND(v.amount - COALESCE(v.discount_fixed_amount, v.amount * v.discount_percent / 100), 2),
            membership_id = v.master_membership_id,
            occurred_at = v.visit_at::date
          FROM visits v
