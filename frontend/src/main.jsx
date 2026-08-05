@@ -4,7 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
+import { startVersionCheck } from './utils/versionCheck.js';
 import './styles.css';
+
+startVersionCheck();
 
 // Регистрируем service worker сразу при загрузке (не только когда пользователь
 // нажимает "Подписаться") — subscribeToPush() (utils/push.js) ждёт
