@@ -137,6 +137,7 @@ function OwnerFinance() {
   // Тренды (05.08.2026) — независимы от выбора периода вверху (тот
   // управляет "Обзором"/"По мастерам"), всегда последние 12 месяцев.
   const [trends, setTrends] = useState(null);
+  const [trendsError, setTrendsError] = useState('');
 
   function load() {
     if (!period.ready) return Promise.resolve();
@@ -161,7 +162,11 @@ function OwnerFinance() {
     return api.get('/modules/finance/recurring-expenses').then((res) => setRecurring(res.data));
   }
   function loadTrends() {
-    return api.get('/modules/finance/trends', { params: { months: 12 } }).then((res) => setTrends(res.data.trends));
+    setTrendsError('');
+    return api
+      .get('/modules/finance/trends', { params: { months: 12 } })
+      .then((res) => setTrends(res.data.trends))
+      .catch((err) => setTrendsError(err.response?.data?.error || err.message || 'Не удалось загрузить аналитику'));
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -327,7 +332,7 @@ function OwnerFinance() {
           onDeleteAdjustment={deleteAdjustment}
         />
       )}
-      {tab === 'analytics' && <AnalyticsTab trends={trends} />}
+      {tab === 'analytics' && <AnalyticsTab trends={trends} error={trendsError} />}
 
       {adjustmentForm && (
         <AdjustmentModal form={adjustmentForm} setForm={setAdjustmentForm} masters={masters} onSubmit={submitAdjustment} onClose={() => setAdjustmentForm(null)} />
@@ -681,7 +686,8 @@ function monthLabel(ym) {
   return MONTH_LABELS[Number(m) - 1] || ym;
 }
 
-function AnalyticsTab({ trends }) {
+function AnalyticsTab({ trends, error }) {
+  if (error) return <div className="alert alert-error">{error}</div>;
   if (!trends) return <div className="page-loading">Загрузка...</div>;
   if (trends.every((t) => t.revenue === 0 && t.visitsCount === 0)) {
     return <div className="empty-hint">Пока нет данных за последние месяцы — тренды появятся по мере ведения визитов и финансов.</div>;
