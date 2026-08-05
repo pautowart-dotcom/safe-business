@@ -54,16 +54,17 @@ const MASTER_NAV = [
 // '/branches' убран — концепция "филиалов" снята: каждая новая точка это
 // отдельная компания/подписка, переключение между ними уже есть как выбор
 // компании при входе.
-const OWNER_HUB_PATHS = ['/clients', '/visits', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
+const OWNER_HUB_PATHS = ['/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
 // У администратора теперь свои прямые вкладки на /clients, /shift, /supplies
 // (ADMIN_NAV) — не дублируем их здесь, иначе "Ещё" подсвечивалась бы
 // активной одновременно со своей прямой вкладкой.
-const ADMIN_HUB_PATHS = ['/visits', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
-const MASTER_HUB_PATHS = ['/visits', '/knowledge', '/settings', '/journals'];
+const ADMIN_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
+const MASTER_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/settings', '/journals'];
 
 const TITLES = {
   '/clients': 'Клиенты',
   '/visits': 'Визиты',
+  '/photo-reports': 'Фотоотчёты',
   '/finance': 'Финансы',
   '/supplies': 'Склад',
   '/shift': 'Чек-листы',
