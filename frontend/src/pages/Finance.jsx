@@ -73,12 +73,22 @@ function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, set
   });
   return (
     <div style={{ marginBottom: 16 }}>
+      {/* "Даты" раньше была пятой кнопкой в этом же ряду — при переносе на
+          вторую строку (flexWrap) оставалась там одна, с пустым местом
+          рядом (не нравилось владельцу). Вынесена отдельной строкой-ссылкой
+          под сегментами — так у 4 пресетов ровный ряд, а свой период не
+          ломает раскладку, даже если сам заголовок "Даты" короче остальных. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: C.surface, borderRadius: 12, padding: 3 }}>
         {PERIOD_PRESETS.map(([k, l]) => (
           <button key={k} onClick={() => setPreset(k)} style={tabStyle(preset === k)}>{l}</button>
         ))}
-        <button onClick={() => setPreset('custom')} style={tabStyle(isCustom)}>Даты</button>
       </div>
+      <button
+        onClick={() => setPreset('custom')}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: F, padding: '8px 2px 0', fontSize: 12, fontWeight: isCustom ? 700 : 500, color: isCustom ? C.primary : C.subtle }}
+      >
+        {isCustom ? 'Свой период ✓' : 'Указать даты вручную'}
+      </button>
       {isCustom && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <TextInput type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
@@ -164,7 +174,7 @@ function OwnerFinance() {
   function loadTrends() {
     setTrendsError('');
     return api
-      .get('/modules/finance/trends', { params: { months: 12 } })
+      .get('/modules/finance/summary/trends', { params: { months: 12 } })
       .then((res) => setTrends(res.data.trends))
       .catch((err) => setTrendsError(err.response?.data?.error || err.message || 'Не удалось загрузить аналитику'));
   }

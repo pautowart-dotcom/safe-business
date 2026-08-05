@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
@@ -126,15 +126,33 @@ export default function Layout() {
     }
   }
 
-  function handleTouchMove(e) {
-    if (!pullingRef.current || refreshing) return;
-    const dy = e.touches[0].clientY - touchStartY.current;
-    if (dy <= 0 || (scrollRef.current && scrollRef.current.scrollTop > 0)) {
-      setPullY(0);
-      return;
+  // React вешает JSX onTouchMove как ПАССИВНЫЙ обработчик — preventDefault()
+  // внутри него браузер тихо игнорирует. Без реального preventDefault на
+  // touchmove нативная резинка контейнера (даже с overscroll-behavior:
+  // contain — то не даёт бонсу уйти на страницу выше, но сам элемент всё
+  // равно бонсит) побеждает наш собственный жест: индикатор либо не
+  // появляется вовсе, либо появляется "рывками". Поэтому touchmove
+  // навешивается отдельно, обычным addEventListener с passive:false — так
+  // preventDefault реально работает.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+
+    function onTouchMove(e) {
+      if (!pullingRef.current || refreshing) return;
+      const dy = e.touches[0].clientY - touchStartY.current;
+      if (dy <= 0 || el.scrollTop > 0) {
+        setPullY(0);
+        return;
+      }
+      e.preventDefault();
+      setPullY(Math.min(dy * 0.5, PULL_MAX));
     }
-    setPullY(Math.min(dy * 0.5, PULL_MAX));
-  }
+
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', onTouchMove);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshing]);
 
   async function handleTouchEnd() {
     if (!pullingRef.current) return;
@@ -214,17 +232,13 @@ export default function Layout() {
       <div
         ref={scrollRef}
         onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        // overscrollBehaviorY: 'contain' — без этого в установленной на
-        // "Домой" версии (standalone, нет окна Safari вокруг страницы) жест
-        // "потянуть вниз" на scrollTop=0 иногда перехватывается системной
-        // резинкой всей страницы раньше, чем его увидит touchmove-обработчик
-        // ниже — pull-to-refresh молча не срабатывает именно в этом режиме,
-        // хотя в обычной вкладке Safari работает (там резинка — Safari, не
-        // страницы). webkitOverflowScrolling — инерционная прокрутка на
-        // старых iOS, безопасно оставить всегда.
-        style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}
+        // overscrollBehaviorY: 'none' — вместе с preventDefault в touchmove
+        // (эффект выше) это полностью отключает нативную резинку самого
+        // контейнера на верхней границе, чтобы её не было видно поверх
+        // нашего собственного индикатора. webkitOverflowScrolling —
+        // инерционная прокрутка на старых iOS, безопасно оставить всегда.
+        style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto', overscrollBehaviorY: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         <div
           style={{
