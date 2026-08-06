@@ -22,7 +22,15 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token');
       localStorage.removeItem('admin_user');
-      window.location.href = '/login';
+      // Та же ошибка, что была в frontend/src/api/client.js (см. коммит
+      // c3e9b1a): абсолютный /login без префикса /office/ не находится
+      // нигде на сервере и отдаётся лендингом (catch-all на корне домена,
+      // deploy/nginx.conf). Здесь ещё не было guard'а вообще — 401 на
+      // самом /auth/login (неверный пароль на форме входа) хардредиректил
+      // поверх ещё не отрисовавшегося сообщения об ошибке.
+      if (window.location.pathname !== '/office/login') {
+        window.location.href = '/office/login';
+      }
     }
     return Promise.reject(error);
   }
