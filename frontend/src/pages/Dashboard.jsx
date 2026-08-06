@@ -13,14 +13,6 @@ const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
 const SHIFT_LABEL = { open: 'Смена открыта', closed: 'Смена закрыта', not_opened: 'Смена ещё не открыта' };
 const SHIFT_COLOR = { open: C.green, closed: C.subtle, not_opened: C.orange };
-// Те же подписи, что и в Subscription.jsx — сознательно не импортирую
-// оттуда (страница не экспортирует константу), но значения должны совпадать 1:1.
-const SUBSCRIPTION_STATUS_LABELS = {
-  trial: 'Бесплатный период',
-  active: 'Подписка активна',
-  past_due: 'Проблема с оплатой',
-  cancelled: 'Подписка отменена',
-};
 
 function greeting() {
   const h = new Date().getHours();
@@ -101,13 +93,17 @@ export default function Dashboard() {
 // ---------- Владелец ----------
 //
 // 05.08.2026: переделан по отдельному ТЗ — строгая иерархия важности вместо
-// набора произвольных карточек, никакого AI-слоя/скоринга. Порядок фиксирован:
-// 1) критические действия (просрочено/истекает + проблемы с оплатой)
+// набора произвольных карточек, никакого AI-слоя/скоринга. Порядок:
+// 1) критические действия (просрочено/истекает + проблемы с оплатой) —
+//    рендерится, только когда реально есть что показать (владелец: пустое
+//    "критических действий нет" каждый день без изменений — просто шум)
 // 2) статус в целом — простой счётчик, без индекса
 // 3) рекомендации — простые правила по датам (utils/dashboardRecommendations.js),
 //    интерфейс стабильный специально для будущей замены на настоящую модель
-// 4) ключевые показатели — статус подписки
-// 5) всё остальное (то, что раньше было единственным содержимым экрана)
+// 4) всё остальное (то, что раньше было единственным содержимым экрана)
+// Блок с рутинным статусом подписки убран — владелец: не нужен на главном
+// экране; сам статус остался на /subscription, а проблема с оплатой (когда
+// она есть) по-прежнему всплывает в критических действиях выше.
 // Экран администратора (ManagementDashboard ниже) этим ТЗ не затронут —
 // вынесен в отдельную ветку по role, а не переделан на месте, чтобы точно
 // не задеть админа/мастера.
@@ -189,13 +185,6 @@ function OwnerDashboard() {
 
   const recommendations = buildRecommendations({ deadlines: complianceDeadlines, subscription: company, today });
 
-  const periodEnd = company?.subscription_current_period_end
-    ? new Date(company.subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-    : null;
-  const trialDaysLeft = company?.trial_ends_at
-    ? Math.max(0, Math.ceil((new Date(company.trial_ends_at) - new Date()) / 86400000))
-    : null;
-
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
@@ -205,26 +194,33 @@ function OwnerDashboard() {
         </div>
       </div>
 
-      {/* 1. Критические действия — самый заметный блок, всегда первый. */}
-      <Card style={{ border: `1.5px solid ${criticalCount > 0 ? C.red : C.green}`, marginBottom: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: criticalCount > 0 ? C.red : C.green, marginBottom: criticalCount > 0 ? 10 : 0 }}>
-          {criticalCount > 0 ? `Критических действий: ${criticalCount}` : 'Критических действий нет'}
-        </div>
-        {subscriptionProblem && (
-          <div onClick={() => navigate('/subscription')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: overdueOrNoDate.length > 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
-            <span style={{ fontSize: 14, color: C.primary }}>Проблема с оплатой подписки</span>
-            <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>Открыть →</span>
+      {/* 1. Критические действия — самый заметный блок, но только когда
+          реально есть что показать. Раньше блок оставался на экране и
+          пустым/зелёным состоянием "критических действий нет" — владелец
+          справедливо заметил, что так он почти каждый день не меняется и
+          превращается в шум. Теперь как "Центр действий" ниже — просто не
+          рендерится, если нечего показывать. */}
+      {criticalCount > 0 && (
+        <Card style={{ border: `1.5px solid ${C.red}`, marginBottom: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.red, marginBottom: 10 }}>
+            Критических действий: {criticalCount}
           </div>
-        )}
-        {overdueOrNoDate.map((d, i) => (
-          <div key={d.id} onClick={() => navigate('/deadlines')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < overdueOrNoDate.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
-            <span style={{ fontSize: 14, color: C.primary, minWidth: 0, flex: 1 }}>{d.title}</span>
-            <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>
-              {d.due_date ? 'Просрочено' : 'Требует внимания'}
-            </span>
-          </div>
-        ))}
-      </Card>
+          {subscriptionProblem && (
+            <div onClick={() => navigate('/subscription')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: overdueOrNoDate.length > 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+              <span style={{ fontSize: 14, color: C.primary }}>Проблема с оплатой подписки</span>
+              <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>Открыть →</span>
+            </div>
+          )}
+          {overdueOrNoDate.map((d, i) => (
+            <div key={d.id} onClick={() => navigate('/deadlines')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < overdueOrNoDate.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+              <span style={{ fontSize: 14, color: C.primary, minWidth: 0, flex: 1 }}>{d.title}</span>
+              <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>
+                {d.due_date ? 'Просрочено' : 'Требует внимания'}
+              </span>
+            </div>
+          ))}
+        </Card>
+      )}
 
       {/* 2. Статус в целом — просто числа, без индекса/скоринга. */}
       <Card style={{ marginBottom: 12 }}>
@@ -251,17 +247,13 @@ function OwnerDashboard() {
         </Card>
       )}
 
-      {/* 4. Ключевые показатели — подписка. */}
-      <Card style={{ marginBottom: 20, cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
-        <ST>Подписка</ST>
-        <div style={{ fontSize: 14, color: C.primary }}>
-          {SUBSCRIPTION_STATUS_LABELS[company?.subscription_status] || '—'}
-          {company?.subscription_status === 'trial' && trialDaysLeft != null && ` · осталось ${trialDaysLeft} дн.`}
-          {company?.subscription_status === 'active' && periodEnd && ` · продлится ${periodEnd}`}
-        </div>
-      </Card>
+      {/* Блок "Ключевые показатели"/подписка убран с главного экрана
+          05.08.2026 — владелец: не нужен здесь. Проблема с оплатой (past_due/
+          cancelled) по-прежнему всплывает в "Критических действиях" выше —
+          рутинный статус подписки, когда всё в порядке, просто не то, что
+          нужно видеть каждый день; сам статус остался на странице /subscription. */}
 
-      {/* 5. Всё остальное — то же самое, что было единственным содержимым экрана раньше. */}
+      {/* Дальше — то же самое, что было единственным содержимым экрана раньше. */}
       <Card>
         <ST>Сводка {dayLabel}</ST>
         {summary.shiftStatus && (
