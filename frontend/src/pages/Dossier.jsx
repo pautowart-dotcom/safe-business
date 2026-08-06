@@ -57,8 +57,10 @@ export default function Dossier() {
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>По мастеру</div>
         <Field label="Мастер">
           <Select value={membershipId} onChange={(e) => setMembershipId(e.target.value)}>
-            <option value="">Выберите сотрудника</option>
-            {roster.map((m) => (
+            <option value="">Выберите мастера</option>
+            {/* Поле подписано "Мастер", но /roster отдаёт весь состав (владелец,
+                админ, мастера) — без фильтра в списке был и сам владелец. */}
+            {roster.filter((m) => m.role === 'master').map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </Select>

@@ -254,8 +254,14 @@ router.post(
         return res.status(400).json({ error: 'Мастер не найден в этой компании' });
       }
     } else {
+      // invite_status = 'active' — не просто active=true: только что
+      // приглашённый, но ещё не принявший приглашение мастер тоже active=true
+      // (умолчание), но фронт его не показывает в списке "Мастер" (там
+      // фильтр по user_id, у неподтверждённого его ещё нет) — без этого
+      // условия владелец с висящим приглашением получал "Укажите мастера" и
+      // физически не мог выбрать никого.
       const mastersExist = await pool.query(
-        `SELECT 1 FROM memberships WHERE company_id = $1 AND role = 'master' AND active = true LIMIT 1`,
+        `SELECT 1 FROM memberships WHERE company_id = $1 AND role = 'master' AND active = true AND invite_status = 'active' LIMIT 1`,
         [req.tenant.companyId]
       );
       if (mastersExist.rows.length > 0) {
