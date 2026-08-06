@@ -6,12 +6,21 @@ import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import { localDateStr } from '../utils/localDate.js';
+import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 
 const ZONE_LABEL = { green: 'Зелёная зона', yellow: 'Жёлтая зона · Есть нарушения', red: 'Красная зона · Есть нарушения' };
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
 const SHIFT_LABEL = { open: 'Смена открыта', closed: 'Смена закрыта', not_opened: 'Смена ещё не открыта' };
 const SHIFT_COLOR = { open: C.green, closed: C.subtle, not_opened: C.orange };
+// Те же подписи, что и в Subscription.jsx — сознательно не импортирую
+// оттуда (страница не экспортирует константу), но значения должны совпадать 1:1.
+const SUBSCRIPTION_STATUS_LABELS = {
+  trial: 'Бесплатный период',
+  active: 'Подписка активна',
+  past_due: 'Проблема с оплатой',
+  cancelled: 'Подписка отменена',
+};
 
 function greeting() {
   const h = new Date().getHours();
@@ -80,16 +89,285 @@ function ActionsCenterCard({ items, navigate }) {
 }
 
 export default function Dashboard() {
-  const { isManagement } = useAuth();
+  const { isOwner, isManagement } = useAuth();
   return (
     <div>
       <IosPushBanner />
-      {isManagement ? <ManagementDashboard /> : <MasterDashboard />}
+      {isOwner ? <OwnerDashboard /> : isManagement ? <ManagementDashboard /> : <MasterDashboard />}
     </div>
   );
 }
 
-// ---------- Владелец / Администратор ----------
+// ---------- Владелец ----------
+//
+// 05.08.2026: переделан по отдельному ТЗ — строгая иерархия важности вместо
+// набора произвольных карточек, никакого AI-слоя/скоринга. Порядок фиксирован:
+// 1) критические действия (просрочено/истекает + проблемы с оплатой)
+// 2) статус в целом — простой счётчик, без индекса
+// 3) рекомендации — простые правила по датам (utils/dashboardRecommendations.js),
+//    интерфейс стабильный специально для будущей замены на настоящую модель
+// 4) ключевые показатели — статус подписки
+// 5) всё остальное (то, что раньше было единственным содержимым экрана)
+// Экран администратора (ManagementDashboard ниже) этим ТЗ не затронут —
+// вынесен в отдельную ветку по role, а не переделан на месте, чтобы точно
+// не задеть админа/мастера.
+const COMPLIANCE_CATEGORIES = ['staff', 'premises', 'documents'];
+
+function OwnerDashboard() {
+  const { currentCompany } = useAuth();
+  const navigate = useNavigate();
+  const [summary, setSummary] = useState(null);
+  const [revenue, setRevenue] = useState(0);
+  const [security, setSecurity] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [newTask, setNewTask] = useState('');
+  const [deadlines, setDeadlines] = useState([]);
+  const [company, setCompany] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  function load() {
+    setLoading(true);
+    return api
+      .get('/platform/dashboard/summary')
+      .then((res) => {
+        setSummary(res.data);
+        return Promise.all([
+          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }),
+          api.get('/modules/security/status'),
+          api.get('/platform/daily-tasks'),
+          api.get('/platform/deadlines'),
+          api.get('/platform/companies/current'),
+        ]);
+      })
+      .then(([fin, statusRes, dailyTasks, deadlinesRes, companyRes]) => {
+        setRevenue(fin.data.revenue);
+        setSecurity(statusRes.data?.indexPercent != null ? statusRes.data : null);
+        setTasks(dailyTasks.data);
+        setDeadlines(deadlinesRes.data);
+        setCompany(companyRes.data);
+      })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+  usePullToRefresh(load);
+
+  async function addTask() {
+    if (!newTask.trim()) return;
+    const { data } = await api.post('/platform/daily-tasks', { text: newTask.trim() });
+    setTasks([...tasks, data]);
+    setNewTask('');
+  }
+
+  async function toggleTask(t) {
+    setTasks(tasks.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
+    await api.patch(`/platform/daily-tasks/${t.id}`, { done: !t.done });
+  }
+
+  async function deleteTask(id) {
+    setTasks(tasks.filter((x) => x.id !== id));
+    await api.delete(`/platform/daily-tasks/${id}`);
+  }
+
+  if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
+
+  const dayLabel = summary.isToday ? 'сегодня' : 'вчера';
+  const today = todayStr();
+
+  // Документы/сроки — только 3 категории, которые владелец перечислил как
+  // "отслеживаемые" (медкнижки/СОУТ → staff, огнетушитель/дезсредства →
+  // premises, ЭЦП/патент/отходы → documents). tax/financial сюда осознанно
+  // не входят — это другая лента (см. Финансы), не "критическое действие".
+  const complianceDeadlines = deadlines.filter((d) => COMPLIANCE_CATEGORIES.includes(d.category));
+  const overdueOrNoDate = complianceDeadlines.filter((d) => !d.due_date || d.due_date < today);
+  const inOrderCount = complianceDeadlines.length - overdueOrNoDate.length;
+
+  const subscriptionProblem = company?.subscription_status === 'past_due' || company?.subscription_status === 'cancelled';
+  const criticalCount = overdueOrNoDate.length + (subscriptionProblem ? 1 : 0);
+
+  const recommendations = buildRecommendations({ deadlines: complianceDeadlines, subscription: company, today });
+
+  const periodEnd = company?.subscription_current_period_end
+    ? new Date(company.subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+  const trialDaysLeft = company?.trial_ends_at
+    ? Math.max(0, Math.ceil((new Date(company.trial_ends_at) - new Date()) / 86400000))
+    : null;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.primary }}>{currentCompany?.name}</div>
+        <div style={{ fontSize: 13, color: C.subtle, marginTop: 4 }}>
+          {greeting()} · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </div>
+      </div>
+
+      {/* 1. Критические действия — самый заметный блок, всегда первый. */}
+      <Card style={{ border: `1.5px solid ${criticalCount > 0 ? C.red : C.green}`, marginBottom: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: criticalCount > 0 ? C.red : C.green, marginBottom: criticalCount > 0 ? 10 : 0 }}>
+          {criticalCount > 0 ? `Критических действий: ${criticalCount}` : 'Критических действий нет'}
+        </div>
+        {subscriptionProblem && (
+          <div onClick={() => navigate('/subscription')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: overdueOrNoDate.length > 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+            <span style={{ fontSize: 14, color: C.primary }}>Проблема с оплатой подписки</span>
+            <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>Открыть →</span>
+          </div>
+        )}
+        {overdueOrNoDate.map((d, i) => (
+          <div key={d.id} onClick={() => navigate('/deadlines')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < overdueOrNoDate.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+            <span style={{ fontSize: 14, color: C.primary, minWidth: 0, flex: 1 }}>{d.title}</span>
+            <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>
+              {d.due_date ? 'Просрочено' : 'Требует внимания'}
+            </span>
+          </div>
+        ))}
+      </Card>
+
+      {/* 2. Статус в целом — просто числа, без индекса/скоринга. */}
+      <Card style={{ marginBottom: 12 }}>
+        <ST>Статус документов</ST>
+        <div style={{ display: 'flex', gap: 24 }}>
+          <div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: C.green }}>{inOrderCount}</div>
+            <div style={{ fontSize: 12, color: C.subtle }}>в порядке</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: overdueOrNoDate.length > 0 ? C.red : C.subtle }}>{overdueOrNoDate.length}</div>
+            <div style={{ fontSize: 12, color: C.subtle }}>требуют внимания</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* 3. Рекомендации — правила по датам, см. utils/dashboardRecommendations.js. */}
+      {recommendations.length > 0 && (
+        <Card style={{ marginBottom: 12 }}>
+          <ST>Рекомендации</ST>
+          {recommendations.map((r) => (
+            <div key={r.id} style={{ fontSize: 14, color: C.primary, padding: '6px 0' }}>{r.text}</div>
+          ))}
+        </Card>
+      )}
+
+      {/* 4. Ключевые показатели — подписка. */}
+      <Card style={{ marginBottom: 20, cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
+        <ST>Подписка</ST>
+        <div style={{ fontSize: 14, color: C.primary }}>
+          {SUBSCRIPTION_STATUS_LABELS[company?.subscription_status] || '—'}
+          {company?.subscription_status === 'trial' && trialDaysLeft != null && ` · осталось ${trialDaysLeft} дн.`}
+          {company?.subscription_status === 'active' && periodEnd && ` · продлится ${periodEnd}`}
+        </div>
+      </Card>
+
+      {/* 5. Всё остальное — то же самое, что было единственным содержимым экрана раньше. */}
+      <Card>
+        <ST>Сводка {dayLabel}</ST>
+        {summary.shiftStatus && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: SHIFT_COLOR[summary.shiftStatus], flexShrink: 0 }} />
+            <span style={{ fontSize: 14, color: C.primary }}>{SHIFT_LABEL[summary.shiftStatus]}</span>
+          </div>
+        )}
+        {summary.reportsTotal > 0 && (
+          <div style={{ fontSize: 14, color: C.primary, marginBottom: summary.lowStockCount ? 10 : 0 }}>
+            Отчётов внесено: <b>{summary.reportsDone} из {summary.reportsTotal}</b>
+          </div>
+        )}
+        {summary.lowStockCount > 0 && (
+          <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
+            ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
+          </div>
+        )}
+        {!summary.shiftStatus && summary.reportsTotal === 0 && !summary.lowStockCount && (
+          <div style={{ fontSize: 13, color: C.subtle }}>Пока нечего показать</div>
+        )}
+      </Card>
+
+      <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(revenue)}</div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
+      </div>
+
+      <Card>
+        <ST>Личные заметки на сегодня</ST>
+        {tasks.map((t) => (
+          <div key={t.id} onClick={() => toggleTask(t)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' }}>
+            <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${t.done ? C.primary : C.border}`, background: t.done ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {t.done && <Icon name="check" size={11} color="#FFF" sw={2.5} />}
+            </div>
+            <span style={{ flex: 1, fontSize: 14, color: t.done ? C.subtle : C.primary, textDecoration: t.done ? 'line-through' : 'none' }}>{t.text}</span>
+            <button onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>✕</button>
+          </div>
+        ))}
+        {tasks.length === 0 && <div style={{ fontSize: 13, color: C.subtle, marginBottom: 10 }}>Список пуст</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } }}
+            placeholder="Например: внести расходы"
+            style={{ flex: 1, boxSizing: 'border-box', background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none' }}
+          />
+          <button onClick={addTask} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+</button>
+        </div>
+      </Card>
+
+      {security ? (
+        <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Безопасность</span>
+            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}>{security.indexPercent}%</Badge>
+          </div>
+          <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${security.indexPercent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
+          </div>
+          <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>{ZONE_LABEL[security.zone]} · Открыть →</div>
+        </Card>
+      ) : (
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Безопасность</div>
+          <div style={{ fontSize: 12, color: C.subtle }}>Пройдите тест безопасности, чтобы увидеть индекс безопасности →</div>
+        </Card>
+      )}
+
+      {summary.byMaster && summary.byMaster.length > 0 && (
+        <Card>
+          <ST>Команда · отчёты {dayLabel}</ST>
+          {summary.byMaster.map((m, i) => (
+            <div key={m.membershipId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: i < summary.byMaster.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Avatar letter={m.name?.[0]} size={30} />
+                <span style={{ fontSize: 14 }}>{m.name}</span>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: m.reportsDone === m.reportsTotal && m.reportsTotal > 0 ? C.green : C.subtle }}>
+                {m.reportsDone} из {m.reportsTotal}
+              </span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {summary.recentEvents.length > 0 && (
+        <Card>
+          <ST>Последние события</ST>
+          {summary.recentEvents.map((e, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>{e.text}</span>
+              <span style={{ color: C.subtle }}>{new Date(e.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------- Администратор ----------
+// Не тронут этим ТЗ (оно только про экран владельца) — тот же компонент,
+// что был раньше общим для owner+admin, просто теперь owner ушёл в
+// OwnerDashboard выше, а этот остался как есть для admin.
 
 function ManagementDashboard() {
   const { user, currentCompany, isOwner } = useAuth();
