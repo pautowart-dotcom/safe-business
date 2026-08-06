@@ -29,9 +29,17 @@ router.get(
     if (category === 'tax' && req.tenant.role === 'admin') {
       return res.json([]);
     }
+    // 05.08.2026: раздел "Журналы" заморожен целиком (владелец — до
+    // легализации электронных журналов), включая напоминания о допечатке
+    // бланков — они вели бы на теперь заблокированный POST /generated-journals.
+    // Та же логика "молча пустой список", что и у tax выше, но для всех
+    // ролей, а не только админа.
+    if (category === 'journals') {
+      return res.json([]);
+    }
 
     const params = [req.tenant.companyId];
-    let where = 'company_id = $1';
+    let where = "company_id = $1 AND category != 'journals'";
 
     if (category) {
       if (!CATEGORIES.includes(category)) {

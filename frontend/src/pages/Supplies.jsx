@@ -173,7 +173,7 @@ export default function Supplies() {
           <span style={{ fontSize: 14 }}>Дезинфицирующее средство</span>
         </label>
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 20 }}>
-          Приход/списание этой позиции автоматически попадает в журнал "Дезсредства" (раздел "Журналы") — отмечайте только реальные дезсредства.
+          Отмечайте только реальные дезсредства — тег используется для учёта расхода.
         </div>
         <Btn onClick={handleCreate}>{editingId ? 'Сохранить изменения' : 'Добавить'}</Btn>
       </div>

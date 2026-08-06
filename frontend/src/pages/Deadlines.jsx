@@ -12,12 +12,13 @@ import { downloadPdf } from '../utils/downloadPdf.js';
 const REPRINT_RELATED_TYPE = 'generated_journal_reprint';
 
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
+// 'journals' убрана 05.08.2026 — раздел заморожен, сервер эту категорию
+// теперь всегда отдаёт пустой (deadlines.routes.js), фильтр был бы мёртвым.
 const CATEGORIES = [
   { key: 'staff', label: 'Кадровые', color: C.red, bg: C.redBg },
   { key: 'premises', label: 'Помещение', color: C.blue, bg: C.blueBg },
   { key: 'documents', label: 'Юридические', color: C.primary, bg: C.surface },
   { key: 'tax', label: 'Налоговые', color: C.orange, bg: C.orangeBg },
-  { key: 'journals', label: 'Журналы', color: C.purple, bg: C.purpleBg },
   { key: 'financial', label: 'Финансовые', color: C.green, bg: C.greenBg },
 ];
 const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));

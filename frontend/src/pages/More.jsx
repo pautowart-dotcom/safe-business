@@ -16,7 +16,10 @@ const OWNER_ITEMS = [
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
-  { label: 'Журналы', sub: 'УФ-лампа, инструктаж на рабочем месте', icon: 'doc', to: '/journals' },
+  // "Журналы" убраны из меню 05.08.2026 — раздел заморожен целиком
+  // (владелец: до легализации электронных журналов). Роут /journals
+  // остался в App.jsx как заглушка "временно недоступно" — на случай, если
+  // кто-то перейдёт по старой ссылке/закладке.
   { label: 'Сформировать досье', sub: 'По дате или по мастеру (по клиенту — в его карточке)', icon: 'doc', to: '/dossier' },
   { label: 'Обратная связь', sub: 'Сообщения от мастеров', icon: 'msg', to: '/feedback' },
   { label: 'Команда', sub: 'Мастера, приглашения, удаление', icon: 'team', to: '/team' },
@@ -134,19 +137,7 @@ function MasterMore() {
           </div>
         </ChevronRow>
       </Card>
-      <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/journals')}>
-        <ChevronRow>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="doc" size={20} color={C.primary} />
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>Журналы</div>
-              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>УФ-лампа, инструктаж на рабочем месте</div>
-            </div>
-          </div>
-        </ChevronRow>
-      </Card>
+      {/* "Журналы" убраны 05.08.2026 — раздел заморожен целиком, см. More.jsx OWNER_ITEMS. */}
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

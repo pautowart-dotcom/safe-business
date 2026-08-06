@@ -17,7 +17,7 @@ import Checklists from './pages/Checklists.jsx';
 import Knowledge from './pages/Knowledge.jsx';
 import Security from './pages/Security.jsx';
 import Users from './pages/Users.jsx';
-import Journals from './pages/Journals.jsx';
+import FeatureFrozen from './pages/FeatureFrozen.jsx';
 import Dossier from './pages/Dossier.jsx';
 import Settings from './pages/Settings.jsx';
 import Feedback from './pages/Feedback.jsx';
@@ -95,7 +95,10 @@ export default function App() {
         <Route path="subscription" element={<Subscription />} />
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
-        <Route path="journals" element={<Journals />} />
+        {/* Раздел заморожен 05.08.2026 (владелец: до легализации электронных
+            журналов) — Journals.jsx больше никуда не подключён, но не удалён
+            на случай, если понадобится включить обратно. */}
+        <Route path="journals" element={<FeatureFrozen />} />
         <Route path="photo-reports" element={<PhotoReports />} />
         <Route
           path="dossier"

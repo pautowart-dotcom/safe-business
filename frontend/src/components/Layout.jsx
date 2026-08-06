@@ -54,12 +54,15 @@ const MASTER_NAV = [
 // '/branches' убран — концепция "филиалов" снята: каждая новая точка это
 // отдельная компания/подписка, переключение между ними уже есть как выбор
 // компании при входе.
-const OWNER_HUB_PATHS = ['/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
+// '/journals' убран из всех трёх списков 05.08.2026 — раздел заморожен,
+// пункта меню больше нет (More.jsx), роут остался только как заглушка
+// "временно недоступно" для старых ссылок/закладок.
+const OWNER_HUB_PATHS = ['/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
 // У администратора теперь свои прямые вкладки на /clients, /shift, /supplies
 // (ADMIN_NAV) — не дублируем их здесь, иначе "Ещё" подсвечивалась бы
 // активной одновременно со своей прямой вкладкой.
-const ADMIN_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/feedback', '/team', '/settings', '/journals', '/dossier'];
-const MASTER_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/settings', '/journals'];
+const ADMIN_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
+const MASTER_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/settings'];
 
 const TITLES = {
   '/clients': 'Клиенты',

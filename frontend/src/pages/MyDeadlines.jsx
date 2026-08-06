@@ -203,7 +203,6 @@ export default function MyDeadlinesTab() {
       ))}
 
       <div style={{ marginTop: 20 }}><ST>Помещение и оборудование</ST></div>
-      <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>УФ-бактерицидная лампа ведётся в разделе «Журналы» — отдельная карточка здесь не нужна.</div>
       {byCategory.premises.map((slot) => (
         <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} />
       ))}
@@ -245,9 +244,6 @@ export default function MyDeadlinesTab() {
           ))}
         </Card>
       )}
-
-      <div style={{ marginTop: 20 }}><ST>Журналы</ST></div>
-      <div style={{ fontSize: 12, color: C.subtle }}>Сроки допечатки журналов появятся здесь после того, как журнал будет создан в разделе «Журналы».</div>
     </div>
   );
 }

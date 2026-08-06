@@ -14,12 +14,13 @@ const SUBSCRIPTION_STATUS_LABELS = {
 };
 const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
+// 'journals' убрана 05.08.2026 — раздел заморожен целиком (до легализации
+// электронных журналов), уведомлений по этой категории больше не бывает.
 const NOTIFICATION_CATEGORIES = [
   { key: 'staff', label: 'Кадровые' },
   { key: 'premises', label: 'Помещение' },
   { key: 'documents', label: 'Юридические' },
   { key: 'tax', label: 'Налоговые' },
-  { key: 'journals', label: 'Журналы' },
   { key: 'financial', label: 'Финансовые' },
 ];
 
