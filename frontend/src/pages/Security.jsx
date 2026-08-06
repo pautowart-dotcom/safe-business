@@ -109,6 +109,11 @@ export default function Security() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [activeAudit, setActiveAudit] = useState(null);
   const [auditResult, setAuditResult] = useState(null);
+  // Тест и его результат бесплатны всем, платный барьер только на скачивании
+  // PDF (requirePaidPlan — см. downloadPdf выше). Статус подписки нужен
+  // здесь только для честной подписи на кнопке/тексте карточки — сама
+  // блокировка скачивания всё равно проверяется на backend.
+  const [hasPaidPlan, setHasPaidPlan] = useState(false);
   // Пакет 4, Этап 2: два таба верхнего уровня внутри "Безопасности" — "Тест"
   // (существующая панель ниже) и новая "Мои сроки". Таб переключается только
   // в устойчивом состоянии панели — во время прохождения теста/результата/
@@ -134,8 +139,12 @@ export default function Security() {
     setLoading(true);
     setError('');
     try {
-      const profileRes = await api.get('/modules/security/profile');
+      const [profileRes, companyRes] = await Promise.all([
+        api.get('/modules/security/profile'),
+        api.get('/platform/companies/current'),
+      ]);
       setProfile(profileRes.data);
+      setHasPaidPlan(!!companyRes.data?.subscription_status && companyRes.data.subscription_status !== 'trial');
       if (profileRes.data) await loadDashboardData();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось загрузить данные');
@@ -259,7 +268,7 @@ export default function Security() {
     );
   }
   if (auditResult) {
-    return <AuditResult result={auditResult} onClose={() => setAuditResult(null)} onDownload={() => downloadPdf(auditResult.session.id, setError, navigate)} />;
+    return <AuditResult result={auditResult} hasPaidPlan={hasPaidPlan} onClose={() => setAuditResult(null)} onDownload={() => downloadPdf(auditResult.session.id, setError, navigate)} />;
   }
   if (!profile || editingProfile) {
     return (
@@ -304,6 +313,7 @@ export default function Security() {
           documentSections={documentSections}
           products={products}
           isManagement={isManagement}
+          hasPaidPlan={hasPaidPlan}
           error={error}
           onEditProfile={() => setEditingProfile(true)}
           onStartAudit={startAudit}
@@ -487,7 +497,7 @@ function IndexHero({ percent, zone, subtitle, note }) {
   );
 }
 
-function AuditResult({ result, onClose, onDownload }) {
+function AuditResult({ result, hasPaidPlan, onClose, onDownload }) {
   const { status, warnings } = result;
   const zone = status.zone;
   return (
@@ -498,7 +508,7 @@ function AuditResult({ result, onClose, onDownload }) {
       {warnings?.map((w, i) => (
         <div key={i} className="alert alert-error" style={{ marginBottom: 12 }}>{w}</div>
       ))}
-      <Btn onClick={onDownload}>Скачать PDF-отчёт</Btn>
+      <Btn onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт 🔒 по подписке'}</Btn>
     </div>
   );
 }
@@ -506,7 +516,7 @@ function AuditResult({ result, onClose, onDownload }) {
 // ---------- Главная панель ----------
 
 function SecurityDashboard({
-  profile, status, violations, documents, documentSections, products, isManagement, error,
+  profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, error,
   onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange, hideTitle,
 }) {
   const [tab, setTab] = useState('overview');
@@ -559,7 +569,7 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
+        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} />}
@@ -567,7 +577,7 @@ function SecurityDashboard({
   );
 }
 
-function OverviewTab({ profile, status, products, isManagement, onStartAudit, onJoinWaitlist, onDownloadReport }) {
+function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, onStartAudit, onJoinWaitlist, onDownloadReport }) {
   const hasResult = status?.indexPercent != null;
   const outstanding = status?.outstandingNiches || [];
 
@@ -596,15 +606,19 @@ function OverviewTab({ profile, status, products, isManagement, onStartAudit, on
             <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {status.indexPercent}%</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {isManagement && <Btn small variant="secondary" onClick={continueAction}>{continueLabel}</Btn>}
-              {isManagement && <Btn small onClick={() => onDownloadReport(status.anchorSessionId)}>Скачать PDF</Btn>}
+              {isManagement && (
+                <Btn small onClick={() => onDownloadReport(status.anchorSessionId)}>
+                  {hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF 🔒'}
+                </Btn>
+              )}
             </div>
           </div>
         ) : products?.audit.available ? (
           <div>
             <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
               {profile.niches.length > 1
-                ? `34 вопроса на каждую из ${profile.niches.length} ниш, бесплатно. Полная карта нарушений, дорожная карта устранения и один общий PDF-отчёт.`
-                : '34 вопроса, бесплатно. Полная карта нарушений, дорожная карта устранения и персональный PDF-отчёт.'}
+                ? `34 вопроса на каждую из ${profile.niches.length} ниш, бесплатно — полная карта нарушений и дорожная карта устранения. Общий PDF-отчёт для печати — по подписке.`
+                : '34 вопроса, бесплатно — полная карта нарушений и дорожная карта устранения. Персональный PDF-отчёт для печати — по подписке.'}
             </div>
             {isManagement && <Btn onClick={() => onStartAudit()}>Пройти тест безопасности</Btn>}
           </div>
