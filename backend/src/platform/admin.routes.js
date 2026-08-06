@@ -6,6 +6,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireSuperAdmin } = require('../core/middleware/role');
 const securityRepository = require('../modules/security/content/repository');
+const { sendMail } = require('../core/mailer');
+const { isAiConfigured, draftText } = require('../core/aiAssist');
 
 const router = express.Router();
 
@@ -264,13 +266,106 @@ router.get(
   '/support-requests',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT sr.id, sr.message, sr.email, sr.created_at, u.name AS user_name, c.name AS company_name
+      `SELECT sr.id, sr.message, sr.email, sr.created_at, sr.status, sr.reply_text,
+              sr.resolution_note, sr.replied_at, u.name AS user_name, c.name AS company_name
        FROM support_requests sr
        LEFT JOIN users u ON u.id = sr.user_id
        LEFT JOIN companies c ON c.id = sr.company_id
-       ORDER BY sr.created_at DESC LIMIT 100`
+       ORDER BY (sr.status = 'open') DESC, sr.created_at DESC LIMIT 100`
     );
     res.json(rows);
+  })
+);
+
+// Черновик ответа от ИИ (Фаза 1 "журнала решений" — план ИИ-второго-
+// собственника, обсуждение 06.08.2026). Контекст: бриф продукта (коротко,
+// без секретов) + последние решённые обращения с заметкой "почему так
+// решили" как few-shot примеры именно ваших формулировок — не отправляется
+// клиенту сам по себе, только предложение, которое владелец правит перед
+// отправкой (см. POST /:id/reply ниже).
+router.post(
+  '/support-requests/:id/draft-reply',
+  asyncHandler(async (req, res) => {
+    if (!isAiConfigured()) {
+      return res.status(400).json({ error: 'ИИ не настроен на сервере (нет ANTHROPIC_API_KEY)' });
+    }
+
+    const current = await pool.query(
+      `SELECT message, email FROM support_requests WHERE id = $1`,
+      [req.params.id]
+    );
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'Обращение не найдено' });
+    }
+
+    const examples = await pool.query(
+      `SELECT message, reply_text, resolution_note FROM support_requests
+       WHERE status = 'resolved' AND reply_text IS NOT NULL
+       ORDER BY replied_at DESC LIMIT 8`
+    );
+
+    const examplesText = examples.rows.length === 0
+      ? '(пока нет прошлых решённых обращений — примеров нет)'
+      : examples.rows
+          .map((r, i) => `Пример ${i + 1}:\nВопрос: ${r.message}\nОтвет: ${r.reply_text}${r.resolution_note ? `\nПочему так: ${r.resolution_note}` : ''}`)
+          .join('\n\n');
+
+    const system = `Ты помогаешь владельцу сервиса "Безопасный бизнес" (платформа для владельцев малого бизнеса, помогает не пропускать юридические/санитарные/финансовые сроки) отвечать на обращения в поддержку.
+Тон: честно и просто, без канцелярита, без запугивания проверками, без обещаний гарантированного результата ("защитим от штрафов" — так писать нельзя).
+Ниже — примеры того, как владелец сам отвечал раньше на похожие вопросы. Пиши в том же стиле, если примеры есть.
+
+${examplesText}
+
+Верни только текст ответа клиенту, без вступлений вроде "Вот черновик:".`;
+
+    try {
+      const draft = await draftText({
+        system,
+        prompt: `Обращение клиента:\n${current.rows[0].message}`,
+        maxTokens: 512,
+      });
+      res.json({ draft });
+    } catch (err) {
+      res.status(502).json({ error: err.message || 'Не удалось получить черновик от ИИ' });
+    }
+  })
+);
+
+// Ответ клиенту + заметка "почему так решили" — та самая запись в "журнале
+// решений", на которой строится черновик от ИИ выше. Ответ уходит письмом
+// (тот же sendMail, что и остальные транзакционные письма), сохраняется в
+// самой заявке — раньше ответ уходил только в личную почту владельца и
+// нигде не оставался.
+router.post(
+  '/support-requests/:id/reply',
+  asyncHandler(async (req, res) => {
+    const { replyText, resolutionNote } = req.body;
+    if (!replyText || !replyText.trim()) {
+      return res.status(400).json({ error: 'Текст ответа не может быть пустым' });
+    }
+
+    const current = await pool.query(
+      `SELECT email, message FROM support_requests WHERE id = $1`,
+      [req.params.id]
+    );
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'Обращение не найдено' });
+    }
+
+    await sendMail({
+      to: current.rows[0].email,
+      subject: 'Ответ на ваше обращение — «Безопасный бизнес»',
+      html: `<p>Вы писали:</p><blockquote>${current.rows[0].message}</blockquote><p>${replyText.replace(/\n/g, '<br>')}</p>`,
+    });
+
+    const { rows } = await pool.query(
+      `UPDATE support_requests
+       SET status = 'resolved', reply_text = $1, resolution_note = $2, replied_at = now()
+       WHERE id = $3
+       RETURNING id, status, reply_text, resolution_note, replied_at`,
+      [replyText.trim(), resolutionNote ? resolutionNote.trim() : null, req.params.id]
+    );
+    res.json(rows[0]);
   })
 );
 
