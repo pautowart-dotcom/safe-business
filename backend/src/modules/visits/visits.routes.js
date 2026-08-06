@@ -239,18 +239,36 @@ router.post(
       return res.status(400).json({ error: 'Клиент не найден в этой компании' });
     }
 
-    if (req.tenant.role !== 'master' && !masterMembershipId) {
-      return res.status(400).json({ error: 'Укажите мастера, который выполнил визит' });
-    }
-    const resolvedMasterId = await resolveMasterMembership(req.tenant.companyId, req.tenant, masterMembershipId);
-    if (!resolvedMasterId) {
-      return res.status(400).json({ error: 'Мастер не найден в этой компании' });
+    // Мастер обязателен, только если в компании реально есть хотя бы один
+    // активный мастер — иначе владелец без сотрудников ("Работаю один")
+    // не может завести ни одного визита: своей роли "мастер" у него нет и
+    // взяться неоткуда без отдельного приглашения самого себя. Визит без
+    // мастера — просто собственная выручка владельца, без строки "выплата".
+    let resolvedMasterId = null;
+    let payoutPercent = null;
+    if (req.tenant.role === 'master') {
+      resolvedMasterId = req.tenant.membershipId;
+    } else if (masterMembershipId) {
+      resolvedMasterId = await resolveMasterMembership(req.tenant.companyId, req.tenant, masterMembershipId);
+      if (!resolvedMasterId) {
+        return res.status(400).json({ error: 'Мастер не найден в этой компании' });
+      }
+    } else {
+      const mastersExist = await pool.query(
+        `SELECT 1 FROM memberships WHERE company_id = $1 AND role = 'master' AND active = true LIMIT 1`,
+        [req.tenant.companyId]
+      );
+      if (mastersExist.rows.length > 0) {
+        return res.status(400).json({ error: 'Укажите мастера, который выполнил визит' });
+      }
     }
 
-    const master = await pool.query('SELECT payout_percent FROM memberships WHERE id = $1', [resolvedMasterId]);
-    const payoutPercent = master.rows[0].payout_percent;
-    if (payoutPercent === null) {
-      return res.status(400).json({ error: 'Для этого мастера не задан процент выплаты — попросите владельца указать его в разделе «Команда»' });
+    if (resolvedMasterId) {
+      const master = await pool.query('SELECT payout_percent FROM memberships WHERE id = $1', [resolvedMasterId]);
+      payoutPercent = master.rows[0].payout_percent;
+      if (payoutPercent === null) {
+        return res.status(400).json({ error: 'Для этого мастера не задан процент выплаты — попросите владельца указать его в разделе «Команда»' });
+      }
     }
 
     const dbClient = await pool.connect();

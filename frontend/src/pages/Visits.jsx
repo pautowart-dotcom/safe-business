@@ -252,7 +252,10 @@ export default function Visits() {
       setError('Укажите фамилию и имя клиента');
       return;
     }
-    if (isManagement && !form.masterMembershipId) {
+    // Мастер обязателен, только если он вообще есть кого выбрать — иначе
+    // владелец без сотрудников ("Работаю один") не смог бы завести ни
+    // одного визита (см. backend/src/modules/visits/visits.routes.js).
+    if (isManagement && masters.length > 0 && !form.masterMembershipId) {
       setError('Выберите мастера, который выполнил визит');
       return;
     }
@@ -385,7 +388,10 @@ export default function Visits() {
             </div>
           )}
 
-          {isManagement && (
+          {/* Поле вообще не показываем, если в компании нет ни одного мастера
+              (соло-владелец) — иначе он видит обязательное поле, выбрать в
+              котором нечего, и не может сохранить визит вовсе. */}
+          {isManagement && masters.length > 0 && (
             <Field label="Мастер">
               <Select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
                 <option value="">Выберите мастера</option>
