@@ -33,19 +33,34 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // 06.08.2026: супер-админ раньше был исключением из проверки устройства
+  // (backend/platform/auth.routes.js, loginOrRequireVerification) — по
+  // просьбе владельца это убрали ради максимальной защиты главного
+  // аккаунта. deviceToken — тот же механизм, что в клиентском ЛК
+  // (frontend/src/context/AuthContext.jsx): после успешного кода с почты
+  // устройство запоминается, повторный вход с него код уже не спрашивает.
   async function login(email, password) {
-    const res = await api.post('/auth/login', { email, password });
-    // Обычный пользователь (не супер-админ) на новом устройстве получает
-    // requiresDeviceVerification вместо user/token (backend/platform/
-    // auth.routes.js) — здесь нет экрана ввода кода, поэтому раньше это
-    // падало на res.data.user.is_super_admin (user === undefined) с
-    // техническим TypeError вместо понятной причины отказа.
-    if (!res.data.user?.is_super_admin) {
+    const deviceToken = localStorage.getItem('admin_deviceToken') || undefined;
+    const res = await api.post('/auth/login', { email, password, deviceToken });
+    if (res.data.requiresDeviceVerification) {
+      return res.data; // { requiresDeviceVerification: true, email }
+    }
+    return applyAuthResult(res.data);
+  }
+
+  async function verifyCode(email, code) {
+    const res = await api.post('/auth/verify-code', { email, code });
+    return applyAuthResult(res.data);
+  }
+
+  function applyAuthResult(data) {
+    if (!data.user?.is_super_admin) {
       throw { response: { data: { error: 'У этого аккаунта нет доступа к кабинету платформы' } } };
     }
-    localStorage.setItem('admin_token', res.data.token);
-    localStorage.setItem('admin_user', JSON.stringify(res.data.user));
-    setUser(res.data.user);
+    localStorage.setItem('admin_token', data.token);
+    localStorage.setItem('admin_user', JSON.stringify(data.user));
+    if (data.deviceToken) localStorage.setItem('admin_deviceToken', data.deviceToken);
+    setUser(data.user);
   }
 
   function logout() {
@@ -55,7 +70,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, verifyCode, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -43,12 +43,15 @@ async function sendVerificationCode(userId, email) {
 // "подтвердите email" механизма не нужно, это тот же самый случай
 // "устройство ещё не подтверждено".
 async function loginOrRequireVerification(res, user, deviceToken, status = 200) {
-  // Единственный супер-админ (сам владелец) заходит и в клиентский ЛК, и в
-  // business-safe.ru/office/ (admin-frontend) — там нет экрана ввода кода,
-  // добавлять его ради одного аккаунта не стали. У супер-админа и так root
-  // на сервере/БД, код с почты не добавляет реальной защиты именно ему.
-  let deviceTrusted = !!user.is_super_admin;
-  if (!deviceTrusted && deviceToken) {
+  // До 06.08.2026 супер-админ был исключением — код с почты не требовался
+  // вовсе (аргумент был "у него и так root на сервере/БД"). Это защищало
+  // от взлома сервера, но не от угадывания/утечки одного только пароля —
+  // а это единственный аккаунт, который может всё. По просьбе владельца
+  // (максимальная защита) супер-админ теперь проходит ту же проверку
+  // устройства, что и все, — admin-frontend получил свой экран ввода кода
+  // (см. admin-frontend/src/pages/Login.jsx).
+  let deviceTrusted = false;
+  if (deviceToken) {
     const tokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
     const deviceRes = await pool.query(
       'SELECT id FROM trusted_devices WHERE user_id = $1 AND device_token_hash = $2',
