@@ -4,3 +4,30 @@ body { margin: 0; }
 .alert { border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
 .alert-error { background: #FFF2F2; color: #DC2626; }
 .alert-success { background: #ECFDF3; color: #16A34A; }
+
+/* Адаптив кабинета платформы (Layout.jsx): на компьютере сайдбар всегда
+   виден слева, на телефоне — выезжающая панель по гамбургеру, чтобы
+   контент не оставался зажат в узкой правой полоске. Брейкпоинт 860px —
+   сайдбар (240px) + разумный минимум под контент, не привязан к конкретным
+   устройствам. */
+.admin-mobile-only { display: none; }
+.admin-overlay { display: none; }
+
+@media (max-width: 860px) {
+  /* Топбар и контент — друг под другом, а не в ряд (сайдбар уходит из
+     потока через position: fixed сам по себе, но без column топбар и
+     main всё равно встали бы горизонтально, как на компьютере). */
+  .admin-shell { flex-direction: column; }
+  .admin-mobile-only { display: flex; }
+  .admin-sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.12);
+  }
+  .admin-sidebar.admin-sidebar--open { transform: translateX(0); }
+  .admin-overlay.admin-overlay--open {
+    display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 190;
+  }
+  .admin-main { padding: 16px !important; max-width: none !important; }
+}

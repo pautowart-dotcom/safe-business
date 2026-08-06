@@ -10,6 +10,8 @@ const P = {
   key: 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4',
   bug: 'M8 2l1.88 1.88 M14.12 3.88L16 2 M9 7.13v-1a3.003 3.003 0 116 0v1',
   logout: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9',
+  menu: 'M3 6h18 M3 12h18 M3 18h18',
+  close: 'M18 6L6 18 M6 6l12 12',
 };
 
 export default function Icon({ name, size = 18, color = C.secondary, sw = 1.8 }) {
