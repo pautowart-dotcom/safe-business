@@ -35,7 +35,12 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const res = await api.post('/auth/login', { email, password });
-    if (!res.data.user.is_super_admin) {
+    // Обычный пользователь (не супер-админ) на новом устройстве получает
+    // requiresDeviceVerification вместо user/token (backend/platform/
+    // auth.routes.js) — здесь нет экрана ввода кода, поэтому раньше это
+    // падало на res.data.user.is_super_admin (user === undefined) с
+    // техническим TypeError вместо понятной причины отказа.
+    if (!res.data.user?.is_super_admin) {
       throw { response: { data: { error: 'У этого аккаунта нет доступа к кабинету платформы' } } };
     }
     localStorage.setItem('admin_token', res.data.token);

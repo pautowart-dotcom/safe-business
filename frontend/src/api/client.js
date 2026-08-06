@@ -32,17 +32,22 @@ api.interceptors.response.use(
       // переходом посреди того, как React ещё обрабатывает остальные из
       // Promise.all(). Guard ниже не даёт делать это больше одного раза и
       // пропускает редирект, если мы и так уже на /login.
-      if (window.location.pathname !== '/login' && !window.__redirectingToLogin) {
+      // Абсолютный путь без префикса /lk/ (баг): приложение живёт под /lk/,
+      // а голый /login на сервере ни во что не попадает и отдаётся лендингом
+      // (единственный catch-all на корне домена, см. deploy/nginx.conf) —
+      // 401 на /auth/login (например, просто неверный пароль) вместо
+      // сообщения об ошибке молча перекидывал на маркетинговую страницу.
+      if (window.location.pathname !== '/lk/login' && !window.__redirectingToLogin) {
         window.__redirectingToLogin = true;
-        window.location.href = '/login';
+        window.location.href = '/lk/login';
       }
     }
     // Бесплатный период закончился (backend/core/middleware/tenancy.js) —
     // тот же guard от параллельных запросов, что и для 401 выше.
     if (error.response?.status === 402 && error.response?.data?.requiresSubscription) {
-      if (window.location.pathname !== '/subscription' && !window.__redirectingToSubscription) {
+      if (window.location.pathname !== '/lk/subscription' && !window.__redirectingToSubscription) {
         window.__redirectingToSubscription = true;
-        window.location.href = '/subscription';
+        window.location.href = '/lk/subscription';
       }
     }
     return Promise.reject(error);
