@@ -254,28 +254,32 @@ function OwnerDashboard() {
           нужно видеть каждый день; сам статус остался на странице /subscription. */}
 
       {/* Дальше — то же самое, что было единственным содержимым экрана раньше. */}
-      <Card>
-        <ST>Сводка {dayLabel}</ST>
-        {summary.shiftStatus && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: SHIFT_COLOR[summary.shiftStatus], flexShrink: 0 }} />
-            <span style={{ fontSize: 14, color: C.primary }}>{SHIFT_LABEL[summary.shiftStatus]}</span>
-          </div>
-        )}
-        {summary.reportsTotal > 0 && (
-          <div style={{ fontSize: 14, color: C.primary, marginBottom: summary.lowStockCount ? 10 : 0 }}>
-            Отчётов внесено: <b>{summary.reportsDone} из {summary.reportsTotal}</b>
-          </div>
-        )}
-        {summary.lowStockCount > 0 && (
-          <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
-            ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
-          </div>
-        )}
-        {!summary.shiftStatus && summary.reportsTotal === 0 && !summary.lowStockCount && (
-          <div style={{ fontSize: 13, color: C.subtle }}>Пока нечего показать</div>
-        )}
-      </Card>
+      {/* Как и "Критические действия"/"Центр действий" выше — не рендерится
+          пустой, только с текстом-заглушкой "Пока нечего показать": у
+          свежей компании (нет смены/чек-листов/расходников) это первая
+          карточка, которую видит новый владелец, и раньше она была
+          гарантированно пустой. */}
+      {(summary.shiftStatus || summary.reportsTotal > 0 || summary.lowStockCount > 0) && (
+        <Card>
+          <ST>Сводка {dayLabel}</ST>
+          {summary.shiftStatus && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: SHIFT_COLOR[summary.shiftStatus], flexShrink: 0 }} />
+              <span style={{ fontSize: 14, color: C.primary }}>{SHIFT_LABEL[summary.shiftStatus]}</span>
+            </div>
+          )}
+          {summary.reportsTotal > 0 && (
+            <div style={{ fontSize: 14, color: C.primary, marginBottom: summary.lowStockCount ? 10 : 0 }}>
+              Отчётов внесено: <b>{summary.reportsDone} из {summary.reportsTotal}</b>
+            </div>
+          )}
+          {summary.lowStockCount > 0 && (
+            <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
+              ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
+            </div>
+          )}
+        </Card>
+      )}
 
       <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(revenue)}</div>
