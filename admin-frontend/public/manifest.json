@@ -1,0 +1,17 @@
+{
+  "name": "Безопасный бизнес — Админка",
+  "short_name": "БезБизнес Админ",
+  "description": "Панель управления платформой «Безопасный бизнес»",
+  "start_url": "/office/",
+  "scope": "/office/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#2A2A2E",
+  "lang": "ru",
+  "icons": [
+    { "src": "/office/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/office/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/office/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
