@@ -224,6 +224,7 @@ p { margin: 0 0 0.5rem; color: var(--text-muted); }
 
 .alert { padding: 0.6rem 0.9rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 0.75rem; }
 .alert-error { background: #fef2f2; color: var(--danger); }
+.alert-success { background: #ecfdf3; color: var(--success); }
 
 .auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1a1330, #4c1d95); }
 .auth-card { background: var(--surface); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }

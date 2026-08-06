@@ -173,10 +173,12 @@ function RegisterForm({ onRegister, onBack }) {
 // Один и тот же экран для двух поводов: код сразу после регистрации и код
 // при входе с ещё не подтверждённого устройства (см. AuthContext.jsx —
 // backend не различает эти случаи).
-export function VerifyCodeForm({ email, onVerify, onBack }) {
+export function VerifyCodeForm({ email, onVerify, onBack, onResend }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
   // Флаг в ref, а не только в state — React обновляет state не мгновенно,
   // и двойной клик/Enter+клик почти одновременно успевали пройти оба до
   // ре-рендера с disabled. Код одноразовый: второй запрос с тем же кодом
@@ -204,6 +206,26 @@ export function VerifyCodeForm({ email, onVerify, onBack }) {
     }
   }
 
+  // Переиспользует тот же login(email, password), которым мы уже вошли на
+  // предыдущем шаге (backend/platform/auth.routes.js: устройство всё ещё не
+  // подтверждено → loginOrRequireVerification снова шлёт код, и это тот же
+  // сам по себе rate-limit, что и у обычного входа). Пароль передаётся
+  // отдельным пропом, а не хранится здесь — форма ввода кода его не знает.
+  async function resend() {
+    if (!onResend) return;
+    setError('');
+    setResent(false);
+    setResending(true);
+    try {
+      await onResend();
+      setResent(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось отправить код повторно');
+    } finally {
+      setResending(false);
+    }
+  }
+
   return (
     <AuthShell>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Код из письма</div>
@@ -212,6 +234,7 @@ export function VerifyCodeForm({ email, onVerify, onBack }) {
       </div>
       <form onSubmit={submit}>
         {error && <div className="alert alert-error">{error}</div>}
+        {resent && !error && <div className="alert alert-success">Код отправлен повторно</div>}
         <Field label="Код">
           <TextInput
             autoFocus
@@ -223,6 +246,16 @@ export function VerifyCodeForm({ email, onVerify, onBack }) {
           />
         </Field>
         <Btn type="submit" disabled={submitting || code.length < 6}>{submitting ? 'Проверяем...' : 'Подтвердить'}</Btn>
+        {onResend && (
+          <button
+            type="button"
+            onClick={resend}
+            disabled={resending}
+            style={{ width: '100%', background: 'none', border: 'none', cursor: resending ? 'default' : 'pointer', color: resending ? C.subtle : C.primary, fontSize: 13, fontWeight: 600, marginTop: 14, padding: 0 }}
+          >
+            {resending ? 'Отправляем...' : 'Отправить код ещё раз'}
+          </button>
+        )}
         <button
           type="button"
           onClick={onBack}
@@ -253,6 +286,12 @@ export default function Login() {
   // Заполняется email'ом, когда регистрация или вход требуют код с почты —
   // рендерим VerifyCodeForm вместо обычной формы, пока не подтвердят.
   const [verifyEmail, setVerifyEmail] = useState(null);
+  // Пароль храним только в памяти, рядом с verifyEmail, — исключительно
+  // чтобы "Отправить код ещё раз" могло повторно позвать login(email,
+  // password) (тот же путь, что обычный вход — backend снова шлёт код,
+  // пока устройство не подтверждено). Нигде не сохраняется, сбрасывается
+  // вместе с verifyEmail.
+  const [verifyPassword, setVerifyPassword] = useState(null);
   // Лендинг ведёт сразу на форму регистрации (?mode=register), обычный
   // заход в приложение — на вход.
   const [mode, setMode] = useState(searchParams.get('mode') === 'register' ? 'register' : 'login');
@@ -271,7 +310,14 @@ export default function Login() {
   }
 
   if (verifyEmail) {
-    return <VerifyCodeForm email={verifyEmail} onVerify={verifyCode} onBack={() => setVerifyEmail(null)} />;
+    return (
+      <VerifyCodeForm
+        email={verifyEmail}
+        onVerify={verifyCode}
+        onBack={() => { setVerifyEmail(null); setVerifyPassword(null); }}
+        onResend={verifyPassword ? () => login(verifyEmail, verifyPassword) : undefined}
+      />
+    );
   }
 
   // Ни одной компании ещё нет. Для Super Admin это ожидаемо при первом
@@ -321,6 +367,7 @@ export default function Login() {
       const result = await login(emailRef.current.value, passwordRef.current.value);
       if (result?.requiresDeviceVerification) {
         setVerifyEmail(result.email);
+        setVerifyPassword(passwordRef.current.value);
       }
       // Иначе дальше решает состояние: выбор компании автоматом/вручную/
       // создание — без явной навигации отсюда.
@@ -339,6 +386,7 @@ export default function Login() {
     setJustCreatedCompany(true);
     if (result?.requiresDeviceVerification) {
       setVerifyEmail(result.email);
+      setVerifyPassword(data.password);
     }
   }
 
