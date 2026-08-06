@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -789,6 +790,7 @@ function round1(n) {
 
 function MasterDetailView({ master, dateFrom, dateTo, onBack }) {
   const [visits, setVisits] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     api
@@ -807,15 +809,26 @@ function MasterDetailView({ master, dateFrom, dateTo, onBack }) {
         ) : visits.length === 0 ? (
           <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Визитов не найдено</div>
         ) : (
+          // Раньше строка была просто текстом — не было способа посмотреть
+          // материалы/скидку/способ оплаты/фото конкретного визита, только
+          // итоговую сумму. Ведёт на тот же экран редактирования визита, что
+          // и в "Визитах" — не дублируем разметку, там уже есть все детали.
           visits.map((v, i) => (
-            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            <div
+              key={v.id}
+              onClick={() => navigate(`/visits?open=${v.id}`)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
+            >
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{v.client_last_name} {v.client_first_name}</div>
                 <div style={{ fontSize: 12, color: C.subtle }}>{v.service} · {new Date(v.visit_at).toLocaleString('ru-RU')}</div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{money(v.master_earnings)}</div>
-                <div style={{ fontSize: 11, color: C.subtle }}>чек {money(v.final_amount)}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{money(v.master_earnings)}</div>
+                  <div style={{ fontSize: 11, color: C.subtle }}>чек {money(v.final_amount)}</div>
+                </div>
+                <span style={{ fontSize: 20, color: C.border }}>›</span>
               </div>
             </div>
           ))

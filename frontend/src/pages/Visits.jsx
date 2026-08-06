@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -130,6 +131,8 @@ export default function Visits() {
   const materialsRef = useRef(null);
   const priceRef = useRef(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   function load() {
     return api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
@@ -138,6 +141,21 @@ export default function Visits() {
     load();
   }, []);
   usePullToRefresh(load);
+
+  // Переход сюда из "Финансы → По мастерам → визит" (?open=<id>) — раньше
+  // строка визита в разбивке по мастеру была просто текстом без деталей
+  // (материалы, скидка, способ оплаты, фото); теперь ведёт сюда и сразу
+  // открывает тот же экран редактирования, что и обычный клик по визиту
+  // в списке. Параметр убираем из URL сразу после открытия — иначе
+  // закрытие формы или pull-to-refresh снова распахивали бы её же.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || visits.length === 0) return;
+    const match = visits.find((v) => String(v.id) === String(openId));
+    if (match) openEdit(match);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visits]);
 
   useEffect(() => {
     if (!isManagement) return;
