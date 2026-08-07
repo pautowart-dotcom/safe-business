@@ -76,6 +76,27 @@ router.post(
     if (!role || !['owner', 'master', 'admin'].includes(role)) {
       return res.status(400).json({ error: 'Укажите корректную роль (owner, admin или master)' });
     }
+    // Безопасность: эндпоинт открыт и owner, и admin (роль команды —
+    // обычная задача администратора), но приглашение с ролью 'owner' даёт
+    // полный доступ ко всему, что от admin намеренно скрыто (netProfit,
+    // данные аудита безопасности §8.4 и т.п.) — раньше admin мог пригласить
+    // (в том числе себя же на другой email) как owner и обойти это
+    // ограничение. Создавать со-владельца может только сам владелец.
+    if (role === 'owner' && req.tenant.role !== 'owner') {
+      return res.status(403).json({ error: 'Пригласить совладельца может только владелец компании' });
+    }
+
+    // Та же проверка, что и в PATCH /:id ниже — без неё branchId мог молча
+    // указать на филиал чужой компании (числовые id, легко подставить чужой).
+    if (branchId) {
+      const branch = await pool.query('SELECT 1 FROM branches WHERE id = $1 AND company_id = $2', [
+        branchId,
+        req.tenant.companyId,
+      ]);
+      if (branch.rows.length === 0) {
+        return res.status(400).json({ error: 'Филиал не найден в этой компании' });
+      }
+    }
 
     const inviteToken = crypto.randomBytes(24).toString('hex');
     const { rows } = await pool.query(

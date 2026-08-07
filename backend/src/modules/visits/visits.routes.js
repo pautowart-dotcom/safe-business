@@ -239,6 +239,23 @@ router.post(
       return res.status(400).json({ error: 'Клиент не найден в этой компании' });
     }
 
+    // Безопасность: branchId раньше не проверялся — компания A могла
+    // передать branch_id компании B (последовательные числовые id, легко
+    // угадать), и он молча сохранился бы в visits.branch_id, хотя сам
+    // визит остаётся в правильной company_id. Не давало прочитать чужие
+    // данные напрямую (все выборки визитов всё равно фильтруются по
+    // company_id), но портило целостность (визит "числится" в чужом
+    // филиале) — та же проверка, что уже есть у clientId выше.
+    if (branchId) {
+      const branch = await pool.query('SELECT 1 FROM branches WHERE id = $1 AND company_id = $2', [
+        branchId,
+        req.tenant.companyId,
+      ]);
+      if (branch.rows.length === 0) {
+        return res.status(400).json({ error: 'Филиал не найден в этой компании' });
+      }
+    }
+
     // Мастер обязателен, только если в компании реально есть хотя бы один
     // активный мастер — иначе владелец без сотрудников ("Работаю один")
     // не может завести ни одного визита: своей роли "мастер" у него нет и
@@ -415,6 +432,18 @@ router.patch(
       ]);
       if (client.rows.length === 0) {
         return res.status(400).json({ error: 'Клиент не найден в этой компании' });
+      }
+    }
+
+    // Та же проверка, что и в POST выше — branchId не должен молча
+    // указывать на филиал чужой компании.
+    if (branchId) {
+      const branch = await pool.query('SELECT 1 FROM branches WHERE id = $1 AND company_id = $2', [
+        branchId,
+        req.tenant.companyId,
+      ]);
+      if (branch.rows.length === 0) {
+        return res.status(400).json({ error: 'Филиал не найден в этой компании' });
       }
     }
 

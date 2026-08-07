@@ -82,7 +82,16 @@ const SIGN_TTL_MS = 60 * 60 * 1000; // 60 минут — с запасом на 
 const AVATAR_SIGN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней
 
 function signature(filename, exp) {
-  const secret = process.env.JWT_SECRET || 'dev-secret';
+  // Раньше был фоллбэк на строковый 'dev-secret', если JWT_SECRET не задан —
+  // случайно не выставленная переменная окружения тихо превращала подпись
+  // ссылок на файлы (визиты, документы аудита безопасности) в предсказуемый
+  // секрет, а не роняла бы всё приложение сразу заметно. JWT_SECRET и так
+  // обязателен для входа (core/jwt.js падает без него) — здесь та же
+  // обязательность, без слабого запасного варианта.
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET не задан в окружении — подпись ссылок на файлы невозможна');
+  }
   return crypto.createHmac('sha256', secret).update(`${filename}:${exp}`).digest('hex').slice(0, 32);
 }
 
