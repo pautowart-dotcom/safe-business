@@ -47,8 +47,9 @@ function SlotCard({ slot, onSave, saving }) {
   const [dueDate, setDueDate] = useState(slot.dueDate || '');
   const [recurrence, setRecurrence] = useState(slot.recurrence || '');
   const [note, setNote] = useState(slot.note || '');
+  const [file, setFile] = useState(null);
 
-  const dirty = dueDate !== (slot.dueDate || '') || recurrence !== (slot.recurrence || '') || note !== (slot.note || '');
+  const dirty = dueDate !== (slot.dueDate || '') || recurrence !== (slot.recurrence || '') || note !== (slot.note || '') || !!file;
 
   return (
     <Card>
@@ -87,7 +88,15 @@ function SlotCard({ slot, onSave, saving }) {
       <Field label="Заметка / контакт подрядчика (необязательно)">
         <TextInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Например, телефон обслуживающей организации" />
       </Field>
-      <Btn small disabled={!dirty || saving} onClick={() => onSave(slot.key, { dueDate: dueDate || null, recurrence: recurrence || null, note: note || null })}>
+      <Field label="Файл-подтверждение (фото, скан или PDF, необязательно)">
+        <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      </Field>
+      {slot.fileUrl && !file && (
+        <a href={slot.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 12, color: C.primary, marginTop: -6, marginBottom: 14 }}>
+          Открыть прикреплённый файл
+        </a>
+      )}
+      <Btn small disabled={!dirty || saving} onClick={() => onSave(slot.key, { dueDate: dueDate || null, recurrence: recurrence || null, note: note || null, file })}>
         {saving ? 'Сохраняем...' : 'Сохранить'}
       </Btn>
     </Card>
@@ -123,11 +132,19 @@ export default function MyDeadlinesTab() {
   }, []);
   usePullToRefresh(load);
 
-  async function saveSlot(key, payload) {
+  async function saveSlot(key, { file, ...fields }) {
     setSavingKey(key);
     setError('');
     try {
-      await api.patch(`/platform/my-deadlines/slots/${key}`, payload);
+      let body = fields;
+      let headers = {};
+      if (file) {
+        body = new FormData();
+        for (const [k, v] of Object.entries(fields)) if (v !== null) body.append(k, v);
+        body.append('file', file);
+        headers = { 'Content-Type': 'multipart/form-data' };
+      }
+      await api.patch(`/platform/my-deadlines/slots/${key}`, body, { headers });
       await load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить');

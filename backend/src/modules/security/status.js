@@ -83,6 +83,37 @@ async function computeSecurityStatus(companyId) {
     totalMax += questions.length;
   }
 
+  // 07.08.2026: индекс теперь учитывает не только тест, но и реальное
+  // текущее состояние — просроченные сроки ("Мои сроки" + всё остальное в
+  // категориях staff/premises/documents, но не tax/financial/journals — те
+  // не про безопасность) и просроченные мед.книжки сотрудников. Каждый
+  // такой пункт считается "проваленным вопросом" (0 из 1 балла) — та же
+  // шкала/зоны, что и у теста, без отдельной логики.
+  //
+  // Сознательно НЕ штрафуем мастера без единой мед.книжки в базе вообще —
+  // "Мои сроки"/"Команда" заполняются по желанию (см. my-deadlines.routes.js),
+  // и наказывать за неиспользование опциональной фичи так же неверно, как
+  // штрафовать за экономически неизбежную неполную занятость по ТК (см.
+  // обсуждение с владельцем 06-07.08.2026) — считаем только то, что владелец
+  // сам внёс и что реально просрочено.
+  const [overdueDeadlinesRes, overdueMedicalBooksRes] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*) AS n FROM deadlines
+       WHERE company_id = $1 AND status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE
+         AND category IN ('staff', 'premises', 'documents')`,
+      [companyId]
+    ),
+    pool.query(
+      `SELECT COUNT(*) AS n FROM staff_documents sd
+       JOIN memberships m ON m.id = sd.membership_id
+       WHERE sd.company_id = $1 AND sd.doc_type = 'medical_book' AND sd.expires_at < CURRENT_DATE AND m.active = true`,
+      [companyId]
+    ),
+  ]);
+  const overdueCount = Number(overdueDeadlinesRes.rows[0].n) + Number(overdueMedicalBooksRes.rows[0].n);
+  totalScore += 0; // просроченные пункты дают 0 баллов каждый — явно для читаемости
+  totalMax += overdueCount;
+
   const percent = scoring.indexPercent(totalScore, totalMax);
   const zone = scoring.zoneForPercent(percent).key;
 

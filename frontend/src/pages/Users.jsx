@@ -8,7 +8,7 @@ import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } fr
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '' };
 const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
-const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '' };
+const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '', file: null };
 
 export default function Users() {
   const { isOwner } = useAuth();
@@ -60,7 +60,16 @@ export default function Users() {
 
   async function handleAddDocument() {
     if (!docForm.expiresAt) return;
-    await api.post('/platform/staff-documents', { membershipId: editing.id, ...docForm });
+    let body = { membershipId: editing.id, docType: docForm.docType, title: docForm.title, expiresAt: docForm.expiresAt };
+    let headers = {};
+    if (docForm.file) {
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(body)) if (v) fd.append(k, v);
+      fd.append('file', docForm.file);
+      body = fd;
+      headers = { 'Content-Type': 'multipart/form-data' };
+    }
+    await api.post('/platform/staff-documents', body, { headers });
     setDocForm(null);
     loadDocuments(editing.id);
   }
@@ -127,6 +136,9 @@ export default function Users() {
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{DOC_TYPE_LABELS[d.doc_type]}{d.title ? ` · ${d.title}` : ''}</div>
                     <div style={{ fontSize: 12, color: C.subtle }}>Истекает {new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                    {d.file_url && (
+                      <a href={d.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.primary }}>Открыть файл</a>
+                    )}
                   </div>
                   {isOwner && (
                     <button onClick={() => handleDeleteDocument(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.red }}>Удалить</button>
@@ -153,6 +165,9 @@ export default function Users() {
                 )}
                 <Field label="Дата истечения">
                   <TextInput type="date" value={docForm.expiresAt} onChange={(e) => setDocForm({ ...docForm, expiresAt: e.target.value })} />
+                </Field>
+                <Field label="Файл-подтверждение (фото, скан или PDF, необязательно)">
+                  <input type="file" accept="image/*,application/pdf" onChange={(e) => setDocForm({ ...docForm, file: e.target.files?.[0] || null })} />
                 </Field>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Btn small onClick={handleAddDocument}>Добавить</Btn>

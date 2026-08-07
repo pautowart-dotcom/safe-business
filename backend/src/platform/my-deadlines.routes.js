@@ -16,6 +16,8 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { registerDeadline, clearAction } = require('../core/deadlines');
 const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
+const { uploadDocument } = require('../core/uploads');
+const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
 
 const CATALOG = [
   // Кадровые
@@ -66,7 +68,7 @@ router.get(
 
     const relatedTypes = CATALOG.map((c) => relatedType(c.key));
     const { rows: existing } = await pool.query(
-      `SELECT related_entity_type, to_char(due_date, 'YYYY-MM-DD') AS due_date, recurrence, note
+      `SELECT related_entity_type, to_char(due_date, 'YYYY-MM-DD') AS due_date, recurrence, note, file_url
        FROM deadlines WHERE company_id = $1 AND related_entity_type = ANY($2)`,
       [companyId, relatedTypes]
     );
@@ -81,6 +83,7 @@ router.get(
         dueDate: row?.due_date || null,
         recurrence: row?.recurrence || null,
         note: row?.note || null,
+        fileUrl: row?.file_url ? signFileUrl(row.file_url) : null,
       };
     });
 
@@ -102,6 +105,7 @@ router.get(
 
 router.patch(
   '/slots/:key',
+  uploadDocument,
   asyncHandler(async (req, res) => {
     const catalogItem = CATALOG_BY_KEY[req.params.key];
     if (!catalogItem) {
@@ -110,6 +114,12 @@ router.patch(
     const { dueDate, recurrence, note } = req.body;
     if (recurrence && !['monthly', 'quarterly', 'half_year', 'yearly'].includes(recurrence)) {
       return res.status(400).json({ error: 'Недопустимая периодичность' });
+    }
+
+    let fileUrl = null;
+    if (req.file) {
+      const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
+      fileUrl = getFileUrl(filename);
     }
 
     if (dueDate) {
@@ -122,6 +132,7 @@ router.patch(
         relatedEntityId: req.tenant.companyId,
         note: note || null,
         recurrence: recurrence || null,
+        fileUrl,
       });
     } else {
       // Дата очищена пользователем — убираем срок из "Дедлайнов" целиком
@@ -133,7 +144,11 @@ router.patch(
       });
     }
 
-    res.json({ key: catalogItem.key, category: catalogItem.category, label: catalogItem.label, dueDate: dueDate || null, recurrence: recurrence || null, note: note || null });
+    res.json({
+      key: catalogItem.key, category: catalogItem.category, label: catalogItem.label,
+      dueDate: dueDate || null, recurrence: recurrence || null, note: note || null,
+      fileUrl: fileUrl ? signFileUrl(fileUrl) : null,
+    });
   })
 );
 

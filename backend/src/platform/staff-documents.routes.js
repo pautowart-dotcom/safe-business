@@ -6,6 +6,8 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { logEvent } = require('../core/eventLog');
 const { registerDeadline } = require('../core/deadlines');
+const { uploadDocument } = require('../core/uploads');
+const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
 
 const DOC_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
 const DOC_TYPES = Object.keys(DOC_LABELS);
@@ -55,19 +57,20 @@ router.get(
     }
 
     const { rows } = await pool.query(
-      `SELECT sd.id, sd.membership_id, sd.doc_type, sd.title, sd.expires_at, sd.created_at
+      `SELECT sd.id, sd.membership_id, sd.doc_type, sd.title, sd.expires_at, sd.file_url, sd.created_at
        FROM staff_documents sd
        WHERE ${where}
        ORDER BY sd.expires_at ASC`,
       params
     );
-    res.json(rows);
+    res.json(rows.map((r) => ({ ...r, file_url: r.file_url ? signFileUrl(r.file_url) : null })));
   })
 );
 
 router.post(
   '/',
   requireRole('owner'),
+  uploadDocument,
   asyncHandler(async (req, res) => {
     const { membershipId, docType, title, expiresAt } = req.body;
     if (!membershipId || !DOC_TYPES.includes(docType) || !expiresAt) {
@@ -83,15 +86,21 @@ router.post(
       return res.status(400).json({ error: 'Сотрудник не найден в этой компании' });
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO staff_documents (company_id, membership_id, doc_type, title, expires_at, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at, created_at`,
-      [req.tenant.companyId, membershipId, docType, title || null, expiresAt, req.user.id]
-    );
-    const doc = rows[0];
+    let fileUrl = null;
+    if (req.file) {
+      const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
+      fileUrl = getFileUrl(filename);
+    }
 
-    await syncDeadline({ companyId: req.tenant.companyId, doc, employeeName: member.rows[0].name || 'Сотрудник' });
+    const { rows } = await pool.query(
+      `INSERT INTO staff_documents (company_id, membership_id, doc_type, title, expires_at, created_by_user_id, file_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at, file_url, created_at`,
+      [req.tenant.companyId, membershipId, docType, title || null, expiresAt, req.user.id, fileUrl]
+    );
+    const doc = { ...rows[0], file_url: rows[0].file_url ? signFileUrl(rows[0].file_url) : null };
+
+    await syncDeadline({ companyId: req.tenant.companyId, doc: rows[0], employeeName: member.rows[0].name || 'Сотрудник' });
     await logEvent({
       companyId: req.tenant.companyId,
       moduleKey: 'platform',
@@ -108,21 +117,29 @@ router.post(
 router.patch(
   '/:id',
   requireRole('owner'),
+  uploadDocument,
   asyncHandler(async (req, res) => {
     const { title, expiresAt } = req.body;
+
+    let fileUrl = null;
+    if (req.file) {
+      const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
+      fileUrl = getFileUrl(filename);
+    }
 
     const { rows } = await pool.query(
       `UPDATE staff_documents SET
          title = COALESCE($1, title),
-         expires_at = COALESCE($2, expires_at)
-       WHERE id = $3 AND company_id = $4
-       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at, created_at`,
-      [title !== undefined ? title || null : null, expiresAt || null, req.params.id, req.tenant.companyId]
+         expires_at = COALESCE($2, expires_at),
+         file_url = COALESCE($3, file_url)
+       WHERE id = $4 AND company_id = $5
+       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at, file_url, created_at`,
+      [title !== undefined ? title || null : null, expiresAt || null, fileUrl, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Документ не найден' });
     }
-    const doc = rows[0];
+    const doc = { ...rows[0], file_url: rows[0].file_url ? signFileUrl(rows[0].file_url) : null };
 
     const member = await pool.query(
       `SELECT u.name FROM memberships m LEFT JOIN users u ON u.id = m.user_id WHERE m.id = $1`,

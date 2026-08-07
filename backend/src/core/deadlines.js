@@ -14,27 +14,32 @@ const { sendPushToCompany } = require('./pushNotify');
 // syncTaxDeadlines пересобирает все слоты) заново слало бы уведомления по
 // уже существующим срокам.
 async function registerDeadline({
-  companyId, category, title, dueDate, relatedEntityType = null, relatedEntityId = null, note = null, recurrence = null,
+  companyId, category, title, dueDate, relatedEntityType = null, relatedEntityId = null, note = null, recurrence = null, fileUrl = null,
 }) {
   let id;
   let inserted;
 
+  // fileUrl — null означает "этот вызов не трогает файл", не "удалить файл"
+  // (иначе, например, сохранение одной только заметки в "Мои сроки" стирало
+  // бы уже прикреплённое фото). COALESCE($9, deadlines.file_url) в апдейте
+  // сохраняет прежний файл, пока не передан новый.
   if (relatedEntityType && relatedEntityId) {
     const { rows } = await pool.query(
-      `INSERT INTO deadlines (company_id, category, title, due_date, kind, related_entity_type, related_entity_id, note, recurrence)
-       VALUES ($1, $2, $3, $4, 'deadline', $5, $6, $7, $8)
+      `INSERT INTO deadlines (company_id, category, title, due_date, kind, related_entity_type, related_entity_id, note, recurrence, file_url)
+       VALUES ($1, $2, $3, $4, 'deadline', $5, $6, $7, $8, $9)
        ON CONFLICT (related_entity_type, related_entity_id, category) WHERE related_entity_type IS NOT NULL AND related_entity_id IS NOT NULL
-       DO UPDATE SET title = EXCLUDED.title, due_date = EXCLUDED.due_date, kind = 'deadline', status = 'pending', note = EXCLUDED.note, recurrence = EXCLUDED.recurrence
+       DO UPDATE SET title = EXCLUDED.title, due_date = EXCLUDED.due_date, kind = 'deadline', status = 'pending', note = EXCLUDED.note, recurrence = EXCLUDED.recurrence,
+                     file_url = COALESCE($9, deadlines.file_url)
        RETURNING id, (xmax = 0) AS inserted`,
-      [companyId, category, title, dueDate, relatedEntityType, relatedEntityId, note, recurrence]
+      [companyId, category, title, dueDate, relatedEntityType, relatedEntityId, note, recurrence, fileUrl]
     );
     id = rows[0].id;
     inserted = rows[0].inserted;
   } else {
     const { rows } = await pool.query(
-      `INSERT INTO deadlines (company_id, category, title, due_date, kind, note, recurrence)
-       VALUES ($1, $2, $3, $4, 'deadline', $5, $6) RETURNING id`,
-      [companyId, category, title, dueDate, note, recurrence]
+      `INSERT INTO deadlines (company_id, category, title, due_date, kind, note, recurrence, file_url)
+       VALUES ($1, $2, $3, $4, 'deadline', $5, $6, $7) RETURNING id`,
+      [companyId, category, title, dueDate, note, recurrence, fileUrl]
     );
     id = rows[0].id;
     inserted = true;
