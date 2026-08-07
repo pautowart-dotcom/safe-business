@@ -18,6 +18,7 @@ const dossierRoutes = require('./dossier.routes');
 const pushRoutes = require('./push.routes');
 const clientErrorsRoutes = require('./client-errors.routes');
 const subscriptionRoutes = require('./subscription.routes');
+const landingRoutes = require('./landing.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -37,5 +38,6 @@ platformRouter.use('/dossier', dossierRoutes);
 platformRouter.use('/push', pushRoutes);
 platformRouter.use('/client-errors', clientErrorsRoutes);
 platformRouter.use('/subscription', subscriptionRoutes);
+platformRouter.use('/landing', landingRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

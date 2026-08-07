@@ -25,7 +25,7 @@ const CURRENT_PRICE_RUB = 1990;
 router.get(
   '/metrics',
   asyncHandler(async (req, res) => {
-    const [statusCounts, signupsByDay, activeLast7Days, supportCounts] = await Promise.all([
+    const [statusCounts, signupsByDay, activeLast7Days, supportCounts, landingVisitsByDay, landingVisitsTotals] = await Promise.all([
       pool.query(
         `SELECT subscription_status, COUNT(*) AS n,
                 COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS new_7d,
@@ -44,12 +44,27 @@ router.get(
         `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS last_7d
          FROM support_requests`
       ),
+      // Визиты лендинга — см. migrations/0064, счётчик без IP/куки/user-agent
+      // (сознательно не Яндекс.Метрика, чтобы не тянуть за собой доп.
+      // уведомление в РКН до ревью политики конфиденциальности юристом).
+      pool.query(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS n
+         FROM landing_visits WHERE created_at > now() - interval '14 days'
+         GROUP BY 1 ORDER BY 1`
+      ),
+      pool.query(
+        `SELECT COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS last_7d,
+                COUNT(*) FILTER (WHERE created_at > now() - interval '30 days') AS last_30d
+         FROM landing_visits`
+      ),
     ]);
 
     const byStatus = Object.fromEntries(statusCounts.rows.map((r) => [r.subscription_status, r]));
     const totalCompanies = statusCounts.rows.reduce((sum, r) => sum + Number(r.n), 0);
     const activeCompanies = Number(byStatus.active?.n || 0);
     const nonTrialCompanies = totalCompanies - Number(byStatus.trial?.n || 0);
+    const landingVisitsLast30Days = Number(landingVisitsTotals.rows[0].last_30d);
+    const newCompaniesLast30Days = statusCounts.rows.reduce((sum, r) => sum + Number(r.new_30d), 0);
 
     res.json({
       totalCompanies,
@@ -70,6 +85,14 @@ router.get(
       supportRequestsTotal: Number(supportCounts.rows[0].total),
       supportRequestsLast7Days: Number(supportCounts.rows[0].last_7d),
       signupsByDay: signupsByDay.rows.map((r) => ({ day: r.day, count: Number(r.n) })),
+      landingVisitsLast7Days: Number(landingVisitsTotals.rows[0].last_7d),
+      landingVisitsLast30Days,
+      landingVisitsByDay: landingVisitsByDay.rows.map((r) => ({ day: r.day, count: Number(r.n) })),
+      // Грубая прикидка за 30 дней (визиты и регистрации не привязаны друг к
+      // другу по сессии — просто два счётчика за один период), не факт из
+      // реальной сквозной аналитики.
+      landingToSignupConversionPercent:
+        landingVisitsLast30Days > 0 ? Math.round((newCompaniesLast30Days / landingVisitsLast30Days) * 1000) / 10 : null,
     });
   })
 );

@@ -141,5 +141,26 @@
     <div style="margin-top:6px;"><a href="/lk/legal/oferta">Оферта</a> · <a href="/lk/legal/privacy_policy">Политика конфиденциальности</a></div>
   </footer>
 </main>
+<script>
+  // Анонимный счётчик визитов — без IP/user-agent/cookies, только факт
+  // визита + необязательные UTM-метки из ссылки (см. backend
+  // migrations/0064_landing_visits.sql, почему не Яндекс.Метрика).
+  (function () {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var payload = {
+        utm_source: params.get('utm_source'),
+        utm_medium: params.get('utm_medium'),
+        utm_campaign: params.get('utm_campaign'),
+      };
+      fetch('/api/platform/landing/visit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(function () {});
+    } catch (e) {}
+  })();
+</script>
 </body>
 </html>

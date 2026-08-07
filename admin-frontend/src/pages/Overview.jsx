@@ -65,6 +65,12 @@ export default function Overview() {
           hint="среди тех, у кого триал уже закончился"
         />
         <StatTile label="Обращений в поддержку" value={metrics.supportRequestsTotal} hint={`${metrics.supportRequestsLast7Days} за 7 дней`} />
+        <StatTile label="Визитов лендинга" value={metrics.landingVisitsLast7Days} hint={`${metrics.landingVisitsLast30Days} за 30 дней`} />
+        <StatTile
+          label="Конверсия визит → регистрация"
+          value={metrics.landingToSignupConversionPercent === null ? '—' : `${metrics.landingToSignupConversionPercent}%`}
+          hint="грубо, за 30 дней: визиты и регистрации не связаны напрямую"
+        />
       </div>
 
       <Card>
@@ -73,6 +79,15 @@ export default function Overview() {
           <div style={{ fontSize: 13, color: C.subtle }}>Пока нет регистраций в этом окне</div>
         ) : (
           <SignupsChart data={metrics.signupsByDay} />
+        )}
+      </Card>
+
+      <Card>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Визиты лендинга за 14 дней</div>
+        {metrics.landingVisitsByDay.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.subtle }}>Пока нет визитов в этом окне</div>
+        ) : (
+          <SignupsChart data={metrics.landingVisitsByDay} />
         )}
       </Card>
 
