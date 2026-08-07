@@ -40,6 +40,14 @@ export default function Checklists() {
     return marks.filter((m) => m.item_id === itemId && m.checked);
   }
 
+  // Своя отметка среди всех — you_marked считает бэкенд (фронтенду неоткуда
+  // узнать свой membershipId), нужна отдельно от marksForItem: владелец с
+  // мастерами должен отмечать СВОЙ пункт, а не переключать чужую галочку
+  // мастера, которая случайно тоже "checked".
+  function myMarkForItem(itemId) {
+    return marks.find((m) => m.item_id === itemId && m.you_marked);
+  }
+
   async function toggleItem(item, checked) {
     await api.post(`/modules/checklists/items/${item.id}/mark`, { checked, date: today });
     load();
@@ -231,14 +239,30 @@ export default function Checklists() {
                     )}
                   </div>
                 )}
-                {template.items.map((item, i) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < template.items.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                    <span style={{ fontSize: 14 }}>{item.label}</span>
-                    <span style={{ fontSize: 12, color: C.subtle }}>
-                      {marksForItem(item.id).map((m) => `${m.master_name} (${ROLE_LABELS[m.member_role] || m.member_role}), ${formatTime(m.checked_at)}`).join(' · ') || 'не отмечено'}
-                    </span>
-                  </div>
-                ))}
+                {/* Раньше владелец/администратор здесь только СМОТРЕЛ, кто
+                    отметил пункт — своей галочки не было вообще, хотя
+                    backend (POST /items/:itemId/mark) явно разрешает
+                    owner/admin отмечать за себя (соло-владелец сам открывает/
+                    закрывает смену). Чекбокс — за СЕБЯ (you_marked, считает
+                    бэкенд), строка под ним — кто вообще отметил пункт сегодня. */}
+                {template.items.map((item, i) => {
+                  const myMark = myMarkForItem(item.id);
+                  const isDoneByMe = !!myMark;
+                  const allMarks = marksForItem(item.id);
+                  return (
+                    <div key={item.id} style={{ padding: '9px 0', borderBottom: i < template.items.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                      <div onClick={() => toggleItem(item, !isDoneByMe)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${isDoneByMe ? C.primary : C.border}`, background: isDoneByMe ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {isDoneByMe && <Icon name="check" size={11} color="#FFF" sw={2.5} />}
+                        </div>
+                        <span style={{ fontSize: 14, flex: 1 }}>{item.label}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: C.subtle, marginTop: 4, paddingLeft: 32 }}>
+                        {allMarks.map((m) => `${m.you_marked ? 'Вы' : m.master_name} (${ROLE_LABELS[m.member_role] || m.member_role}), ${formatTime(m.checked_at)}`).join(' · ') || 'не отмечено'}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <>

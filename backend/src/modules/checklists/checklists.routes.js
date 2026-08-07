@@ -219,12 +219,17 @@ router.delete(
 router.get(
   '/marks',
   asyncHandler(async (req, res) => {
-    const params = [req.tenant.companyId];
+    // $2 — своя membership_id всегда первым же параметром (даже когда роль
+    // не 'master' и фильтра по ней в WHERE нет) — нужна для you_marked ниже:
+    // фронтенду неоткуда узнать свой membershipId (см. тот же приём в
+    // platform/journals.routes.js, you_are_conductor/you_are_recipient), а
+    // чек-лист владельца/администратора должен отличать "отметил я" от
+    // "отметил кто-то из мастеров", чтобы не путать их галочки местами.
+    const params = [req.tenant.companyId, req.tenant.membershipId];
     let where = 'cm.company_id = $1';
 
     if (req.tenant.role === 'master') {
-      params.push(req.tenant.membershipId);
-      where += ` AND cm.membership_id = $${params.length}`;
+      where += ` AND cm.membership_id = $2`;
     } else if (req.query.membershipId) {
       params.push(req.query.membershipId);
       where += ` AND cm.membership_id = $${params.length}`;
@@ -241,7 +246,7 @@ router.get(
 
     const { rows } = await pool.query(
       `SELECT cm.id, cm.item_id, ci.label, ci.template_id, cm.membership_id, u.name AS master_name, m.role AS member_role,
-              cm.mark_date, cm.checked, cm.checked_at
+              cm.mark_date, cm.checked, cm.checked_at, (cm.membership_id = $2) AS you_marked
        FROM checklist_marks cm
        JOIN checklist_items ci ON ci.id = cm.item_id
        JOIN memberships m ON m.id = cm.membership_id
