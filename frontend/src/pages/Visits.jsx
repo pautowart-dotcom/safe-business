@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -132,6 +132,12 @@ export default function Visits() {
   const priceRef = useRef(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  // true, только если экран редактирования открыт переходом из Финансов
+  // (?open=<id>) — тогда своя кнопка "Назад" наверху формы должна вести
+  // туда же, куда и системная/жест "назад" (см. эффект ниже), а не просто
+  // закрывать форму на список "Визитов", в котором владелец не был.
+  const openedViaDeepLinkRef = useRef(false);
 
   function load() {
     return api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
@@ -152,7 +158,10 @@ export default function Visits() {
     const openId = searchParams.get('open');
     if (!openId || visits.length === 0) return;
     const match = visits.find((v) => String(v.id) === String(openId));
-    if (match) openEdit(match);
+    if (match) {
+      openEdit(match);
+      openedViaDeepLinkRef.current = true;
+    }
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
@@ -180,6 +189,7 @@ export default function Visits() {
   }, [form.lastName, form.clientId]);
 
   function openCreate() {
+    openedViaDeepLinkRef.current = false;
     setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: [] });
     setEditingId(null);
     setClientMatches([]);
@@ -342,14 +352,23 @@ export default function Visits() {
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Визит сохранён</div>
           <div style={{ fontSize: 14, color: C.subtle, marginBottom: 32 }}>Данные добавлены в историю</div>
-          <Btn onClick={() => setShowForm(false)}>Готово</Btn>
+          <Btn onClick={() => { openedViaDeepLinkRef.current = false; setShowForm(false); }}>Готово</Btn>
         </div>
       );
     }
 
     return (
       <div>
-        <BackBtn onClick={() => setShowForm(false)} />
+        <BackBtn
+          onClick={() => {
+            if (openedViaDeepLinkRef.current) {
+              openedViaDeepLinkRef.current = false;
+              navigate(-1);
+            } else {
+              setShowForm(false);
+            }
+          }}
+        />
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить визит' : 'Новый визит'}</div>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
@@ -545,7 +564,7 @@ export default function Visits() {
       ) : (
         <Card style={{ padding: 0 }}>
           {visits.map((v, i) => (
-            <div key={v.id} onClick={() => openEdit(v)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+            <div key={v.id} onClick={() => { openedViaDeepLinkRef.current = false; openEdit(v); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Avatar letter={v.client_last_name?.[0]} size={36} />
                 <div>

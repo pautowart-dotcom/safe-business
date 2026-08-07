@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -85,16 +85,16 @@ function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, set
           рядом (не нравилось владельцу). Вынесена отдельной строкой-ссылкой
           под сегментами — так у 4 пресетов ровный ряд, а свой период не
           ломает раскладку, даже если сам заголовок "Даты" короче остальных. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: C.surface, borderRadius: 12, padding: 3 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, background: C.surface, borderRadius: 12, padding: 3 }}>
         {PERIOD_PRESETS.map(([k, l]) => (
           <button key={k} onClick={() => setPreset(k)} style={tabStyle(preset === k)}>{l}</button>
         ))}
       </div>
       <button
         onClick={() => setPreset('custom')}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: F, padding: '8px 2px 0', fontSize: 12, fontWeight: isCustom ? 700 : 500, color: isCustom ? C.primary : C.subtle }}
+        style={{ display: 'block', marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontFamily: F, padding: '10px 2px 0', fontSize: 12, fontWeight: isCustom ? 700 : 500, color: isCustom ? C.primary : C.subtle }}
       >
-        {isCustom ? 'Свой период ✓' : 'Указать даты вручную'}
+        {isCustom ? 'Свой период ✓' : 'Указать даты вручную ›'}
       </button>
       {isCustom && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -136,7 +136,8 @@ export default function Finance() {
 
 function OwnerFinance() {
   const period = usePeriodParams();
-  const [tab, setTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'overview');
   const [summary, setSummary] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [recurring, setRecurring] = useState([]);
@@ -200,6 +201,36 @@ function OwnerFinance() {
   useEffect(() => {
     api.get('/platform/memberships').then((res) => setMasters(res.data.filter((m) => m.role === 'master' && m.user_id)));
   }, []);
+
+  // Вкладка и выбранный мастер живут в URL (?tab=masters&master=<id>), а не
+  // только в useState. Раньше клик по визиту в "По мастерам" уводил на
+  // /visits новым переходом, и кнопка "назад" возвращала на голый /finance —
+  // компонент монтировался заново с tab по умолчанию ("Обзор"), теряя, что
+  // владелец был именно в разборе конкретного мастера. Этот эффект — источник
+  // истины: и восстанавливает состояние при возврате назад, и обнуляет его,
+  // если владелец повторно нажимает вкладку "Финансы" внизу (та ведёт на
+  // голый /finance без параметров).
+  useEffect(() => {
+    const urlTab = searchParams.get('tab') || 'overview';
+    setTab(urlTab);
+    const masterParam = searchParams.get('master');
+    if (urlTab !== 'masters' || !masterParam) {
+      setSelectedMaster(null);
+    } else if (summary) {
+      const found = summary.byMaster.find((m) => String(m.masterMembershipId) === masterParam);
+      setSelectedMaster(found || null);
+    }
+  }, [searchParams, summary]);
+
+  function changeTab(k) {
+    setSearchParams(k === 'overview' ? {} : { tab: k }, { replace: true });
+  }
+  function selectMaster(m) {
+    setSearchParams({ tab: 'masters', master: String(m.masterMembershipId) }, { replace: true });
+  }
+  function backFromMaster() {
+    setSearchParams({ tab: 'masters' }, { replace: true });
+  }
 
   function openAddRecurring(kind) {
     setEditingRecurringId(null);
@@ -286,7 +317,7 @@ function OwnerFinance() {
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
 
   if (selectedMaster) {
-    return <MasterDetailView master={selectedMaster} dateFrom={summary.period.from} dateTo={summary.period.to} onBack={() => setSelectedMaster(null)} />;
+    return <MasterDetailView master={selectedMaster} dateFrom={summary.period.from} dateTo={summary.period.to} onBack={backFromMaster} />;
   }
 
   const adjustmentsByMaster = {};
@@ -301,7 +332,7 @@ function OwnerFinance() {
         {[['overview', 'Обзор'], ['masters', 'По мастерам'], ['analytics', 'Аналитика']].map(([k, l]) => (
           <button
             key={k}
-            onClick={() => setTab(k)}
+            onClick={() => changeTab(k)}
             style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: F, background: tab === k ? C.bg : 'transparent', color: tab === k ? C.primary : C.subtle, fontSize: 13, fontWeight: tab === k ? 700 : 400, boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
           >
             {l}
@@ -344,7 +375,7 @@ function OwnerFinance() {
         <MastersTab
           byMaster={summary.byMaster}
           adjustmentsByMaster={adjustmentsByMaster}
-          onSelectMaster={setSelectedMaster}
+          onSelectMaster={selectMaster}
           onAddAdjustment={(m) => setAdjustmentForm({ ...EMPTY_ADJUSTMENT_FORM, masterMembershipId: m.masterMembershipId })}
           onDeleteAdjustment={deleteAdjustment}
         />
