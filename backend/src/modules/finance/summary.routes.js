@@ -86,6 +86,23 @@ router.get(
       }
     }
 
+    // Разбивка выручки по нише визита (обсуждение 08.08.2026) — только для
+    // студий с несколькими нишами имеет смысл, но считаем всегда (дёшево);
+    // фронт решает, показывать ли блок, по числу ниш компании. Видна всем
+    // ролям, как и byMaster — это не так чувствительно, как способ оплаты
+    // (там реальная/наличная выручка мимо налоговой), не owner-only.
+    // INNER JOIN на visits намеренно исключает ручные записи владельца без
+    // визита — у них нет ниши по определению.
+    const byNicheRes = await pool.query(
+      `SELECT v.niche, COALESCE(SUM(fe.amount), 0) AS revenue, COUNT(*) AS visits_count
+       FROM finance_entries fe
+       JOIN visits v ON v.id = fe.visit_id
+       WHERE fe.company_id = $1 AND fe.occurred_at BETWEEN $2 AND $3 AND v.niche IS NOT NULL
+       GROUP BY v.niche
+       ORDER BY revenue DESC`,
+      [companyId, from, to]
+    );
+
     const byMaster = await pool.query(
       `SELECT m.id AS master_membership_id, u.name AS master_name,
               COUNT(v.id) AS visits_count,
@@ -162,6 +179,11 @@ router.get(
         visitsCount: Number(r.visits_count),
         revenue: round2(revenueByMembershipId[r.master_membership_id] || 0),
         earnings: round2(parseFloat(r.earnings)),
+      })),
+      byNiche: byNicheRes.rows.map((r) => ({
+        niche: r.niche,
+        visitsCount: Number(r.visits_count),
+        revenue: round2(parseFloat(r.revenue)),
       })),
     };
     if (req.tenant.role === 'owner') {

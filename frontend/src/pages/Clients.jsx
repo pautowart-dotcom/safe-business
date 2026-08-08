@@ -246,7 +246,7 @@ export default function Clients() {
               Клиент хочет записаться, но сейчас всё занято — добавьте в лист ожидания, отметите вручную, когда появится время.
             </div>
             <Field label="Услуга (необязательно)">
-              <TextInput value={waitlistForm.service} onChange={(e) => setWaitlistForm({ ...waitlistForm, service: e.target.value })} placeholder="Маникюр + гель-лак" />
+              <TextInput value={waitlistForm.service} onChange={(e) => setWaitlistForm({ ...waitlistForm, service: e.target.value })} placeholder="Например: маникюр, массаж спины" />
             </Field>
             <Field label="Комментарий (необязательно)">
               <TextInput value={waitlistForm.comment} onChange={(e) => setWaitlistForm({ ...waitlistForm, comment: e.target.value })} placeholder="Ждёт любое окно на этой неделе" />

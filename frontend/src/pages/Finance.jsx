@@ -6,6 +6,7 @@ import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
 import { TrendLineChart, StatTile, StackedBarBreakdown, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 import { localDateStr } from '../utils/localDate.js';
+import { nicheLabel } from '../utils/niches.js';
 
 const PERIOD_PRESETS = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['lastMonth', 'Прошлый месяц']];
 const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '' };
@@ -515,6 +516,21 @@ function OverviewTab({
             </div>
           ))}
           {summary.byPaymentMethod.length === 0 && <div style={{ fontSize: 13, color: C.subtle }}>Визитов за период нет</div>}
+        </Card>
+      )}
+
+      {/* Только когда в визитах реально указана ниша (студия отмечает
+          услугу по нескольким нишам) — для одно-нишевых студий блок
+          молчит сам, без отдельной проверки числа ниш компании. */}
+      {summary.byNiche && summary.byNiche.length > 0 && (
+        <Card>
+          <ST>Выручка по нише</ST>
+          {summary.byNiche.map((row) => (
+            <div key={row.niche} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>{nicheLabel(row.niche)} <span style={{ color: C.subtle }}>· {row.visitsCount}</span></span>
+              <span style={{ fontWeight: 700 }}>{money(row.revenue)}</span>
+            </div>
+          ))}
         </Card>
       )}
 

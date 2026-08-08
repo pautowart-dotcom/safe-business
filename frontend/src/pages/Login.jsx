@@ -8,7 +8,7 @@ export function AuthShell({ children }) {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
-        <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Платформа для студий маникюра</div>
+        <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Платформа для студий красоты и здоровья</div>
       </div>
       <div style={{ width: '100%', maxWidth: 390 }}>{children}</div>
     </div>

@@ -11,6 +11,20 @@ const router = express.Router();
 
 const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'];
 
+// Ниша визита — валидируем только по факту, что она входит в ниши,
+// реально выбранные компанией (security_profile_niches), а не по
+// фиксированному списку ключей: те же 4 ниши "Красота и здоровье" сегодня,
+// но список сегментов расширяется независимо (Файл 02), дублировать его
+// здесь смысла нет.
+async function validateNiche(companyId, niche) {
+  if (!niche) return true;
+  const { rows } = await pool.query(
+    `SELECT 1 FROM security_profile_niches WHERE company_id = $1 AND niche = $2`,
+    [companyId, niche]
+  );
+  return rows.length > 0;
+}
+
 // Фото до/после визита — сжимаются и сохраняются через core/fileStorage.js
 // (Этап 10), отдаём URL для записи в visits.photo_before_url/after_url.
 router.post(
@@ -37,7 +51,7 @@ router.post(
 // сумма приоритетнее, когда задана (COALESCE).
 const DISCOUNT_AMOUNT_SQL = 'COALESCE(v.discount_fixed_amount, ROUND(v.amount * v.discount_percent / 100, 2))';
 const SELECT_COLUMNS = `
-  v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.materials,
+  v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.materials, v.niche,
   v.amount, v.discount_percent, v.discount_fixed_amount, v.master_payout_percent, v.payment_method,
   ${DISCOUNT_AMOUNT_SQL} AS discount_amount,
   ROUND(v.amount - (${DISCOUNT_AMOUNT_SQL}), 2) AS final_amount,
@@ -218,6 +232,7 @@ router.post(
       photoAfterUrl2,
       masterMembershipId,
       paymentMethod,
+      niche,
       supplies,
     } = req.body;
 
@@ -226,6 +241,9 @@ router.post(
     }
     if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Некорректный способ оплаты' });
+    }
+    if (niche && !(await validateNiche(req.tenant.companyId, niche))) {
+      return res.status(400).json({ error: 'Эта ниша не выбрана у компании' });
     }
     if (discountFixedAmount && Number(discountFixedAmount) > Number(amount)) {
       return res.status(400).json({ error: 'Скидка в рублях не может быть больше суммы визита' });
@@ -302,8 +320,8 @@ router.post(
         `INSERT INTO visits (
            company_id, branch_id, client_id, master_membership_id, service, materials,
            amount, discount_percent, discount_fixed_amount, master_payout_percent, photo_before_url, photo_after_url,
-           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()), $16, $17)
+           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method, niche
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()), $16, $17, $18)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -323,6 +341,7 @@ router.post(
           visitAt || null,
           req.user.id,
           paymentMethod || null,
+          niche || null,
         ]
       );
       visitId = insert.rows[0].id;
@@ -393,7 +412,7 @@ router.patch(
 
     const {
       clientId, service, materials, amount, discountPercent, discountFixedAmount, visitAt, branchId,
-      photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, paymentMethod, supplies,
+      photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, paymentMethod, niche, supplies,
     } = req.body;
     // discount_fixed_amount может понадобиться явно СБРОСИТЬ в NULL (мастер
     // переключился с "₽" обратно на "%") — обычный COALESCE-если-передано не
@@ -402,6 +421,9 @@ router.patch(
 
     if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Некорректный способ оплаты' });
+    }
+    if (niche && !(await validateNiche(req.tenant.companyId, niche))) {
+      return res.status(400).json({ error: 'Эта ниша не выбрана у компании' });
     }
     if (discountFixedAmount) {
       const effectiveAmount = amount ?? current.amount;
@@ -466,7 +488,8 @@ router.patch(
            visit_at = COALESCE($11, visit_at),
            master_membership_id = $12,
            master_payout_percent = $13,
-           payment_method = COALESCE($15, payment_method)
+           payment_method = COALESCE($15, payment_method),
+           niche = COALESCE($18, niche)
          WHERE id = $14`,
         [
           clientId || null,
@@ -486,6 +509,7 @@ router.patch(
           paymentMethod || null,
           discountFixedAmountProvided,
           discountFixedAmount || null,
+          niche || null,
         ]
       );
 

@@ -108,18 +108,25 @@ router.get(
   requireAuth,
   requireTenant,
   asyncHandler(async (req, res) => {
-    const { rows } = await pool.query(
-      `SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime,
-              subscription_current_period_end, subscription_price_rub,
-              to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-              to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at
-       FROM companies WHERE id = $1`,
-      [req.tenant.companyId]
-    );
-    if (rows.length === 0) {
+    const [companyRes, nichesRes] = await Promise.all([
+      pool.query(
+        `SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime,
+                subscription_current_period_end, subscription_price_rub,
+                to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
+                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at
+         FROM companies WHERE id = $1`,
+        [req.tenant.companyId]
+      ),
+      // Ниши компании — нужны и не-владельцу (например, форме визита в
+      // Visits.jsx), а весь раздел "Безопасность" (где эти ниши выбираются)
+      // owner-only, поэтому список ниш отдаём здесь же, в общедоступной
+      // сводке о компании, а не заводим исключение в security.routes.js.
+      pool.query(`SELECT niche FROM security_profile_niches WHERE company_id = $1 ORDER BY niche`, [req.tenant.companyId]),
+    ]);
+    if (companyRes.rows.length === 0) {
       return res.status(404).json({ error: 'Компания не найдена' });
     }
-    res.json(rows[0]);
+    res.json({ ...companyRes.rows[0], niches: nichesRes.rows.map((r) => r.niche) });
   })
 );
 

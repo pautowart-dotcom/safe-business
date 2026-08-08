@@ -143,7 +143,7 @@ export default function Supplies() {
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить расходник' : 'Новый расходник'}</div>
-        <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Гель-лак Kodi" /></Field>
+        <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Например: гель-лак Kodi, масло для массажа" /></Field>
         <Field label="Категория">
           <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
             <option value="">Без категории</option>

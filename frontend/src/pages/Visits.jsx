@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, Icon, C } from '../ui/components.jsx';
+import { NICHE_LABELS } from '../utils/niches.js';
 
 function toLocalInputValue(date) {
   const d = new Date(date);
@@ -25,7 +26,7 @@ const PAYMENT_METHOD_OPTIONS = [
 
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
-  masterMembershipId: '', service: '', materials: '', amount: '',
+  masterMembershipId: '', service: '', materials: '', amount: '', niche: '',
   discountType: 'percent', discountPercent: '0', discountFixedAmount: '', paymentMethod: '',
   visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', photoBeforeUrl2: '', photoAfterUrl2: '', supplies: [],
 };
@@ -38,8 +39,10 @@ function money(v) {
 // рамка → камера → отмеченное состояние), но с реальной загрузкой файла
 // на сервер вместо мокового переключателя.
 function PhotoUploadCell({ label, url, onUploaded }) {
-  const cameraInputRef = useRef(null);
-  const galleryInputRef = useRef(null);
+  // Один input без capture — на телефоне сама ОС предлагает выбор
+  // "камера или галерея" системным диалогом, как принято в большинстве
+  // приложений, вместо двух отдельных кнопок под каждый источник.
+  const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,11 +66,10 @@ function PhotoUploadCell({ label, url, onUploaded }) {
 
   return (
     <div>
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} />
-      <input ref={galleryInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
       {url ? (
         <div
-          onClick={() => galleryInputRef.current?.click()}
+          onClick={() => fileInputRef.current?.click()}
           style={{
             position: 'relative',
             border: `1.5px solid ${C.green}`,
@@ -75,27 +77,15 @@ function PhotoUploadCell({ label, url, onUploaded }) {
             background: C.greenBg,
           }}
         >
-          <div
-            onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}
-            title="Переснять камерой"
-            style={{ position: 'absolute', top: 6, right: 6, cursor: 'pointer', padding: 4, background: C.bg, borderRadius: 8 }}
-          >
-            <Icon name="camera" size={14} color={C.subtle} />
-          </div>
           <img src={url} alt={`Фото ${label}`} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
           <div style={{ fontSize: 12, color: C.green, marginTop: 8, fontWeight: 600 }}>
             {uploading ? 'Загрузка...' : `Фото ${label} ✓`}
           </div>
         </div>
       ) : (
-        <div style={{ border: `1.5px dashed ${C.border}`, borderRadius: 12, padding: 12, textAlign: 'center', background: C.surface }}>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 14 }}>
-            <div onClick={() => cameraInputRef.current?.click()} style={{ cursor: 'pointer', padding: 4 }} title="Сделать фото">
-              <Icon name="camera" size={22} color={C.subtle} />
-            </div>
-            <div onClick={() => galleryInputRef.current?.click()} style={{ cursor: 'pointer', padding: 4 }} title="Выбрать из галереи">
-              <Icon name="photo" size={22} color={C.subtle} />
-            </div>
+        <div onClick={() => fileInputRef.current?.click()} style={{ border: `1.5px dashed ${C.border}`, borderRadius: 12, padding: 12, textAlign: 'center', background: C.surface, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <Icon name="camera" size={22} color={C.subtle} />
           </div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>
             {uploading ? 'Загрузка...' : `Фото ${label}`}
@@ -112,6 +102,7 @@ export default function Visits() {
   const [visits, setVisits] = useState([]);
   const [masters, setMasters] = useState([]);
   const [supplies, setSupplies] = useState([]);
+  const [companyNiches, setCompanyNiches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -177,6 +168,13 @@ export default function Visits() {
     api.get('/modules/supplies').then((res) => setSupplies(res.data));
   }, []);
 
+  // Ниша визита имеет смысл спрашивать только у студий с несколькими
+  // нишами сразу (см. Финансы → "Выручка по нише") — при одной нише или
+  // без ниш вообще поле просто не показываем, лишний выбор без вариантов.
+  useEffect(() => {
+    api.get('/platform/companies/current').then((res) => setCompanyNiches(res.data.niches || []));
+  }, []);
+
   useEffect(() => {
     if (form.clientId || !form.lastName || form.lastName.length < 2) {
       setClientMatches([]);
@@ -209,6 +207,7 @@ export default function Visits() {
       masterMembershipId: v.master_membership_id || '',
       service: v.service || '',
       materials: v.materials || '',
+      niche: v.niche || '',
       amount: String(v.amount ?? ''),
       discountType: v.discount_fixed_amount > 0 ? 'fixed' : 'percent',
       discountPercent: String(v.discount_percent ?? '0'),
@@ -307,6 +306,7 @@ export default function Visits() {
         clientId,
         service: form.service,
         materials: form.materials || null,
+        niche: form.niche || null,
         amount: Number(form.amount),
         discountPercent: form.discountType === 'fixed' ? 0 : Number(form.discountPercent) || 0,
         discountFixedAmount: form.discountType === 'fixed' ? Number(form.discountFixedAmount) || null : null,
@@ -439,11 +439,19 @@ export default function Visits() {
             </Field>
           )}
 
+          {companyNiches.length > 1 && (
+            <Field label="Ниша">
+              <Select value={form.niche} onChange={(e) => setForm({ ...form, niche: e.target.value })}>
+                <option value="">Не указана</option>
+                {companyNiches.map((n) => <option key={n} value={n}>{NICHE_LABELS[n] || n}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Услуга">
-            <TextInput required ref={serviceRef} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} onKeyDown={(e) => handleEnter(e, materialsRef)} placeholder="Маникюр + гель-лак" />
+            <TextInput required ref={serviceRef} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} onKeyDown={(e) => handleEnter(e, materialsRef)} placeholder="Например: маникюр, массаж спины, стрижка" />
           </Field>
           <Field label="Материалы">
-            <TextInput ref={materialsRef} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} onKeyDown={(e) => handleEnter(e, priceRef)} placeholder="Гель-лак №47, топ..." />
+            <TextInput ref={materialsRef} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} onKeyDown={(e) => handleEnter(e, priceRef)} placeholder="Например: гель-лак №47, масло для массажа..." />
           </Field>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -497,7 +505,7 @@ export default function Visits() {
             </div>
           )}
 
-          <Field label="Фото (до 2 на каждую сторону)">
+          <Field label="Фото до/после (необязательно, до 2 на каждую сторону)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} />
               <PhotoUploadCell label="до (2)" url={form.photoBeforeUrl2} onUploaded={(url) => setForm({ ...form, photoBeforeUrl2: url })} />

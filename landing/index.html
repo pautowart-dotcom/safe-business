@@ -6,25 +6,48 @@
 <!-- До официального запуска — не индексировать (см. robots.txt рядом). Убрать, когда продукт готов к публичному поиску. -->
 <meta name="robots" content="noindex, nofollow" />
 <title>Безопасный бизнес</title>
-<meta name="description" content="Сервис для владельцев небольших студий: не пропустить сроки документов, сроков и проверок." />
+<meta name="description" content="Сервис для владельцев небольших студий красоты — маникюр, ресницы и брови, волосы, массаж: не пропустить сроки документов и проверок." />
 <style>
+  /* Жирный современный SaaS: белое поле, чёрный текст, один уверенный
+     индиго-акцент — без градиента (это отдельный AI-клише) и без кремовой
+     бумаги/терракоты (первая версия страницы). Крупный жирный заголовок и
+     воздух вместо мелкого декора. */
   :root {
     --bg: #ffffff;
-    --surface: #f6f5f3;
-    --border: #e6e3de;
-    --text: #1c1c1e;
-    --text-muted: #6b6a66;
-    --accent: #2a2a2e;
+    --surface: #f6f6f8;
+    --surface-2: #eeeef2;
+    --border: #e6e6ec;
+    --text: #0e0e14;
+    --text-muted: #64646f;
+    --accent: #4f46e5;
+    --accent-contrast: #ffffff;
+    --accent-soft: #eeecfd;
+    --ok: #1a9c5c;
+    --warn: #b8790a;
+    --danger: #d13b3b;
+    --shadow-sm: 0 1px 2px rgba(14, 14, 20, 0.06), 0 1px 1px rgba(14, 14, 20, 0.04);
+    --shadow-lg: 0 24px 48px -20px rgba(14, 14, 20, 0.22);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #17171a;
-      --surface: #202024;
-      --border: #2d2d31;
-      --text: #f2f2f0;
-      --text-muted: #a3a29e;
-      --accent: #f2f2f0;
+      --bg: #0b0b0f;
+      --surface: #16161c;
+      --surface-2: #1d1d24;
+      --border: #26262f;
+      --text: #f3f3f7;
+      --text-muted: #96969f;
+      --accent: #8b83f0;
+      --accent-contrast: #0b0b0f;
+      --accent-soft: #201e3a;
+      --ok: #4cbd84;
+      --warn: #d7a340;
+      --danger: #e2726f;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 24px 48px -18px rgba(0, 0, 0, 0.6);
     }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
   }
   * { box-sizing: border-box; }
   body {
@@ -33,57 +56,118 @@
     color: var(--text);
     font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
     line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
   }
   main {
-    max-width: 720px;
+    max-width: 760px;
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 24px;
   }
   header {
-    padding: 20px 0;
+    padding: 26px 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  .logo { font-weight: 800; font-size: 15px; letter-spacing: -0.2px; }
+  .logo { font-weight: 800; font-size: 16px; letter-spacing: -0.3px; }
   .hero {
-    padding: 48px 0 32px;
+    padding: 56px 0 12px;
+    animation: rise 0.5s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   h1 {
-    font-size: clamp(28px, 5vw, 40px);
+    font-size: clamp(34px, 6vw, 58px);
     font-weight: 800;
-    letter-spacing: -0.5px;
-    margin: 0 0 16px;
+    letter-spacing: -1.4px;
+    line-height: 1.06;
+    margin: 0 0 20px;
     text-wrap: balance;
   }
   .hero p {
-    font-size: 17px;
+    font-size: 18px;
     color: var(--text-muted);
-    max-width: 52ch;
-    margin: 0 0 28px;
+    max-width: 54ch;
+    margin: 0 0 32px;
   }
-  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .btn {
     display: inline-block;
-    padding: 13px 22px;
+    padding: 15px 24px;
     border-radius: 12px;
     font-weight: 700;
-    font-size: 15px;
+    font-size: 15.5px;
     text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
   }
-  .btn-primary { background: var(--accent); color: var(--bg); }
-  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
-  section { padding: 32px 0; border-top: 1px solid var(--border); }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin: 0 0 18px; font-weight: 700; }
-  .items { display: flex; flex-direction: column; gap: 16px; }
-  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
-  .item b { display: block; font-size: 15px; margin-bottom: 4px; }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); box-shadow: 0 12px 24px -10px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 16px 28px -10px color-mix(in srgb, var(--accent) 65%, transparent); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--surface-2); }
+
+  /* Мини-карточка "Мои сроки" — конкретный пример реального экрана, не
+     абстрактная иллюстрация. Чистая плавающая карточка с мягкой тенью —
+     тот самый "жирный SaaS" стиль, без поворотов/имитации бумаги. */
+  .ledger-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px 24px 20px;
+    max-width: 400px;
+    margin: 4px 0 36px;
+    box-shadow: var(--shadow-lg);
+  }
+  .ledger-label {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .ledger-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 0;
+    border-top: 1px solid var(--border);
+  }
+  .ledger-row:first-of-type { border-top: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: center; }
+  .dot-ok { background: var(--ok); }
+  .dot-warn { background: var(--warn); }
+  .dot-danger { background: var(--danger); }
+  .ledger-title { font-size: 14.5px; font-weight: 600; }
+  .ledger-meta { font-size: 12.5px; color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  /* Ниши — пилюли на мягкой подложке акцента, конкретный список сфер. */
+  .niches-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); margin: 0 0 14px; }
+  .niches { display: flex; flex-wrap: wrap; gap: 9px; margin: 0 0 48px; }
+  .niche-tag {
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 8px 15px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  section { padding: 40px 0; border-top: 1px solid var(--border); }
+  h2.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin: 0 0 20px; font-weight: 800; }
+  .items { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 640px) { .items { grid-template-columns: 1fr 1fr; } }
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow-sm); }
+  .item b { display: block; font-size: 15.5px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.1px; }
   .item span { font-size: 14px; color: var(--text-muted); }
+  .price-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow-sm); }
   .price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-  .price b { font-size: 28px; }
+  .price b { font-size: 36px; font-weight: 800; letter-spacing: -1px; }
   .price span { color: var(--text-muted); font-size: 14px; }
-  footer { padding: 32px 0 48px; font-size: 13px; color: var(--text-muted); }
+  footer { padding: 36px 0 56px; font-size: 13px; color: var(--text-muted); }
   footer a { color: var(--text-muted); }
+  footer div + div { margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -94,21 +178,51 @@
   </header>
 
   <div class="hero">
-    <h1>Не пропустите срок, а не «защититесь от штрафов»</h1>
+    <h1>Всегда знать, что оформить — а не обещание «защитим от штрафов»</h1>
     <p>
-      Сервис для владельцев небольших студий — помогает держать в порядке
+      Сервис для владельцев небольших студий красоты — держит в порядке
       юридические, санитарные и финансовые сроки: медкнижки, огнетушители,
-      ЭЦП, патент, дезинфекция и договоры на вывоз отходов. Без давления
-      и без обещаний, которые невозможно проверить.
+      ЭЦП, патент, дезинфекция, вывоз отходов. Без давления и без обещаний,
+      которые невозможно проверить.
     </p>
+
+    <div class="ledger-card">
+      <div class="ledger-label">Пример — «Мои сроки»</div>
+      <div class="ledger-row">
+        <span class="dot dot-warn"></span>
+        <span class="ledger-title">ЭЦП</span>
+        <span class="ledger-meta">истекает через 12 дней</span>
+      </div>
+      <div class="ledger-row">
+        <span class="dot dot-danger"></span>
+        <span class="ledger-title">Медицинская книжка</span>
+        <span class="ledger-meta">просрочена</span>
+      </div>
+      <div class="ledger-row">
+        <span class="dot dot-ok"></span>
+        <span class="ledger-title">Огнетушитель</span>
+        <span class="ledger-meta">до 12.03.2027</span>
+      </div>
+    </div>
+
     <div class="cta-row">
       <a class="btn btn-primary" href="/lk/login?mode=register">Пройти бесплатную диагностику</a>
       <a class="btn btn-secondary" href="#price">Тарифы</a>
     </div>
   </div>
 
+  <div style="padding-top: 40px;">
+    <div class="niches-eyebrow">Сейчас поддерживаем</div>
+    <div class="niches">
+      <span class="niche-tag">Маникюр и педикюр</span>
+      <span class="niche-tag">Ресницы и брови</span>
+      <span class="niche-tag">Волосы</span>
+      <span class="niche-tag">Массаж (без мед. лицензии)</span>
+    </div>
+  </div>
+
   <section>
-    <h2>Что делает сервис</h2>
+    <h2 class="eyebrow">Что делает сервис</h2>
     <div class="items">
       <div class="item"><b>Бесплатная диагностика</b><span>Коротко показывает, чего вам не хватает — без сбора персональных дат на этом этапе.</span></div>
       <div class="item"><b>«Мои сроки»</b><span>По желанию вносите точные даты нужных документов — приложение напоминает заранее.</span></div>
@@ -117,28 +231,30 @@
   </section>
 
   <section id="price">
-    <h2>Тариф</h2>
-    <div class="item">
+    <h2 class="eyebrow">Тариф</h2>
+    <div class="price-card">
       <div class="price"><b>1990 ₽</b><span>/ мес</span></div>
-      <span>Первый месяц — бесплатно.</span>
+      <span style="color: var(--text-muted); font-size: 14px;">Первый месяц — бесплатно.</span>
     </div>
   </section>
 
   <section>
-    <h2>Кому подходит</h2>
-    <p style="color:var(--text-muted); font-size:15px; margin:0;">
-      В первую очередь — студиям маникюра. Это не CRM для записи клиентов:
-      здесь про контроль и порядок, а не про запись на услуги.
+    <h2 class="eyebrow">Кому подходит</h2>
+    <p style="color:var(--text-muted); font-size:15.5px; margin:0;">
+      Начинали со студий маникюра — сегодня подходит студиям красоты и
+      здоровья: маникюр и педикюр, ресницы и брови, волосы, массаж без
+      медицинской лицензии. Это не CRM для записи клиентов: здесь про
+      контроль и порядок, а не про запись на услуги.
     </p>
   </section>
 
-  <div class="cta-row" style="padding: 8px 0 40px;">
+  <div class="cta-row" style="padding: 8px 0 44px;">
     <a class="btn btn-primary" href="/lk/login?mode=register">Зарегистрироваться</a>
   </div>
 
   <footer>
     <div><a href="/lk/legal/faq">Вопросы и ответы</a></div>
-    <div style="margin-top:6px;"><a href="/lk/legal/oferta">Оферта</a> · <a href="/lk/legal/privacy_policy">Политика конфиденциальности</a></div>
+    <div><a href="/lk/legal/oferta">Оферта</a> · <a href="/lk/legal/privacy_policy">Политика конфиденциальности</a></div>
   </footer>
 </main>
 <script>
