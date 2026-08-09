@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -10,6 +11,7 @@ import { Card, Select, C } from '../ui/components.jsx';
 // запускал замену фото, а не просмотр. Отдельная лента "с фото" плюс
 // полноэкранный просмотр по тапу — без формы редактирования между ними.
 export default function PhotoReports() {
+  const navigate = useNavigate();
   const { isManagement } = useAuth();
   const [visits, setVisits] = useState([]);
   const [masters, setMasters] = useState([]);
@@ -60,7 +62,10 @@ export default function PhotoReports() {
       {visits.map((v) => {
         const photos = photosOf(v);
         return (
-          <Card key={v.id} style={{ marginBottom: 10 }}>
+          // Ведёт на тот же экран редактирования визита, что и из Финансов
+          // (?open=<id>, Visits.jsx это уже умеет) — не дублируем разметку
+          // визита здесь ради деталей (материалы, скидка, способ оплаты).
+          <Card key={v.id} onClick={() => navigate(`/visits?open=${v.id}`)} style={{ marginBottom: 10, cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{v.client_last_name} {v.client_first_name}</div>
@@ -73,7 +78,7 @@ export default function PhotoReports() {
               {photos.map((p, i) => (
                 <div
                   key={i}
-                  onClick={() => setLightbox(photos.map((x) => x.url))}
+                  onClick={(e) => { e.stopPropagation(); setLightbox(photos.map((x) => x.url)); }}
                   style={{ cursor: 'pointer', width: 72, height: 72, borderRadius: 10, overflow: 'hidden', background: C.surface }}
                 >
                   <img src={p.url} alt={p.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
