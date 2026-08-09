@@ -83,6 +83,19 @@ function RequestCard({ request, onUpdate }) {
         </div>
       </div>
       <div style={{ fontSize: 14, color: C.secondary, marginBottom: 6 }}><Linkify text={request.message} /></div>
+      {request.attachments?.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          {request.attachments.map((a, i) => (
+            a.mimeType?.startsWith('video/') ? (
+              <video key={i} src={a.url} controls style={{ width: 96, height: 96, borderRadius: 8, background: C.surface, objectFit: 'cover' }} />
+            ) : (
+              <a key={i} href={a.url} target="_blank" rel="noreferrer">
+                <img src={a.url} alt="Вложение" style={{ width: 96, height: 96, borderRadius: 8, objectFit: 'cover' }} />
+              </a>
+            )
+          ))}
+        </div>
+      )}
       <a href={`mailto:${request.email}`} style={{ fontSize: 12, color: C.primary }}>{request.email}</a>
 
       {!isOpen && (

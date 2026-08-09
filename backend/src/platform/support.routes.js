@@ -3,6 +3,25 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
+const { uploadSupportAttachments } = require('../core/uploads');
+const { saveSupportAttachment, getFileUrl, signFileUrl } = require('../core/fileStorage');
+
+// Вложения на выдаче — один батч-запрос на весь список обращений, не N+1
+// (тот же паттерн, что attachSupplies в visits.routes.js).
+async function attachAttachments(rows) {
+  if (rows.length === 0) return rows;
+  const ids = rows.map((r) => r.id);
+  const { rows: files } = await pool.query(
+    `SELECT support_request_id, file_url, mime_type FROM support_request_attachments
+     WHERE support_request_id = ANY($1) ORDER BY created_at`,
+    [ids]
+  );
+  const byRequest = {};
+  for (const f of files) {
+    (byRequest[f.support_request_id] ||= []).push({ url: signFileUrl(f.file_url), mimeType: f.mime_type });
+  }
+  return rows.map((r) => ({ ...r, attachments: byRequest[r.id] || [] }));
+}
 
 const router = express.Router();
 
@@ -18,15 +37,17 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT id, message, created_at FROM support_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      `SELECT id, message, created_at, status, reply_text, resolution_note, replied_at
+       FROM support_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
       [req.user.id]
     );
-    res.json(rows);
+    res.json(await attachAttachments(rows));
   })
 );
 
 router.post(
   '/',
+  uploadSupportAttachments,
   asyncHandler(async (req, res) => {
     const { message, email } = req.body;
     if (!message || !message.trim()) {
@@ -41,6 +62,14 @@ router.post(
        VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
       [req.user.id, companyId, email.trim(), message.trim()]
     );
+
+    for (const file of req.files || []) {
+      const filename = await saveSupportAttachment(file.buffer, file.mimetype);
+      await pool.query(
+        `INSERT INTO support_request_attachments (support_request_id, file_url, mime_type) VALUES ($1, $2, $3)`,
+        [rows[0].id, getFileUrl(filename), file.mimetype]
+      );
+    }
 
     // Push владельцу платформы (обсуждение 09.08.2026) — fire-and-forget.
     const preview = message.trim().length > 120 ? `${message.trim().slice(0, 120)}…` : message.trim();

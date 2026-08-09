@@ -54,6 +54,23 @@ async function saveDocumentFile(buffer, mimetype) {
   return saveImage(buffer);
 }
 
+// Вложения к обращению в поддержку (09.08.2026) — фото сжимаем как обычно,
+// видео сохраняем как есть (sharp видео не обрабатывает, и не нужно —
+// пересжатие потеряло бы качество, важное как раз чтобы разглядеть баг).
+const VIDEO_EXTENSIONS = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm' };
+async function saveSupportAttachment(buffer, mimetype) {
+  if (mimetype.startsWith('image/')) return saveImage(buffer);
+  const ext = VIDEO_EXTENSIONS[mimetype];
+  if (ext) {
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    await fs.promises.writeFile(path.join(UPLOADS_DIR, filename), buffer);
+    return filename;
+  }
+  const wrapped = new Error('Файл должен быть изображением или видео (mp4/mov/webm)');
+  wrapped.status = 400;
+  throw wrapped;
+}
+
 function getFileUrl(filename) {
   return `/api/uploads/${filename}`;
 }
@@ -155,4 +172,4 @@ async function deleteFile(filename) {
   }
 }
 
-module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, signAvatarUrl, verifyFileUrlSignature };
+module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, saveSupportAttachment, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, signAvatarUrl, verifyFileUrlSignature };

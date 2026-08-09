@@ -29,4 +29,20 @@ const uploadDocument = multer({
   },
 }).single('file');
 
-module.exports = { uploadPhoto, uploadDocument };
+// Вложения к обращению в поддержку (09.08.2026) — фото и/или короткое видео
+// бага, до 3 файлов сразу. Лимит выше, чем у остальных загрузок (видео
+// тяжелее) — согласован с отдельным client_max_body_size на
+// /api/platform/support/ в deploy/nginx.conf, не с общим 8M на весь сервер.
+const uploadSupportAttachments = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 3 },
+  fileFilter: (req, file, cb) => {
+    const allowedVideo = ['video/mp4', 'video/quicktime', 'video/webm'];
+    if (!file.mimetype.startsWith('image/') && !allowedVideo.includes(file.mimetype)) {
+      return cb(new Error('Файл должен быть изображением или видео (mp4/mov/webm)'));
+    }
+    cb(null, true);
+  },
+}).array('files', 3);
+
+module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments };

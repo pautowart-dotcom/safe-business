@@ -5,10 +5,13 @@ import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
 
+const MAX_ATTACHMENTS = 3;
+
 export default function Support() {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState(user?.email || '');
+  const [files, setFiles] = useState([]);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
@@ -31,9 +34,21 @@ export default function Support() {
     if (!message.trim() || !email.trim()) return;
     setError('');
     try {
-      await api.post('/platform/support', { message, email });
+      let body;
+      let headers = {};
+      if (files.length > 0) {
+        body = new FormData();
+        body.append('message', message);
+        body.append('email', email);
+        for (const f of files) body.append('files', f);
+        headers = { 'Content-Type': 'multipart/form-data' };
+      } else {
+        body = { message, email };
+      }
+      await api.post('/platform/support', body, { headers });
       setSent(true);
       setMessage('');
+      setFiles([]);
       await loadHistory();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось отправить обращение');
@@ -45,7 +60,7 @@ export default function Support() {
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Поддержка</div>
       <Card>
         <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-          Опишите вопрос или проблему — ответим на указанный email.
+          Опишите вопрос или проблему — ответ увидите здесь же, в "Ваших обращениях" (и продублируем на email).
         </div>
         {error && <div className="alert alert-error">{error}</div>}
         {!sent ? (
@@ -55,6 +70,15 @@ export default function Support() {
             </Field>
             <Field label="Сообщение">
               <TextArea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Что случилось или что хотели бы спросить..." />
+            </Field>
+            <Field label={`Фото или видео бага (необязательно, до ${MAX_ATTACHMENTS})`}>
+              <input
+                type="file"
+                accept="image/*,video/mp4,video/quicktime,video/webm"
+                multiple
+                onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, MAX_ATTACHMENTS))}
+              />
+              {files.length > 0 && <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Выбрано: {files.length}</div>}
             </Field>
             <Btn onClick={send}>Отправить</Btn>
           </>
@@ -74,7 +98,28 @@ export default function Support() {
           {history.map((h) => (
             <Card key={h.id}>
               <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 6 }}><Linkify text={h.message} /></div>
-              <div style={{ fontSize: 11, color: C.subtle }}>{new Date(h.created_at).toLocaleString('ru-RU')}</div>
+              <div style={{ fontSize: 11, color: C.subtle, marginBottom: h.attachments?.length ? 8 : 0 }}>{new Date(h.created_at).toLocaleString('ru-RU')}</div>
+              {h.attachments?.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {h.attachments.map((a, i) => (
+                    a.mimeType?.startsWith('video/') ? (
+                      <video key={i} src={a.url} controls style={{ width: 96, height: 96, borderRadius: 8, background: C.surface, objectFit: 'cover' }} />
+                    ) : (
+                      <a key={i} href={a.url} target="_blank" rel="noreferrer">
+                        <img src={a.url} alt="Вложение" style={{ width: 96, height: 96, borderRadius: 8, objectFit: 'cover' }} />
+                      </a>
+                    )
+                  ))}
+                </div>
+              )}
+              {h.status === 'resolved' && h.reply_text && (
+                <div style={{ background: C.greenBg, borderRadius: 10, padding: '10px 12px', marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>
+                    Ответ {h.replied_at && new Date(h.replied_at).toLocaleString('ru-RU')}
+                  </div>
+                  <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}><Linkify text={h.reply_text} /></div>
+                </div>
+              )}
             </Card>
           ))}
         </div>

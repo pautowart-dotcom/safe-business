@@ -9,6 +9,7 @@ const securityRepository = require('../modules/security/content/repository');
 const { sendMail } = require('../core/mailer');
 const { isAiConfigured, draftText } = require('../core/aiAssist');
 const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
+const { signFileUrl } = require('../core/fileStorage');
 
 const router = express.Router();
 
@@ -327,7 +328,22 @@ router.get(
        LEFT JOIN companies c ON c.id = sr.company_id
        ORDER BY (sr.status = 'open') DESC, sr.created_at DESC LIMIT 100`
     );
-    res.json(rows);
+
+    // Вложения (фото/видео, 09.08.2026) — один батч-запрос на весь список.
+    const ids = rows.map((r) => r.id);
+    const files = ids.length
+      ? await pool.query(
+          `SELECT support_request_id, file_url, mime_type FROM support_request_attachments
+           WHERE support_request_id = ANY($1) ORDER BY created_at`,
+          [ids]
+        )
+      : { rows: [] };
+    const byRequest = {};
+    for (const f of files.rows) {
+      (byRequest[f.support_request_id] ||= []).push({ url: signFileUrl(f.file_url), mimeType: f.mime_type });
+    }
+
+    res.json(rows.map((r) => ({ ...r, attachments: byRequest[r.id] || [] })));
   })
 );
 
@@ -406,11 +422,18 @@ router.post(
       return res.status(404).json({ error: 'Обращение не найдено' });
     }
 
-    await sendMail({
+    // 09.08.2026: ответ теперь в первую очередь виден в приложении (см.
+    // GET /platform/support у клиента) — письмо больше не единственный
+    // канал, поэтому его сбой не должен мешать сохранить сам ответ и
+    // пометить обращение решённым. Раньше email шёл ДО записи в БД —
+    // ошибка почты (например, временный сбой SMTP) роняла весь запрос, и
+    // ответ не сохранялся вообще, хотя владелец видел "успех" только если
+    // письмо реально ушло.
+    sendMail({
       to: current.rows[0].email,
       subject: 'Ответ на ваше обращение — «Безопасный бизнес»',
       html: `<p>Вы писали:</p><blockquote>${current.rows[0].message}</blockquote><p>${replyText.replace(/\n/g, '<br>')}</p>`,
-    });
+    }).catch((err) => console.error('sendMail (support reply) failed:', err));
 
     const { rows } = await pool.query(
       `UPDATE support_requests
