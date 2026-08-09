@@ -12,6 +12,7 @@ const { uploadPhoto } = require('../core/uploads');
 const { saveImage, getFileUrl, signAvatarUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
+const { sendPushToSuperAdmins } = require('../core/pushNotify');
 
 const router = express.Router();
 
@@ -179,6 +180,14 @@ router.post(
         entityType: 'company',
         entityId: company.id,
       });
+
+      // Push владельцу платформы (обсуждение 09.08.2026) — fire-and-forget,
+      // не должен задерживать/ронять ответ регистрации, если push упадёт.
+      sendPushToSuperAdmins({
+        title: 'Новая регистрация',
+        body: `${companyName} — ${email}`,
+        url: '/office/companies',
+      }).catch((err) => console.error('sendPushToSuperAdmins (registration) failed:', err));
 
       // Аккаунт уже создан и рабочий на этом этапе — код ниже не отменяет
       // регистрацию, если письмо не уйдёт (см. loginOrRequireVerification),

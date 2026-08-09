@@ -8,6 +8,7 @@ const { requireSuperAdmin } = require('../core/middleware/role');
 const securityRepository = require('../modules/security/content/repository');
 const { sendMail } = require('../core/mailer');
 const { isAiConfigured, draftText } = require('../core/aiAssist');
+const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
 
 const router = express.Router();
 
@@ -26,23 +27,30 @@ router.get(
   '/metrics',
   asyncHandler(async (req, res) => {
     const [statusCounts, signupsByDay, activeLast7Days, supportCounts, landingVisitsByDay, landingVisitsTotals] = await Promise.all([
+      // is_test = false везде ниже, где считаются компании (обсуждение
+      // 09.08.2026) — тестовые студии (свои и смоук-тест) искажали картину
+      // роста/конверсии, см. migrations/0067.
       pool.query(
         `SELECT subscription_status, COUNT(*) AS n,
                 COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS new_7d,
                 COUNT(*) FILTER (WHERE created_at > now() - interval '30 days') AS new_30d
-         FROM companies GROUP BY subscription_status`
+         FROM companies WHERE is_test = false GROUP BY subscription_status`
       ),
       pool.query(
         `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS n
-         FROM companies WHERE created_at > now() - interval '14 days'
+         FROM companies WHERE created_at > now() - interval '14 days' AND is_test = false
          GROUP BY 1 ORDER BY 1`
       ),
       pool.query(
-        `SELECT COUNT(DISTINCT company_id) AS n FROM event_log WHERE created_at > now() - interval '7 days'`
+        `SELECT COUNT(DISTINCT e.company_id) AS n FROM event_log e
+         JOIN companies c ON c.id = e.company_id
+         WHERE e.created_at > now() - interval '7 days' AND c.is_test = false`
       ),
       pool.query(
-        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE created_at > now() - interval '7 days') AS last_7d
-         FROM support_requests`
+        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE sr.created_at > now() - interval '7 days') AS last_7d
+         FROM support_requests sr
+         LEFT JOIN companies c ON c.id = sr.company_id
+         WHERE c.id IS NULL OR c.is_test = false`
       ),
       // Визиты лендинга — см. migrations/0064, счётчик без IP/куки/user-agent
       // (сознательно не Яндекс.Метрика, чтобы не тянуть за собой доп.
@@ -101,7 +109,7 @@ router.get(
   '/companies',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at,
+      `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test,
               (SELECT COUNT(*) FROM branches b WHERE b.company_id = c.id) AS branch_count,
               (SELECT COUNT(*) FROM memberships m WHERE m.company_id = c.id AND m.invite_status = 'active') AS member_count
        FROM companies c
@@ -111,11 +119,34 @@ router.get(
   })
 );
 
+// Ручная пометка тестовой компании (обсуждение 09.08.2026) — автоматически
+// отличить "тестовую студию", которую владелец завёл сам для проверки, от
+// реальной нечем (нет отдельного признака при регистрации), поэтому только
+// ручной тумблер в списке компаний. Влияет на /metrics, /analytics,
+// /sellable-stats ниже — реальные данные компании не трогает и не удаляет.
+router.patch(
+  '/companies/:id/test-flag',
+  asyncHandler(async (req, res) => {
+    const { isTest } = req.body;
+    if (typeof isTest !== 'boolean') {
+      return res.status(400).json({ error: 'isTest должен быть true/false' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE companies SET is_test = $1 WHERE id = $2 RETURNING id, is_test`,
+      [isTest, req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Компания не найдена' });
+    }
+    res.json(rows[0]);
+  })
+);
+
 router.get(
   '/companies/:id',
   asyncHandler(async (req, res) => {
     const companyResult = await pool.query(
-      'SELECT id, name, industry_segment, subscription_status, trial_ends_at, created_at FROM companies WHERE id = $1',
+      'SELECT id, name, industry_segment, subscription_status, trial_ends_at, created_at, is_test FROM companies WHERE id = $1',
       [req.params.id]
     );
     if (companyResult.rows.length === 0) {
@@ -407,6 +438,7 @@ router.get(
       // Когорты по месяцу регистрации (последние 6) — доля компаний в
       // каждом статусе сейчас. cancelled/трудности видно по когортам
       // старше пары месяцев, где триал уже точно закончился у всех.
+      // is_test = false везде ниже (обсуждение 09.08.2026, см. migrations/0067)
       pool.query(
         `SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS cohort,
                 COUNT(*) AS total,
@@ -415,7 +447,7 @@ router.get(
                 COUNT(*) FILTER (WHERE subscription_status = 'cancelled') AS cancelled,
                 COUNT(*) FILTER (WHERE subscription_status = 'trial') AS trial
          FROM companies
-         WHERE created_at > now() - interval '6 months'
+         WHERE created_at > now() - interval '6 months' AND is_test = false
          GROUP BY 1 ORDER BY 1`
       ),
       // Платящие компании без единого события за 14+ дней (или вообще без
@@ -425,7 +457,7 @@ router.get(
         `SELECT c.id, c.name, c.subscription_status, MAX(e.created_at) AS last_event_at
          FROM companies c
          LEFT JOIN event_log e ON e.company_id = c.id
-         WHERE c.subscription_status IN ('active', 'past_due')
+         WHERE c.subscription_status IN ('active', 'past_due') AND c.is_test = false
          GROUP BY c.id, c.name, c.subscription_status
          HAVING MAX(e.created_at) IS NULL OR MAX(e.created_at) < now() - interval '14 days'
          ORDER BY last_event_at ASC NULLS FIRST`
@@ -433,8 +465,14 @@ router.get(
       // Счётчик по коду нарушения без company_id в выборке вообще —
       // UNIQUE(company_id, violation_code) на таблице означает COUNT(*)
       // здесь равен числу РАЗНЫХ компаний с этим нарушением, не событий.
+      // JOIN на companies только ради фильтра is_test — сам company_id в
+      // выборку по-прежнему не попадает.
       pool.query(
-        `SELECT violation_code, COUNT(*) AS n FROM security_violations GROUP BY violation_code ORDER BY n DESC LIMIT 15`
+        `SELECT sv.violation_code, COUNT(*) AS n
+         FROM security_violations sv
+         JOIN companies c ON c.id = sv.company_id
+         WHERE c.is_test = false
+         GROUP BY sv.violation_code ORDER BY n DESC LIMIT 15`
       ),
     ]);
 
@@ -506,7 +544,7 @@ router.get(
        JOIN companies c ON c.id = spn.company_id
        JOIN memberships m ON m.company_id = c.id AND m.role = 'owner'
        JOIN users u ON u.id = m.user_id
-       WHERE u.analytics_consent = true`
+       WHERE u.analytics_consent = true AND c.is_test = false`
     );
 
     const rowsByNiche = {};
@@ -550,6 +588,69 @@ router.get(
     }
 
     res.json({ anonymityThreshold: SELLABLE_STATS_ANONYMITY_THRESHOLD, niches: stats });
+  })
+);
+
+// Push-уведомления Super Admin (обсуждение 09.08.2026) — регистрация новой
+// компании / успешная оплата / новое обращение в поддержку, см. хуки в
+// auth.routes.js, subscription.routes.js, support.routes.js и
+// core/pushNotify.js (sendPushToSuperAdmins). Тот же паттерн, что и
+// push.routes.js для компаний, но без company_id/тумблеров категорий.
+router.get(
+  '/push/vapid-public-key',
+  asyncHandler(async (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null, configured: isPushConfigured() });
+  })
+);
+
+router.post(
+  '/push/subscribe',
+  asyncHandler(async (req, res) => {
+    const { endpoint, keys } = req.body;
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ error: 'Некорректные данные подписки' });
+    }
+    await pool.query(
+      `INSERT INTO admin_push_subscriptions (user_id, endpoint, p256dh, auth)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+      [req.user.id, endpoint, keys.p256dh, keys.auth]
+    );
+    res.status(201).json({ ok: true });
+  })
+);
+
+router.delete(
+  '/push/subscribe',
+  asyncHandler(async (req, res) => {
+    const { endpoint } = req.body;
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Не указан endpoint подписки' });
+    }
+    await pool.query('DELETE FROM admin_push_subscriptions WHERE endpoint = $1 AND user_id = $2', [endpoint, req.user.id]);
+    res.status(204).end();
+  })
+);
+
+router.post(
+  '/push/test',
+  asyncHandler(async (req, res) => {
+    if (!isPushConfigured()) {
+      return res.status(400).json({ error: 'Push не настроен на сервере (нет VAPID-ключей)' });
+    }
+    const result = await sendPushToSuperAdmins({
+      title: 'Тестовое уведомление',
+      body: 'Если вы это видите — push из админки работает.',
+      url: '/office/',
+    });
+    if (result.subscriptions === 0) {
+      return res.status(400).json({ error: 'Нет активной подписки на этом устройстве — включите уведомления заново' });
+    }
+    if (result.sent === 0) {
+      const detail = result.errors[0]?.message || result.errors[0]?.statusCode || 'неизвестная ошибка';
+      return res.status(502).json({ error: `Push не дошёл (${detail}) — попробуйте отключить и снова включить уведомления` });
+    }
+    res.json({ ok: true, sent: result.sent, failed: result.failed });
   })
 );
 

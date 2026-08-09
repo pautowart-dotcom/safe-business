@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
+const { sendPushToSuperAdmins } = require('../core/pushNotify');
 
 const router = express.Router();
 
@@ -40,6 +41,15 @@ router.post(
        VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
       [req.user.id, companyId, email.trim(), message.trim()]
     );
+
+    // Push владельцу платформы (обсуждение 09.08.2026) — fire-and-forget.
+    const preview = message.trim().length > 120 ? `${message.trim().slice(0, 120)}…` : message.trim();
+    sendPushToSuperAdmins({
+      title: 'Новое обращение в поддержку',
+      body: `${email.trim()}: ${preview}`,
+      url: '/office/support',
+    }).catch((err) => console.error('sendPushToSuperAdmins (support) failed:', err));
+
     res.status(201).json(rows[0]);
   })
 );

@@ -78,4 +78,36 @@ async function sendPushToCompany({ companyId, category, title, body, url, onlyMe
   return { configured: true, sent, failed: errors.length, subscriptions: subs.length, errors };
 }
 
-module.exports = { sendPushToCompany, isPushConfigured: () => configured };
+// Push для Super Admin (обсуждение 09.08.2026) — платформенные события
+// (регистрация/оплата/поддержка), не привязанные к конкретной компании.
+// Та же логика доставки/чистки протухших подписок, что и sendPushToCompany,
+// но источник подписок — admin_push_subscriptions (migrations/0067), без
+// тумблеров категорий (их для суперадмина пока нет, всего 3 события).
+async function sendPushToSuperAdmins({ title, body, url }) {
+  if (!configured) return { configured: false, sent: 0, failed: 0, subscriptions: 0, errors: [] };
+
+  const { rows: subs } = await pool.query(`SELECT id, endpoint, p256dh, auth FROM admin_push_subscriptions`);
+  if (subs.length === 0) return { configured: true, sent: 0, failed: 0, subscriptions: 0, errors: [] };
+
+  const payload = JSON.stringify({ title, body, url: url || '/' });
+  let sent = 0;
+  const errors = [];
+  await Promise.all(
+    subs.map((s) =>
+      webpush
+        .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload)
+        .then(() => {
+          sent += 1;
+        })
+        .catch(async (err) => {
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            await pool.query('DELETE FROM admin_push_subscriptions WHERE id = $1', [s.id]);
+          }
+          errors.push({ statusCode: err.statusCode, message: err.body || err.message });
+        })
+    )
+  );
+  return { configured: true, sent, failed: errors.length, subscriptions: subs.length, errors };
+}
+
+module.exports = { sendPushToCompany, sendPushToSuperAdmins, isPushConfigured: () => configured };

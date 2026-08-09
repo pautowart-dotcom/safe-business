@@ -5,6 +5,7 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment, getPayment } = require('../core/yookassa');
+const { sendPushToSuperAdmins } = require('../core/pushNotify');
 
 const SUBSCRIPTION_PRICE_RUB = 1990;
 
@@ -64,11 +65,13 @@ router.post(
     }
 
     const { rows } = await pool.query(
-      'SELECT company_id FROM subscription_payments WHERE yookassa_payment_id = $1',
+      `SELECT sp.company_id, sp.amount_rub, sp.is_recurring_charge, c.name AS company_name
+       FROM subscription_payments sp JOIN companies c ON c.id = sp.company_id
+       WHERE sp.yookassa_payment_id = $1`,
       [paymentId]
     );
     if (rows.length === 0) return res.status(200).end();
-    const companyId = rows[0].company_id;
+    const { company_id: companyId, amount_rub: amountRub, is_recurring_charge: isRecurringCharge, company_name: companyName } = rows[0];
 
     if (payment.status === 'succeeded') {
       const nextPeriodEnd = new Date();
@@ -92,6 +95,15 @@ router.post(
           [companyId, nextPeriodEnd]
         );
       }
+
+      // Push владельцу платформы (обсуждение 09.08.2026) — и первый платёж,
+      // и ежемесячное автосписание одинаково интересны ("кто платит").
+      // fire-and-forget, не должен задерживать ответ ЮKassa на вебхук.
+      sendPushToSuperAdmins({
+        title: isRecurringCharge ? 'Автосписание прошло' : 'Новая оплата',
+        body: `${companyName} — ${amountRub} ₽`,
+        url: '/office/companies',
+      }).catch((err) => console.error('sendPushToSuperAdmins (payment) failed:', err));
     } else if (payment.status === 'canceled') {
       await pool.query(`UPDATE subscription_payments SET status = 'canceled' WHERE yookassa_payment_id = $1`, [paymentId]);
     }

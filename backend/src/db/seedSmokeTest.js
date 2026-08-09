@@ -75,8 +75,8 @@ async function seed() {
     await client.query('BEGIN');
 
     const companyResult = await client.query(
-      `INSERT INTO companies (name, industry_segment, subscription_status)
-       VALUES ('Смоук-тест (служебная)', $1, 'active') RETURNING id`,
+      `INSERT INTO companies (name, industry_segment, subscription_status, is_test)
+       VALUES ('Смоук-тест (служебная)', $1, 'active', true) RETURNING id`,
       [MARKER]
     );
     const companyId = companyResult.rows[0].id;

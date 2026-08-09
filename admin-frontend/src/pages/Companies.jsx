@@ -9,6 +9,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   const [data, setData] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [updatingSubscription, setUpdatingSubscription] = useState(false);
+  const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
 
   function load() {
     api.get(`/platform/admin/companies/${id}`).then((res) => setData(res.data));
@@ -42,6 +43,20 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     }
   }
 
+  // Пометка "тестовая" (обсуждение 09.08.2026) — только чтобы убрать компанию
+  // из статистики "Обзора"/"Аналитики" (owner сам заводит тестовые студии для
+  // проверок, отличить их от реальных клиентов автоматически нечем), сами
+  // данные компании не трогает.
+  async function toggleTestFlag() {
+    setUpdatingTestFlag(true);
+    try {
+      await api.patch(`/platform/admin/companies/${id}/test-flag`, { isTest: !data.company.is_test });
+      load();
+    } finally {
+      setUpdatingTestFlag(false);
+    }
+  }
+
   if (!data) return <div className="page-loading">Загрузка...</div>;
   const { company, memberships, modules } = data;
 
@@ -49,7 +64,10 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     <div>
       <BackBtn onClick={onBack} label="К списку компаний" />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{company.name}</div>
-      <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
+        {company.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
+      </div>
       <div style={{ fontSize: 12, color: C.subtle, margin: '10px 0 12px' }}>
         Регистрация {new Date(company.created_at).toLocaleDateString('ru-RU')}
         {company.trial_ends_at && ` · пробный период до ${new Date(company.trial_ends_at).toLocaleDateString('ru-RU')}`}
@@ -75,6 +93,13 @@ function CompanyDetail({ id, onBack, onDeleted }) {
             Снять ручную отметку
           </button>
         )}
+        <button
+          onClick={toggleTestFlag}
+          disabled={updatingTestFlag}
+          style={{ background: 'none', border: `1px solid ${C.purple}`, color: C.purple, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+        >
+          {company.is_test ? 'Убрать пометку теста' : 'Пометить как тестовую'}
+        </button>
       </div>
 
       <Card>
@@ -142,7 +167,10 @@ export default function Companies() {
           <Card key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(c.id)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{c.name}</div>
-              <Badge color={STATUS_COLORS[c.subscription_status]} bg={C.surface}>{STATUS_LABELS[c.subscription_status]}</Badge>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <Badge color={STATUS_COLORS[c.subscription_status]} bg={C.surface}>{STATUS_LABELS[c.subscription_status]}</Badge>
+                {c.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
+              </div>
             </div>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>
               Регистрация {new Date(c.created_at).toLocaleDateString('ru-RU')} · {c.member_count} сотрудник(ов)
