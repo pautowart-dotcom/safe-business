@@ -15,7 +15,10 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { registerDeadline, clearAction } = require('../core/deadlines');
-const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
+const { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule } = require('../core/taxDeadlines');
+
+const RESERVE_REGIMES = ['usn_income', 'usn_income_expense'];
+const RESERVE_SLOT_KEYS = ['usn_q1', 'usn_q2', 'usn_q3'];
 const { uploadDocument } = require('../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
 
@@ -60,7 +63,8 @@ router.get(
 
     const { rows: companyRows } = await pool.query(
       `SELECT tax_regime, to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-              to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at
+              to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at,
+              to_char(patent_start_at, 'YYYY-MM-DD') AS patent_start_at, patent_amount
        FROM companies WHERE id = $1`,
       [companyId]
     );
@@ -87,6 +91,40 @@ router.get(
       };
     });
 
+    let patent = null;
+    if (company.tax_regime === 'patent' && company.patent_start_at && company.patent_amount) {
+      const patentEndDate = slots.find((s) => s.key === 'patent_end')?.dueDate;
+      if (patentEndDate) {
+        patent = {
+          startAt: company.patent_start_at,
+          amount: Number(company.patent_amount),
+          endDate: patentEndDate,
+          schedule: computePatentSchedule(company.patent_start_at, patentEndDate, Number(company.patent_amount)),
+        };
+      }
+    }
+
+    let reserves = [];
+    if (RESERVE_REGIMES.includes(company.tax_regime)) {
+      const year = new Date().getFullYear();
+      const yearSlots = computeSlots(company.tax_regime, year, {
+        ipRegisteredAt: company.ip_registered_at,
+        hasEmployees: company.has_employees,
+      });
+      reserves = await Promise.all(
+        RESERVE_SLOT_KEYS.filter((key) => yearSlots[key]).map(async (key) => {
+          const slot = yearSlots[key];
+          const { revenue, expenses, amount } = await computeReserve(
+            companyId,
+            company.tax_regime,
+            slot.quarterStart,
+            slot.quarterEnd
+          );
+          return { slotKey: key, title: slot.title, dueDate: slot.dueDate, revenue, expenses, amount };
+        })
+      );
+    }
+
     res.json({
       slots,
       sout: {
@@ -98,6 +136,10 @@ router.get(
         regimes: TAX_REGIMES,
         ipRegisteredAt: company.ip_registered_at || null,
         hasEmployees: company.has_employees ?? null,
+        reserves,
+        patentStartAt: company.patent_start_at || null,
+        patentAmount: company.patent_amount ?? null,
+        patent,
       },
     });
   })
@@ -176,6 +218,41 @@ router.patch(
 
     await clearAction({ relatedEntityType: 'sout', relatedEntityId: req.tenant.companyId, category: 'staff' });
     res.json({ lastAt: null, nextDueDate: null });
+  })
+);
+
+// Патент — сумму не считаем (регион/ниша/год, см. computePatentSchedule),
+// владелец вводит её сам один раз; тут же пересчитываем график оплаты по
+// дате окончания патента, которая уже хранится как обычный слот каталога
+// ('patent_end') — не дублируем её здесь отдельным полем.
+router.patch(
+  '/patent',
+  asyncHandler(async (req, res) => {
+    const { startAt, amount } = req.body;
+    const numAmount = amount === '' || amount === undefined || amount === null ? null : Number(amount);
+    if (amount !== undefined && amount !== null && amount !== '' && (Number.isNaN(numAmount) || numAmount < 0)) {
+      return res.status(400).json({ error: 'Некорректная сумма патента' });
+    }
+
+    await pool.query('UPDATE companies SET patent_start_at = $1, patent_amount = $2 WHERE id = $3', [
+      startAt || null,
+      numAmount,
+      req.tenant.companyId,
+    ]);
+
+    let patent = null;
+    if (startAt && numAmount) {
+      const { rows } = await pool.query(
+        `SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date FROM deadlines WHERE company_id = $1 AND related_entity_type = $2`,
+        [req.tenant.companyId, relatedType('patent_end')]
+      );
+      const endDate = rows[0]?.due_date;
+      if (endDate) {
+        patent = { startAt, amount: numAmount, endDate, schedule: computePatentSchedule(startAt, endDate, numAmount) };
+      }
+    }
+
+    res.json({ startAt: startAt || null, amount: numAmount, patent });
   })
 );
 

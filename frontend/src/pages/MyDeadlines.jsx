@@ -23,6 +23,10 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+function fmtMoney(v) {
+  return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
+}
+
 // Баг №8: у "Договор аренды — дата окончания" не было способа быстро
 // прикинуть дату по стандартному сроку — 11 месяцев самый частый вариант
 // в РФ (договор на 12+ месяцев подлежит обязательной регистрации, поэтому
@@ -113,6 +117,8 @@ export default function MyDeadlinesTab() {
   const [savingSout, setSavingSout] = useState(false);
   const [taxForm, setTaxForm] = useState({ regime: '', ipRegisteredAt: '', hasEmployees: false });
   const [savingTax, setSavingTax] = useState(false);
+  const [patentForm, setPatentForm] = useState({ startAt: '', amount: '' });
+  const [savingPatent, setSavingPatent] = useState(false);
 
   function load() {
     return api.get('/platform/my-deadlines').then((res) => {
@@ -122,6 +128,10 @@ export default function MyDeadlinesTab() {
         regime: res.data.tax.regime || '',
         ipRegisteredAt: res.data.tax.ipRegisteredAt || '',
         hasEmployees: !!res.data.tax.hasEmployees,
+      });
+      setPatentForm({
+        startAt: res.data.tax.patentStartAt || '',
+        amount: res.data.tax.patentAmount != null ? String(res.data.tax.patentAmount) : '',
       });
     });
   }
@@ -182,6 +192,22 @@ export default function MyDeadlinesTab() {
       setError(err.response?.data?.error || 'Не удалось сохранить');
     } finally {
       setSavingTax(false);
+    }
+  }
+
+  async function savePatent() {
+    setSavingPatent(true);
+    setError('');
+    try {
+      await api.patch('/platform/my-deadlines/patent', {
+        startAt: patentForm.startAt || null,
+        amount: patentForm.amount === '' ? null : patentForm.amount,
+      });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось сохранить');
+    } finally {
+      setSavingPatent(false);
     }
   }
 
@@ -249,6 +275,66 @@ export default function MyDeadlinesTab() {
         </label>
         <Btn small disabled={savingTax} onClick={saveTax}>{savingTax ? 'Сохраняем...' : 'Сохранить'}</Btn>
       </Card>
+
+      {taxForm.regime === 'patent' && (
+        <Card>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Патент</div>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
+            Точную стоимость патента мы не считаем — она зависит от региона, ниши и года.{' '}
+            <a href="https://patent.nalog.ru/info/" target="_blank" rel="noreferrer">Посчитать на сайте ФНС</a>.
+            Введите уже известную сумму — посчитаем график оплаты по срокам, которые едины для всех (ст. 346.51 НК РФ).
+          </div>
+          <Field label="Дата начала действия патента">
+            <TextInput type="date" value={patentForm.startAt} onChange={(e) => setPatentForm({ ...patentForm, startAt: e.target.value })} />
+          </Field>
+          <Field label="Стоимость патента, ₽">
+            <TextInput type="number" value={patentForm.amount} onChange={(e) => setPatentForm({ ...patentForm, amount: e.target.value })} />
+          </Field>
+          <Btn small disabled={savingPatent} onClick={savePatent}>{savingPatent ? 'Сохраняем...' : 'Сохранить'}</Btn>
+
+          {patentForm.startAt && patentForm.amount && !data.tax.patent && (
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: 10 }}>
+              Чтобы посчитать график оплаты, укажите ещё дату окончания патента ниже, в разделе «Юридические документы».
+            </div>
+          )}
+
+          {data.tax.patent && (
+            <div style={{ marginTop: 10 }}>
+              {data.tax.patent.schedule.map((s, i) => (
+                <div
+                  key={s.label}
+                  style={{ padding: '7px 0', borderBottom: i < data.tax.patent.schedule.length - 1 ? `1px solid ${C.border}` : 'none' }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
+                  <div style={{ fontSize: 12, color: C.subtle }}>{fmtDate(s.dueDate)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 2 }}>{fmtMoney(s.amount)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {data.tax.reserves?.length > 0 && (
+        <Card>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Резерв на налоги</div>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
+            Ориентировочно, по уже внесённой выручке{taxForm.regime === 'usn_income_expense' ? ' и расходам' : ''} с
+            начала квартала по сегодня — не итоговая сумма к уплате, без вычета страховых взносов. Сверьте с
+            бухгалтером.
+          </div>
+          {data.tax.reserves.map((r, i) => (
+            <div
+              key={r.slotKey}
+              style={{ padding: '7px 0', borderBottom: i < data.tax.reserves.length - 1 ? `1px solid ${C.border}` : 'none' }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{r.title}</div>
+              <div style={{ fontSize: 12, color: C.subtle }}>{fmtDate(r.dueDate)}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 2 }}>~{fmtMoney(r.amount)}</div>
+            </div>
+          ))}
+        </Card>
+      )}
 
       {taxDeadlines.length > 0 && (
         <Card>

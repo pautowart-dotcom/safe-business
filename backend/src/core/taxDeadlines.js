@@ -25,6 +25,16 @@ const QUARTER_END = {
   q4: (year) => `${year}-12-31`,
 };
 
+// Начало квартала — нужно, чтобы считать "Резерв на налоги" (см.
+// computeReserve ниже): сумму выручки/расходов берём с начала квартала,
+// а не за весь год.
+const QUARTER_START = {
+  q1: (year) => `${year}-01-01`,
+  q2: (year) => `${year}-04-01`,
+  q3: (year) => `${year}-07-01`,
+  q4: (year) => `${year}-10-01`,
+};
+
 // Слоты, общие для всех известных режимов, специфичные — только для тех
 // регимов, где сроки достаточно стандартны, чтобы их можно было посчитать
 // без доп. данных (например, оплата патента зависит от даты начала и
@@ -63,10 +73,10 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
       // марта, но продукт ориентирован на ИП). Точный сдвиг на выходные/
       // праздники конкретного года (например 27/27/26 в 2026-м) намеренно
       // не считаем — см. дисклеймер в шапке файла, "сверьте с бухгалтером".
-      slots.usn_q1 = { title: `УСН: авансовый платёж за 1 квартал ${year}`, dueDate: `${year}-04-28`, quarterEnd: QUARTER_END.q1(year) };
-      slots.usn_q2 = { title: `УСН: авансовый платёж за полугодие ${year}`, dueDate: `${year}-07-28`, quarterEnd: QUARTER_END.q2(year) };
-      slots.usn_q3 = { title: `УСН: авансовый платёж за 9 месяцев ${year}`, dueDate: `${year}-10-28`, quarterEnd: QUARTER_END.q3(year) };
-      slots.usn_annual = { title: `УСН: итоговый налог и декларация за ${year} год`, dueDate: `${year + 1}-04-25`, quarterEnd: QUARTER_END.q4(year) };
+      slots.usn_q1 = { title: `УСН: авансовый платёж за 1 квартал ${year}`, dueDate: `${year}-04-28`, quarterStart: QUARTER_START.q1(year), quarterEnd: QUARTER_END.q1(year) };
+      slots.usn_q2 = { title: `УСН: авансовый платёж за полугодие ${year}`, dueDate: `${year}-07-28`, quarterStart: QUARTER_START.q2(year), quarterEnd: QUARTER_END.q2(year) };
+      slots.usn_q3 = { title: `УСН: авансовый платёж за 9 месяцев ${year}`, dueDate: `${year}-10-28`, quarterStart: QUARTER_START.q3(year), quarterEnd: QUARTER_END.q3(year) };
+      slots.usn_annual = { title: `УСН: итоговый налог и декларация за ${year} год`, dueDate: `${year + 1}-04-25`, quarterStart: QUARTER_START.q4(year), quarterEnd: QUARTER_END.q4(year) };
     }
   }
 
@@ -132,4 +142,67 @@ async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasE
   }
 }
 
-module.exports = { TAX_REGIMES, syncTaxDeadlines };
+// "Резерв на налоги" — ориентировочная сумма к отложенному конкретному
+// квартальному авансу УСН, посчитанная по уже внесённой в компании
+// выручке (и расходам для "доходы минус расходы") с начала квартала по
+// сегодня. Официальный расчёт авансов УСН — нарастающим итогом с начала
+// года за вычетом ранее уплаченных сумм, здесь — упрощение по выручке
+// ТОЛЬКО текущего квартала (близко к реальной доплате в обычном случае,
+// но не тождественно ей) — поэтому строго "ориентировочно", не итоговая
+// сумма к уплате. Не учитывает вычет по страховым взносам (usn_income) и
+// минимальный налог 1% (актуален только для годовой декларации, которую
+// этот расчёт не покрывает).
+async function computeReserve(companyId, regime, quarterStart, quarterEnd) {
+  const { rows: revenueRows } = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM finance_entries
+     WHERE company_id = $1 AND occurred_at >= $2 AND occurred_at <= LEAST($3::date, CURRENT_DATE)`,
+    [companyId, quarterStart, quarterEnd]
+  );
+  const revenue = Number(revenueRows[0].total);
+
+  if (regime === 'usn_income') {
+    return { revenue, expenses: null, amount: Math.round(revenue * 0.06) };
+  }
+
+  const { rows: expenseRows } = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM expense_entries
+     WHERE company_id = $1 AND occurred_at >= $2 AND occurred_at <= LEAST($3::date, CURRENT_DATE)`,
+    [companyId, quarterStart, quarterEnd]
+  );
+  const expenses = Number(expenseRows[0].total);
+  const amount = Math.round(Math.max(revenue - expenses, 0) * 0.15);
+  return { revenue, expenses, amount };
+}
+
+// График оплаты патента (ПСН) по уже известной владельцу сумме (сумму мы
+// не считаем — она зависит от региона/ниши/года, см. комментарий в
+// my-deadlines.routes.js). Правила фиксированы федерально (ст. 346.51 НК
+// РФ), не зависят от региона/ниши:
+// - патент на срок до 6 месяцев — вся сумма не позднее даты окончания;
+// - патент на срок от 6 до 12 месяцев — 1/3 не позднее 90 календарных
+//   дней после начала действия, остальные 2/3 — не позднее даты окончания.
+function addDaysUTC(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function monthsBetweenInclusive(startAt, endAt) {
+  const s = new Date(`${startAt}T00:00:00Z`);
+  const e = new Date(`${endAt}T00:00:00Z`);
+  return (e.getUTCFullYear() - s.getUTCFullYear()) * 12 + (e.getUTCMonth() - s.getUTCMonth()) + 1;
+}
+
+function computePatentSchedule(startAt, endAt, amount) {
+  const months = monthsBetweenInclusive(startAt, endAt);
+  if (months < 6) {
+    return [{ label: 'Вся стоимость патента', dueDate: endAt, amount }];
+  }
+  const first = Math.round(amount / 3);
+  return [
+    { label: '1/3 стоимости патента', dueDate: addDaysUTC(startAt, 90), amount: first },
+    { label: 'Оставшиеся 2/3 стоимости патента', dueDate: endAt, amount: amount - first },
+  ];
+}
+
+module.exports = { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule };
