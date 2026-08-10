@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Ваш roadmap открытия бизнеса — Безопасный бизнес</title>
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f6f6f8; --surface-2: #eeeef2; --border: #e6e6ec;
+    --text: #0e0e14; --text-muted: #64646f; --accent: #4f46e5; --accent-contrast: #ffffff;
+    --accent-soft: #eeecfd; --danger: #d13b3b;
+    --shadow-sm: 0 1px 2px rgba(14,14,20,.06), 0 1px 1px rgba(14,14,20,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0b0f; --surface: #16161c; --surface-2: #1d1d24; --border: #26262f;
+      --text: #f3f3f7; --text-muted: #96969f; --accent: #8b83f0; --accent-contrast: #0b0b0f;
+      --accent-soft: #201e3a; --danger: #e2726f;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  main { max-width: 680px; margin: 0 auto; padding: 0 24px 60px; }
+  header { padding: 26px 0; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-weight: 800; font-size: 16px; letter-spacing: -.3px; text-decoration: none; color: var(--text); }
+  h1 { font-size: clamp(24px, 4.5vw, 32px); font-weight: 800; letter-spacing: -.8px; margin: 8px 0 4px; }
+  .meta { color: var(--text-muted); font-size: 14.5px; margin: 0 0 18px; }
+  .not-all-at-once { background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14.5px; padding: 14px 18px; border-radius: 12px; margin-bottom: 26px; }
+  .btn { display: inline-block; padding: 13px 20px; border-radius: 10px; font-weight: 700; font-size: 14.5px; text-decoration: none; background: var(--accent); color: var(--accent-contrast); }
+  .stage { margin-bottom: 30px; }
+  .stage-week { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .stage-title { font-size: 19px; font-weight: 800; margin: 0 0 12px; }
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+  .item-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .item-desc { color: var(--text-muted); font-size: 14px; }
+  .item-duration { display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; }
+  .status-box { text-align: center; padding: 60px 0; color: var(--text-muted); }
+  .disclaimer { font-size: 12.5px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 18px; margin-top: 20px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header><a class="logo" href="/">Безопасный бизнес</a></header>
+
+  <div id="pending-box" class="status-box">Подтверждаем оплату… обычно занимает несколько секунд.</div>
+  <div id="error-box" class="status-box" hidden>Не нашли этот roadmap. Проверьте ссылку из письма или <a href="/start.html">начните заново</a>.</div>
+
+  <div id="content" hidden>
+    <h1 id="title"></h1>
+    <p class="meta" id="subtitle"></p>
+    <div class="not-all-at-once">Не всё нужно делать одновременно — двигайтесь по неделям в указанном порядке.</div>
+    <a class="btn" id="pdf-link" href="#">Скачать PDF</a>
+
+    <div id="stages" style="margin-top:28px;"></div>
+    <p class="disclaimer" id="disclaimer"></p>
+  </div>
+</main>
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('token');
+  var pendingBox = document.getElementById('pending-box');
+  var errorBox = document.getElementById('error-box');
+  var content = document.getElementById('content');
+  var attempts = 0;
+  var MAX_ATTEMPTS = 40; // ~2 минуты при 3с интервале
+
+  if (!token) {
+    pendingBox.hidden = true;
+    errorBox.hidden = false;
+  } else {
+    poll();
+  }
+
+  function render(data) {
+    document.getElementById('title').textContent = data.roadmap.nicheLabel;
+    document.getElementById('subtitle').textContent = 'Форма работы: ' + data.roadmap.legalFormLabel;
+    document.getElementById('pdf-link').href = '/api/platform/roadmap/pdf/' + encodeURIComponent(token);
+    document.getElementById('disclaimer').textContent = data.roadmap.disclaimer;
+
+    var stagesEl = document.getElementById('stages');
+    stagesEl.innerHTML = '';
+    data.roadmap.stages.forEach(function (stage) {
+      var stageEl = document.createElement('div');
+      stageEl.className = 'stage';
+      var itemsHtml = stage.items.map(function (item) {
+        return '<div class="item">' +
+          '<div class="item-title">' + escapeHtml(item.title) + '</div>' +
+          (item.description ? '<div class="item-desc">' + escapeHtml(item.description) + '</div>' : '') +
+          (item.durationNote ? '<div class="item-duration">Срок: ' + escapeHtml(item.durationNote) + '</div>' : '') +
+          '</div>';
+      }).join('');
+      stageEl.innerHTML = '<div class="stage-week">' + escapeHtml(stage.weekLabel) + '</div>' +
+        '<div class="stage-title">' + escapeHtml(stage.title) + '</div>' + itemsHtml;
+      stagesEl.appendChild(stageEl);
+    });
+
+    pendingBox.hidden = true;
+    content.hidden = false;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  async function poll() {
+    attempts += 1;
+    try {
+      var res = await fetch('/api/platform/roadmap/result/' + encodeURIComponent(token));
+      if (res.status === 404) {
+        pendingBox.hidden = true;
+        errorBox.hidden = false;
+        return;
+      }
+      var data = await res.json();
+      if (data.status === 'succeeded') {
+        render(data);
+        return;
+      }
+      if (data.status === 'canceled') {
+        pendingBox.textContent = 'Платёж не прошёл. Попробуйте оформить заново.';
+        return;
+      }
+      if (attempts >= MAX_ATTEMPTS) {
+        pendingBox.textContent = 'Оплата ещё не подтвердилась. Обновите страницу через минуту — ссылка та же, ничего не потеряется.';
+        return;
+      }
+      setTimeout(poll, 3000);
+    } catch (e) {
+      if (attempts >= MAX_ATTEMPTS) {
+        pendingBox.textContent = 'Не получилось проверить статус. Обновите страницу.';
+        return;
+      }
+      setTimeout(poll, 3000);
+    }
+  }
+})();
+</script>
+</body>
+</html>

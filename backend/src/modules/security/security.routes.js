@@ -1,7 +1,9 @@
+const crypto = require('crypto');
 const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
+const { requireTestCompany } = require('../../core/middleware/testCompany');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 const { encrypt, decrypt } = require('../../core/crypto');
@@ -166,6 +168,40 @@ router.get(
   asyncHandler(async (req, res) => {
     const status = await computeSecurityStatus(req.tenant.companyId);
     res.json(status);
+  })
+);
+
+// ---------- "Паспорт бизнеса" — публичная ссылка на сводку статуса ----------
+// Тихая обкатка (10.08.2026, requireTestCompany) — расширение политики
+// конфиденциальности §8.4 явным действием владельца: по умолчанию токена
+// нет, наружу ничего не отдаётся. Публичная сторона (businessPassport.routes.js)
+// отдаёт только агрегаты (индекс/зона/счётчики), не сами нарушения/штрафы —
+// это "уровень доверия" для внешнего наблюдателя, не карта уязвимостей.
+router.get(
+  '/share',
+  requireTestCompany,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query('SELECT security_share_token FROM companies WHERE id = $1', [req.tenant.companyId]);
+    res.json({ shareToken: rows[0]?.security_share_token || null });
+  })
+);
+
+router.post(
+  '/share',
+  requireTestCompany,
+  asyncHandler(async (req, res) => {
+    const token = crypto.randomBytes(24).toString('hex');
+    await pool.query('UPDATE companies SET security_share_token = $1 WHERE id = $2', [token, req.tenant.companyId]);
+    res.json({ shareToken: token });
+  })
+);
+
+router.delete(
+  '/share',
+  requireTestCompany,
+  asyncHandler(async (req, res) => {
+    await pool.query('UPDATE companies SET security_share_token = NULL WHERE id = $1', [req.tenant.companyId]);
+    res.status(204).end();
   })
 );
 

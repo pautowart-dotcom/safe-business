@@ -131,6 +131,12 @@ export default function Security() {
   // здесь только для честной подписи на кнопке/тексте карточки — сама
   // блокировка скачивания всё равно проверяется на backend.
   const [hasPaidPlan, setHasPaidPlan] = useState(false);
+  // 10.08.2026: "Открытие ещё одной точки" обкатывается тихо — видно только
+  // на компаниях, помеченных is_test (владелец ставит флаг вручную через
+  // /office, PATCH /admin/companies/:id/test-flag, миграция 0067). Когда
+  // решит показать всем — убрать этот флаг из условия рендера карточки ниже,
+  // остальной код (роуты/движок) трогать не придётся.
+  const [isTestCompany, setIsTestCompany] = useState(false);
   const [pdfPaywall, setPdfPaywall] = useState(false);
   // Пакет 4, Этап 2: два таба верхнего уровня внутри "Безопасности" — "Тест"
   // (существующая панель ниже) и новая "Мои сроки". Таб переключается только
@@ -163,6 +169,7 @@ export default function Security() {
       ]);
       setProfile(profileRes.data);
       setHasPaidPlan(!!companyRes.data?.subscription_status && companyRes.data.subscription_status !== 'trial');
+      setIsTestCompany(!!companyRes.data?.is_test);
       if (profileRes.data) await loadDashboardData();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось загрузить данные');
@@ -341,6 +348,7 @@ export default function Security() {
           products={products}
           isManagement={isManagement}
           hasPaidPlan={hasPaidPlan}
+          isTestCompany={isTestCompany}
           pdfPaywall={pdfPaywall}
           error={error}
           onEditProfile={() => setEditingProfile(true)}
@@ -546,7 +554,7 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onDownload, onG
 // ---------- Главная панель ----------
 
 function SecurityDashboard({
-  profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, pdfPaywall, error,
+  profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
   onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onGoSubscribe, onDocumentsChange, hideTitle,
 }) {
   const [tab, setTab] = useState('overview');
@@ -599,7 +607,7 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onGoSubscribe={onGoSubscribe} />
+        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onGoSubscribe={onGoSubscribe} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} />}
@@ -607,7 +615,7 @@ function SecurityDashboard({
   );
 }
 
-function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport, onGoSubscribe }) {
+function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport, onGoSubscribe }) {
   const hasResult = status?.indexPercent != null;
   const outstanding = status?.outstandingNiches || [];
 
@@ -661,6 +669,9 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, pdf
         )}
       </Card>
 
+      <OpeningRoadmapCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} onGoSubscribe={onGoSubscribe} />
+      <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
+
       <Card>
         <ST>Пакет документов</ST>
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Готовый комплект документов под вашу нишу. Скоро запуск.</div>
@@ -677,6 +688,204 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, pdf
         Сервис не заменяет юриста, бухгалтера или специалиста по охране труда.
       </div>
     </div>
+  );
+}
+
+// "Открытие ещё одной точки" — 10.08.2026: раздел "Филиалы" убран из продукта
+// (Layout.jsx), поэтому это не отдельная сущность/раздел, а бесстейтовая
+// карточка внутри уже существующего "Обзора": backend сам берёт нишу/юрформу/
+// модель работы из уже сохранённого профиля компании (см.
+// modules/security/report.routes.js GET /opening-roadmap) — никаких вопросов
+// заново. hasPaidPlan/402 — тот же паттерн, что downloadPdf/PdfPaywallNotice
+// выше в этом файле.
+function OpeningRoadmapCard({ isManagement, hasPaidPlan, isTestCompany, onGoSubscribe }) {
+  const [roadmap, setRoadmap] = useState(null);
+  const [nicheChoice, setNicheChoice] = useState(null);
+  const [selectedNiche, setSelectedNiche] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [pdfPaywall, setPdfPaywall] = useState(false);
+
+  // Тихая обкатка (10.08.2026) — видно только на компаниях с is_test=true.
+  if (!isManagement || !isTestCompany) return null;
+
+  async function load(niche) {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.get('/modules/security/opening-roadmap', { params: niche ? { niche } : {} });
+      if (data.needNicheChoice) {
+        setNicheChoice(data.niches);
+        setRoadmap(null);
+        return;
+      }
+      setNicheChoice(null);
+      setRoadmap(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось построить чек-лист');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function downloadRoadmapPdf() {
+    setError('');
+    try {
+      const res = await api.get('/modules/security/opening-roadmap/pdf', {
+        params: selectedNiche ? { niche: selectedNiche } : {},
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'roadmap-novoy-tochki.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      if (err.response?.status === 402) {
+        setPdfPaywall(true);
+        return;
+      }
+      setError(err.response?.data?.error || 'Не удалось скачать PDF');
+    }
+  }
+
+  return (
+    <Card>
+      <ST>Открытие ещё одной точки</ST>
+
+      {!roadmap && !nicheChoice && (
+        <div>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+            Чек-лист под новый адрес — та же ниша и форма работы, что уже указаны у вас, без повторной регистрации.
+          </div>
+          <Btn small variant="secondary" onClick={() => load()} disabled={loading}>
+            {loading ? 'Считаем…' : 'Показать чек-лист'}
+          </Btn>
+        </div>
+      )}
+
+      {nicheChoice && (
+        <div>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 10 }}>У вас несколько ниш — для какой нужен чек-лист?</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {nicheChoice.map((n) => (
+              <Btn key={n.key} small variant="secondary" onClick={() => { setSelectedNiche(n.key); load(n.key); }}>
+                {n.label}
+              </Btn>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {roadmap && (
+        <div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Btn small onClick={downloadRoadmapPdf}>{hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF 🔒'}</Btn>
+            <Btn small variant="secondary" onClick={() => { setRoadmap(null); setNicheChoice(null); }}>Свернуть</Btn>
+          </div>
+          {pdfPaywall && <div style={{ marginBottom: 10 }}><PdfPaywallNotice onSubscribe={onGoSubscribe} /></div>}
+          {roadmap.stages.map((stage) => (
+            <div key={stage.weekLabel} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>
+                {stage.weekLabel} · {stage.title}
+              </div>
+              {stage.items.map((item, i) => (
+                <div key={i} style={{ fontSize: 13, color: C.secondary, padding: '3px 0' }}>
+                  · {item.title}{item.durationNote ? ` (${item.durationNote})` : ''}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+    </Card>
+  );
+}
+
+// "Паспорт бизнеса" — 10.08.2026, тихая обкатка за is_test. Расширяет
+// политику конфиденциальности §8.4 явным действием владельца ("поделиться"),
+// см. modules/security/security.routes.js GET/POST/DELETE /share и
+// businessPassport.routes.js (публичная сторона отдаёт только агрегаты,
+// не сами нарушения).
+function SharePassportCard({ isManagement, isTestCompany }) {
+  const [shareToken, setShareToken] = useState(undefined);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isManagement || !isTestCompany) return;
+    api.get('/modules/security/share')
+      .then(({ data }) => setShareToken(data.shareToken))
+      .catch(() => setShareToken(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManagement, isTestCompany]);
+
+  if (!isManagement || !isTestCompany) return null;
+
+  async function enable() {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.post('/modules/security/share');
+      setShareToken(data.shareToken);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось создать ссылку');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function disable() {
+    setLoading(true);
+    setError('');
+    try {
+      await api.delete('/modules/security/share');
+      setShareToken(null);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось отключить');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const shareUrl = shareToken ? `${window.location.origin}/business-passport.html?token=${shareToken}` : '';
+  const badgeUrl = shareToken ? `${window.location.origin}/api/platform/business-passport/${shareToken}/badge.svg` : '';
+  const embedCode = shareToken ? `<a href="${shareUrl}"><img src="${badgeUrl}" alt="Безопасный бизнес"></a>` : '';
+
+  return (
+    <Card>
+      <ST>Паспорт бизнеса</ST>
+      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+        Публичная ссылка со сводкой (индекс безопасности, зона, сколько устранено) — для арендодателя, франчайзера или покупателя. Без деталей нарушений и штрафов.
+      </div>
+      {shareToken === undefined ? null : shareToken ? (
+        <div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+            <input readOnly value={shareUrl} onClick={(e) => e.target.select()} style={{ flex: 1, minWidth: 200, fontSize: 12, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, color: C.secondary }} />
+            <Btn small variant="secondary" onClick={() => navigator.clipboard?.writeText(shareUrl)}>Копировать</Btn>
+          </div>
+
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>Бейдж для сайта или соцсетей</div>
+          <img src={badgeUrl} alt="Бейдж «Безопасный бизнес»" style={{ display: 'block', marginBottom: 10, borderRadius: 8 }} />
+          <textarea
+            readOnly
+            value={embedCode}
+            onClick={(e) => e.target.select()}
+            style={{ width: '100%', fontSize: 11, padding: 8, borderRadius: 8, border: `1px solid ${C.border}`, color: C.secondary, minHeight: 56, resize: 'vertical', marginBottom: 14, fontFamily: 'monospace' }}
+          />
+
+          <Btn small variant="secondary" onClick={disable} disabled={loading}>Отключить ссылку</Btn>
+        </div>
+      ) : (
+        <Btn small variant="secondary" onClick={enable} disabled={loading}>{loading ? 'Секунду…' : 'Создать ссылку'}</Btn>
+      )}
+      {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+    </Card>
   );
 }
 

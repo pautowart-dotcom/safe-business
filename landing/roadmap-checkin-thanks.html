@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Спасибо — Безопасный бизнес</title>
+<style>
+  :root { --bg: #ffffff; --text: #0e0e14; --text-muted: #64646f; --accent: #4f46e5; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0b0b0f; --text: #f3f3f7; --text-muted: #96969f; --accent: #8b83f0; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", system-ui, sans-serif; line-height: 1.55; }
+  main { max-width: 460px; margin: 0 auto; padding: 80px 24px; text-align: center; }
+  h1 { font-size: 24px; font-weight: 800; margin: 0 0 12px; }
+  p { color: var(--text-muted); font-size: 15.5px; }
+  a { color: var(--accent); font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <div id="open-box" hidden>
+    <h1>Поздравляем с открытием! 🎉</h1>
+    <p>Мы отправили вам письмо про подписку «Мои сроки» — она сама напоминает о медкнижках, огнетушителях, СОУТ и других сроках, чтобы дальше не пришлось всё держать в голове.</p>
+  </div>
+  <div id="not-yet-box" hidden>
+    <h1>Спасибо, что ответили</h1>
+    <p>Ваш roadmap остаётся по той же ссылке из письма — возвращайтесь к нему в любой момент.</p>
+  </div>
+  <p><a href="/">На главную «Безопасный бизнес»</a></p>
+</main>
+<script>
+  var status = new URLSearchParams(window.location.search).get('status');
+  document.getElementById(status === 'already_open' ? 'open-box' : 'not-yet-box').hidden = false;
+</script>
+</body>
+</html>

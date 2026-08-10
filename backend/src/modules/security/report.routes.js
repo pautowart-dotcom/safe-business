@@ -3,6 +3,7 @@ const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
 const { requirePaidPlan } = require('../../core/middleware/subscription');
+const { requireTestCompany } = require('../../core/middleware/testCompany');
 const { logEvent } = require('../../core/eventLog');
 const repository = require('./content/repository');
 const { mergeDocumentSections, mergeAttentionZones } = require('./content/mergeSections');
@@ -10,6 +11,8 @@ const { loadProfile } = require('./profile');
 const { computeSecurityStatus } = require('./status');
 const { buildReport } = require('./report/build');
 const { renderPdf } = require('./report/pdf');
+const { buildRoadmap, NICHE_LABELS } = require('../roadmap/content/buildRoadmap');
+const { renderRoadmapPdf } = require('../../platform/roadmapPdf');
 
 const router = express.Router();
 
@@ -147,6 +150,83 @@ router.get(
     const pdfBuffer = await renderPdf(report);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${reportRow.report_number}.pdf"`);
+    res.send(pdfBuffer);
+  })
+);
+
+// "Открытие ещё одной точки" — 10.08.2026: раздел "Филиалы" в продукте убран
+// (каждая новая точка — отдельная компания/подписка, см. Layout.jsx), поэтому
+// это НЕ сущность и не новый раздел меню, а бесстейтовая генерация: берём уже
+// известные ниши/юрформу/модель работы ИЗ ПРОФИЛЯ ТЕКУЩЕЙ компании (тот же
+// loadProfile, что и выше) и строим тот же движок roadmap открытия
+// (modules/roadmap/content/buildRoadmap.js — общий с публичным продуктом
+// "Roadmap открытия бизнеса" для новичков, backend/src/platform/roadmap.routes.js),
+// но БЕЗ шага регистрации юрлица (includeRegistration: false) — юрлицо уже
+// есть, вопрос не про "как зарегистрироваться", а "что оформить на новом
+// адресе". Ничего не сохраняется в БД — ничего не мешает пересчитать это
+// снова с другими параметрами (?niche=...), нет риска рассинхронизации с
+// текущим состоянием профиля.
+function pickSupportedNiches(profile) {
+  return profile.niches.filter((n) => NICHE_LABELS[n]);
+}
+
+// requireTestCompany — общий middleware (core/middleware/testCompany.js):
+// is_test=true у компании (миграция 0067, PATCH /admin/companies/:id/test-flag)
+// — иначе прямой вызов API в обход UI всё равно сработал бы у любой компании.
+
+function buildCompanyOpeningRoadmap(profile, requestedNiche) {
+  const supported = pickSupportedNiches(profile);
+  const niche = requestedNiche && supported.includes(requestedNiche) ? requestedNiche : supported.length === 1 ? supported[0] : null;
+  if (!niche) return null;
+  // work_model: 'alone'|'employees'|'sublet'|'mixed' (Security.jsx, WORK_MODEL_OPTIONS)
+  // — то же поле, что и остальной модуль безопасности уже использует для
+  // employerOnly-гейтинга, отдельного вопроса не заводим.
+  const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
+  return buildRoadmap({ niche, legalForm: profile.legalForm, hasEmployees, includeRegistration: false });
+}
+
+router.get(
+  '/opening-roadmap',
+  requireTestCompany,
+  asyncHandler(async (req, res) => {
+    const profile = await loadProfile(req.tenant.companyId);
+    if (!profile || !profile.legalForm) {
+      return res.status(409).json({ error: 'Сначала пройдите сегментацию (ниша и форма работы)' });
+    }
+    const supported = pickSupportedNiches(profile);
+    if (supported.length === 0) {
+      return res.status(409).json({ error: 'Чек-лист открытия новой точки пока доступен только для ниш красоты' });
+    }
+    if (supported.length > 1 && !req.query.niche) {
+      return res.json({ needNicheChoice: true, niches: supported.map((n) => ({ key: n, label: NICHE_LABELS[n] })) });
+    }
+    const roadmap = buildCompanyOpeningRoadmap(profile, req.query.niche);
+    if (!roadmap) return res.status(400).json({ error: 'Укажите нишу' });
+    res.json(roadmap);
+  })
+);
+
+router.get(
+  '/opening-roadmap/pdf',
+  requireTestCompany,
+  requirePaidPlan,
+  asyncHandler(async (req, res) => {
+    const profile = await loadProfile(req.tenant.companyId);
+    if (!profile || !profile.legalForm) {
+      return res.status(409).json({ error: 'Сначала пройдите сегментацию' });
+    }
+    const roadmap = buildCompanyOpeningRoadmap(profile, req.query.niche);
+    if (!roadmap) return res.status(400).json({ error: 'Укажите нишу' });
+
+    const pdfBuffer = await renderRoadmapPdf({
+      nicheLabel: roadmap.nicheLabel,
+      legalFormLabel: roadmap.legalFormLabel,
+      generatedAt: new Date(),
+      stages: roadmap.stages,
+      disclaimer: roadmap.disclaimer,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="roadmap-novoy-tochki.pdf"');
     res.send(pdfBuffer);
   })
 );

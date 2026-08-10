@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Roadmap открытия бизнеса — Безопасный бизнес</title>
+<meta name="description" content="Персональный план открытия студии красоты по неделям — ниша, юрформа, сроки. 1490 ₽ разово, без подписки." />
+<style>
+  /* Та же система переменных, что landing/index.html — отдельная страница
+     той же линейки продукта, но не переиспользует /lk/-воронку подписки:
+     эта аудитория ещё не открылась, ей рано в личный кабинет. */
+  :root {
+    --bg: #ffffff; --surface: #f6f6f8; --surface-2: #eeeef2; --border: #e6e6ec;
+    --text: #0e0e14; --text-muted: #64646f; --accent: #4f46e5; --accent-contrast: #ffffff;
+    --accent-soft: #eeecfd; --danger: #d13b3b;
+    --shadow-sm: 0 1px 2px rgba(14,14,20,.06), 0 1px 1px rgba(14,14,20,.04);
+    --shadow-lg: 0 24px 48px -20px rgba(14,14,20,.22);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0b0f; --surface: #16161c; --surface-2: #1d1d24; --border: #26262f;
+      --text: #f3f3f7; --text-muted: #96969f; --accent: #8b83f0; --accent-contrast: #0b0b0f;
+      --accent-soft: #201e3a; --danger: #e2726f;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-lg: 0 24px 48px -18px rgba(0,0,0,.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  main { max-width: 620px; margin: 0 auto; padding: 0 24px 60px; }
+  header { padding: 26px 0; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-weight: 800; font-size: 16px; letter-spacing: -.3px; text-decoration: none; color: var(--text); }
+  h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -1px; line-height: 1.08; margin: 20px 0 12px; text-wrap: balance; }
+  .lead { font-size: 16.5px; color: var(--text-muted); margin: 0 0 28px; max-width: 52ch; }
+  .price-badge { display: inline-block; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; padding: 8px 14px; border-radius: 999px; margin-bottom: 28px; }
+  fieldset { border: none; padding: 0; margin: 0 0 22px; }
+  legend, label.field-label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  select, input[type=email], input[type=tel], input[type=number] {
+    width: 100%; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 15px; font-family: inherit;
+  }
+  .radio-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .radio-pill { position: relative; }
+  .radio-pill input { position: absolute; opacity: 0; }
+  .radio-pill span {
+    display: inline-block; padding: 10px 16px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); font-size: 14.5px; font-weight: 600; cursor: pointer; user-select: none;
+  }
+  .radio-pill input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+  .sub-questions { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 4px; margin-top: 14px; }
+  .sub-questions .field { margin-bottom: 16px; }
+  .btn { display: inline-block; width: 100%; padding: 15px 24px; border-radius: 12px; font-weight: 700; font-size: 15.5px; text-align: center; border: none; cursor: pointer; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 12px 24px -10px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+  .recommendation { background: var(--accent-soft); border-radius: 14px; padding: 18px 20px; margin: 18px 0; font-size: 14.5px; }
+  .recommendation b { display: block; font-size: 16px; margin-bottom: 6px; }
+  .error { color: var(--danger); font-size: 14px; margin-top: 10px; }
+  .hint { color: var(--text-muted); font-size: 13px; margin-top: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header><a class="logo" href="/">Безопасный бизнес</a></header>
+
+  <h1>Roadmap открытия бизнеса</h1>
+  <p class="lead">Персональный план по неделям — что и в каком порядке оформить, чтобы открыться без штрафов и без хаоса. PDF + страница, доступ по ссылке на почте, без пароля.</p>
+  <div class="price-badge">1490 ₽ — разово, без подписки</div>
+
+  <form id="intake-form">
+    <fieldset>
+      <legend>Ниша</legend>
+      <select id="niche" required>
+        <option value="" disabled selected>Выберите нишу</option>
+        <option value="manicure">Маникюр и педикюр</option>
+        <option value="lashes_brows">Ресницы и брови</option>
+        <option value="hair">Волосы (парикмахерские услуги)</option>
+        <option value="massage">Массаж (без медицинской лицензии)</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Планируете нанимать сотрудников?</legend>
+      <div class="radio-row">
+        <label class="radio-pill"><input type="radio" name="hasEmployees" value="no" checked><span>Нет, буду один(-а)</span></label>
+        <label class="radio-pill"><input type="radio" name="hasEmployees" value="yes"><span>Да</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Форма работы</legend>
+      <div class="radio-row" id="legal-form-row">
+        <label class="radio-pill"><input type="radio" name="legalForm" value="self_employed"><span>Самозанятый</span></label>
+        <label class="radio-pill"><input type="radio" name="legalForm" value="ip"><span>ИП</span></label>
+        <label class="radio-pill"><input type="radio" name="legalForm" value="ooo"><span>ООО</span></label>
+        <label class="radio-pill"><input type="radio" name="legalForm" value="" checked><span>Не знаю, помогите выбрать</span></label>
+      </div>
+
+      <div class="sub-questions" id="sub-questions">
+        <div class="field">
+          <label class="field-label">Будет несколько совладельцев бизнеса?</label>
+          <div class="radio-row">
+            <label class="radio-pill"><input type="radio" name="hasCoOwners" value="no" checked><span>Нет, я один(-а)</span></label>
+            <label class="radio-pill"><input type="radio" name="hasCoOwners" value="yes"><span>Да</span></label>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="income">Ожидаемый доход в год, ₽ (необязательно)</label>
+          <input type="number" id="income" min="0" step="1000" placeholder="например, 1500000">
+        </div>
+      </div>
+    </fieldset>
+
+    <div id="recommendation" class="recommendation" hidden></div>
+
+    <fieldset>
+      <legend>Email — куда пришлём ссылку на готовый roadmap</legend>
+      <input type="email" id="email" required placeholder="you@example.com">
+      <div class="hint" style="margin-top:14px; margin-bottom: -4px;">Телефон (необязательно)</div>
+      <input type="tel" id="phone" placeholder="+7 900 000-00-00" style="margin-top:8px;">
+    </fieldset>
+
+    <button type="submit" class="btn" id="submit-btn">Получить roadmap за 1490 ₽</button>
+    <div class="error" id="error" hidden></div>
+    <div class="hint">Оплата через ЮKassa. Лид сохраняется даже если вы не дойдёте до оплаты — мы не потеряем заявку.</div>
+  </form>
+</main>
+<script>
+(function () {
+  var form = document.getElementById('intake-form');
+  var legalFormRow = document.getElementById('legal-form-row');
+  var subQuestions = document.getElementById('sub-questions');
+  var recommendationBox = document.getElementById('recommendation');
+  var submitBtn = document.getElementById('submit-btn');
+  var errorBox = document.getElementById('error');
+  var leadId = null;
+
+  function updateSubQuestionsVisibility() {
+    var chosen = form.querySelector('input[name=legalForm]:checked').value;
+    subQuestions.hidden = chosen !== '';
+    recommendationBox.hidden = true;
+  }
+  legalFormRow.addEventListener('change', updateSubQuestionsVisibility);
+  updateSubQuestionsVisibility();
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.hidden = false;
+  }
+
+  // ROADMAP_PRODUCT_ENABLED=false на бэкенде (тихая обкатка, 10.08.2026) —
+  // роут отдаёт 404 {error:'not_launched'} на любой запрос этого продукта;
+  // показываем понятное сообщение вместо технической ошибки.
+  function errorMessage(data, fallback) {
+    return data.error === 'not_launched' ? 'Этот продукт ещё не запущен — загляните позже.' : (data.error || fallback);
+  }
+
+  function currentPayload() {
+    var legalForm = form.querySelector('input[name=legalForm]:checked').value || null;
+    var income = document.getElementById('income').value;
+    return {
+      email: document.getElementById('email').value.trim(),
+      phone: document.getElementById('phone').value.trim() || null,
+      niche: document.getElementById('niche').value,
+      hasEmployees: form.querySelector('input[name=hasEmployees]:checked').value === 'yes',
+      legalForm: legalForm,
+      hasCoOwners: form.querySelector('input[name=hasCoOwners]:checked').value === 'yes',
+      expectedAnnualIncomeRub: income ? Number(income) : null,
+    };
+  }
+
+  async function goToCheckout() {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Переходим к оплате…';
+    try {
+      var res = await fetch('/api/platform/roadmap/checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: leadId }),
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(errorMessage(data, 'Не получилось создать оплату'));
+      window.location.href = data.confirmationUrl;
+    } catch (e) {
+      showError(e.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Получить roadmap за 1490 ₽';
+    }
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    errorBox.hidden = true;
+    if (!document.getElementById('niche').value) return showError('Выберите нишу');
+    if (!document.getElementById('email').value) return showError('Укажите email');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Секунду…';
+    try {
+      var payload = currentPayload();
+      var res = await fetch('/api/platform/roadmap/intake', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(errorMessage(data, 'Не получилось сохранить заявку'));
+      leadId = data.leadId;
+
+      if (!payload.legalForm && data.legalFormRecommended) {
+        recommendationBox.hidden = false;
+        var labels = { self_employed: 'Самозанятый', ip: 'ИП', ooo: 'ООО' };
+        recommendationBox.innerHTML = '<b>Рекомендуем: ' + labels[data.legalFormRecommended] + '</b>' + data.explanation;
+        submitBtn.textContent = 'Продолжить к оплате — 1490 ₽';
+        submitBtn.disabled = false;
+        submitBtn.onclick = function (ev) { ev.preventDefault(); goToCheckout(); };
+        return;
+      }
+
+      await goToCheckout();
+    } catch (e) {
+      showError(e.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Получить roadmap за 1490 ₽';
+    }
+  });
+})();
+</script>
+</body>
+</html>

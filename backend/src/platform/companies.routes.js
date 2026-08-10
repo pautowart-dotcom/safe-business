@@ -113,7 +113,7 @@ router.get(
         `SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime,
                 subscription_current_period_end, subscription_price_rub,
                 to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at
+                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test
          FROM companies WHERE id = $1`,
         [req.tenant.companyId]
       ),

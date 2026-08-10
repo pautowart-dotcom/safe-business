@@ -19,6 +19,8 @@ const pushRoutes = require('./push.routes');
 const clientErrorsRoutes = require('./client-errors.routes');
 const subscriptionRoutes = require('./subscription.routes');
 const landingRoutes = require('./landing.routes');
+const roadmapRoutes = require('./roadmap.routes');
+const businessPassportRoutes = require('./businessPassport.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -39,5 +41,7 @@ platformRouter.use('/push', pushRoutes);
 platformRouter.use('/client-errors', clientErrorsRoutes);
 platformRouter.use('/subscription', subscriptionRoutes);
 platformRouter.use('/landing', landingRoutes);
+platformRouter.use('/roadmap', roadmapRoutes);
+platformRouter.use('/business-passport', businessPassportRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
