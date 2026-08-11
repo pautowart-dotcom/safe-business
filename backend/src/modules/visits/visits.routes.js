@@ -9,7 +9,7 @@ const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
-const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'];
+const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'package', 'other'];
 
 // Ниша визита — валидируем только по факту, что она входит в ниши,
 // реально выбранные компанией (security_profile_niches), а не по
@@ -52,7 +52,7 @@ router.post(
 const DISCOUNT_AMOUNT_SQL = 'COALESCE(v.discount_fixed_amount, ROUND(v.amount * v.discount_percent / 100, 2))';
 const SELECT_COLUMNS = `
   v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.materials, v.niche,
-  v.amount, v.discount_percent, v.discount_fixed_amount, v.master_payout_percent, v.payment_method,
+  v.amount, v.discount_percent, v.discount_fixed_amount, v.master_payout_percent, v.payment_method, v.client_package_id,
   ${DISCOUNT_AMOUNT_SQL} AS discount_amount,
   ROUND(v.amount - (${DISCOUNT_AMOUNT_SQL}), 2) AS final_amount,
   ROUND(v.amount * v.master_payout_percent / 100, 2) AS master_earnings,
@@ -234,9 +234,10 @@ router.post(
       paymentMethod,
       niche,
       supplies,
+      clientPackageId,
     } = req.body;
 
-    if (!clientId || !service || amount === undefined || amount === null) {
+    if (!clientId || !service || (!clientPackageId && (amount === undefined || amount === null))) {
       return res.status(400).json({ error: 'Укажите клиента, услугу и сумму визита' });
     }
     if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
@@ -245,7 +246,7 @@ router.post(
     if (niche && !(await validateNiche(req.tenant.companyId, niche))) {
       return res.status(400).json({ error: 'Эта ниша не выбрана у компании' });
     }
-    if (discountFixedAmount && Number(discountFixedAmount) > Number(amount)) {
+    if (!clientPackageId && discountFixedAmount && Number(discountFixedAmount) > Number(amount)) {
       return res.status(400).json({ error: 'Скидка в рублях не может быть больше суммы визита' });
     }
 
@@ -255,6 +256,35 @@ router.post(
     ]);
     if (client.rows.length === 0) {
       return res.status(400).json({ error: 'Клиент не найден в этой компании' });
+    }
+
+    // Абонемент (11.08.2026) — если визит списывается с пакета, ПОЛНОСТЬЮ
+    // игнорируем присланные amount/discount* с фронта и считаем сумму сами:
+    // так забытая мастером скидка структурно не может исказить выручку, а не
+    // просто "фронт обычно подставляет правильное значение".
+    let finalAmount = amount;
+    let finalDiscountPercent = discountPercent;
+    let finalDiscountFixedAmount = discountFixedAmount;
+    let finalPaymentMethod = paymentMethod;
+    let resolvedPackageId = null;
+    if (clientPackageId) {
+      const pkg = await pool.query(
+        `SELECT id, total_sessions, sessions_used, total_amount FROM client_packages
+         WHERE id = $1 AND client_id = $2 AND company_id = $3 AND cancelled_at IS NULL`,
+        [clientPackageId, clientId, req.tenant.companyId]
+      );
+      if (pkg.rows.length === 0) {
+        return res.status(404).json({ error: 'Абонемент не найден' });
+      }
+      const p = pkg.rows[0];
+      if (p.sessions_used >= p.total_sessions) {
+        return res.status(409).json({ error: 'В абонементе не осталось визитов' });
+      }
+      resolvedPackageId = p.id;
+      finalAmount = Math.round((p.total_amount / p.total_sessions) * 100) / 100;
+      finalDiscountPercent = 0;
+      finalDiscountFixedAmount = null;
+      finalPaymentMethod = 'package';
     }
 
     // Безопасность: branchId раньше не проверялся — компания A могла
@@ -320,8 +350,8 @@ router.post(
         `INSERT INTO visits (
            company_id, branch_id, client_id, master_membership_id, service, materials,
            amount, discount_percent, discount_fixed_amount, master_payout_percent, photo_before_url, photo_after_url,
-           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method, niche
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()), $16, $17, $18)
+           photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method, niche, client_package_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()), $16, $17, $18, $19)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -330,9 +360,9 @@ router.post(
           resolvedMasterId,
           service,
           materials || null,
-          amount,
-          discountPercent || 0,
-          discountFixedAmount || null,
+          finalAmount,
+          finalDiscountPercent || 0,
+          finalDiscountFixedAmount || null,
           payoutPercent,
           bareFileUrl(photoBeforeUrl) || null,
           bareFileUrl(photoAfterUrl) || null,
@@ -340,11 +370,16 @@ router.post(
           bareFileUrl(photoAfterUrl2) || null,
           visitAt || null,
           req.user.id,
-          paymentMethod || null,
+          finalPaymentMethod || null,
           niche || null,
+          resolvedPackageId,
         ]
       );
       visitId = insert.rows[0].id;
+
+      if (resolvedPackageId) {
+        await dbClient.query('UPDATE client_packages SET sessions_used = sessions_used + 1 WHERE id = $1', [resolvedPackageId]);
+      }
 
       // Пакет 3, Этап 1.2: у каждого визита — своя auto_from_visit-запись в
       // finance_entries (источник выручки), а не расчёт налету из visits.
@@ -353,7 +388,7 @@ router.post(
       await dbClient.query(
         `INSERT INTO finance_entries (company_id, source, visit_id, membership_id, amount, occurred_at, created_by_user_id)
          VALUES ($1, 'auto_from_visit', $2, $3, ROUND($4::numeric - COALESCE($5::numeric, $4::numeric * $6::numeric / 100), 2), $7::timestamptz::date, $8)`,
-        [req.tenant.companyId, visitId, resolvedMasterId, amount, discountFixedAmount || null, discountPercent || 0, insert.rows[0].visit_at, req.user.id]
+        [req.tenant.companyId, visitId, resolvedMasterId, finalAmount, finalDiscountFixedAmount || null, finalDiscountPercent || 0, insert.rows[0].visit_at, req.user.id]
       );
 
       if (Array.isArray(supplies) && supplies.length > 0) {
@@ -584,7 +619,7 @@ router.delete(
     const dbClient = await pool.connect();
     try {
       await dbClient.query('BEGIN');
-      const exists = await dbClient.query(`SELECT id FROM visits WHERE ${where}`, params);
+      const exists = await dbClient.query(`SELECT id, client_package_id FROM visits WHERE ${where}`, params);
       if (exists.rows.length === 0) {
         await dbClient.query('ROLLBACK');
         return res.status(404).json({ error: 'Визит не найден' });
@@ -592,6 +627,12 @@ router.delete(
       // Возвращаем на склад всё, что было списано этим визитом, прежде чем
       // удалить его — иначе расходники "терялись" бы безвозвратно.
       await restockVisitSupplies(dbClient, { companyId: req.tenant.companyId, visitId: req.params.id, userId: req.user.id });
+      // Абонемент (11.08.2026) — тот же принцип, что и с расходниками выше:
+      // удаление визита не должно молча "сжигать" оплаченную сессию клиента,
+      // раз услуга по факту не была оказана (визит удалили как ошибочный).
+      if (exists.rows[0].client_package_id) {
+        await dbClient.query('UPDATE client_packages SET sessions_used = sessions_used - 1 WHERE id = $1', [exists.rows[0].client_package_id]);
+      }
       await dbClient.query('DELETE FROM visits WHERE id = $1', [req.params.id]);
       await dbClient.query('COMMIT');
     } catch (err) {

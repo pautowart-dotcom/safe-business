@@ -29,6 +29,7 @@ const EMPTY_FORM = {
   masterMembershipId: '', service: '', materials: '', amount: '', niche: '',
   discountType: 'percent', discountPercent: '0', discountFixedAmount: '', paymentMethod: '',
   visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', photoBeforeUrl2: '', photoAfterUrl2: '', supplies: [],
+  clientPackageId: null,
 };
 
 function money(v) {
@@ -116,6 +117,10 @@ export default function Visits() {
   const [error, setError] = useState('');
   const [supplyPick, setSupplyPick] = useState('');
   const [supplyQty, setSupplyQty] = useState('');
+  // Абонементы выбранного клиента (11.08.2026) — предлагаем списать визит с
+  // абонемента вместо ручного ввода суммы/скидки, только при создании (не
+  // редактировании — PATCH /modules/visits не пересчитывает sessions_used).
+  const [clientPackages, setClientPackages] = useState([]);
 
   const firstNameRef = useRef(null);
   const serviceRef = useRef(null);
@@ -191,6 +196,7 @@ export default function Visits() {
     setForm({ ...EMPTY_FORM, visitAt: nowLocal(), masterMembershipId: isManagement ? '' : undefined, supplies: [] });
     setEditingId(null);
     setClientMatches([]);
+    setClientPackages([]);
     setSelectedClientNote(null);
     setSaved(false);
     setError('');
@@ -222,6 +228,7 @@ export default function Visits() {
     });
     setEditingId(v.id);
     setClientMatches([]);
+    setClientPackages([]);
     // Пожелания/аллергии здесь не подставляем — GET /modules/visits их не
     // отдаёт (это данные карточки клиента, не визита), а отдельный запрос
     // ради этого не делаем; появляются только при поиске/выборе клиента.
@@ -250,14 +257,34 @@ export default function Visits() {
   }
 
   function pickClient(client) {
-    setForm({ ...form, clientId: client.id, lastName: client.last_name, firstName: client.first_name });
+    setForm({ ...form, clientId: client.id, lastName: client.last_name, firstName: client.first_name, clientPackageId: null });
     setClientMatches([]);
     setSelectedClientNote(client.preferences || client.allergies ? { preferences: client.preferences, allergies: client.allergies } : null);
+    if (!editingId) {
+      api.get(`/modules/clients/${client.id}/packages`).then((res) => setClientPackages(res.data)).catch(() => setClientPackages([]));
+    }
   }
 
   function clearClient() {
-    setForm({ ...form, clientId: null });
+    setForm({ ...form, clientId: null, clientPackageId: null });
     setSelectedClientNote(null);
+    setClientPackages([]);
+  }
+
+  function pickPackage(pkg) {
+    setForm({
+      ...form,
+      clientPackageId: pkg.id,
+      service: pkg.title,
+      amount: String(pkg.pricePerSession),
+      discountType: 'percent',
+      discountPercent: '0',
+      discountFixedAmount: '',
+    });
+  }
+
+  function clearPackage() {
+    setForm({ ...form, clientPackageId: null });
   }
 
   function handleEnter(e, nextRef) {
@@ -310,7 +337,8 @@ export default function Visits() {
         amount: Number(form.amount),
         discountPercent: form.discountType === 'fixed' ? 0 : Number(form.discountPercent) || 0,
         discountFixedAmount: form.discountType === 'fixed' ? Number(form.discountFixedAmount) || null : null,
-        paymentMethod: form.paymentMethod || null,
+        paymentMethod: form.clientPackageId ? 'package' : form.paymentMethod || null,
+        clientPackageId: form.clientPackageId || undefined,
         visitAt: form.visitAt ? new Date(form.visitAt).toISOString() : undefined,
         masterMembershipId: isManagement ? form.masterMembershipId || undefined : undefined,
         photoBeforeUrl: form.photoBeforeUrl || null,
@@ -425,6 +453,31 @@ export default function Visits() {
             </div>
           )}
 
+          {!editingId && clientPackages.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: C.subtle, marginBottom: 6 }}>У клиента есть абонемент — списать визит с него?</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={clearPackage}
+                  style={{ border: `1px solid ${C.border}`, borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: !form.clientPackageId ? C.primary : 'transparent', color: !form.clientPackageId ? '#fff' : C.subtle }}
+                >
+                  Обычный визит
+                </button>
+                {clientPackages.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => pickPackage(p)}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: form.clientPackageId === p.id ? C.primary : 'transparent', color: form.clientPackageId === p.id ? '#fff' : C.subtle }}
+                  >
+                    {p.title} · осталось {p.totalSessions - p.sessionsUsed}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Поле вообще не показываем, если в компании нет ни одного мастера
               (соло-владелец) — иначе он видит обязательное поле, выбрать в
               котором нечего, и не может сохранить визит вовсе. */}
@@ -454,6 +507,12 @@ export default function Visits() {
             <TextInput ref={materialsRef} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} onKeyDown={(e) => handleEnter(e, priceRef)} placeholder="Например: гель-лак №47, масло для массажа..." />
           </Field>
 
+          {form.clientPackageId ? (
+            <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: C.subtle }}>Сумма визита (по абонементу)</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{form.amount} ₽</div>
+            </div>
+          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Сумма, ₽">
               <TextInput ref={priceRef} required type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="2500" />
@@ -487,12 +546,15 @@ export default function Visits() {
               )}
             </Field>
           </div>
+          )}
 
-          <Field label="Способ оплаты">
-            <Select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}>
-              {PAYMENT_METHOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
-          </Field>
+          {!form.clientPackageId && (
+            <Field label="Способ оплаты">
+              <Select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}>
+                {PAYMENT_METHOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
+            </Field>
+          )}
 
           {priceNum > 0 && (
             <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>

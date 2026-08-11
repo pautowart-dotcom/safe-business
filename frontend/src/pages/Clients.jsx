@@ -7,6 +7,7 @@ import { downloadPdf } from '../utils/downloadPdf.js';
 
 const EMPTY_FORM = { firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '' };
 const EMPTY_WAITLIST_FORM = { service: '', comment: '' };
+const EMPTY_PACKAGE_FORM = { title: '', totalSessions: '', totalAmount: '' };
 
 // Лёгкий лист ожидания (владелец, 29.07.2026): нет расписания/слотов в
 // приложении, поэтому это просто список "клиент хочет записаться" с ручной
@@ -69,6 +70,10 @@ export default function Clients() {
   const [waitlistLoading, setWaitlistLoading] = useState(true);
   const [showWaitlistForm, setShowWaitlistForm] = useState(false);
   const [waitlistForm, setWaitlistForm] = useState(EMPTY_WAITLIST_FORM);
+  const [packages, setPackages] = useState([]);
+  const [showPackageForm, setShowPackageForm] = useState(false);
+  const [packageForm, setPackageForm] = useState(EMPTY_PACKAGE_FORM);
+  const [packageError, setPackageError] = useState('');
   const firstNameRef = useRef(null);
 
   function load(searchTerm) {
@@ -81,6 +86,32 @@ export default function Clients() {
   function loadWaitlist() {
     setWaitlistLoading(true);
     return api.get('/modules/clients/waitlist').then((res) => setWaitlist(res.data)).finally(() => setWaitlistLoading(false));
+  }
+
+  function loadPackages(clientId) {
+    return api.get(`/modules/clients/${clientId}/packages`).then((res) => setPackages(res.data));
+  }
+
+  async function submitPackage() {
+    setPackageError('');
+    try {
+      await api.post(`/modules/clients/${selected.id}/packages`, {
+        title: packageForm.title,
+        totalSessions: Number(packageForm.totalSessions),
+        totalAmount: Number(packageForm.totalAmount),
+      });
+      setShowPackageForm(false);
+      setPackageForm(EMPTY_PACKAGE_FORM);
+      loadPackages(selected.id);
+    } catch (err) {
+      setPackageError(err.response?.data?.error || 'Не удалось создать абонемент');
+    }
+  }
+
+  async function cancelPackage(id) {
+    if (!confirm('Отменить абонемент? Уже использованные визиты никуда не денутся, но оставшиеся сессии сгорят.')) return;
+    await api.delete(`/modules/clients/${selected.id}/packages/${id}`);
+    loadPackages(selected.id);
   }
 
   useEffect(() => {
@@ -96,6 +127,12 @@ export default function Clients() {
   useEffect(() => {
     if (tab === 'waitlist') loadWaitlist();
   }, [tab]);
+
+  useEffect(() => {
+    if (selected) loadPackages(selected.id);
+    else { setPackages([]); setShowPackageForm(false); setPackageForm(EMPTY_PACKAGE_FORM); setPackageError(''); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   const refresh = () => load(search);
   usePullToRefresh(refresh);
@@ -258,6 +295,44 @@ export default function Clients() {
           </Card>
         )}
         {dossierError && <div className="alert alert-error">{dossierError}</div>}
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700 }}>Абонементы</div>
+            <Btn small variant="secondary" onClick={() => setShowPackageForm((v) => !v)}>+ Продать абонемент</Btn>
+          </div>
+          {packages.length === 0 && !showPackageForm && (
+            <div style={{ fontSize: 13, color: C.subtle }}>Активных абонементов нет.</div>
+          )}
+          {packages.map((p) => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{p.title}</div>
+                <div style={{ fontSize: 12, color: C.subtle }}>{p.sessionsUsed} из {p.totalSessions} использовано · {p.pricePerSession} ₽/визит</div>
+              </div>
+              <Btn small variant="secondary" onClick={() => cancelPackage(p.id)}>Отменить</Btn>
+            </div>
+          ))}
+          {showPackageForm && (
+            <div style={{ marginTop: packages.length > 0 ? 14 : 0 }}>
+              <Field label="Название (например, «Массаж, 5 визитов»)">
+                <TextInput value={packageForm.title} onChange={(e) => setPackageForm({ ...packageForm, title: e.target.value })} />
+              </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Число визитов">
+                  <TextInput type="number" min="1" value={packageForm.totalSessions} onChange={(e) => setPackageForm({ ...packageForm, totalSessions: e.target.value })} />
+                </Field>
+                <Field label="Сумма, ₽">
+                  <TextInput type="number" min="0" value={packageForm.totalAmount} onChange={(e) => setPackageForm({ ...packageForm, totalAmount: e.target.value })} />
+                </Field>
+              </div>
+              {packageError && <div className="alert alert-error" style={{ marginBottom: 10 }}>{packageError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn small onClick={submitPackage} disabled={!packageForm.title.trim() || !packageForm.totalSessions || !packageForm.totalAmount}>Создать</Btn>
+                <Btn small variant="secondary" onClick={() => { setShowPackageForm(false); setPackageError(''); }}>Отмена</Btn>
+              </div>
+            </div>
+          )}
+        </Card>
         {selected.allergies && (
           <Card style={{ background: C.redBg, borderColor: `${C.red}33` }}>
             <div style={{ fontSize: 12, color: C.red, fontWeight: 700, marginBottom: 4 }}>⚠️ Аллергии</div>

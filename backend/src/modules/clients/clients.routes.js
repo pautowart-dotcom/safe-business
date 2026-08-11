@@ -125,6 +125,65 @@ router.delete(
   })
 );
 
+// Абонементы (11.08.2026) — предоплата за N визитов со скидкой за пакет.
+// Цена за визит = total_amount/total_sessions, считается на лету (не
+// хранится) — единственный источник истины для суммы визита, списанного с
+// абонемента, см. visits.routes.js POST /.
+router.get(
+  '/:id/packages',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT cp.id, cp.title, cp.total_sessions AS "totalSessions", cp.sessions_used AS "sessionsUsed",
+              cp.total_amount AS "totalAmount", ROUND(cp.total_amount / cp.total_sessions, 2) AS "pricePerSession",
+              to_char(cp.purchased_at, 'YYYY-MM-DD') AS "purchasedAt"
+       FROM client_packages cp
+       WHERE cp.client_id = $1 AND cp.company_id = $2 AND cp.cancelled_at IS NULL AND cp.sessions_used < cp.total_sessions
+       ORDER BY cp.purchased_at DESC`,
+      [req.params.id, req.tenant.companyId]
+    );
+    res.json(rows);
+  })
+);
+
+router.post(
+  '/:id/packages',
+  asyncHandler(async (req, res) => {
+    const { title, totalSessions, totalAmount } = req.body;
+    if (!title || !Number.isInteger(Number(totalSessions)) || Number(totalSessions) <= 0 || totalAmount === undefined || totalAmount === null || Number(totalAmount) < 0) {
+      return res.status(400).json({ error: 'Укажите название, число визитов (целое, больше 0) и сумму' });
+    }
+    const client = await pool.query('SELECT 1 FROM clients WHERE id = $1 AND company_id = $2', [req.params.id, req.tenant.companyId]);
+    if (client.rows.length === 0) {
+      return res.status(404).json({ error: 'Клиент не найден' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO client_packages (company_id, client_id, title, total_sessions, total_amount, created_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, title, total_sessions AS "totalSessions", sessions_used AS "sessionsUsed",
+                 total_amount AS "totalAmount", ROUND(total_amount / total_sessions, 2) AS "pricePerSession",
+                 to_char(purchased_at, 'YYYY-MM-DD') AS "purchasedAt"`,
+      [req.tenant.companyId, req.params.id, title.trim(), totalSessions, totalAmount, req.user.id]
+    );
+    res.status(201).json(rows[0]);
+  })
+);
+
+router.delete(
+  '/:id/packages/:packageId',
+  asyncHandler(async (req, res) => {
+    const { rowCount } = await pool.query(
+      `UPDATE client_packages SET cancelled_at = now()
+       WHERE id = $1 AND client_id = $2 AND company_id = $3 AND cancelled_at IS NULL`,
+      [req.params.packageId, req.params.id, req.tenant.companyId]
+    );
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Абонемент не найден' });
+    }
+    res.status(204).end();
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {

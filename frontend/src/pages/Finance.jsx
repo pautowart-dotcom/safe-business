@@ -14,7 +14,7 @@ const EMPTY_RECURRING_FORM = { name: '', kind: 'fixed', amount: '' };
 const EMPTY_ADJUSTMENT_FORM = { masterMembershipId: '', amount: '', comment: '', occurredAt: '' };
 const EMPTY_REVENUE_FORM = { amount: '', membershipId: '', comment: '', occurredAt: '' };
 
-const PAYMENT_METHOD_LABELS = { cash: 'Наличные', card: 'Карта', transfer: 'Перевод', other: 'Другое', unspecified: 'Не указан' };
+const PAYMENT_METHOD_LABELS = { cash: 'Наличные', card: 'Карта', transfer: 'Перевод', package: 'Абонемент', other: 'Другое', unspecified: 'Не указан' };
 
 function money(v) {
   return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
