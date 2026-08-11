@@ -464,6 +464,10 @@ function OverviewTab({
   return (
     <div>
       <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 10px' }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Услуг за период</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>{summary.visitsCount ?? 0}</div>
+        </div>
         <PnlRow label="Выручка" value={summary.revenue} />
         <PnlRow label="Зарплаты" value={summary.masterSalaries} sign="−" />
         <PnlRow label="Пост. расходы" value={summary.fixedExpenses} sign="−" />

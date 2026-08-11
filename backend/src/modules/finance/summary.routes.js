@@ -61,6 +61,16 @@ router.get(
     );
     const revenue = parseFloat(revenueTotals.rows[0].revenue);
 
+    // Итоговое число услуг за период (Финансы, шапка сводки) — считаем от
+    // visits напрямую (не от finance_entries, где могут быть и ручные
+    // записи владельца без визита) тем же способом, что уже используют
+    // byMaster/byPaymentMethod ниже — visit_at::date в диапазоне периода.
+    const visitsTotals = await pool.query(
+      `SELECT COUNT(*) AS total FROM visits WHERE company_id = $1 AND visit_at::date BETWEEN $2 AND $3`,
+      [companyId, from, to]
+    );
+    const visitsCount = Number(visitsTotals.rows[0].total);
+
     const salaryTotals = await pool.query(
       `SELECT COALESCE(SUM(amount * master_payout_percent / 100), 0) AS master_salaries
        FROM visits
@@ -165,6 +175,7 @@ router.get(
       // периоде вообще, чтобы не показывать их сумму строк расходов
       // отдельно от "Итого" (которое всегда 0 вне месячного вида).
       recurringCountedThisPeriod: isFullMonthView,
+      visitsCount,
       revenue: round2(revenue),
       masterSalaries: round2(masterSalaries),
       fixedExpenses: round2(fixedExpenses),
