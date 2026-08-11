@@ -21,6 +21,7 @@ const subscriptionRoutes = require('./subscription.routes');
 const landingRoutes = require('./landing.routes');
 const roadmapRoutes = require('./roadmap.routes');
 const businessPassportRoutes = require('./businessPassport.routes');
+const franchiseRoutes = require('./franchise.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -43,5 +44,6 @@ platformRouter.use('/subscription', subscriptionRoutes);
 platformRouter.use('/landing', landingRoutes);
 platformRouter.use('/roadmap', roadmapRoutes);
 platformRouter.use('/business-passport', businessPassportRoutes);
+platformRouter.use('/franchise', franchiseRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
