@@ -7,7 +7,13 @@
 // форматом объектов, вызывающий код не меняется.
 
 const TEMPLATES_BY_NICHE = {
-  manicure: [require('./templates/manicure')],
+  manicure: [
+    require('./templates/manicure'),
+    require('./templates/manicure-pd-consent'),
+    require('./templates/manicure-pd-distribution'),
+    require('./templates/manicure-marketing-consent'),
+    require('./templates/manicure-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
