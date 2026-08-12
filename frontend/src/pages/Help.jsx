@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, Badge, C } from '../ui/components.jsx';
 import Icon from '../ui/Icon.jsx';
 
@@ -227,25 +228,45 @@ function TeamSection() {
   );
 }
 
+// moduleKey/roleCheck — та же логика видимости, что и в More.jsx (OWNER_ITEMS)
+// и App.jsx (PrivateRoute ownerOnly/managementOnly) — раздел справки не
+// должен рассказывать про экран, к которому у этой роли нет доступа.
 const SECTIONS = [
-  { key: 'visits', label: 'Визиты', Component: VisitsSection },
-  { key: 'clients', label: 'Клиенты', Component: ClientsSection },
+  { key: 'visits', label: 'Визиты', Component: VisitsSection, moduleKey: 'visits' },
+  { key: 'clients', label: 'Клиенты', Component: ClientsSection, moduleKey: 'clients' },
   { key: 'finance', label: 'Финансы', Component: FinanceSection },
-  { key: 'security', label: 'Безопасность', Component: SecuritySection },
-  { key: 'team', label: 'Команда', Component: TeamSection },
+  { key: 'security', label: 'Безопасность', Component: SecuritySection, roleCheck: 'owner' },
+  { key: 'team', label: 'Команда', Component: TeamSection, roleCheck: 'management' },
 ];
+
+const WELCOME_TEXT = {
+  owner: 'Вы видите все разделы и управляете компанией целиком — от визитов до подписки.',
+  admin: 'Вам доступно почти всё, кроме раздела «Безопасность» и итоговой чистой прибыли — это видит только владелец.',
+  master: 'Вам доступны визиты, ваш заработок и общая сводка компании (без итоговой прибыли).',
+};
 
 export default function Help() {
   const [openKey, setOpenKey] = useState(null);
+  const { isOwner, isManagement, hasModule } = useAuth();
+
+  const sections = SECTIONS.filter((s) => {
+    if (s.moduleKey && !hasModule(s.moduleKey)) return false;
+    if (s.roleCheck === 'owner' && !isOwner) return false;
+    if (s.roleCheck === 'management' && !isManagement) return false;
+    return true;
+  });
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Подробная справка</div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Как пользоваться</div>
+      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 4 }}>
+        Сервис для управления студией и снижения рисков — учёт визитов и финансов вместе с бесплатным аудитом безопасности бизнеса, чтобы штрафы и проверки не были сюрпризом.
+      </div>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16 }}>
-        Как устроен каждый раздел, с примерами экранов и пошаговыми действиями. Нажмите на раздел, чтобы развернуть.
+        {WELCOME_TEXT[isOwner ? 'owner' : isManagement ? 'admin' : 'master']} Ниже — каждый доступный вам раздел с примерами экранов и пошаговыми действиями, нажмите, чтобы развернуть.
       </div>
 
-      {SECTIONS.map(({ key, label, Component }) => (
+      {sections.map(({ key, label, Component }) => (
         <div key={key}>
           {openKey !== key ? (
             <Card style={{ cursor: 'pointer' }} onClick={() => setOpenKey(key)}>
