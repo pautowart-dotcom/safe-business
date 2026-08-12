@@ -752,11 +752,13 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
 
       <DocumentTemplatesCard isManagement={isManagement} isTestCompany={isTestCompany} onJoinWaitlist={onJoinWaitlist} />
 
-      <Card>
-        <ST>Подписка «Спокойствие»</ST>
-        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Постоянный контроль изменений требований и документов. Скоро запуск.</div>
-        {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('subscription_calm')}>Сообщить о запуске</Btn>}
-      </Card>
+      {/* "Подписка «Спокойствие»" убрана как отдельный продукт (12.08.2026,
+          решение владельца) — избыточна поверх уже существующей базовой
+          подписки. Её смысл распадается на два будущих направления, не один
+          продукт: отслеживание изменений закона — отдельный движок (см.
+          docs/law-monitoring-engine, law-compliance-monitor), отслеживание
+          новых версий шаблонов документов — уведомление клиенту +
+          возможная доп.продажа перегенерации, часть document-templates. */}
 
       <div style={{ fontSize: 12, color: C.subtle, textAlign: 'center', marginTop: 8 }}>
         Сервис не заменяет юриста, бухгалтера или специалиста по охране труда.

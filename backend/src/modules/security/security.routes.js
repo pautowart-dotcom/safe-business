@@ -223,7 +223,6 @@ router.get(
     res.json({
       audit: { available: niches.some((n) => n?.paidAudit) },
       documentPackage: { available: false },
-      subscriptionCalm: { available: false },
     });
   })
 );
@@ -232,7 +231,11 @@ router.post(
   '/waitlist',
   asyncHandler(async (req, res) => {
     const { productKey } = req.body;
-    if (!['paid_audit', 'document_package', 'subscription_calm'].includes(productKey)) {
+    // 'subscription_calm' убран из списка (12.08.2026) вместе с продуктом
+    // "Подписка «Спокойствие»" — старые записи листа ожидания в
+    // security_waitlist не трогаем (история), просто больше не принимаем
+    // новые заявки на продукт, которого не будет.
+    if (!['paid_audit', 'document_package'].includes(productKey)) {
       return res.status(400).json({ error: 'Неизвестный продукт' });
     }
     const profile = await loadProfile(req.tenant.companyId);
