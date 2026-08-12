@@ -228,6 +228,72 @@ function TeamSection() {
   );
 }
 
+function SuppliesSection() {
+  return (
+    <Card>
+      <ST>Склад расходников</ST>
+      <p style={{ fontSize: 13, color: C.secondary, margin: '4px 0 0' }}>
+        Остатки расходников считаются сами — списываются при визите (см. раздел «Визиты»), пополняются, когда вы вносите закупку. Категории — свои, можно назвать как удобно (например «Гель-лак», «Бар», «Одноразовое»).
+      </p>
+      <Mock>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+          <MockPill>Все</MockPill><MockPill>Гель-лак</MockPill><MockPill>Бар</MockPill>
+        </div>
+        <MockRow icon="supply" label="Гель-лак «Красный №12»" sub="Осталось: 8 мл" right={<Badge color={C.orange} bg={C.orangeBg}>мало</Badge>} />
+        <MockRow icon="supply" label="Пилка одноразовая" sub="Осталось: 240 шт" />
+      </Mock>
+      <Steps items={[
+        '«Категории» — заведите свои (необязательно, можно оставить «Без категории»).',
+        '«Добавить расходник» — название, единица измерения, при желании — норма расхода на визит (тогда количество будет подставляться само при списании).',
+        'При закупке — «Пополнить», остаток увеличится; при визите остаток списывается автоматически.',
+        'Порог «мало на складе» настраивается на каждом расходнике отдельно — ниже него появляется предупреждение.',
+      ]} />
+    </Card>
+  );
+}
+
+function SettingsSection() {
+  return (
+    <Card>
+      <ST>Настройки и подписка</ST>
+      <p style={{ fontSize: 13, color: C.secondary, margin: '4px 0 0' }}>
+        Название компании, профиль и оплата подписки на платформу — только у владельца. Администратор и мастер видят здесь только выход из аккаунта.
+      </p>
+      <Mock>
+        <MockRow label="Название компании" sub="Студия «Ноготок»" />
+        <MockRow label="Подписка" sub="Оплачено до 12.09.2026" right={<Badge color={C.green} bg={C.greenBg}>активна</Badge>} />
+      </Mock>
+      <Steps items={[
+        'Смена названия компании — сразу применяется везде (шапка приложения, документы).',
+        '«Оформить подписку» — переход на оплату через ЮKassa, банковской картой.',
+        'Отдельные платные функции (например «Шаблоны документов») оплачиваются один раз и отдельно от подписки — своя кнопка внутри самого раздела.',
+      ]} />
+    </Card>
+  );
+}
+
+function SupportSection() {
+  return (
+    <Card>
+      <ST>Поддержка</ST>
+      <p style={{ fontSize: 13, color: C.secondary, margin: '4px 0 0' }}>
+        Если что-то не работает, непонятно или просто есть идея — пишите сюда напрямую, читает и отвечает разработчик, не бот.
+      </p>
+      <Mock>
+        <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', fontSize: 12, color: C.subtle, marginBottom: 8 }}>
+          Опишите, что случилось — можно приложить фото или скриншот проблемы
+        </div>
+        <MockButton variant="primary">Отправить</MockButton>
+      </Mock>
+      <Steps items={[
+        'Опишите проблему своими словами — не обязательно точная техническая формулировка.',
+        'Можно приложить до 3 фото/скриншотов.',
+        'Ответ приходит в этот же раздел — история переписки сохраняется.',
+      ]} />
+    </Card>
+  );
+}
+
 // moduleKey/roleCheck — та же логика видимости, что и в More.jsx (OWNER_ITEMS)
 // и App.jsx (PrivateRoute ownerOnly/managementOnly) — раздел справки не
 // должен рассказывать про экран, к которому у этой роли нет доступа.
@@ -237,6 +303,9 @@ const SECTIONS = [
   { key: 'finance', label: 'Финансы', Component: FinanceSection },
   { key: 'security', label: 'Безопасность', Component: SecuritySection, roleCheck: 'owner' },
   { key: 'team', label: 'Команда', Component: TeamSection, roleCheck: 'management' },
+  { key: 'supplies', label: 'Склад расходников', Component: SuppliesSection },
+  { key: 'settings', label: 'Настройки и подписка', Component: SettingsSection },
+  { key: 'support', label: 'Поддержка', Component: SupportSection },
 ];
 
 const WELCOME_TEXT = {
