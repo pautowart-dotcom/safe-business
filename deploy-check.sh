@@ -18,7 +18,12 @@ git log -1 --oneline
 
 echo "== миграции =="
 DB_URL=$(grep '^DATABASE_URL=' backend/.env | cut -d= -f2-)
-psql "$DB_URL" -c "SELECT filename FROM schema_migrations ORDER BY filename;"
+# -P pager=off — список миграций разросся (21+ строк) и перестал помещаться
+# на экран, psql стал сам открывать less, скрипт "зависал" на приглашении
+# пейджера (:), пока не нажмёшь q — деплой-скрипт не должен требовать
+# интерактивного ввода (12.08.2026, владелец: "постоянно приходится Enter
+# нажимать").
+psql "$DB_URL" -P pager=off -c "SELECT filename FROM schema_migrations ORDER BY filename;"
 
 echo "== pm2 =="
 pm2 status
