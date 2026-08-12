@@ -113,6 +113,13 @@ function ZoomableImage({ url }) {
       onDoubleClick={(e) => { e.stopPropagation(); scale > 1 ? resetZoom() : setScale(DOUBLE_TAP_SCALE); }}
       style={{
         maxWidth: '92vw', maxHeight: '85vh', borderRadius: 8, objectFit: 'contain', flexShrink: 0,
+        // position+zIndex — CSS transform:scale() не меняет место элемента в
+        // потоке (соседние фото не "подвинутся"), увеличенное фото визуально
+        // растёт поверх/под следующим по списку. Без явного z-index более
+        // позднее фото (более поздний DOM-сосед) рисуется НАД увеличенным —
+        // жалоба владельца 12.08.2026, скриншот показал именно это.
+        position: 'relative',
+        zIndex: scale > 1 ? 10 : 1,
         transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
         transition: scale === 1 ? 'transform 0.15s ease-out' : 'none',
         // 'none' только когда реально увеличено — иначе браузер вообще не
