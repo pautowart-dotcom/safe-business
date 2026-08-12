@@ -24,9 +24,14 @@ function fillTemplate(body, data) {
   });
 }
 
-// body — абзацы через пустую строку, "# " в начале строки — заголовок раздела
-// (см. content/templates/manicure.js). Простой формат, а не HTML/markdown —
-// шаблонов немного и они текстовые, разбирать полноценный markdown незачем.
+// body — абзацы через пустую строку (см. content/templates/manicure.js):
+//   "# "  в начале строки — заголовок раздела (нумерация — часть текста
+//         самого шаблона, "# 1. Исполнитель", а не считается кодом);
+//   "- "  в начале КАЖДОЙ строки блока — маркированный список;
+//   иначе — обычный абзац, выравнивается по ширине (justify), как в
+//         печатных договорах, а не рваным правым краем.
+// Простой формат, а не HTML/markdown — шаблонов немного и они текстовые,
+// разбирать полноценный markdown незачем.
 function bodyToPdfContent(filledBody) {
   return filledBody
     .split(/\n\s*\n/)
@@ -34,31 +39,57 @@ function bodyToPdfContent(filledBody) {
     .filter(Boolean)
     .map((block) => {
       if (block.startsWith('# ')) {
-        return { text: block.slice(2).trim(), style: 'sectionHeader', margin: [0, 14, 0, 6] };
+        return {
+          margin: [0, 18, 0, 8],
+          stack: [
+            { text: block.slice(2).trim(), style: 'sectionHeader' },
+            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 495, y2: 0, lineWidth: 0.75, lineColor: '#CBB07A' }], margin: [0, 4, 0, 0] },
+          ],
+        };
       }
-      return { text: block, margin: [0, 0, 0, 8] };
+      const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+      if (lines.length > 0 && lines.every((l) => l.startsWith('- '))) {
+        return { ul: lines.map((l) => l.slice(2).trim()), margin: [0, 0, 0, 8], alignment: 'justify' };
+      }
+      return { text: block, margin: [0, 0, 0, 8], alignment: 'justify', lineHeight: 1.25 };
     });
 }
 
+// Выделенный блок вместо строки жёлтого текста — заметнее в распечатанном
+// виде (жёлтый текст на белом плохо читается на плохом принтере/ксероксе,
+// заливка + рамка видны даже в ч/б).
 function draftNotice(template) {
   if (template.status === 'reviewed') return null;
   return {
-    text: 'Черновик — этот документ ещё не проверен юристом. Не гарантирует прохождение проверки или суда.',
-    style: 'draftNotice',
-    margin: [0, 0, 0, 16],
+    table: {
+      widths: ['*'],
+      body: [[{
+        text: 'ЧЕРНОВИК. Этот документ ещё не проверен юристом сервиса «Безопасный бизнес». Не гарантирует прохождение проверки или суда — используйте на свой риск.',
+        style: 'draftNotice',
+        border: [false, false, false, false],
+      }]],
+    },
+    layout: { fillColor: '#FCF3CF', paddingLeft: () => 12, paddingRight: () => 12, paddingTop: () => 10, paddingBottom: () => 10 },
+    margin: [0, 0, 0, 20],
+  };
+}
+
+function titleBlock(template, generatedAt) {
+  return {
+    margin: [0, 0, 0, 4],
+    stack: [
+      { text: template.title.toUpperCase(), style: 'docTitle', alignment: 'center' },
+      { text: `Дата формирования: ${generatedAt.toLocaleDateString('ru-RU')}`, style: 'docSubtitle', alignment: 'center' },
+    ],
   };
 }
 
 function renderDocumentPdf({ template, data, generatedAt }) {
   const filledBody = fillTemplate(template.body, data);
   const content = [
+    titleBlock(template, generatedAt),
     draftNotice(template),
     ...bodyToPdfContent(filledBody),
-    {
-      text: `Документ сформирован автоматически в сервисе «Безопасный бизнес» ${generatedAt.toLocaleDateString('ru-RU')} по шаблону «${template.title}» (версия ${template.version}). Сервис не заменяет юриста.`,
-      style: 'footer',
-      margin: [0, 24, 0, 0],
-    },
   ].filter(Boolean);
 
   const printer = new PdfPrinter(FONTS);
@@ -66,11 +97,29 @@ function renderDocumentPdf({ template, data, generatedAt }) {
     content,
     defaultStyle: { font: 'DejaVuSans', fontSize: 11 },
     styles: {
+      docTitle: { fontSize: 18, bold: true },
+      docSubtitle: { fontSize: 9, color: '#888888', margin: [0, 4, 0, 0] },
       sectionHeader: { fontSize: 13, bold: true },
-      draftNotice: { fontSize: 10, bold: true, color: '#B7950B' },
-      footer: { fontSize: 8, italics: true, color: '#888888' },
+      draftNotice: { fontSize: 10, bold: true, color: '#7D6608' },
     },
-    pageMargins: [50, 50, 50, 50],
+    pageMargins: [56, 60, 56, 56],
+    // Одна и та же подпись служебной генерации на каждой странице внизу —
+    // не теряется, если документ распечатают отдельными листами (в отличие
+    // от футера-абзаца в конце текста, который был только на последней
+    // странице).
+    footer: (currentPage, pageCount) => ({
+      margin: [56, 10, 56, 0],
+      stack: [
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 483, y2: 0, lineWidth: 0.5, lineColor: '#DDDDDD' }] },
+        {
+          columns: [
+            { text: `Сформировано автоматически в сервисе «Безопасный бизнес» по шаблону «${template.title}», версия ${template.version}. Сервис не заменяет юриста.`, fontSize: 7, italics: true, color: '#999999' },
+            { text: `${currentPage} / ${pageCount}`, fontSize: 7, color: '#999999', alignment: 'right', width: 40 },
+          ],
+          margin: [0, 4, 0, 0],
+        },
+      ],
+    }),
   });
 
   return new Promise((resolve, reject) => {
