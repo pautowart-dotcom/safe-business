@@ -6,6 +6,7 @@ const { requireTestCompany } = require('../../core/middleware/testCompany');
 const { requireAddon } = require('../../core/middleware/addon');
 const { ADDON_KEY } = require('./addonKey');
 const { logEvent } = require('../../core/eventLog');
+const { logAudit } = require('../../core/auditLog');
 const { encrypt } = require('../../core/crypto');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../../core/fileStorage');
 const { loadProfile } = require('../security/profile');
@@ -145,6 +146,41 @@ router.get(
         securityDocumentId: r.security_document_id,
       }))
     );
+  })
+);
+
+// Удаляет только запись из истории генерации (аудиторский след себе же,
+// не третьей стороне) — если документ уже был добавлен в "Мои документы"
+// (security_document_id), та копия НЕ трогается, у неё свой независимый
+// жизненный цикл (см. DELETE /modules/security/documents/:id). Файл на
+// диске не удаляется — тот же принцип, что и у DELETE /documents/:id
+// в security.routes.js (там тоже только запись в БД, без deleteFile).
+router.delete(
+  '/generated/:id',
+  asyncHandler(async (req, res) => {
+    const { rowCount } = await pool.query(
+      'DELETE FROM generated_documents WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.tenant.companyId]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'Документ не найден' });
+
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'document-templates',
+      userId: req.user.id,
+      entityType: 'generated_document',
+      entityId: Number(req.params.id),
+      action: 'generated_document.deleted',
+    });
+    await logAudit({
+      companyId: req.tenant.companyId,
+      userId: req.user.id,
+      action: 'generated_document.deleted',
+      entityType: 'generated_document',
+      entityId: Number(req.params.id),
+    });
+
+    res.status(204).end();
   })
 );
 

@@ -1288,6 +1288,21 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
     }
   }
 
+  // Удаляет только запись из истории генерации — если документ уже
+  // добавлен в "Мои документы", та копия остаётся (у неё своя кнопка
+  // удаления во вкладке "Документы").
+  async function removeGenerated(id) {
+    if (!confirm('Удалить документ из истории генерации? Файл, который вы уже скачали, останется у вас на компьютере.')) return;
+    setError('');
+    try {
+      await api.delete(`/modules/document-templates/generated/${id}`);
+      if (lastResult?.id === id) setLastResult(null);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось удалить документ');
+    }
+  }
+
   return (
     <Card>
       <ST>Шаблоны документов</ST>
@@ -1372,9 +1387,18 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
           <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>Ранее сгенерированные</div>
           {generated.map((g) => (
             <div key={g.id} style={{ padding: '6px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 13 }}>{g.templateTitle} · {new Date(g.generatedAt).toLocaleDateString('ru-RU')}</span>
-                <a href={g.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать</a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  <a href={g.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать</a>
+                  <button
+                    type="button"
+                    onClick={() => removeGenerated(g.id)}
+                    style={{ background: 'none', border: 'none', color: C.red, fontSize: 13, cursor: 'pointer', padding: 0 }}
+                  >
+                    Удалить
+                  </button>
+                </div>
               </div>
               {!g.securityDocumentId && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
