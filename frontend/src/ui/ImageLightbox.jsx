@@ -115,7 +115,13 @@ function ZoomableImage({ url }) {
         maxWidth: '92vw', maxHeight: '85vh', borderRadius: 8, objectFit: 'contain', flexShrink: 0,
         transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
         transition: scale === 1 ? 'transform 0.15s ease-out' : 'none',
-        touchAction: 'none',
+        // 'none' только когда реально увеличено — иначе браузер вообще не
+        // пропускал обычный вертикальный свайп между фото к JS (жалоба
+        // владельца 12.08.2026: "листать свайпом вниз не работает, только
+        // ползунком"). 'pan-y' в состоянии покоя отдаёт вертикальный скролл
+        // контейнеру как раньше, но всё равно не даёт браузеру перехватить
+        // pinch своим нативным зумом — это по-прежнему ловит JS-обработчик.
+        touchAction: scale > 1 ? 'none' : 'pan-y',
         cursor: scale > 1 ? 'grab' : 'zoom-in',
       }}
     />
