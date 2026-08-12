@@ -1,5 +1,6 @@
 // Панель Super Admin: обзор всех компаний платформы (docs/task.md, п.1).
 // Не требует requireTenant — доступ Super Admin не зависит от членства в компании.
+const crypto = require('crypto');
 const express = require('express');
 const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
@@ -10,6 +11,7 @@ const { sendMail } = require('../core/mailer');
 const { isAiConfigured, draftText } = require('../core/aiAssist');
 const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
 const { signFileUrl } = require('../core/fileStorage');
+const { ADDON_CATALOG } = require('../core/addons');
 
 const router = express.Router();
 
@@ -154,7 +156,7 @@ router.get(
       return res.status(404).json({ error: 'Компания не найдена' });
     }
 
-    const [branches, memberships, modules] = await Promise.all([
+    const [branches, memberships, modules, addonPurchases] = await Promise.all([
       pool.query('SELECT id, name, address, created_at FROM branches WHERE company_id = $1 ORDER BY name', [
         req.params.id,
       ]),
@@ -168,14 +170,58 @@ router.get(
         `SELECT module_key, enabled, enabled_at FROM company_modules WHERE company_id = $1 ORDER BY module_key`,
         [req.params.id]
       ),
+      pool.query(
+        `SELECT addon_key FROM addon_purchases WHERE company_id = $1 AND status = 'succeeded'`,
+        [req.params.id]
+      ),
     ]);
+
+    const purchasedAddonKeys = new Set(addonPurchases.rows.map((r) => r.addon_key));
+    const addons = Object.entries(ADDON_CATALOG).map(([key, addon]) => ({
+      addonKey: key,
+      label: addon.label,
+      priceRub: addon.priceRub,
+      purchased: purchasedAddonKeys.has(key),
+    }));
 
     res.json({
       company: companyResult.rows[0],
       branches: branches.rows,
       memberships: memberships.rows,
       modules: modules.rows,
+      addons,
     });
+  })
+);
+
+// Ручная (бесплатная) выдача разовой платной надстройки — партнёрам,
+// в обмен на рекламу/отзыв и т.д. (обсуждение 12.08.2026), тот же принцип,
+// что и "Отметить оплаченной вручную" для базовой подписки чуть выше:
+// вставляем succeeded-запись без реального платежа в ЮKassa.
+// yookassa_payment_id обязателен и уникален в схеме (миграция 0075) —
+// синтетическое значение с префиксом "admin-grant:" однозначно отличимо
+// от настоящих id платежей ЮKassa при разборе истории.
+router.post(
+  '/companies/:id/addons/:addonKey/grant',
+  asyncHandler(async (req, res) => {
+    const addon = ADDON_CATALOG[req.params.addonKey];
+    if (!addon) return res.status(400).json({ error: 'Неизвестная надстройка' });
+
+    const already = await pool.query(
+      `SELECT 1 FROM addon_purchases WHERE company_id = $1 AND addon_key = $2 AND status = 'succeeded' LIMIT 1`,
+      [req.params.id, req.params.addonKey]
+    );
+    if (already.rows.length > 0) {
+      return res.status(409).json({ error: 'Уже доступно этой компании' });
+    }
+
+    await pool.query(
+      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status, confirmed_at)
+       VALUES ($1, $2, $3, 0, 'succeeded', now())`,
+      [req.params.id, req.params.addonKey, `admin-grant:${crypto.randomUUID()}`]
+    );
+
+    res.status(201).json({ ok: true });
   })
 );
 

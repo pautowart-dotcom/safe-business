@@ -10,6 +10,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   const [deleting, setDeleting] = useState(false);
   const [updatingSubscription, setUpdatingSubscription] = useState(false);
   const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
+  const [grantingAddon, setGrantingAddon] = useState(null);
 
   function load() {
     api.get(`/platform/admin/companies/${id}`).then((res) => setData(res.data));
@@ -57,13 +58,26 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     }
   }
 
+  // Бесплатная выдача разовой надстройки (обсуждение 12.08.2026) — партнёрам,
+  // в обмен на рекламу и т.д., без реального платежа в ЮKassa.
+  async function grantAddon(addonKey, label) {
+    if (!confirm(`Выдать «${label}» этой компании бесплатно (без реального платежа)?`)) return;
+    setGrantingAddon(addonKey);
+    try {
+      await api.post(`/platform/admin/companies/${id}/addons/${addonKey}/grant`);
+      load();
+    } finally {
+      setGrantingAddon(null);
+    }
+  }
+
   if (!data) return <div className="page-loading">Загрузка...</div>;
-  const { company, memberships, modules } = data;
+  const { company, memberships, modules, addons } = data;
 
   return (
     <div>
       <BackBtn onClick={onBack} label="К списку компаний" />
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{company.name}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{company.name} <span style={{ fontSize: 13, fontWeight: 400, color: C.subtle }}>#{company.id}</span></div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
         {company.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
@@ -121,6 +135,26 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         </div>
       </Card>
 
+      <Card>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Платные надстройки</div>
+        {(addons || []).map((a) => (
+          <div key={a.addonKey} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0' }}>
+            <span style={{ fontSize: 13 }}>{a.label} <span style={{ color: C.subtle }}>({a.priceRub.toLocaleString('ru-RU')} ₽)</span></span>
+            {a.purchased ? (
+              <Badge color={C.green} bg={C.greenBg}>оплачено</Badge>
+            ) : (
+              <button
+                onClick={() => grantAddon(a.addonKey, a.label)}
+                disabled={grantingAddon === a.addonKey}
+                style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                {grantingAddon === a.addonKey ? 'Секунду…' : 'Выдать бесплатно'}
+              </button>
+            )}
+          </div>
+        ))}
+      </Card>
+
       <button
         onClick={handleDelete}
         disabled={deleting}
@@ -166,7 +200,7 @@ export default function Companies() {
         companies.map((c) => (
           <Card key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(c.id)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{c.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{c.name} <span style={{ fontSize: 12, fontWeight: 400, color: C.subtle }}>#{c.id}</span></div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <Badge color={STATUS_COLORS[c.subscription_status]} bg={C.surface}>{STATUS_LABELS[c.subscription_status]}</Badge>
                 {c.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
