@@ -1135,8 +1135,12 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
       .then(([t, g]) => {
         setTemplates(t.data);
         setGenerated(g.data);
+        setError('');
       })
-      .catch(() => setTemplates([]));
+      .catch((err) => {
+        setTemplates([]);
+        setError(err.response?.data?.error || `Не удалось загрузить шаблоны (${err.response?.status || 'ошибка сети'})`);
+      });
   }
 
   useEffect(() => {
