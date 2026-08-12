@@ -26,7 +26,8 @@ const OWNER_ITEMS = [
   { label: 'Настройки', sub: 'Компания, профиль, подписка', icon: 'settings', to: '/settings' },
   { label: 'Вопросы и ответы', sub: 'Тарифы, оплата, данные', icon: 'help', to: '/legal/faq' },
   { label: 'Поддержка', sub: 'Написать разработчику', icon: 'help', to: '/support' },
-  { label: 'Как пользоваться', sub: 'Вступительная инструкция по разделам', icon: 'shield', action: 'instructions' },
+  { label: 'Как пользоваться', sub: 'Короткая инструкция по разделам (как при первом входе)', icon: 'shield', action: 'instructions' },
+  { label: 'Подробная справка', sub: 'Каждый раздел с примерами экранов и шагами', icon: 'book', to: '/help' },
 ];
 
 function OwnerMore() {
@@ -188,6 +189,16 @@ function MasterMore() {
               <Icon name="shield" size={20} color={C.primary} />
             </div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>Как пользоваться</div>
+          </div>
+        </ChevronRow>
+      </Card>
+      <Card onClick={() => navigate('/help')} style={{ cursor: 'pointer' }}>
+        <ChevronRow>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="book" size={20} color={C.primary} />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Подробная справка</div>
           </div>
         </ChevronRow>
       </Card>
