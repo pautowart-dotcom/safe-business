@@ -115,6 +115,7 @@ export default function Visits() {
   const [selectedClientNote, setSelectedClientNote] = useState(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [supplyCategoryPick, setSupplyCategoryPick] = useState('');
   const [supplyPick, setSupplyPick] = useState('');
   const [supplyQty, setSupplyQty] = useState('');
   // Абонементы выбранного клиента (11.08.2026) — предлагаем списать визит с
@@ -200,6 +201,7 @@ export default function Visits() {
     setSelectedClientNote(null);
     setSaved(false);
     setError('');
+    setSupplyCategoryPick('');
     setSupplyPick('');
     setSupplyQty('');
     setShowForm(true);
@@ -235,6 +237,7 @@ export default function Visits() {
     setSelectedClientNote(null);
     setSaved(false);
     setError('');
+    setSupplyCategoryPick('');
     setSupplyPick('');
     setSupplyQty('');
     setShowForm(true);
@@ -248,6 +251,7 @@ export default function Visits() {
       ...form,
       supplies: [...form.supplies, { supplyId: supply.id, quantity: supplyQty, name: supply.name, unit: supply.unit }],
     });
+    setSupplyCategoryPick('');
     setSupplyPick('');
     setSupplyQty('');
   }
@@ -591,23 +595,57 @@ export default function Visits() {
                 десятках цветов это была стена кнопок на весь экран формы
                 визита. Выбор свёрнут в тот же список ниже — при выборе
                 расходника с нормой количество просто подставляется само,
-                вводить руками не нужно, но экран не занят до открытия списка. */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Select
-                value={supplyPick}
-                onChange={(e) => {
-                  const supply = supplies.find((s) => String(s.id) === e.target.value);
-                  setSupplyPick(e.target.value);
-                  if (supply?.default_quantity_per_visit) setSupplyQty(String(supply.default_quantity_per_visit));
-                }}
-                style={{ flex: 2 }}
-              >
-                <option value="">Выберите расходник</option>
-                {supplies.map((s) => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ''}</option>)}
-              </Select>
-              <TextInput type="number" min="0" step="0.01" placeholder="Кол-во" value={supplyQty} onChange={(e) => setSupplyQty(e.target.value)} style={{ flex: 1 }} />
-              <Btn small type="button" onClick={addSupplyToForm}>+</Btn>
-            </div>
+                вводить руками не нужно, но экран не занят до открытия списка.
+                Сначала категория, потом сам расходник (12.08.2026) — при
+                большом складе плоский список из десятков позиций было
+                неудобно листать; category_id/category_name уже приходят с
+                бэкенда (GET /modules/supplies), раньше просто не
+                использовались здесь (только на отдельной странице "Склад"). */}
+            {(() => {
+              const categoryMap = new Map();
+              let hasUncategorized = false;
+              for (const s of supplies) {
+                if (s.category_id) categoryMap.set(s.category_id, s.category_name);
+                else hasUncategorized = true;
+              }
+              const categories = [...categoryMap.entries()].map(([id, name]) => ({ id: String(id), name }));
+              const itemsInCategory = supplyCategoryPick
+                ? supplies.filter((s) => (supplyCategoryPick === 'none' ? !s.category_id : String(s.category_id) === supplyCategoryPick))
+                : [];
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Select
+                    value={supplyCategoryPick}
+                    onChange={(e) => {
+                      setSupplyCategoryPick(e.target.value);
+                      setSupplyPick('');
+                      setSupplyQty('');
+                    }}
+                  >
+                    <option value="">Выберите категорию расходника</option>
+                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {hasUncategorized && <option value="none">Без категории</option>}
+                  </Select>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Select
+                      value={supplyPick}
+                      disabled={!supplyCategoryPick}
+                      onChange={(e) => {
+                        const supply = supplies.find((s) => String(s.id) === e.target.value);
+                        setSupplyPick(e.target.value);
+                        if (supply?.default_quantity_per_visit) setSupplyQty(String(supply.default_quantity_per_visit));
+                      }}
+                      style={{ flex: 2 }}
+                    >
+                      <option value="">{supplyCategoryPick ? 'Выберите расходник' : 'Сначала выберите категорию'}</option>
+                      {itemsInCategory.map((s) => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ''}</option>)}
+                    </Select>
+                    <TextInput type="number" min="0" step="0.01" placeholder="Кол-во" value={supplyQty} onChange={(e) => setSupplyQty(e.target.value)} style={{ flex: 1 }} />
+                    <Btn small type="button" onClick={addSupplyToForm}>+</Btn>
+                  </div>
+                </div>
+              );
+            })()}
           </Field>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
