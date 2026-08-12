@@ -1,11 +1,27 @@
-// Заполнение шаблона данными + рендер в PDF. Тот же PdfPrinter/шрифт
-// DejaVuSans, что и в modules/security/report/pdf.js и platform/roadmapPdf.js —
-// уже проверенное решение для кириллицы, не заводим второй способ.
+// Заполнение шаблона данными + рендер в PDF.
+//
+// Оформление (12.08.2026) — по ГОСТ Р 7.0.97-2016 "Требования к оформлению
+// документов": шрифт из рекомендованных стандартом (Times New Roman —
+// используем DejaVu Serif, тот же принцип, что и DejaVu Sans в
+// modules/security/report/pdf.js и platform/roadmapPdf.js: свободный,
+// со встроенной кириллицей, тот же npm-пакет dejavu-fonts-ttf уже
+// содержит и Serif-начертания, новая зависимость не нужна), поля страницы
+// (слева больше — под подшивку, стандартная практика для официальных
+// документов), межстрочный интервал 1.3, абзацный отступ у обычного
+// текста. Раньше был обычный Sans-шрифт без отступов и с цветными
+// декоративными линиями под заголовками разделов — выглядело как экран
+// приложения, а не как документ (замечание владельца 12.08.2026).
 const path = require('path');
 const PdfPrinter = require('pdfmake/src/printer');
 
 const FONT_DIR = path.dirname(require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans.ttf'));
 const FONTS = {
+  DejaVuSerif: {
+    normal: path.join(FONT_DIR, 'DejaVuSerif.ttf'),
+    bold: path.join(FONT_DIR, 'DejaVuSerif-Bold.ttf'),
+    italics: path.join(FONT_DIR, 'DejaVuSerif-Italic.ttf'),
+    bolditalics: path.join(FONT_DIR, 'DejaVuSerif-BoldItalic.ttf'),
+  },
   DejaVuSans: {
     normal: path.join(FONT_DIR, 'DejaVuSans.ttf'),
     bold: path.join(FONT_DIR, 'DejaVuSans-Bold.ttf'),
@@ -13,6 +29,18 @@ const FONTS = {
     bolditalics: path.join(FONT_DIR, 'DejaVuSans-BoldOblique.ttf'),
   },
 };
+
+// Поля страницы в мм → pt (1 мм = 2.83465 pt), по ГОСТ Р 7.0.97-2016:
+// левое/верхнее/нижнее — не менее 20 мм, правое — 10 мм. Левое взято с
+// запасом (30 мм) — стандартная практика для документов, которые могут
+// подшиваться. Нижнее увеличено под футер (номер страницы + подпись сервиса).
+const MM = 2.83465;
+const PAGE_MARGINS = [Math.round(30 * MM), Math.round(20 * MM), Math.round(15 * MM), Math.round(24 * MM)];
+
+// Абзацный отступ 1.25 см (ГОСТ) — у pdfmake нет свойства "отступ первой
+// строки" для простого текстового блока, имитируем неразрывными пробелами
+// в начале абзаца. Только для обычных абзацев — не для заголовков и списков.
+const FIRST_LINE_INDENT = '        ';
 
 // {{field}} → data[field], пустое значение необязательного поля печатается
 // как "—" (не оставляем документ с дырой вида "ИНН , ОГРНИП 123") — сами
@@ -40,8 +68,8 @@ function fillTemplate(body, data) {
 //   "# "  в начале строки — заголовок раздела (нумерация — часть текста
 //         самого шаблона, "# 1. Исполнитель", а не считается кодом);
 //   "- "  в начале КАЖДОЙ строки блока — маркированный список;
-//   иначе — обычный абзац, выравнивается по ширине (justify), как в
-//         печатных договорах, а не рваным правым краем.
+//   иначе — обычный абзац, выравнивается по ширине (justify) с абзацным
+//         отступом первой строки, как в печатных договорах.
 // Простой формат, а не HTML/markdown — шаблонов немного и они текстовые,
 // разбирать полноценный markdown незачем.
 function bodyToPdfContent(filledBody) {
@@ -51,25 +79,25 @@ function bodyToPdfContent(filledBody) {
     .filter(Boolean)
     .map((block) => {
       if (block.startsWith('# ')) {
-        return {
-          margin: [0, 18, 0, 8],
-          stack: [
-            { text: block.slice(2).trim(), style: 'sectionHeader' },
-            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 495, y2: 0, lineWidth: 0.75, lineColor: '#CBB07A' }], margin: [0, 4, 0, 0] },
-          ],
-        };
+        // Без декоративной цветной линии (была раньше) — простой жирный
+        // заголовок, как в официальных документах, не как разделитель
+        // секций веб-интерфейса.
+        return { text: block.slice(2).trim(), style: 'sectionHeader', margin: [0, 16, 0, 8] };
       }
       const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
       if (lines.length > 0 && lines.every((l) => l.startsWith('- '))) {
-        return { ul: lines.map((l) => l.slice(2).trim()), margin: [0, 0, 0, 8], alignment: 'justify' };
+        return { ul: lines.map((l) => l.slice(2).trim()), margin: [0, 0, 0, 10], alignment: 'justify' };
       }
-      return { text: block, margin: [0, 0, 0, 8], alignment: 'justify', lineHeight: 1.25 };
+      // Многострочные "карточки" реквизитов (например, блок исполнителя с
+      // ИНН/адресом на отдельных строках) — не абзац сплошным текстом,
+      // отступ первой строки им не идёт, оставляем как есть.
+      if (lines.length > 1) {
+        return { text: block, margin: [0, 0, 0, 10], lineHeight: 1.3 };
+      }
+      return { text: `${FIRST_LINE_INDENT}${block}`, margin: [0, 0, 0, 10], alignment: 'justify', lineHeight: 1.3 };
     });
 }
 
-// Выделенный блок вместо строки жёлтого текста — заметнее в распечатанном
-// виде (жёлтый текст на белом плохо читается на плохом принтере/ксероксе,
-// заливка + рамка видны даже в ч/б).
 function draftNotice(template) {
   if (template.status === 'reviewed') return null;
   return {
@@ -82,16 +110,21 @@ function draftNotice(template) {
       }]],
     },
     layout: { fillColor: '#FCF3CF', paddingLeft: () => 12, paddingRight: () => 12, paddingTop: () => 10, paddingBottom: () => 10 },
-    margin: [0, 0, 0, 20],
+    margin: [0, 0, 0, 22],
   };
 }
 
+// Заголовок документа — по образцу гражданско-правовых договоров/оферт:
+// название по центру прописными, ниже дата составления. Одна тонкая линия
+// отделяет "шапку" от текста документа (одна на весь документ, не по
+// заголовку каждого раздела, как было раньше).
 function titleBlock(template, generatedAt) {
   return {
-    margin: [0, 0, 0, 4],
+    margin: [0, 0, 0, 18],
     stack: [
       { text: template.title.toUpperCase(), style: 'docTitle', alignment: 'center' },
-      { text: `Дата формирования: ${generatedAt.toLocaleDateString('ru-RU')}`, style: 'docSubtitle', alignment: 'center' },
+      { text: `Дата составления: ${generatedAt.toLocaleDateString('ru-RU')}`, style: 'docSubtitle', alignment: 'center', margin: [0, 6, 0, 14] },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 595 - PAGE_MARGINS[0] - PAGE_MARGINS[2], y2: 0, lineWidth: 0.75, lineColor: '#BBBBBB' }] },
     ],
   };
 }
@@ -107,26 +140,25 @@ function renderDocumentPdf({ template, data, generatedAt }) {
   const printer = new PdfPrinter(FONTS);
   const doc = printer.createPdfKitDocument({
     content,
-    defaultStyle: { font: 'DejaVuSans', fontSize: 11 },
+    defaultStyle: { font: 'DejaVuSerif', fontSize: 12 },
     styles: {
-      docTitle: { fontSize: 18, bold: true },
-      docSubtitle: { fontSize: 9, color: '#888888', margin: [0, 4, 0, 0] },
+      docTitle: { fontSize: 16, bold: true },
+      docSubtitle: { fontSize: 10, color: '#555555' },
       sectionHeader: { fontSize: 13, bold: true },
-      draftNotice: { fontSize: 10, bold: true, color: '#7D6608' },
+      draftNotice: { font: 'DejaVuSans', fontSize: 10, bold: true, color: '#7D6608' },
     },
-    pageMargins: [56, 60, 56, 56],
-    // Одна и та же подпись служебной генерации на каждой странице внизу —
-    // не теряется, если документ распечатают отдельными листами (в отличие
-    // от футера-абзаца в конце текста, который был только на последней
-    // странице).
+    pageMargins: PAGE_MARGINS,
+    // Футер — служебная подпись сервиса, не часть самого документа, поэтому
+    // намеренно другим (более мелким рубленым) шрифтом — читается как
+    // "сноска платформы", а не как продолжение официального текста.
     footer: (currentPage, pageCount) => ({
-      margin: [56, 10, 56, 0],
+      margin: [PAGE_MARGINS[0], 8, PAGE_MARGINS[2], 0],
       stack: [
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 483, y2: 0, lineWidth: 0.5, lineColor: '#DDDDDD' }] },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 595 - PAGE_MARGINS[0] - PAGE_MARGINS[2], y2: 0, lineWidth: 0.5, lineColor: '#DDDDDD' }] },
         {
           columns: [
-            { text: `Сформировано автоматически в сервисе «Безопасный бизнес» по шаблону «${template.title}», версия ${template.version}. Сервис не заменяет юриста.`, fontSize: 7, italics: true, color: '#999999' },
-            { text: `${currentPage} / ${pageCount}`, fontSize: 7, color: '#999999', alignment: 'right', width: 40 },
+            { text: `Сформировано автоматически в сервисе «Безопасный бизнес» по шаблону «${template.title}», версия ${template.version}. Сервис не заменяет юриста.`, font: 'DejaVuSans', fontSize: 7, italics: true, color: '#999999' },
+            { text: `${currentPage} / ${pageCount}`, font: 'DejaVuSans', fontSize: 7, color: '#999999', alignment: 'right', width: 40 },
           ],
           margin: [0, 4, 0, 0],
         },
