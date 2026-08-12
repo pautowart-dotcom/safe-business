@@ -1195,6 +1195,22 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
     }
   }
 
+  // Не добавляем документ в "Мои документы" автоматически сразу при
+  // генерации — владелец мог сформировать его "на пробу". Спрашиваем явно
+  // (и здесь, сразу после генерации, и в списке "Ранее сгенерированные"
+  // для тех, кто пропустил вопрос в первый раз) — без этого клиент может
+  // не понять, что документ вообще нужно куда-то добавлять.
+  async function addToDocuments(id, setLocalId) {
+    setError('');
+    try {
+      const { data } = await api.post(`/modules/document-templates/generated/${id}/add-to-documents`);
+      setLocalId(data.securityDocumentId);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось добавить в «Мои документы»');
+    }
+  }
+
   return (
     <Card>
       <ST>Шаблоны документов</ST>
@@ -1260,7 +1276,17 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
 
       {lastResult && (
         <div className="alert" style={{ marginTop: 10 }}>
-          «{lastResult.templateTitle}» готов — <a href={lastResult.downloadUrl} target="_blank" rel="noreferrer">скачать PDF</a>
+          <div style={{ marginBottom: lastResult.securityDocumentId ? 0 : 8 }}>
+            «{lastResult.templateTitle}» готов — <a href={lastResult.downloadUrl} target="_blank" rel="noreferrer">скачать PDF</a>
+          </div>
+          {lastResult.securityDocumentId ? (
+            <div style={{ fontSize: 12, color: C.secondary }}>Добавлен в «Мои документы».</div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13 }}>Добавить его в «Мои документы»?</span>
+              <Btn small onClick={() => addToDocuments(lastResult.id, (id) => setLastResult((prev) => ({ ...prev, securityDocumentId: id })))}>Да, добавить</Btn>
+            </div>
+          )}
         </div>
       )}
 
@@ -1268,9 +1294,23 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
         <div style={{ marginTop: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>Ранее сгенерированные</div>
           {generated.map((g) => (
-            <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-              <span style={{ fontSize: 13 }}>{g.templateTitle} · {new Date(g.generatedAt).toLocaleDateString('ru-RU')}</span>
-              <a href={g.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать</a>
+            <div key={g.id} style={{ padding: '6px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13 }}>{g.templateTitle} · {new Date(g.generatedAt).toLocaleDateString('ru-RU')}</span>
+                <a href={g.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать</a>
+              </div>
+              {!g.securityDocumentId && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 12, color: C.subtle }}>Не добавлен в «Мои документы»</span>
+                  <button
+                    type="button"
+                    onClick={() => addToDocuments(g.id, (id) => setGenerated((prev) => prev.map((x) => (x.id === g.id ? { ...x, securityDocumentId: id } : x))))}
+                    style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, fontSize: 12, cursor: 'pointer', padding: 0 }}
+                  >
+                    Добавить
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

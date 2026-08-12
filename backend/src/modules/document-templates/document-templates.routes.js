@@ -120,6 +120,7 @@ router.post(
       status: template.status,
       generatedAt: rows[0].generated_at,
       downloadUrl: signFileUrl(getFileUrl(filename)),
+      securityDocumentId: null,
     });
   })
 );
@@ -128,7 +129,7 @@ router.get(
   '/generated',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT id, template_key, template_version, template_title, template_status_at_generation, generated_at, file_url
+      `SELECT id, template_key, template_version, template_title, template_status_at_generation, generated_at, file_url, security_document_id
        FROM generated_documents WHERE company_id = $1 ORDER BY generated_at DESC`,
       [req.tenant.companyId]
     );
@@ -141,8 +142,50 @@ router.get(
         status: r.template_status_at_generation,
         generatedAt: r.generated_at,
         downloadUrl: signFileUrl(r.file_url),
+        securityDocumentId: r.security_document_id,
       }))
     );
+  })
+);
+
+// Владелец сам решает добавлять ли сгенерированный документ во вкладку
+// "Документы" раздела "Безопасность" (security_documents) — не делаем это
+// автоматически при генерации: документ могли сформировать "на пробу",
+// не собираясь его использовать. Один сгенерированный документ можно
+// добавить только один раз (security_document_id — см. миграцию 0076),
+// повторный вызов — 409, а не второй дубликат в "Моих документах".
+router.post(
+  '/generated/:id/add-to-documents',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT id, template_key, template_title, file_url, security_document_id
+       FROM generated_documents WHERE id = $1 AND company_id = $2`,
+      [req.params.id, req.tenant.companyId]
+    );
+    const doc = rows[0];
+    if (!doc) return res.status(404).json({ error: 'Документ не найден' });
+    if (doc.security_document_id) return res.status(409).json({ error: 'Уже добавлен в «Мои документы»' });
+
+    const template = await repository.getTemplate(doc.template_key);
+    const category = template?.documentCategory || 'Дополнительно';
+
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO security_documents (company_id, category, name, file_url, uploaded_by_user_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [req.tenant.companyId, category, doc.template_title, doc.file_url, req.user.id]
+    );
+    await pool.query('UPDATE generated_documents SET security_document_id = $1 WHERE id = $2', [inserted[0].id, doc.id]);
+
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'security',
+      userId: req.user.id,
+      entityType: 'security_document',
+      entityId: inserted[0].id,
+      action: 'security_document.created',
+    });
+
+    res.status(201).json({ securityDocumentId: inserted[0].id, category });
   })
 );
 

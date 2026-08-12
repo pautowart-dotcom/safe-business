@@ -22,6 +22,9 @@ module.exports = {
   reviewedAt: null,
   lawReference: 'ст. 437 ГК РФ (публичная оферта); Закон РФ от 07.02.1992 №2300-1 «О защите прав потребителей»',
   employerOnly: false,
+  // Категория из справочника security_documents (Security.jsx: DOCUMENT_CATEGORIES)
+  // — куда попадёт документ при "Добавить в Мои документы".
+  documentCategory: 'Документы по работе с клиентами',
   fields: [
     { key: 'legalName', label: 'ФИО (ИП/самозанятый) или название ООО', type: 'text', required: true },
     { key: 'inn', label: 'ИНН', type: 'text', required: true },

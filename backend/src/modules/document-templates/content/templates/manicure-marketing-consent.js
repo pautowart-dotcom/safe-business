@@ -11,6 +11,7 @@ module.exports = {
   reviewedAt: null,
   lawReference: 'Федеральный закон от 13.03.2006 №38-ФЗ «О рекламе»; Федеральный закон от 07.07.2003 №126-ФЗ «О связи»',
   employerOnly: false,
+  documentCategory: 'Документы по персональным данным',
   fields: [
     { key: 'legalName', label: 'ФИО (ИП/самозанятый) или название ООО', type: 'text', required: true },
     { key: 'inn', label: 'ИНН', type: 'text', required: true },

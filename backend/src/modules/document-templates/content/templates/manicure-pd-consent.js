@@ -15,6 +15,7 @@ module.exports = {
   reviewedAt: null,
   lawReference: 'Федеральный закон от 27.07.2006 №152-ФЗ «О персональных данных»',
   employerOnly: false,
+  documentCategory: 'Документы по персональным данным',
   fields: [
     { key: 'legalName', label: 'ФИО (ИП/самозанятый) или название ООО', type: 'text', required: true },
     { key: 'inn', label: 'ИНН', type: 'text', required: true },
