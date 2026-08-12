@@ -6,6 +6,7 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment, getPayment } = require('../core/yookassa');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
+const { notifyAddonPurchase } = require('./addons.routes');
 
 const SUBSCRIPTION_PRICE_RUB = 1990;
 
@@ -70,7 +71,12 @@ router.post(
        WHERE sp.yookassa_payment_id = $1`,
       [paymentId]
     );
-    if (rows.length === 0) return res.status(200).end();
+    if (rows.length === 0) {
+      // Не платёж за базовую подписку — проверяем, не разовая ли это
+      // надстройка (core/addons.js, миграция 0075). Один и тот же URL
+      // получает уведомления про оба типа платежей, см. addons.routes.js.
+      return handleAddonWebhook(paymentId, payment, res);
+    }
     const { company_id: companyId, amount_rub: amountRub, is_recurring_charge: isRecurringCharge, company_name: companyName } = rows[0];
 
     if (payment.status === 'succeeded') {
@@ -111,5 +117,27 @@ router.post(
     res.status(200).end();
   })
 );
+
+// payment — уже перепроверенный через getPayment() объект от ЮKassa
+// (см. вызов выше), не доверяем повторно телу исходного запроса.
+async function handleAddonWebhook(paymentId, payment, res) {
+  const { rows } = await pool.query(
+    `SELECT company_id, addon_key FROM addon_purchases WHERE yookassa_payment_id = $1`,
+    [paymentId]
+  );
+  if (rows.length === 0) return res.status(200).end();
+  const { company_id: companyId, addon_key: addonKey } = rows[0];
+
+  if (payment.status === 'succeeded') {
+    await pool.query(
+      `UPDATE addon_purchases SET status = 'succeeded', confirmed_at = now() WHERE yookassa_payment_id = $1`,
+      [paymentId]
+    );
+    await notifyAddonPurchase({ companyId, addonKey });
+  } else if (payment.status === 'canceled') {
+    await pool.query(`UPDATE addon_purchases SET status = 'canceled' WHERE yookassa_payment_id = $1`, [paymentId]);
+  }
+  res.status(200).end();
+}
 
 module.exports = router;

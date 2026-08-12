@@ -22,6 +22,7 @@ const landingRoutes = require('./landing.routes');
 const roadmapRoutes = require('./roadmap.routes');
 const businessPassportRoutes = require('./businessPassport.routes');
 const franchiseRoutes = require('./franchise.routes');
+const addonsRoutes = require('./addons.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -45,5 +46,6 @@ platformRouter.use('/landing', landingRoutes);
 platformRouter.use('/roadmap', roadmapRoutes);
 platformRouter.use('/business-passport', businessPassportRoutes);
 platformRouter.use('/franchise', franchiseRoutes);
+platformRouter.use('/addons', addonsRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

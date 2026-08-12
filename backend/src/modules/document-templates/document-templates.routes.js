@@ -3,6 +3,8 @@ const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
 const { requireTestCompany } = require('../../core/middleware/testCompany');
+const { requireAddon } = require('../../core/middleware/addon');
+const { ADDON_KEY } = require('./addonKey');
 const { logEvent } = require('../../core/eventLog');
 const { encrypt } = require('../../core/crypto');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../../core/fileStorage');
@@ -56,8 +58,14 @@ router.get(
   })
 );
 
+// Список шаблонов (выше) бесплатен — как и сам тест безопасности, "что вам
+// нужно" не должно быть платным барьером. Платно именно создание документа
+// (requireAddon), тем же принципом, что requirePaidPlan на скачивании PDF
+// отчёта безопасности — только здесь разовая покупка, а не подписка
+// (core/addons.js).
 router.post(
   '/generate',
+  requireAddon(ADDON_KEY),
   asyncHandler(async (req, res) => {
     const { templateKey, data } = req.body;
     const template = await repository.getTemplate(templateKey);

@@ -1121,6 +1121,8 @@ function FranchiseCard({ isManagement, isTestCompany }) {
 function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) {
   const [templates, setTemplates] = useState(null);
   const [generated, setGenerated] = useState([]);
+  const [addon, setAddon] = useState(null);
+  const [payingAddon, setPayingAddon] = useState(false);
   const [openKey, setOpenKey] = useState(null);
   const [formData, setFormData] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -1131,16 +1133,30 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
     Promise.all([
       api.get('/modules/document-templates/templates'),
       api.get('/modules/document-templates/generated'),
+      api.get('/platform/addons'),
     ])
-      .then(([t, g]) => {
+      .then(([t, g, a]) => {
         setTemplates(t.data);
         setGenerated(g.data);
+        setAddon(a.data.find((x) => x.addonKey === 'document_templates') || null);
         setError('');
       })
       .catch((err) => {
         setTemplates([]);
         setError(err.response?.data?.error || `Не удалось загрузить шаблоны (${err.response?.status || 'ошибка сети'})`);
       });
+  }
+
+  async function payForAddon() {
+    setPayingAddon(true);
+    setError('');
+    try {
+      const { data } = await api.post('/platform/addons/document_templates/checkout');
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось начать оплату');
+      setPayingAddon(false);
+    }
   }
 
   useEffect(() => {
@@ -1191,6 +1207,15 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
         <div style={{ fontSize: 13, color: C.secondary }}>Для вашей ниши шаблонов пока нет.</div>
       )}
 
+      {addon && !addon.purchased && templates && templates.length > 0 && (
+        <div style={{ padding: '10px 12px', marginBottom: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
+            Доступ ко всем документам вашей ниши — разовая оплата {addon.priceRub.toLocaleString('ru-RU')} ₽, без подписки. Оплачивается один раз, дальше документы доступны без ограничений.
+          </div>
+          <Btn small onClick={payForAddon} disabled={payingAddon}>{payingAddon ? 'Секунду…' : `Оплатить доступ — ${addon.priceRub.toLocaleString('ru-RU')} ₽`}</Btn>
+        </div>
+      )}
+
       {templates && templates.map((t) => (
         <div key={t.key} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
@@ -1208,7 +1233,9 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
           )}
           {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}
 
-          {openKey !== t.key ? (
+          {!addon || !addon.purchased ? (
+            <Btn small variant="secondary" disabled>Заполнить и сгенерировать 🔒</Btn>
+          ) : openKey !== t.key ? (
             <Btn small variant="secondary" onClick={() => { setOpenKey(t.key); setFormData({}); setError(''); }}>Заполнить и сгенерировать</Btn>
           ) : (
             <div style={{ marginTop: 8 }}>
