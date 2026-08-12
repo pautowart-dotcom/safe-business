@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, ST, Badge, C } from '../ui/components.jsx';
+import { Card, ST, Badge, BackBtn, C } from '../ui/components.jsx';
 import Icon from '../ui/Icon.jsx';
 
 // Полная справка (12.08.2026) — вступительная модалка (OnboardingModal.jsx)
@@ -346,9 +346,7 @@ export default function Help() {
             </Card>
           ) : (
             <div>
-              <div onClick={() => setOpenKey(null)} style={{ cursor: 'pointer', fontSize: 12, color: C.subtle, marginBottom: -6, paddingLeft: 4 }}>
-                ‹ Свернуть
-              </div>
+              <BackBtn onClick={() => setOpenKey(null)} label="Свернуть" />
               <Component />
             </div>
           )}

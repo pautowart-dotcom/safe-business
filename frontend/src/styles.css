@@ -131,6 +131,15 @@ p { margin: 0 0 0.5rem; color: var(--text-muted); }
 .page-subtitle { margin-top: -0.25rem; margin-bottom: 1rem; }
 .page-loading { padding: 3rem; text-align: center; color: var(--text-muted); }
 
+/* Заставка при входе (SplashScreen.jsx) — небольшая пульсация иконки,
+   не общая .page-loading (та используется во множестве мест для дозагрузки
+   данных внутри уже открытого экрана, отдельная анимация ей не нужна). */
+.splash-pulse { animation: splash-pulse 1.6s ease-in-out infinite; }
+@keyframes splash-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
 .btn {
   border: none;
   border-radius: var(--radius);

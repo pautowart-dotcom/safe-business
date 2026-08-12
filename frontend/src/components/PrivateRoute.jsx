@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import SplashScreen from './SplashScreen.jsx';
 
 // ownerOnly — строже managementOnly (owner+admin): например, раздел
 // "Безопасность" по политике конфиденциальности §8.4 доступен только
@@ -12,7 +13,7 @@ export function PrivateRoute({ children, managementOnly = false, ownerOnly = fal
   const { user, currentCompany, loading, isManagement, isOwner, hasModule } = useAuth();
 
   if (loading) {
-    return <div className="page-loading">Загрузка...</div>;
+    return <SplashScreen />;
   }
   // user без currentCompany — базовый токен есть, но компания ещё не выбрана
   // (например, при перезагрузке страницы на середине выбора). Отправляем на
