@@ -564,6 +564,26 @@ router.get(
   })
 );
 
+// "Если пришла проверка" (12.08.2026) — не привязано к нише/тесту, доступно
+// сразу всем companies с профилем (нужна хотя бы hasEmployees для фильтра
+// трудовой инспекции). Черновик, не проверено юристом — см. заголовок
+// содержимого inspectionGuides.js; статус "черновик" отдаём явно клиенту,
+// тем же принципом, что и в modules/document-templates.
+router.get(
+  '/inspection-guides',
+  asyncHandler(async (req, res) => {
+    const profile = await loadProfile(req.tenant.companyId);
+    const hasEmployees = profile?.workModel === 'employees' || profile?.workModel === 'mixed';
+    const { GENERAL_RIGHTS, AFTER_INSPECTION, GUIDES } = await repository.getInspectionGuides();
+    res.json({
+      status: 'draft',
+      generalRights: GENERAL_RIGHTS,
+      afterInspection: AFTER_INSPECTION,
+      guides: GUIDES.filter((g) => g.key !== 'labor_inspection' || hasEmployees),
+    });
+  })
+);
+
 // Раньше документ можно было только добавить по готовой ссылке (владельцу
 // пришлось бы самому заводить облако и выгружать туда файл) — теперь можно
 // либо загрузить фото/скан/PDF прямо здесь, либо, как и раньше, вставить

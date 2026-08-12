@@ -595,7 +595,7 @@ function SecurityDashboard({
       )}
 
       <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
-        {[['overview', 'Обзор'], ['violations', `Нарушения (${openCount})`], ['documents', 'Документы']].map(([k, l]) => (
+        {[['overview', 'Обзор'], ['violations', `Нарушения (${openCount})`], ['documents', 'Документы'], ['inspection', 'Если проверка']].map(([k, l]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -611,6 +611,83 @@ function SecurityDashboard({
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} />}
+      {tab === 'inspection' && <InspectionGuidesTab />}
+    </div>
+  );
+}
+
+// "Если проверка" (12.08.2026) — не завязано на нишу/подписку, но роут
+// GET /inspection-guides наследует owner-only гейт всего модуля security
+// (requireRole('owner') в security.routes.js, политика конфиденциальности
+// §8.4) — эта вкладка физически доступна только владельцу, как и остальной
+// модуль, хотя по смыслу пригодилась бы любому, кто на месте во время
+// реальной проверки. Открыть на другие роли — отдельное решение про
+// периметр политики §8.4, не делаем незаметно попутно. Черновик — юрист не
+// проверял (см. backend/src/modules/security/content/inspectionGuides.js).
+function InspectionGuidesTab() {
+  const [data, setData] = useState(undefined);
+  const [openKey, setOpenKey] = useState(null);
+
+  useEffect(() => {
+    api.get('/modules/security/inspection-guides')
+      .then(({ data }) => setData(data))
+      .catch(() => setData(null));
+  }, []);
+
+  if (data === undefined) return <div style={{ fontSize: 13, color: C.subtle, padding: '20px 0' }}>Загрузка…</div>;
+  if (!data) return <div style={{ fontSize: 13, color: C.secondary, padding: '20px 0' }}>Не удалось загрузить.</div>;
+
+  return (
+    <div>
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <ST>Если пришла проверка</ST>
+          <Badge color="#B7950B" bg="#FCF3CF">черновик</Badge>
+        </div>
+        <div style={{ fontSize: 12, color: '#B7950B', marginBottom: 12 }}>
+          Общая инструкция, юрист её не проверял. Не заменяет консультацию юриста, но помогает не растеряться в моменте.
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>Общие права при любой проверке</div>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.6 }}>
+          {data.generalRights.map((r, i) => <li key={i} style={{ marginBottom: 6 }}>{r}</li>)}
+        </ul>
+      </Card>
+
+      {data.guides.map((g) => (
+        <Card key={g.key}>
+          <div onClick={() => setOpenKey(openKey === g.key ? null : g.key)} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <ST>{g.authority}</ST>
+            <span style={{ fontSize: 18, color: C.subtle }}>{openKey === g.key ? '−' : '+'}</span>
+          </div>
+          <div style={{ fontSize: 13, color: C.secondary, marginTop: 4 }}>{g.whatTheyCheck}</div>
+
+          {openKey === g.key && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 4 }}>Когда обычно приходят</div>
+              <div style={{ fontSize: 13, color: C.secondary, marginBottom: 10 }}>{g.typicalTrigger}</div>
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 4 }}>Перед тем как впустить</div>
+              <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+                {g.beforeYouLetThemIn.map((x, i) => <li key={i}>{x}</li>)}
+              </ul>
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 4 }}>Во время проверки</div>
+              <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+                {g.duringInspection.map((x, i) => <li key={i}>{x}</li>)}
+              </ul>
+
+              <div style={{ fontSize: 11, color: C.subtle }}>Основание: {g.lawReference}</div>
+            </div>
+          )}
+        </Card>
+      ))}
+
+      <Card>
+        <ST>После проверки</ST>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.6 }}>
+          {data.afterInspection.map((r, i) => <li key={i} style={{ marginBottom: 6 }}>{r}</li>)}
+        </ul>
+      </Card>
     </div>
   );
 }

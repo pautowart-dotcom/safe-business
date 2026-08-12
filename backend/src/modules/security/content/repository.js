@@ -11,6 +11,7 @@
 // и ни scoring.js, ни visibility.js, ни роуты, ни PDF-сборка не меняются.
 
 const { SEGMENTS, findSegment, findNiche } = require('./segments');
+const inspectionGuides = require('./inspectionGuides');
 
 const PAID_QUESTIONS_BY_NICHE = {
   manicure: require('./paid-questions/manicure'),
@@ -83,6 +84,15 @@ async function getAttentionZones(niche) {
   return content ? content.zones : null;
 }
 
+// Не зависит от ниши (в отличие от остального контента здесь) — права и
+// порядок действий при проверке одинаковы для любой ниши, см. комментарий
+// в inspectionGuides.js. labor_inspection фильтруется по hasEmployees
+// вызывающим кодом (security.routes.js), тем же полем, что и остальной
+// employerOnly-контент.
+async function getInspectionGuides() {
+  return inspectionGuides;
+}
+
 module.exports = {
   getSegments,
   getSegment,
@@ -93,4 +103,5 @@ module.exports = {
   getViolation,
   getMandatoryDocuments,
   getAttentionZones,
+  getInspectionGuides,
 };
