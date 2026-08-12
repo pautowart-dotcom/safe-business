@@ -9,3 +9,4 @@ require('./checklists');
 require('./knowledge');
 require('./security');
 require('./feedback');
+require('./document-templates');

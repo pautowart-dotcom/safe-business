@@ -673,11 +673,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
-      <Card>
-        <ST>Пакет документов</ST>
-        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Готовый комплект документов под вашу нишу. Скоро запуск.</div>
-        {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('document_package')}>Сообщить о запуске</Btn>}
-      </Card>
+      <DocumentTemplatesCard isManagement={isManagement} isTestCompany={isTestCompany} onJoinWaitlist={onJoinWaitlist} />
 
       <Card>
         <ST>Подписка «Спокойствие»</ST>
@@ -1114,6 +1110,140 @@ function FranchiseCard({ isManagement, isTestCompany }) {
       )}
 
       {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+    </Card>
+  );
+}
+
+// Тихая обкатка (см. backend requireTestCompany на этом модуле) — обычным
+// компаниям пока показываем прежнюю заглушку-waitlist, is_test-компаниям —
+// рабочую версию. Убрать разделение на isTestCompany, когда фича будет
+// готова полностью (Этап 4-5 плана), одновременно с backend-гейтом.
+function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) {
+  const [templates, setTemplates] = useState(null);
+  const [generated, setGenerated] = useState([]);
+  const [openKey, setOpenKey] = useState(null);
+  const [formData, setFormData] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [lastResult, setLastResult] = useState(null);
+
+  function load() {
+    Promise.all([
+      api.get('/modules/document-templates/templates'),
+      api.get('/modules/document-templates/generated'),
+    ])
+      .then(([t, g]) => {
+        setTemplates(t.data);
+        setGenerated(g.data);
+      })
+      .catch(() => setTemplates([]));
+  }
+
+  useEffect(() => {
+    if (!isManagement || !isTestCompany) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManagement, isTestCompany]);
+
+  if (!isTestCompany) {
+    return (
+      <Card>
+        <ST>Пакет документов</ST>
+        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Готовый комплект документов под вашу нишу. Скоро запуск.</div>
+        {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('document_package')}>Сообщить о запуске</Btn>}
+      </Card>
+    );
+  }
+  if (!isManagement) return null;
+
+  async function submit(template) {
+    setSubmitting(true);
+    setError('');
+    try {
+      const { data } = await api.post('/modules/document-templates/generate', {
+        templateKey: template.key,
+        data: formData,
+      });
+      setLastResult(data);
+      setOpenKey(null);
+      setFormData({});
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось сформировать документ');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <ST>Шаблоны документов</ST>
+      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+        Документы, заполненные данными вашего бизнеса, по вашей нише. Это не свободная генерация текста ИИ — фиксированные шаблоны с полями.
+      </div>
+
+      {templates === null && <div style={{ fontSize: 13, color: C.subtle }}>Загрузка…</div>}
+      {templates && templates.length === 0 && (
+        <div style={{ fontSize: 13, color: C.secondary }}>Для вашей ниши шаблонов пока нет.</div>
+      )}
+
+      {templates && templates.map((t) => (
+        <div key={t.key} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{t.title}</span>
+            {t.status === 'draft' ? (
+              <Badge color="#B7950B" bg="#FCF3CF">не проверено юристом</Badge>
+            ) : (
+              <Badge color={C.green} bg={C.greenBg}>проверено юристом</Badge>
+            )}
+          </div>
+          {t.status === 'draft' && (
+            <div style={{ fontSize: 12, color: '#B7950B', marginBottom: 6 }}>
+              Черновик. Не гарантирует прохождение проверки или суда — используйте на свой риск, пока юрист не подтвердил текст.
+            </div>
+          )}
+          {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}
+
+          {openKey !== t.key ? (
+            <Btn small variant="secondary" onClick={() => { setOpenKey(t.key); setFormData({}); setError(''); }}>Заполнить и сгенерировать</Btn>
+          ) : (
+            <div style={{ marginTop: 8 }}>
+              {t.fields.map((f) => (
+                <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
+                  <TextInput
+                    value={formData[f.key] || ''}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  />
+                </Field>
+              ))}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn small onClick={() => submit(t)} disabled={submitting}>{submitting ? 'Секунду…' : 'Сгенерировать PDF'}</Btn>
+                <Btn small variant="secondary" onClick={() => setOpenKey(null)}>Отмена</Btn>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+
+      {lastResult && (
+        <div className="alert" style={{ marginTop: 10 }}>
+          «{lastResult.templateTitle}» готов — <a href={lastResult.downloadUrl} target="_blank" rel="noreferrer">скачать PDF</a>
+        </div>
+      )}
+
+      {generated.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>Ранее сгенерированные</div>
+          {generated.map((g) => (
+            <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+              <span style={{ fontSize: 13 }}>{g.templateTitle} · {new Date(g.generatedAt).toLocaleDateString('ru-RU')}</span>
+              <a href={g.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать</a>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
