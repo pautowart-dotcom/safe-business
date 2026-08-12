@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, Select, Btn, Avatar, Icon, C } from '../ui/components.jsx';
+import ImageLightbox from '../ui/ImageLightbox.jsx';
 import { NICHE_LABELS } from '../utils/niches.js';
 
 function toLocalInputValue(date) {
@@ -39,7 +40,12 @@ function money(v) {
 // Ячейка загрузки фото — как в reference/studio_os_mvp.tsx (пунктирная
 // рамка → камера → отмеченное состояние), но с реальной загрузкой файла
 // на сервер вместо мокового переключателя.
-function PhotoUploadCell({ label, url, onUploaded }) {
+//
+// Тап по самому превью — просмотр крупно (onZoom, 12.08.2026: раньше вся
+// ячейка целиком открывала выбор файла, посмотреть фото крупнее было
+// нельзя вообще, только открыть отдельно "Фотоотчёты"). Замена — отдельной
+// текстовой кнопкой "Заменить" под превью, чтобы не перепутать с зумом.
+function PhotoUploadCell({ label, url, onUploaded, onZoom }) {
   // Один input без capture — на телефоне сама ОС предлагает выбор
   // "камера или галерея" системным диалогом, как принято в большинстве
   // приложений, вместо двух отдельных кнопок под каждый источник.
@@ -70,18 +76,29 @@ function PhotoUploadCell({ label, url, onUploaded }) {
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
       {url ? (
         <div
-          onClick={() => fileInputRef.current?.click()}
           style={{
             position: 'relative',
             border: `1.5px solid ${C.green}`,
-            borderRadius: 12, padding: 16, textAlign: 'center', cursor: 'pointer',
+            borderRadius: 12, padding: 16, textAlign: 'center',
             background: C.greenBg,
           }}
         >
-          <img src={url} alt={`Фото ${label}`} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
+          <img
+            src={url}
+            alt={`Фото ${label}`}
+            onClick={() => onZoom(url)}
+            style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }}
+          />
           <div style={{ fontSize: 12, color: C.green, marginTop: 8, fontWeight: 600 }}>
             {uploading ? 'Загрузка...' : `Фото ${label} ✓`}
           </div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{ background: 'none', border: 'none', color: C.secondary, fontSize: 11, marginTop: 4, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+          >
+            Заменить
+          </button>
         </div>
       ) : (
         <div onClick={() => fileInputRef.current?.click()} style={{ border: `1.5px dashed ${C.border}`, borderRadius: 12, padding: 12, textAlign: 'center', background: C.surface, cursor: 'pointer' }}>
@@ -115,6 +132,7 @@ export default function Visits() {
   const [selectedClientNote, setSelectedClientNote] = useState(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [photoLightbox, setPhotoLightbox] = useState(null);
   const [supplyCategoryPick, setSupplyCategoryPick] = useState('');
   const [supplyPick, setSupplyPick] = useState('');
   const [supplyQty, setSupplyQty] = useState('');
@@ -573,14 +591,15 @@ export default function Visits() {
 
           <Field label="Фото до/после (необязательно, до 2 на каждую сторону)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} />
-              <PhotoUploadCell label="до (2)" url={form.photoBeforeUrl2} onUploaded={(url) => setForm({ ...form, photoBeforeUrl2: url })} />
+              <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} onZoom={(url) => setPhotoLightbox([url])} />
+              <PhotoUploadCell label="до (2)" url={form.photoBeforeUrl2} onUploaded={(url) => setForm({ ...form, photoBeforeUrl2: url })} onZoom={(url) => setPhotoLightbox([url])} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <PhotoUploadCell label="после" url={form.photoAfterUrl} onUploaded={(url) => setForm({ ...form, photoAfterUrl: url })} />
-              <PhotoUploadCell label="после (2)" url={form.photoAfterUrl2} onUploaded={(url) => setForm({ ...form, photoAfterUrl2: url })} />
+              <PhotoUploadCell label="после" url={form.photoAfterUrl} onUploaded={(url) => setForm({ ...form, photoAfterUrl: url })} onZoom={(url) => setPhotoLightbox([url])} />
+              <PhotoUploadCell label="после (2)" url={form.photoAfterUrl2} onUploaded={(url) => setForm({ ...form, photoAfterUrl2: url })} onZoom={(url) => setPhotoLightbox([url])} />
             </div>
           </Field>
+          <ImageLightbox images={photoLightbox} onClose={() => setPhotoLightbox(null)} />
 
           <Field label="Расходники (необязательно)">
             {form.supplies.map((s, idx) => (

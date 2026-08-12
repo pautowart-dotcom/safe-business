@@ -23,6 +23,8 @@ export default function Supplies() {
   // баночка геля 500 мл, а не "1 штука").
   const [movement, setMovement] = useState(null);
   const [movementQty, setMovementQty] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   function load() {
     api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
@@ -41,6 +43,7 @@ export default function Supplies() {
   function openCreate() {
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setFormError('');
     setShowForm(true);
   }
 
@@ -57,32 +60,45 @@ export default function Supplies() {
       containerSize: s.container_size != null ? String(s.container_size) : '',
     });
     setEditingId(s.id);
+    setFormError('');
     setShowForm(true);
   }
 
+  // Раньше без try/catch: ошибка с сервера (например, "расходник с таким
+  // названием уже есть" — новая проверка 12.08.2026, POST/PATCH
+  // /modules/supplies) нигде не показывалась, форма просто не закрывалась
+  // без объяснений.
   async function handleCreate() {
     if (!form.name.trim()) return;
-    const payload = { ...form, categoryId: form.categoryId || null };
-    if (editingId) {
-      // Остаток меняется только через "Пришло"/"Списать" — не полем формы,
-      // чтобы не разъезжались история движений и текущее количество.
-      await api.patch(`/modules/supplies/${editingId}`, {
-        name: form.name,
-        unit: form.unit,
-        productUrl: form.productUrl,
-        lowStockThreshold: form.lowStockThreshold,
-        isDisinfectant: form.isDisinfectant,
-        categoryId: form.categoryId || null,
-        defaultQuantityPerVisit: form.defaultQuantityPerVisit || null,
-        containerSize: form.containerSize || null,
-      });
-    } else {
-      await api.post('/modules/supplies', payload);
+    setSaving(true);
+    setFormError('');
+    try {
+      const payload = { ...form, categoryId: form.categoryId || null };
+      if (editingId) {
+        // Остаток меняется только через "Пришло"/"Списать" — не полем формы,
+        // чтобы не разъезжались история движений и текущее количество.
+        await api.patch(`/modules/supplies/${editingId}`, {
+          name: form.name,
+          unit: form.unit,
+          productUrl: form.productUrl,
+          lowStockThreshold: form.lowStockThreshold,
+          isDisinfectant: form.isDisinfectant,
+          categoryId: form.categoryId || null,
+          defaultQuantityPerVisit: form.defaultQuantityPerVisit || null,
+          containerSize: form.containerSize || null,
+        });
+      } else {
+        await api.post('/modules/supplies', payload);
+      }
+      setForm(EMPTY_FORM);
+      setEditingId(null);
+      setShowForm(false);
+      load();
+    } catch (err) {
+      setFormError(err.response?.data?.error || 'Не удалось сохранить позицию');
+    } finally {
+      setSaving(false);
     }
-    setForm(EMPTY_FORM);
-    setEditingId(null);
-    setShowForm(false);
-    load();
   }
 
   async function handleDelete(id) {
@@ -175,7 +191,8 @@ export default function Supplies() {
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 20 }}>
           Отмечайте только реальные дезсредства — тег используется для учёта расхода.
         </div>
-        <Btn onClick={handleCreate}>{editingId ? 'Сохранить изменения' : 'Добавить'}</Btn>
+        {formError && <div className="alert alert-error" style={{ marginBottom: 14 }}>{formError}</div>}
+        <Btn onClick={handleCreate} disabled={saving}>{saving ? 'Секунду…' : editingId ? 'Сохранить изменения' : 'Добавить'}</Btn>
       </div>
     );
   }

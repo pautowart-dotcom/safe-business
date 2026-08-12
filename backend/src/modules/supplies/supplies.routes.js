@@ -109,6 +109,19 @@ router.post(
     if (!name) {
       return res.status(400).json({ error: 'Укажите название позиции' });
     }
+    // Без уникального ограничения в БД (не заводили — переименование через
+    // PATCH ниже тоже пишет name без проверки, значит потребовалась бы
+    // проверка в обоих местах в любом случае) — сравнение без учёта
+    // регистра/пробелов по краям, иначе "Гель-лак" и "гель-лак " считались
+    // бы разными позициями и не ловились как дубликат (жалоба владельца
+    // 12.08.2026: второй раз можно ввести тот же расходник).
+    const dup = await pool.query(
+      'SELECT 1 FROM supplies WHERE company_id = $1 AND LOWER(name) = LOWER($2)',
+      [req.tenant.companyId, name.trim()]
+    );
+    if (dup.rows.length > 0) {
+      return res.status(400).json({ error: 'Расходник с таким названием уже есть' });
+    }
     if (categoryId) {
       const cat = await pool.query('SELECT 1 FROM supply_categories WHERE id = $1 AND company_id = $2', [categoryId, req.tenant.companyId]);
       if (cat.rows.length === 0) {
@@ -148,6 +161,15 @@ router.patch(
     const categoryProvided = 'categoryId' in req.body;
     const defaultQtyProvided = 'defaultQuantityPerVisit' in req.body;
     const containerSizeProvided = 'containerSize' in req.body;
+    if (name) {
+      const dup = await pool.query(
+        'SELECT 1 FROM supplies WHERE company_id = $1 AND LOWER(name) = LOWER($2) AND id != $3',
+        [req.tenant.companyId, name.trim(), req.params.id]
+      );
+      if (dup.rows.length > 0) {
+        return res.status(400).json({ error: 'Расходник с таким названием уже есть' });
+      }
+    }
     if (categoryProvided && categoryId) {
       const cat = await pool.query('SELECT 1 FROM supply_categories WHERE id = $1 AND company_id = $2', [categoryId, req.tenant.companyId]);
       if (cat.rows.length === 0) {

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Select, C } from '../ui/components.jsx';
+import ImageLightbox from '../ui/ImageLightbox.jsx';
 
 // Раньше единственный способ посмотреть фото до/после — открыть визит целиком
 // на редактирование и разглядеть два превью 48×48px, где тап по превью ещё и
@@ -89,36 +89,7 @@ export default function PhotoReports() {
         );
       })}
 
-      {lightbox && createPortal(
-        // Портал прямо в body — страница листается внутри контейнера с
-        // -webkit-overflow-scrolling: touch (Layout.jsx), а на iOS position:
-        // fixed внутри такого контейнера привязывается к нему самому, а не к
-        // экрану целиком: шапка оставалась кликабельной поверх, а долистать
-        // до следующих фото было невозможно (overflow контейнера, не окна).
-        <div
-          onClick={() => setLightbox(null)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 2000,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-            padding: '60px 16px 24px', overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          <button
-            onClick={() => setLightbox(null)}
-            aria-label="Закрыть"
-            style={{
-              position: 'fixed', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#FFF', fontSize: 18, cursor: 'pointer',
-            }}
-          >
-            ✕
-          </button>
-          {lightbox.map((url, i) => (
-            <img key={i} src={url} alt="" style={{ maxWidth: '92vw', maxHeight: '85vh', borderRadius: 8, objectFit: 'contain', flexShrink: 0 }} />
-          ))}
-        </div>,
-        document.body
-      )}
+      <ImageLightbox images={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
