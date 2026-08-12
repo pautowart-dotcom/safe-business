@@ -28,6 +28,19 @@ export function AuthProvider({ children }) {
   // Login.jsx рендерит форму создания компании вместо ошибки.
   const [needsCompany, setNeedsCompany] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Заставка (SplashScreen.jsx) должна быть видна минимум 2.5с при входе,
+  // даже если сама проверка сессии (loading выше) отвечает быстрее — иначе
+  // на телефоне, где сеть/сервер отвечают почти мгновенно, заставка мелькает
+  // и не читается (жалоба владельца 12.08.2026). Таймер живёт здесь, а не в
+  // PrivateRoute.jsx, потому что AuthProvider монтируется один раз на всю
+  // сессию — PrivateRoute оборачивает ещё и отдельные вложенные роуты
+  // (Клиенты/Визиты/Безопасность и т.д.), и таймер там пересчитывался бы
+  // заново при каждом переходе между ними, показывая заставку на каждый клик.
+  const [splashMinTimeElapsed, setSplashMinTimeElapsed] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashMinTimeElapsed(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
   // Пакет 3, Этап 1.1: флаги модулей компании (сейчас — visits/clients,
   // остальные всегда включены). {} до первой загрузки — hasModule() до этого
   // момента считает всё доступным, чтобы не мигать нав-баром на типичном
@@ -248,7 +261,11 @@ export function AuthProvider({ children }) {
         renameCurrentCompany,
         setUserAvatar,
         markOnboardingSeen,
-        loading,
+        // Единственный потребитель loading — PrivateRoute.jsx (гейт заставки) —
+        // поэтому наружу отдаём уже объединённый флаг: реальная проверка сессии
+        // ИЛИ ещё не прошли минимальные 2.5с показа заставки (см. splashMinTimeElapsed
+        // выше). Больше loading нигде не читают, комбинировать здесь безопасно.
+        loading: loading || !splashMinTimeElapsed,
         login,
         logout,
         register,
