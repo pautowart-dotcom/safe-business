@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
 import IosPushBanner from '../components/IosPushBanner.jsx';
+import InstallAppBanner from '../components/InstallAppBanner.jsx';
 import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 
@@ -85,6 +86,7 @@ export default function Dashboard() {
   return (
     <div>
       <IosPushBanner />
+      <InstallAppBanner />
       {isOwner ? <OwnerDashboard /> : isManagement ? <ManagementDashboard /> : <MasterDashboard />}
     </div>
   );
