@@ -8,6 +8,15 @@ APP_DIR=/var/www/safe-business
 cd "$APP_DIR"
 
 echo "== git pull =="
+# npm install на предыдущих деплоях локально дописывает package-lock.json
+# (метаданные, версия npm и т.п.) — эти файлы никогда не редактируются
+# руками, только пересоздаются самим npm install чуть ниже, поэтому перед
+# pull безопасно отбросить в них любые локальные правки. Без этого git pull
+# иногда падает с "local changes would be overwritten by merge" и весь
+# скрипт тихо останавливается на первом шаге, а deploy.sh дальше не
+# запускается вовсе (13.08.2026 — так и произошло несколько деплоев подряд,
+# незаметно для владельца).
+git checkout -- '*/package-lock.json' 2>/dev/null || true
 git pull
 
 echo "== deploy.sh =="
