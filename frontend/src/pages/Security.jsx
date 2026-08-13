@@ -750,7 +750,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
-      <DocumentTemplatesCard isManagement={isManagement} isTestCompany={isTestCompany} onJoinWaitlist={onJoinWaitlist} />
+      <DocumentTemplatesCard isManagement={isManagement} />
 
       {/* "Подписка «Спокойствие»" убрана как отдельный продукт (12.08.2026,
           решение владельца) — избыточна поверх уже существующей базовой
@@ -1193,11 +1193,9 @@ function FranchiseCard({ isManagement, isTestCompany }) {
   );
 }
 
-// Тихая обкатка (см. backend requireTestCompany на этом модуле) — обычным
-// компаниям пока показываем прежнюю заглушку-waitlist, is_test-компаниям —
-// рабочую версию. Убрать разделение на isTestCompany, когда фича будет
-// готова полностью (Этап 4-5 плана), одновременно с backend-гейтом.
-function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) {
+// Тихая обкатка снята 13.08.2026 (решение владельца) — доступно всем
+// компаниям, вместе с backend-гейтом в document-templates.routes.js.
+function DocumentTemplatesCard({ isManagement }) {
   const [templates, setTemplates] = useState(null);
   const [generated, setGenerated] = useState([]);
   const [addon, setAddon] = useState(null);
@@ -1239,20 +1237,11 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
   }
 
   useEffect(() => {
-    if (!isManagement || !isTestCompany) return;
+    if (!isManagement) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManagement, isTestCompany]);
+  }, [isManagement]);
 
-  if (!isTestCompany) {
-    return (
-      <Card>
-        <ST>Пакет документов</ST>
-        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Готовый комплект документов под вашу нишу. Скоро запуск.</div>
-        {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('document_package')}>Сообщить о запуске</Btn>}
-      </Card>
-    );
-  }
   if (!isManagement) return null;
 
   async function submit(template) {
@@ -1331,14 +1320,14 @@ function DocumentTemplatesCard({ isManagement, isTestCompany, onJoinWaitlist }) 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>{t.title}</span>
             {t.status === 'draft' ? (
-              <Badge color="#B7950B" bg="#FCF3CF">не проверено юристом</Badge>
+              <Badge color="#B7950B" bg="#FCF3CF">бета</Badge>
             ) : (
               <Badge color={C.green} bg={C.greenBg}>проверено юристом</Badge>
             )}
           </div>
           {t.status === 'draft' && (
             <div style={{ fontSize: 12, color: '#B7950B', marginBottom: 6 }}>
-              Черновик. Не гарантирует прохождение проверки или суда — используйте на свой риск, пока юрист не подтвердил текст.
+              Бета-версия шаблона — дорабатывается и уточняется. Не является юридической консультацией и не гарантирует прохождение проверки или суда.
             </div>
           )}
           {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}

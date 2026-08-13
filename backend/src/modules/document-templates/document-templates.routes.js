@@ -2,7 +2,6 @@ const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
-const { requireTestCompany } = require('../../core/middleware/testCompany');
 const { requireAddon } = require('../../core/middleware/addon');
 const { ADDON_KEY } = require('./addonKey');
 const { logEvent } = require('../../core/eventLog');
@@ -15,10 +14,9 @@ const { renderDocumentPdf } = require('./render');
 
 const router = express.Router();
 
-// Тихая обкатка (см. core/middleware/testCompany.js) — фича ещё не готова
-// (1 шаблон из 5, без платного гейта), доступна только is_test-компаниям,
-// пока не уберём этот middleware явным следующим шагом.
-router.use(requireTestCompany);
+// Тихая обкатка снята (13.08.2026, решение владельца) — доступно всем
+// компаниям. Шаблоны со статусом draft показываются с пометкой "бета" в
+// интерфейсе и в самом PDF (render.js), не скрываются целиком.
 
 // Owner-only — те же причины, что и у всего модуля security (профиль
 // конфиденциальности §8.4): здесь тоже данные компании и сгенерированные

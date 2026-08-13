@@ -4,7 +4,6 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
-const { requireTestCompany } = require('../core/middleware/testCompany');
 const { createPayment } = require('../core/yookassa');
 const { ADDON_CATALOG, getAddon } = require('../core/addons');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
@@ -40,17 +39,14 @@ router.get(
 // той же компании не будет). Отдельный чек-аут всегда, даже если у
 // компании уже есть сохранённая карта от базовой подписки — владелец
 // решил (12.08.2026) не объединять два разных платежа автоматически.
-// requireTestCompany здесь (а не только на самом модуле document-templates)
-// — фикс 12.08.2026: без этой проверки любая НЕ-test компания могла вызвать
-// checkout напрямую (в обход UI, который просто не показывает кнопку) и
-// реально заплатить через LIVE ЮKassa за функцию, которая всё равно
-// недоступна (document-templates.routes.js её саму закрывает
-// requireTestCompany) — деньги списывались бы без возможности воспользоваться
-// покупкой. Когда фича откроется всем, убрать вместе с гейтом в
-// document-templates.routes.js.
+//
+// requireTestCompany, который здесь был (фикс 12.08.2026 — без него
+// любая компания могла заплатить за функцию, которая всё равно оставалась
+// недоступной), снят 13.08.2026 вместе с тестовым гейтом на самом модуле
+// document-templates — раз функция открыта всем, чек-аут ведёт к реально
+// доступной покупке, отдельная проверка больше не нужна.
 router.post(
   '/:addonKey/checkout',
-  requireTestCompany,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const addon = getAddon(req.params.addonKey);
