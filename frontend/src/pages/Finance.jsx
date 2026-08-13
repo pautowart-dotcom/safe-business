@@ -98,9 +98,15 @@ function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, set
         {isCustom ? 'Свой период ✓' : 'Указать даты вручную ›'}
       </button>
       {isCustom && (
+        // Баг (13.08.2026, скриншот владельца): оба поля с type="date" без
+        // minWidth:0 не сжимались ниже "естественной" ширины нативного
+        // date-пикера (на iOS она заметно больше 50% узкого экрана) —
+        // строка вылезала за пределы экрана, и всю страницу утягивало по
+        // горизонтали вбок. flex:1 + minWidth:0 — стандартный фикс для
+        // текстовых/form-полей как flex-детей.
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <TextInput type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-          <TextInput type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+          <TextInput type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
+          <TextInput type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
         </div>
       )}
     </div>

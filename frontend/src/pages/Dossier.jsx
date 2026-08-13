@@ -36,13 +36,20 @@ export default function Dossier() {
 
       <Card>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>За период (один день — если «От» и «До» совпадают)</div>
+        {/* Тот же баг, что и в Финансах ("Свой период") — два поля даты
+            рядом без minWidth:0 не сжимались, строка вылезала за экран.
+            Field не принимает style, оборачиваем отдельным div. */}
         <div style={{ display: 'flex', gap: 10 }}>
-          <Field label="От">
-            <TextInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </Field>
-          <Field label="До">
-            <TextInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </Field>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Field label="От">
+              <TextInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </Field>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Field label="До">
+              <TextInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </Field>
+          </div>
         </div>
         <Btn
           disabled={dateFrom > dateTo}
