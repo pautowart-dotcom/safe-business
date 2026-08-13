@@ -1,10 +1,25 @@
 const express = require('express');
+const { parse } = require('csv-parse/sync');
+const { stringify } = require('csv-stringify/sync');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const { requireRole } = require('../../core/middleware/role');
+const { uploadCsv } = require('../../core/uploads');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 
 const router = express.Router();
+
+// Колонки CSV — общие для экспорта, образца и импорта, чтобы формат не
+// разъезжался в трёх местах. "Дата создания" в этом списке нет — она
+// только в экспорте (справочно), при импорте её наличие/отсутствие в
+// файле не важно, колонки читаются по названию, а не по номеру позиции.
+const CSV_COLUMNS = ['Фамилия', 'Имя', 'Телефон', 'Пожелания', 'Заметки', 'Аллергии'];
+
+// Excel на Windows не откроет кириллицу в CSV без BOM-метки в начале файла.
+// Через String.fromCharCode, не буквальным символом в исходнике — символ
+// невидимый, риск, что редактор/git его потеряют или испортят при сохранении.
+const CSV_BOM = String.fromCharCode(0xfeff);
 
 // Мастеру номер телефона клиента не показываем вообще (владелец: "мастер не
 // должен видеть номер телефона") — скрываем на уровне сервера, а не
@@ -43,6 +58,115 @@ router.get(
       params
     );
     res.json(rows.map((c) => sanitize(c, req.tenant.role)));
+  })
+);
+
+// Экспорт/импорт базы (13.08.2026) — только владелец: массовая выгрузка
+// персональных данных клиентов (не то же самое, что просмотр карточки
+// одного клиента, доступный и администратору) — владелец сам так решил.
+// Статичные пути ('/export' и т.д.) должны идти РАНЬШЕ '/:id' ниже —
+// тот же принцип, что и у '/waitlist' (см. комментарий там).
+
+router.get(
+  '/export',
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT last_name, first_name, phone, preferences, notes, allergies, created_at
+       FROM clients WHERE company_id = $1 ORDER BY last_name, first_name`,
+      [req.tenant.companyId]
+    );
+    const csv = stringify(
+      rows.map((r) => [
+        r.last_name, r.first_name, r.phone || '', r.preferences || '', r.notes || '', r.allergies || '',
+        r.created_at.toISOString().slice(0, 10),
+      ]),
+      { header: true, columns: [...CSV_COLUMNS, 'Дата создания'] }
+    );
+    const filename = `клиенты-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    // filename — ASCII-фолбэк (браузеры, не читающие filename*), filename* —
+    // настоящее имя с кириллицей (RFC 5987) — тот же приём, что и у скачивания
+    // печатных журналов (generated-journals.routes.js), голая кириллица в
+    // filename="..." ломается на не-ASCII байтах в HTTP-заголовке.
+    res.setHeader('Content-Disposition', `attachment; filename="clients-export.csv"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(CSV_BOM + csv);
+  })
+);
+
+router.get(
+  '/import-template',
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const csv = stringify([], { header: true, columns: CSV_COLUMNS });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="clients-template.csv"');
+    res.send(CSV_BOM + csv);
+  })
+);
+
+// Дубликаты по телефону — пропускаем, не трогаем существующего клиента
+// (владелец, 13.08.2026: безопаснее, чем перезаписывать заметки/аллергии,
+// внесённые вручную позже). findClientByPhone определена ниже в этом файле —
+// та же функция, что и для ручного добавления клиента через форму.
+router.post(
+  '/import',
+  requireRole('owner'),
+  uploadCsv,
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Прикрепите CSV-файл' });
+
+    let records;
+    try {
+      records = parse(req.file.buffer, { columns: true, bom: true, skip_empty_lines: true, trim: true });
+    } catch (err) {
+      return res.status(400).json({ error: 'Не удалось прочитать файл — убедитесь, что это CSV со скачанным образцом колонок' });
+    }
+
+    let added = 0;
+    let skippedDuplicate = 0;
+    const errors = [];
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const lineNumber = i + 2; // +1 на строку заголовка, +1 — нумерация с 1, а не с 0
+      const lastName = (row['Фамилия'] || '').trim();
+      const firstName = (row['Имя'] || '').trim();
+      if (!lastName || !firstName) {
+        errors.push(`Строка ${lineNumber}: не заполнены Фамилия/Имя — пропущена`);
+        continue;
+      }
+      const phone = (row['Телефон'] || '').trim() || null;
+      if (phone) {
+        const existing = await findClientByPhone(req.tenant.companyId, phone);
+        if (existing) {
+          skippedDuplicate++;
+          continue;
+        }
+      }
+      await pool.query(
+        `INSERT INTO clients (company_id, first_name, last_name, phone, preferences, notes, allergies, created_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          req.tenant.companyId, firstName, lastName, phone,
+          (row['Пожелания'] || '').trim() || null,
+          (row['Заметки'] || '').trim() || null,
+          (row['Аллергии'] || '').trim() || null,
+          req.user.id,
+        ]
+      );
+      added++;
+    }
+
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'clients',
+      userId: req.user.id,
+      entityType: 'client',
+      action: 'clients.imported',
+      payload: { added, skippedDuplicate, errorsCount: errors.length },
+    });
+
+    res.json({ added, skippedDuplicate, errors });
   })
 );
 

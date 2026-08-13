@@ -3,7 +3,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, BackBtn, Field, TextInput, TextArea, Btn, Avatar, C } from '../ui/components.jsx';
-import { downloadPdf } from '../utils/downloadPdf.js';
+import { downloadPdf, downloadFile } from '../utils/downloadPdf.js';
 
 const EMPTY_FORM = { firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '' };
 const EMPTY_WAITLIST_FORM = { service: '', comment: '' };
@@ -56,7 +56,7 @@ function WaitlistView({ entries, loading, onMarkDone, onDelete }) {
 }
 
 export default function Clients() {
-  const { isManagement } = useAuth();
+  const { isManagement, isOwner } = useAuth();
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -74,6 +74,12 @@ export default function Clients() {
   const [showPackageForm, setShowPackageForm] = useState(false);
   const [packageForm, setPackageForm] = useState(EMPTY_PACKAGE_FORM);
   const [packageError, setPackageError] = useState('');
+  // Импорт/экспорт базы (13.08.2026) — только владелец, см. backend
+  // requireRole('owner') на этих роутах.
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvError, setCsvError] = useState('');
+  const [importResult, setImportResult] = useState(null);
+  const csvFileInputRef = useRef(null);
   const firstNameRef = useRef(null);
 
   function load(searchTerm) {
@@ -81,6 +87,36 @@ export default function Clients() {
       .get('/modules/clients', { params: searchTerm ? { search: searchTerm } : {} })
       .then((res) => setClients(res.data))
       .finally(() => setLoading(false));
+  }
+
+  async function handleExport() {
+    setCsvError('');
+    await downloadFile('/modules/clients/export', 'clients-export.csv', 'text/csv;charset=utf-8', setCsvError, 'Не удалось скачать базу');
+  }
+
+  async function handleDownloadTemplate() {
+    setCsvError('');
+    await downloadFile('/modules/clients/import-template', 'clients-template.csv', 'text/csv;charset=utf-8', setCsvError, 'Не удалось скачать образец');
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setCsvBusy(true);
+    setCsvError('');
+    setImportResult(null);
+    try {
+      const data = new FormData();
+      data.append('file', file);
+      const res = await api.post('/modules/clients/import', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResult(res.data);
+      load(search);
+    } catch (err) {
+      setCsvError(err.response?.data?.error || 'Не удалось загрузить файл');
+    } finally {
+      setCsvBusy(false);
+    }
   }
 
   function loadWaitlist() {
@@ -380,6 +416,30 @@ export default function Clients() {
         <WaitlistView entries={waitlist} loading={waitlistLoading} onMarkDone={markWaitlistDone} onDelete={deleteWaitlistEntry} />
       ) : (
         <>
+          {isOwner && (
+            <Card>
+              <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700, marginBottom: 10 }}>Выгрузка и загрузка базы</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: importResult || csvError ? 10 : 0 }}>
+                <Btn small variant="secondary" onClick={handleExport} disabled={csvBusy}>Скачать базу (CSV)</Btn>
+                <Btn small variant="secondary" onClick={handleDownloadTemplate} disabled={csvBusy}>Скачать образец</Btn>
+                <Btn small variant="secondary" onClick={() => csvFileInputRef.current?.click()} disabled={csvBusy}>
+                  {csvBusy ? 'Загрузка…' : 'Загрузить из файла'}
+                </Btn>
+                <input ref={csvFileInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} style={{ display: 'none' }} />
+              </div>
+              {csvError && <div className="alert alert-error">{csvError}</div>}
+              {importResult && (
+                <div className="alert" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span>Добавлено: {importResult.added}. Пропущено как дубликаты по телефону: {importResult.skippedDuplicate}.</span>
+                  {importResult.errors.length > 0 && (
+                    <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12 }}>
+                      {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
           <TextInput placeholder="Поиск по фамилии, имени или телефону" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
 
           {loading ? (

@@ -45,4 +45,19 @@ const uploadSupportAttachments = multer({
   },
 }).array('files', 3);
 
-module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments };
+// Импорт базы клиентов из CSV (13.08.2026) — mimetype для CSV браузеры/ОС
+// определяют по-разному (text/csv, application/vnd.ms-excel у Excel на
+// Windows, иногда просто application/octet-stream) — проверяем и по
+// mimetype, и по расширению файла, достаточно совпадения одного из двух.
+const uploadCsv = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const okMime = ['text/csv', 'application/vnd.ms-excel', 'application/csv', 'text/plain'].includes(file.mimetype);
+    const okExt = file.originalname.toLowerCase().endsWith('.csv');
+    if (!okMime && !okExt) return cb(new Error('Файл должен быть в формате CSV'));
+    cb(null, true);
+  },
+}).single('file');
+
+module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments, uploadCsv };
