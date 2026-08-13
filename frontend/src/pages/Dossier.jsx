@@ -36,16 +36,17 @@ export default function Dossier() {
 
       <Card>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>За период (один день — если «От» и «До» совпадают)</div>
-        {/* Тот же баг, что и в Финансах ("Свой период") — два поля даты
-            рядом без minWidth:0 не сжимались, строка вылезала за экран.
+        {/* Тот же баг, что и в Финансах ("Свой период") — flex+minWidth:0 не
+            помогал до конца для нативных type="date" полей, второе вылезало
+            за карточку. CSS Grid c minmax(0,1fr) надёжнее (см. Finance.jsx).
             Field не принимает style, оборачиваем отдельным div. */}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
+          <div>
             <Field label="От">
               <TextInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </Field>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div>
             <Field label="До">
               <TextInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </Field>

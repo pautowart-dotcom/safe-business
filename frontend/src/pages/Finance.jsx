@@ -98,15 +98,18 @@ function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, set
         {isCustom ? 'Свой период ✓' : 'Указать даты вручную ›'}
       </button>
       {isCustom && (
-        // Баг (13.08.2026, скриншот владельца): оба поля с type="date" без
-        // minWidth:0 не сжимались ниже "естественной" ширины нативного
-        // date-пикера (на iOS она заметно больше 50% узкого экрана) —
-        // строка вылезала за пределы экрана, и всю страницу утягивало по
-        // горизонтали вбок. flex:1 + minWidth:0 — стандартный фикс для
-        // текстовых/form-полей как flex-детей.
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <TextInput type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
-          <TextInput type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
+        // Баг (13.08.2026, скриншот владельца): flex:1 + minWidth:0 не
+        // помог до конца — нативный виджет type="date" на части браузеров
+        // (Windows) всё равно продавливает свою "естественную" ширину сквозь
+        // flex-basis, и второе поле вылезало за пределы карточки целиком.
+        // CSS Grid с explicit minmax(0,1fr) на обеих колонках жёстче:
+        // верхняя граница ширины колонки задана треком (1fr), а minmax(0,…)
+        // явно снимает автоматический "не сжимать меньше содержимого" минимум
+        // на уровне грида, а не на уровне самого поля — надёжнее для
+        // родных виджетов, чем flex+minWidth:0.
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 8, marginTop: 8 }}>
+          <TextInput type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+          <TextInput type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
         </div>
       )}
     </div>
