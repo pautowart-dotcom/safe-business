@@ -8,8 +8,10 @@ const { nextDueDate } = require('../core/deadlines');
 
 // Пакет 4, Этап 1: 'legal' переименована в 'documents' (юр.документы),
 // добавлены 'premises' (помещение/оборудование) и 'journals' (журналы).
-// 'financial' оставлена про запас под будущие сроки от модуля "Финансы".
-const CATEGORIES = ['staff', 'premises', 'documents', 'tax', 'journals', 'financial'];
+// 'financial' долго стояла про запас под будущие сроки от модуля "Финансы" —
+// теперь их шлёт scripts/dailyOperationsNudges.js. 'operations' — та же
+// ежедневная механика для смены/остатков (13.08.2026).
+const CATEGORIES = ['staff', 'premises', 'documents', 'tax', 'journals', 'financial', 'operations'];
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);

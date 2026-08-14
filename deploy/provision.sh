@@ -61,4 +61,8 @@ echo "== Cron: чекин-письма roadmap открытия бизнеса =
 ROADMAP_CRON_CMD="cd $APP_DIR/backend && node src/scripts/roadmapCheckin.js >> /var/log/safe-business-roadmap-checkin.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "roadmapCheckin.js" ; echo "30 4 * * * $ROADMAP_CRON_CMD" ) | crontab -
 
+echo "== Cron: ежедневные напоминания об операционке (смена/выручка/остатки) =="
+OPS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/dailyOperationsNudges.js >> /var/log/safe-business-ops-nudges.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "dailyOperationsNudges.js" ; echo "0 6 * * * $OPS_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."

@@ -22,6 +22,7 @@ const NOTIFICATION_CATEGORIES = [
   { key: 'documents', label: 'Юридические' },
   { key: 'tax', label: 'Налоговые' },
   { key: 'financial', label: 'Финансовые' },
+  { key: 'operations', label: 'Операционные (смена, остатки)' },
 ];
 
 export default function Settings() {
