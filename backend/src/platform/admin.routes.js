@@ -156,7 +156,7 @@ router.get(
       return res.status(404).json({ error: 'Компания не найдена' });
     }
 
-    const [branches, memberships, modules, addonPurchases] = await Promise.all([
+    const [branches, memberships, modules, addonPurchases, activityByModule, recentActivity] = await Promise.all([
       pool.query('SELECT id, name, address, created_at FROM branches WHERE company_id = $1 ORDER BY name', [
         req.params.id,
       ]),
@@ -172,6 +172,25 @@ router.get(
       ),
       pool.query(
         `SELECT addon_key FROM addon_purchases WHERE company_id = $1 AND status = 'succeeded'`,
+        [req.params.id]
+      ),
+      // Активность по разделам (15.08.2026) — САМ ФАКТ использования
+      // (сколько раз, когда в последний раз), не содержимое. Данные аудита
+      // безопасности сюда попадают только как факт "тест запускали N раз" —
+      // без ответов/нарушений/индекса, та же граница §8 политики, что уже
+      // проведена в admin.routes.js /analytics (агрегат, не постатейно).
+      pool.query(
+        `SELECT COALESCE(module_key, 'other') AS module_key, COUNT(*) AS events_count, MAX(created_at) AS last_at
+         FROM event_log WHERE company_id = $1 GROUP BY module_key ORDER BY last_at DESC`,
+        [req.params.id]
+      ),
+      // Лента последних действий — action/entity_type/когда/кто, БЕЗ payload
+      // (там может быть содержимое, например суммы/названия) — только факт,
+      // что действие произошло.
+      pool.query(
+        `SELECT el.action, el.entity_type, el.module_key, el.created_at, u.name AS user_name
+         FROM event_log el LEFT JOIN users u ON u.id = el.user_id
+         WHERE el.company_id = $1 ORDER BY el.created_at DESC LIMIT 20`,
         [req.params.id]
       ),
     ]);
@@ -190,6 +209,12 @@ router.get(
       memberships: memberships.rows,
       modules: modules.rows,
       addons,
+      activityByModule: activityByModule.rows.map((r) => ({
+        moduleKey: r.module_key,
+        eventsCount: Number(r.events_count),
+        lastAt: r.last_at,
+      })),
+      recentActivity: recentActivity.rows,
     });
   })
 );

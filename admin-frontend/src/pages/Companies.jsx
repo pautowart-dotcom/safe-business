@@ -4,6 +4,12 @@ import { Card, Badge, BackBtn, C } from '../ui/components.jsx';
 
 const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
 const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
+const MODULE_LABELS = { visits: 'Визиты', clients: 'Клиенты', finance: 'Финансы', security: 'Безопасность', supplies: 'Склад', checklists: 'Чек-листы', knowledge: 'База знаний', platform: 'Платформа (вход, команда)', other: 'Прочее' };
+
+function daysAgo(dateStr) {
+  if (!dateStr) return null;
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+}
 
 function CompanyDetail({ id, onBack, onDeleted }) {
   const [data, setData] = useState(null);
@@ -72,7 +78,11 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   }
 
   if (!data) return <div className="page-loading">Загрузка...</div>;
-  const { company, memberships, modules, addons } = data;
+  const { company, memberships, modules, addons, activityByModule, recentActivity } = data;
+  const lastActivityAt = activityByModule.length > 0
+    ? activityByModule.reduce((max, m) => (!max || new Date(m.lastAt) > new Date(max) ? m.lastAt : max), null)
+    : null;
+  const lastActivityDays = daysAgo(lastActivityAt);
 
   return (
     <div>
@@ -115,6 +125,35 @@ function CompanyDetail({ id, onBack, onDeleted }) {
           {company.is_test ? 'Убрать пометку теста' : 'Пометить как тестовую'}
         </button>
       </div>
+
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>Активность</div>
+          <span style={{ fontSize: 12, color: lastActivityDays == null ? C.subtle : lastActivityDays > 7 ? C.red : C.subtle }}>
+            {lastActivityAt == null ? 'Ни одного действия' : lastActivityDays === 0 ? 'Сегодня' : `${lastActivityDays} дн. назад`}
+          </span>
+        </div>
+        {activityByModule.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.subtle }}>Компания ещё ничего не делала в сервисе</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {activityByModule.map((a) => (
+                <Badge key={a.moduleKey} color={C.secondary} bg={C.surface}>
+                  {MODULE_LABELS[a.moduleKey] || a.moduleKey}: {a.eventsCount}
+                </Badge>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Последние действия</div>
+            {recentActivity.map((e, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 12 }}>
+                <span style={{ color: C.secondary }}>{e.action}{e.user_name ? ` · ${e.user_name}` : ''}</span>
+                <span style={{ color: C.subtle }}>{new Date(e.created_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </Card>
 
       <Card>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Сотрудники ({memberships.length})</div>
