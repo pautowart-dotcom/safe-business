@@ -43,8 +43,12 @@ const CHECKS_BY_ROLE = {
     { name: 'Дедлайны', path: '/api/platform/deadlines', expect: [200] },
     { name: 'Журналы (заморожены, ожидаемо 403)', path: '/api/platform/journals/uv-lamp', expect: [403] },
     { name: 'Склад (категории)', path: '/api/modules/supplies/categories', expect: [200] },
-    // Мастеру сводка доступна (без netProfit — см. finance/summary.routes.js), не 403.
-    { name: 'Финансы (сводка, без netProfit)', path: '/api/modules/finance/summary', expect: [200] },
+    // 15.08.2026: владелец пересмотрел решение "Задачи 3" (07.08.2026) — мастер
+    // видит в "Финансах" только свои данные (через /modules/visits и
+    // /modules/finance/adjustments, уже отфильтрованы), не сводку компании.
+    // /finance/summary снова owner/admin-only, 403 мастеру — ожидаемый ответ,
+    // не сбой (см. finance/index.js).
+    { name: 'Финансы (сводка, ожидаемо 403)', path: '/api/modules/finance/summary', expect: [403] },
     { name: 'Безопасность (ожидаемо 403)', path: '/api/modules/security/sessions', expect: [403] },
   ],
 };
