@@ -56,7 +56,7 @@ router.get(
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.invite_status, m.invited_email, m.created_at, m.active,
+      `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.daily_hours, m.invite_status, m.invited_email, m.created_at, m.active,
               u.id AS user_id, u.name AS user_name, u.email AS user_email
        FROM memberships m
        LEFT JOIN users u ON u.id = m.user_id
@@ -140,7 +140,7 @@ router.patch(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { payoutPercent, branchId } = req.body;
+    const { payoutPercent, branchId, dailyHours } = req.body;
 
     if (branchId) {
       const branch = await pool.query('SELECT 1 FROM branches WHERE id = $1 AND company_id = $2', [
@@ -151,14 +151,26 @@ router.patch(
         return res.status(400).json({ error: 'Филиал не найден в этой компании' });
       }
     }
+    if (dailyHours !== undefined && dailyHours !== null && dailyHours !== '' && Number(dailyHours) <= 0) {
+      return res.status(400).json({ error: 'Рабочих часов в день должно быть больше нуля' });
+    }
 
+    // daily_hours (Этап 3 плана аналитики) — переопределение дефолта
+    // компании для этого конкретного мастера, nullable (сбрасывается в
+    // NULL пустой строкой из формы — тот же паттерн emptyToNull, что и у
+    // payoutPercent/branchId, но с явным dailyHoursProvided: 0 — валидное
+    // отличное от "не менять" значение было бы потеряно обычным COALESCE,
+    // хотя сама валидация выше уже не пускает 0/отрицательные — оставляем
+    // проверку "передано ли поле" на будущее, если появится 0 как смысл.
+    const dailyHoursProvided = 'dailyHours' in req.body;
     const { rows } = await pool.query(
       `UPDATE memberships SET
          payout_percent = COALESCE($1, payout_percent),
-         branch_id = COALESCE($2, branch_id)
+         branch_id = COALESCE($2, branch_id),
+         daily_hours = CASE WHEN $5 THEN $6 ELSE daily_hours END
        WHERE id = $3 AND company_id = $4 AND role IN ('master', 'admin')
-       RETURNING id, role, branch_id, payout_percent, invite_status`,
-      [emptyToNull(payoutPercent), emptyToNull(branchId), req.params.id, req.tenant.companyId]
+       RETURNING id, role, branch_id, payout_percent, daily_hours, invite_status`,
+      [emptyToNull(payoutPercent), emptyToNull(branchId), req.params.id, req.tenant.companyId, dailyHoursProvided, emptyToNull(dailyHours)]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Участник не найден' });

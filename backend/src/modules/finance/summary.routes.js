@@ -42,6 +42,13 @@ function resolvePeriod(query) {
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
+// Та же формула скидки/итога, что в visits.routes.js (DISCOUNT_AMOUNT_SQL) —
+// продублирована здесь (не вынесена в общий модуль), т.к. это единственное
+// пересечение между visits и finance по SQL-выражениям, ради одной строки
+// заводить общий файл не стали.
+const DISCOUNT_AMOUNT_SQL = "COALESCE(v.discount_fixed_amount, ROUND(v.amount * v.discount_percent / 100, 2))";
+const FINAL_AMOUNT_SQL = `ROUND(v.amount - (${DISCOUNT_AMOUNT_SQL}), 2)`;
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -162,7 +169,51 @@ router.get(
     );
     const variableExpenses = parseFloat(variable.rows[0].total);
 
-    const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - variableExpenses;
+    // Разбивка расходов по категории (Этап 0 плана аналитики, 15.08.2026) —
+    // тот же паттерн, что byNiche/byMaster у выручки. Только expense_entries
+    // (разовые/переменные) — recurring (постоянные/%) не подмешиваем сюда:
+    // их и так видно по отдельности в списке /recurring-expenses с теми же
+    // category/channel на каждой записи, а объединять два разных источника
+    // в одну сумму усложнило бы без явной пользы на этом этапе.
+    const byCategoryRes = await pool.query(
+      `SELECT COALESCE(category, 'uncategorized') AS category, COALESCE(SUM(amount), 0) AS total
+       FROM expense_entries
+       WHERE company_id = $1 AND occurred_at BETWEEN $2 AND $3
+       GROUP BY category
+       ORDER BY total DESC`,
+      [companyId, from, to]
+    );
+    const expensesByCategory = byCategoryRes.rows.map((r) => ({ category: r.category, total: round2(parseFloat(r.total)) }));
+
+    // Канал внутри "реклама" — решение 15.08.2026: суммы расхода на рекламу
+    // недостаточно для анализа, нужно знать, какой канал вообще работает.
+    const byChannelRes = await pool.query(
+      `SELECT COALESCE(channel, 'unspecified') AS channel, COALESCE(SUM(amount), 0) AS total
+       FROM expense_entries
+       WHERE company_id = $1 AND occurred_at BETWEEN $2 AND $3 AND category = 'advertising'
+       GROUP BY channel
+       ORDER BY total DESC`,
+      [companyId, from, to]
+    );
+    const advertisingByChannel = byChannelRes.rows.map((r) => ({ channel: r.channel, total: round2(parseFloat(r.total)) }));
+
+    // Себестоимость материалов (Этап 4 плана аналитики, 15.08.2026) — из
+    // visit_supplies × supplies.unit_cost. unit_cost nullable (владелец мог
+    // ещё не проставить закупочные цены) — AND s.unit_cost IS NOT NULL,
+    // а не COALESCE(unit_cost, 0): списание расходника без указанной цены
+    // не должно молча искажать эту сумму нулём в СУММЕ (тогда просто не
+    // участвует, честнее, чем "притвориться, что стоил 0 ₽").
+    const materialsRes = await pool.query(
+      `SELECT COALESCE(SUM(vs.quantity * s.unit_cost), 0) AS total
+       FROM visit_supplies vs
+       JOIN supplies s ON s.id = vs.supply_id
+       JOIN visits v ON v.id = vs.visit_id
+       WHERE vs.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3 AND s.unit_cost IS NOT NULL`,
+      [companyId, from, to]
+    );
+    const materialsCost = parseFloat(materialsRes.rows[0].total);
+
+    const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - variableExpenses - materialsCost;
 
     // Этап 5: администратор видит выручку и расходы, но не итоговую
     // прибыль/маржу компании — поле просто не попадает в ответ, а не
@@ -196,9 +247,17 @@ router.get(
         visitsCount: Number(r.visits_count),
         revenue: round2(parseFloat(r.revenue)),
       })),
+      expensesByCategory,
+      advertisingByChannel,
     };
     if (req.tenant.role === 'owner') {
       summary.netProfit = round2(netProfit);
+      // Себестоимость материалов — та же чувствительность, что netProfit
+      // (закупочная цена = маржа), owner-only. 0 не всегда значит "материалы
+      // бесплатны" — может значить "цены ещё не проставлены" (см. комментарий
+      // у materialsRes выше); честно отражаем это отдельным полем, а не
+      // только суммой.
+      summary.materialsCost = round2(materialsCost);
 
       // Разбивка выручки по способу оплаты визита (План 04.08.2026, п.3) —
       // владелец видит, кто вводит поле (мастер/админ при самом визите) не
@@ -268,17 +327,31 @@ router.get(
          FROM expense_entries
          WHERE company_id = $1 AND occurred_at >= now() - make_interval(months => $2)
          GROUP BY 1
+       ),
+       -- Себестоимость материалов по месяцам (Этап 4 плана аналитики,
+       -- 15.08.2026) — тот же принцип, что и в /: только позиции с
+       -- проставленной unit_cost, иначе списание без цены молча обнулило бы
+       -- сумму вместо того, чтобы просто не участвовать в ней.
+       materials_by_month AS (
+         SELECT date_trunc('month', v.visit_at)::date AS month_start, SUM(vs.quantity * s.unit_cost) AS materials_cost
+         FROM visit_supplies vs
+         JOIN supplies s ON s.id = vs.supply_id AND s.unit_cost IS NOT NULL
+         JOIN visits v ON v.id = vs.visit_id
+         WHERE vs.company_id = $1 AND v.visit_at >= now() - make_interval(months => $2)
+         GROUP BY 1
        )
        SELECT to_char(m.month_start, 'YYYY-MM') AS month,
               COALESCE(r.revenue, 0) AS revenue,
               COALESCE(v.master_salaries, 0) AS master_salaries,
               COALESCE(v.visits_count, 0) AS visits_count,
               COALESCE(v.visits_revenue, 0) AS visits_revenue,
-              COALESCE(e.variable_expenses, 0) AS variable_expenses
+              COALESCE(e.variable_expenses, 0) AS variable_expenses,
+              COALESCE(mat.materials_cost, 0) AS materials_cost
        FROM months m
        LEFT JOIN revenue_by_month r ON r.month_start = m.month_start
        LEFT JOIN visits_by_month v ON v.month_start = m.month_start
        LEFT JOIN variable_by_month e ON e.month_start = m.month_start
+       LEFT JOIN materials_by_month mat ON mat.month_start = m.month_start
        ORDER BY m.month_start`,
       [companyId, months]
     );
@@ -301,7 +374,8 @@ router.get(
       const visitsCount = Number(row.visits_count);
       const visitsRevenue = parseFloat(row.visits_revenue);
       const percentExpenses = (revenue * percentRate) / 100;
-      const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - parseFloat(row.variable_expenses);
+      const materialsCost = parseFloat(row.materials_cost);
+      const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - parseFloat(row.variable_expenses) - materialsCost;
 
       const point = {
         month: row.month,
@@ -318,11 +392,160 @@ router.get(
         point.fixedExpenses = round2(fixedExpenses);
         point.percentExpenses = round2(percentExpenses);
         point.variableExpenses = round2(parseFloat(row.variable_expenses));
+        point.materialsCost = round2(materialsCost);
       }
       return point;
     });
 
     res.json({ trends });
+  })
+);
+
+// Этап 1 плана аналитики (docs/plan-2026-08-15-analytics-ai-monthly-summary.md)
+// — метрики без единого нового поля в БД, только группировки/агрегаты по
+// уже существующим visits. owner/admin-only, тот же гейт, что у /summary
+// (роут монтируется в тот же /summary router в index.js).
+router.get(
+  '/insights',
+  asyncHandler(async (req, res) => {
+    const { from, to } = resolvePeriod(req.query);
+    const companyId = req.tenant.companyId;
+
+    const [byHourRes, byWeekdayRes, popularRes, discountRes, clientVisitsRes, companyHoursRes, utilizationRes] = await Promise.all([
+      // Загруженность по часам — AT TIME ZONE переводит timestamptz в
+      // московское время ПЕРЕД тем, как достать час, а не берёт час сервера
+      // (тот же класс бага, что уже чинили в moscowDate.js для дат).
+      pool.query(
+        `SELECT EXTRACT(HOUR FROM v.visit_at AT TIME ZONE 'Europe/Moscow')::int AS hour,
+                COUNT(*) AS visits_count, COALESCE(SUM(${FINAL_AMOUNT_SQL}), 0) AS revenue
+         FROM visits v WHERE v.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3
+         GROUP BY hour ORDER BY hour`,
+        [companyId, from, to]
+      ),
+      // DOW: 0=воскресенье..6=суббота (стандарт Postgres) — на фронте
+      // переупорядочиваем в Пн..Вс.
+      pool.query(
+        `SELECT EXTRACT(DOW FROM v.visit_at AT TIME ZONE 'Europe/Moscow')::int AS weekday,
+                COUNT(*) AS visits_count, COALESCE(SUM(${FINAL_AMOUNT_SQL}), 0) AS revenue
+         FROM visits v WHERE v.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3
+         GROUP BY weekday ORDER BY weekday`,
+        [companyId, from, to]
+      ),
+      pool.query(
+        `SELECT v.service, COUNT(*) AS visits_count, COALESCE(SUM(${FINAL_AMOUNT_SQL}), 0) AS revenue
+         FROM visits v WHERE v.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3
+         GROUP BY v.service ORDER BY revenue DESC LIMIT 10`,
+        [companyId, from, to]
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS total_visits,
+                COUNT(*) FILTER (WHERE v.discount_percent > 0 OR v.discount_fixed_amount > 0) AS discounted_visits,
+                COALESCE(SUM(${DISCOUNT_AMOUNT_SQL}), 0) AS total_discount_amount
+         FROM visits v WHERE v.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3`,
+        [companyId, from, to]
+      ),
+      // Повторяемость клиентов — за ВСЁ время компании, не за выбранный
+      // период: короткие/месячные периоды почти никогда не покажут второй
+      // визит одного клиента маникюра/депиляции и т.п. (типичный интервал —
+      // недели), метрика на коротком окне была бы бессмысленной.
+      pool.query(
+        `SELECT client_id, COUNT(*) AS visit_count, MIN(visit_at) AS first_visit, MAX(visit_at) AS last_visit
+         FROM visits WHERE company_id = $1 GROUP BY client_id`,
+        [companyId]
+      ),
+      pool.query('SELECT default_daily_hours FROM companies WHERE id = $1', [companyId]),
+      // Утилизация (Этап 3 плана аналитики, 15.08.2026) — Σ длительность
+      // услуг ÷ рабочие часы, только по дням, когда у мастера реально БЫЛИ
+      // визиты (COUNT DISTINCT visit_at::date) — так не нужно знать, работал
+      // ли мастер в конкретный день вообще (календаря смен в продукте нет,
+      // см. план): дни без единого визита просто не попадают ни в числитель,
+      // ни в знаменатель, а не искажают % как "простой".
+      // service_id может быть NULL (визит без привязки к каталогу) —
+      // LEFT JOIN, такие визиты просто не добавляют минут в числитель;
+      // visits_without_duration ниже считает, сколько их, чтобы честно
+      // показать владельцу, насколько % вообще на что-то опирается.
+      pool.query(
+        `SELECT v.master_membership_id, u.name AS master_name, m.daily_hours,
+                COUNT(DISTINCT v.visit_at::date) AS working_days,
+                COALESCE(SUM(s.duration_minutes), 0) AS booked_minutes,
+                COUNT(*) AS total_visits,
+                COUNT(*) FILTER (WHERE v.service_id IS NULL) AS visits_without_duration
+         FROM visits v
+         LEFT JOIN services s ON s.id = v.service_id
+         LEFT JOIN memberships m ON m.id = v.master_membership_id
+         LEFT JOIN users u ON u.id = m.user_id
+         WHERE v.company_id = $1 AND v.visit_at::date BETWEEN $2 AND $3 AND v.master_membership_id IS NOT NULL
+         GROUP BY v.master_membership_id, u.name, m.daily_hours`,
+        [companyId, from, to]
+      ),
+    ]);
+
+    const byHour = Array.from({ length: 24 }, (_, h) => {
+      const row = byHourRes.rows.find((r) => Number(r.hour) === h);
+      return { hour: h, visitsCount: row ? Number(row.visits_count) : 0, revenue: row ? round2(parseFloat(row.revenue)) : 0 };
+    });
+    const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Пн..Вс (Postgres DOW: 0=Вс)
+    const byWeekday = WEEKDAY_ORDER.map((w) => {
+      const row = byWeekdayRes.rows.find((r) => Number(r.weekday) === w);
+      return { weekday: w, visitsCount: row ? Number(row.visits_count) : 0, revenue: row ? round2(parseFloat(row.revenue)) : 0 };
+    });
+    const popularServices = popularRes.rows.map((r) => ({
+      service: r.service,
+      visitsCount: Number(r.visits_count),
+      revenue: round2(parseFloat(r.revenue)),
+    }));
+
+    const totalVisits = Number(discountRes.rows[0].total_visits);
+    const discountedVisits = Number(discountRes.rows[0].discounted_visits);
+    const discountUsage = {
+      totalVisits,
+      discountedVisits,
+      discountRate: totalVisits > 0 ? round2((discountedVisits / totalVisits) * 100) : 0,
+      totalDiscountAmount: round2(parseFloat(discountRes.rows[0].total_discount_amount)),
+    };
+
+    const clientRows = clientVisitsRes.rows;
+    const totalClients = clientRows.length;
+    const repeatRows = clientRows.filter((r) => Number(r.visit_count) > 1);
+    const avgIntervalDays = repeatRows.length > 0
+      ? round2(
+          repeatRows.reduce((sum, r) => {
+            const spanDays = (new Date(r.last_visit) - new Date(r.first_visit)) / 86400000;
+            return sum + spanDays / (Number(r.visit_count) - 1);
+          }, 0) / repeatRows.length
+        )
+      : null;
+    const repeatClients = {
+      totalClients,
+      repeatClients: repeatRows.length,
+      repeatRate: totalClients > 0 ? round2((repeatRows.length / totalClients) * 100) : 0,
+      avgIntervalDays,
+    };
+
+    const companyDefaultDailyHours = parseFloat(companyHoursRes.rows[0].default_daily_hours);
+    const utilizationByMaster = utilizationRes.rows.map((r) => {
+      const dailyHours = r.daily_hours != null ? parseFloat(r.daily_hours) : companyDefaultDailyHours;
+      const workingDays = Number(r.working_days);
+      const bookedMinutes = Number(r.booked_minutes);
+      const totalVisits = Number(r.total_visits);
+      const visitsWithoutDuration = Number(r.visits_without_duration);
+      const capacityMinutes = workingDays * dailyHours * 60;
+      return {
+        masterMembershipId: r.master_membership_id,
+        masterName: r.master_name,
+        workingDays,
+        dailyHours,
+        utilizationPercent: capacityMinutes > 0 ? round2((bookedMinutes / capacityMinutes) * 100) : null,
+        // Доля визитов ЭТОГО мастера за период, у которых вообще есть
+        // услуга из каталога (значит, есть длительность) — низкое значение
+        // означает, что utilizationPercent занижен (часть визитов не внесла
+        // минут в числитель), не то что мастер реально мало работал.
+        dataCoveragePercent: totalVisits > 0 ? round2(((totalVisits - visitsWithoutDuration) / totalVisits) * 100) : 0,
+      };
+    });
+    const utilization = { companyDefaultDailyHours, byMaster: utilizationByMaster };
+
+    res.json({ period: { from, to }, byHour, byWeekday, popularServices, discountUsage, repeatClients, utilization });
   })
 );
 

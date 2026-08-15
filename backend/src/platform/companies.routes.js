@@ -113,7 +113,7 @@ router.get(
         `SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime,
                 subscription_current_period_end, subscription_price_rub,
                 to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test
+                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test, default_daily_hours
          FROM companies WHERE id = $1`,
         [req.tenant.companyId]
       ),
@@ -138,11 +138,14 @@ router.patch(
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, industrySegment, taxRegime, ipRegisteredAt, hasEmployees } = req.body;
+    const { name, industrySegment, taxRegime, ipRegisteredAt, hasEmployees, defaultDailyHours } = req.body;
     // taxRegime может прийти '' (сброс режима на "не указан" из фронта) —
     // это валидный случай, отличный от неизвестного ключа.
     if (taxRegime && !TAX_REGIMES.some((r) => r.key === taxRegime)) {
       return res.status(400).json({ error: 'Неизвестный налоговый режим' });
+    }
+    if (defaultDailyHours !== undefined && defaultDailyHours !== null && defaultDailyHours !== '' && Number(defaultDailyHours) <= 0) {
+      return res.status(400).json({ error: 'Рабочих часов в день должно быть больше нуля' });
     }
 
     const { rows } = await pool.query(
@@ -151,17 +154,19 @@ router.patch(
          industry_segment = COALESCE($2, industry_segment),
          tax_regime = CASE WHEN $3 THEN $4 ELSE tax_regime END,
          ip_registered_at = CASE WHEN $5 THEN $6 ELSE ip_registered_at END,
-         has_employees = CASE WHEN $7 THEN $8 ELSE has_employees END
+         has_employees = CASE WHEN $7 THEN $8 ELSE has_employees END,
+         default_daily_hours = COALESCE($10, default_daily_hours)
        WHERE id = $9
        RETURNING id, name, industry_segment, subscription_status, trial_ends_at, tax_regime,
                  to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at`,
+                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, default_daily_hours`,
       [
         name || null, industrySegment || null,
         taxRegime !== undefined, taxRegime || null,
         ipRegisteredAt !== undefined, ipRegisteredAt || null,
         hasEmployees !== undefined, hasEmployees === undefined ? null : !!hasEmployees,
         req.tenant.companyId,
+        defaultDailyHours || null,
       ]
     );
 

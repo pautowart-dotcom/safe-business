@@ -4,17 +4,36 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
-import { TrendLineChart, StatTile, StackedBarBreakdown, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
+import { TrendLineChart, StatTile, StackedBarBreakdown, VerticalBarChart, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 import { localDateStr } from '../utils/localDate.js';
 import { nicheLabel } from '../utils/niches.js';
 
 const PERIOD_PRESETS = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['lastMonth', 'Прошлый месяц']];
-const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '' };
-const EMPTY_RECURRING_FORM = { name: '', kind: 'fixed', amount: '' };
+const EMPTY_EXPENSE_FORM = { name: '', amount: '', occurredAt: '', category: '', channel: '' };
+const EMPTY_RECURRING_FORM = { name: '', kind: 'fixed', amount: '', category: '', channel: '' };
 const EMPTY_ADJUSTMENT_FORM = { masterMembershipId: '', amount: '', comment: '', occurredAt: '' };
 const EMPTY_REVENUE_FORM = { amount: '', membershipId: '', comment: '', occurredAt: '' };
 
 const PAYMENT_METHOD_LABELS = { cash: 'Наличные', card: 'Карта', transfer: 'Перевод', package: 'Абонемент', other: 'Другое', unspecified: 'Не указан' };
+
+// Этап 0 плана аналитики (15.08.2026) — фиксированный список категорий
+// расходов, ключи совпадают с CHECK-констрейнтом миграции 0080.
+const EXPENSE_CATEGORIES = [
+  ['advertising', 'Реклама'],
+  ['supplies', 'Расходники'],
+  ['rent', 'Аренда'],
+  ['utilities', 'Коммунальные'],
+  ['accounting_legal', 'Бухгалтерия/юрист'],
+  ['equipment_repair', 'Оборудование/ремонт'],
+  ['other', 'Прочее'],
+];
+const EXPENSE_CATEGORY_LABELS = Object.fromEntries(EXPENSE_CATEGORIES);
+EXPENSE_CATEGORY_LABELS.uncategorized = 'Без категории';
+
+// Подсказки канала — свободный ввод (datalist), не жёсткий список: решение
+// 15.08.2026 было "не ограничивать нестандартные случаи".
+const AD_CHANNEL_SUGGESTIONS = ['Instagram', 'Яндекс Директ', 'ВКонтакте', 'Листовки/наружка', 'Блогер/коллаборация', 'Яндекс.Карты/2ГИС', 'Сарафанное радио'];
+const AD_CHANNEL_LABELS = { unspecified: 'Канал не указан' };
 
 function money(v) {
   return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
@@ -166,6 +185,11 @@ function OwnerFinance() {
   // управляет "Обзором"/"По мастерам"), всегда последние 12 месяцев.
   const [trends, setTrends] = useState(null);
   const [trendsError, setTrendsError] = useState('');
+  // Этап 1 плана аналитики (15.08.2026) — метрики без новых полей БД, следуют
+  // тому же выбору периода, что "Обзор"/"По мастерам" (в отличие от trends,
+  // которые всегда за последние 12 мес независимо от периода).
+  const [insights, setInsights] = useState(null);
+  const [insightsError, setInsightsError] = useState('');
 
   function load() {
     if (!period.ready) return Promise.resolve();
@@ -196,10 +220,19 @@ function OwnerFinance() {
       .then((res) => setTrends(res.data.trends))
       .catch((err) => setTrendsError(err.response?.data?.error || err.message || 'Не удалось загрузить аналитику'));
   }
+  function loadInsights() {
+    if (!period.ready) return Promise.resolve();
+    setInsightsError('');
+    return api
+      .get('/modules/finance/summary/insights', { params: period.params })
+      .then((res) => setInsights(res.data))
+      .catch((err) => setInsightsError(err.response?.data?.error || err.message || 'Не удалось загрузить аналитику'));
+  }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     load();
+    loadInsights();
   }, [period.preset, period.customFrom, period.customTo]);
   useEffect(() => {
     loadRecurring();
@@ -207,7 +240,7 @@ function OwnerFinance() {
   useEffect(() => {
     loadTrends();
   }, []);
-  usePullToRefresh(() => Promise.all([load(), loadRecurring(), loadTrends()]));
+  usePullToRefresh(() => Promise.all([load(), loadRecurring(), loadTrends(), loadInsights()]));
   useEffect(() => {
     api.get('/platform/memberships').then((res) => setMasters(res.data.filter((m) => m.role === 'master' && m.user_id)));
   }, []);
@@ -248,7 +281,7 @@ function OwnerFinance() {
   }
   function openEditRecurring(r) {
     setEditingRecurringId(r.id);
-    setRecurringForm({ name: r.name, kind: r.kind, amount: String(r.amount) });
+    setRecurringForm({ name: r.name, kind: r.kind, amount: String(r.amount), category: r.category || '', channel: r.channel || '' });
   }
   function closeRecurringForm() {
     setRecurringForm(null);
@@ -275,7 +308,7 @@ function OwnerFinance() {
   }
   function openEditExpense(e) {
     setEditingExpenseId(e.id);
-    setExpenseForm({ name: e.name, amount: String(e.amount), occurredAt: (e.occurred_at || '').slice(0, 10) });
+    setExpenseForm({ name: e.name, amount: String(e.amount), occurredAt: (e.occurred_at || '').slice(0, 10), category: e.category || '', channel: e.channel || '' });
   }
   function closeExpenseForm() {
     setExpenseForm(null);
@@ -390,7 +423,9 @@ function OwnerFinance() {
           onDeleteAdjustment={deleteAdjustment}
         />
       )}
-      {tab === 'analytics' && <AnalyticsTab trends={trends} error={trendsError} />}
+      {tab === 'analytics' && (
+        <AnalyticsTab trends={trends} error={trendsError} insights={insights} insightsError={insightsError} byMaster={summary.byMaster} />
+      )}
 
       {adjustmentForm && (
         <AdjustmentModal form={adjustmentForm} setForm={setAdjustmentForm} masters={masters} onSubmit={submitAdjustment} onClose={() => setAdjustmentForm(null)} />
@@ -482,6 +517,7 @@ function OverviewTab({
         <PnlRow label="Пост. расходы" value={summary.fixedExpenses} sign="−" />
         <PnlRow label="% расходы" value={summary.percentExpenses} sign="−" />
         <PnlRow label="Перем. расходы" value={summary.variableExpenses} sign="−" />
+        {summary.materialsCost != null && <PnlRow label="Материалы (по факту списания)" value={summary.materialsCost} sign="−" />}
         {summary.netProfit != null && (
           <>
             <div style={{ height: 1, background: 'rgba(255,255,255,0.25)', margin: '12px 0 10px' }} />
@@ -492,6 +528,11 @@ function OverviewTab({
           </>
         )}
       </div>
+      {summary.materialsCost === 0 && (
+        <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 12, padding: '0 4px' }}>
+          Себестоимость материалов — 0 ₽: скорее всего, у расходников на складе ещё не указаны закупочные цены (Склад расходников → Изменить), а не потому что они бесплатны.
+        </div>
+      )}
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -558,7 +599,13 @@ function OverviewTab({
           <RecurringForm form={recurringForm} setForm={setRecurringForm} onSubmit={submitRecurring} onCancel={closeRecurringForm} unitLabel="Сумма ₽/мес" editing={!!editingRecurringId} />
         )}
         {recurring.filter((r) => r.kind === 'fixed').map((r) => (
-          <ExpRow key={r.id} label={r.name} value={money(r.amount)} onEdit={() => openEditRecurring(r)} onDel={() => deleteRecurring(r.id)} />
+          <ExpRow
+            key={r.id}
+            label={r.category ? `${r.name} · ${EXPENSE_CATEGORY_LABELS[r.category] || r.category}${r.channel ? ` (${r.channel})` : ''}` : r.name}
+            value={money(r.amount)}
+            onEdit={() => openEditRecurring(r)}
+            onDel={() => deleteRecurring(r.id)}
+          />
         ))}
         {!summary.recurringCountedThisPeriod && recurring.some((r) => r.kind === 'fixed') && (
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>Учитывается в прибыли только за целый месяц — переключитесь на «Месяц» или «Прошлый месяц»</div>
@@ -607,6 +654,26 @@ function OverviewTab({
         {expenseForm && (
           <form onSubmit={submitExpense} style={{ background: C.surface, borderRadius: 10, padding: 12, marginBottom: 12 }}>
             <TextInput placeholder="Название" value={expenseForm.name} onChange={(e) => setExpenseForm({ ...expenseForm, name: e.target.value })} style={{ marginBottom: 8, background: C.bg }} />
+            <Select value={expenseForm.category} onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value, channel: e.target.value === 'advertising' ? expenseForm.channel : '' })} style={{ marginBottom: 8, background: C.bg }}>
+              <option value="">Без категории</option>
+              {EXPENSE_CATEGORIES.map(([k, l]) => (
+                <option key={k} value={k}>{l}</option>
+              ))}
+            </Select>
+            {expenseForm.category === 'advertising' && (
+              <>
+                <TextInput
+                  list="ad-channel-suggestions"
+                  placeholder="Какая реклама? (Instagram, Директ...)"
+                  value={expenseForm.channel}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, channel: e.target.value })}
+                  style={{ marginBottom: 8, background: C.bg }}
+                />
+                <datalist id="ad-channel-suggestions">
+                  {AD_CHANNEL_SUGGESTIONS.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <TextInput type="number" placeholder="Сумма ₽" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={{ background: C.bg }} />
               <Btn small type="submit">{editingExpenseId ? 'Сохранить' : 'Добавить'}</Btn>
@@ -615,13 +682,43 @@ function OverviewTab({
           </form>
         )}
         {expenses.map((e) => (
-          <ExpRow key={e.id} label={`${e.name} · ${new Date(e.occurred_at).toLocaleDateString('ru-RU')}`} value={money(e.amount)} onEdit={() => openEditExpense(e)} onDel={() => deleteExpense(e.id)} />
+          <ExpRow
+            key={e.id}
+            label={`${e.name}${e.category ? ` · ${EXPENSE_CATEGORY_LABELS[e.category] || e.category}${e.channel ? ` (${e.channel})` : ''}` : ''} · ${new Date(e.occurred_at).toLocaleDateString('ru-RU')}`}
+            value={money(e.amount)}
+            onEdit={() => openEditExpense(e)}
+            onDel={() => deleteExpense(e.id)}
+          />
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', marginTop: 4, borderTop: `2px solid ${C.border}` }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого</span>
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(summary.variableExpenses)}</span>
         </div>
       </Card>
+
+      {summary.expensesByCategory && summary.expensesByCategory.length > 0 && (
+        <Card>
+          <ST>Переменные расходы по категориям</ST>
+          {summary.expensesByCategory.map((row) => (
+            <div key={row.category} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>{EXPENSE_CATEGORY_LABELS[row.category] || row.category}</span>
+              <span style={{ fontWeight: 700 }}>{money(row.total)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {summary.advertisingByChannel && summary.advertisingByChannel.length > 0 && (
+        <Card>
+          <ST>Реклама по каналам</ST>
+          {summary.advertisingByChannel.map((row) => (
+            <div key={row.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>{AD_CHANNEL_LABELS[row.channel] || row.channel}</span>
+              <span style={{ fontWeight: 700 }}>{money(row.total)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }
@@ -630,6 +727,26 @@ function RecurringForm({ form, setForm, onSubmit, onCancel, unitLabel, editing }
   return (
     <form onSubmit={onSubmit} style={{ background: C.surface, borderRadius: 10, padding: 12, marginBottom: 12 }}>
       <TextInput placeholder="Название" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ marginBottom: 8, background: C.bg }} />
+      <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value, channel: e.target.value === 'advertising' ? form.channel : '' })} style={{ marginBottom: 8, background: C.bg }}>
+        <option value="">Без категории</option>
+        {EXPENSE_CATEGORIES.map(([k, l]) => (
+          <option key={k} value={k}>{l}</option>
+        ))}
+      </Select>
+      {form.category === 'advertising' && (
+        <>
+          <TextInput
+            list="ad-channel-suggestions-recurring"
+            placeholder="Какая реклама? (Instagram, Директ...)"
+            value={form.channel}
+            onChange={(e) => setForm({ ...form, channel: e.target.value })}
+            style={{ marginBottom: 8, background: C.bg }}
+          />
+          <datalist id="ad-channel-suggestions-recurring">
+            {AD_CHANNEL_SUGGESTIONS.map((c) => <option key={c} value={c} />)}
+          </datalist>
+        </>
+      )}
       <div style={{ display: 'flex', gap: 8 }}>
         <TextInput type="number" placeholder={unitLabel} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} style={{ background: C.bg }} />
         <Btn small type="submit">{editing ? 'Сохранить' : 'Добавить'}</Btn>
@@ -763,7 +880,95 @@ function monthLabel(ym) {
   return MONTH_LABELS[Number(m) - 1] || ym;
 }
 
-function AnalyticsTab({ trends, error }) {
+const WEEKDAY_LABELS = { 0: 'Вс', 1: 'Пн', 2: 'Вт', 3: 'Ср', 4: 'Чт', 5: 'Пт', 6: 'Сб' };
+
+function InsightsSection({ insights, error, byMaster }) {
+  if (error) return <div className="alert alert-error">{error}</div>;
+  if (!insights) return null;
+
+  const hourBars = insights.byHour.map((h) => ({ key: h.hour, label: h.hour % 3 === 0 ? String(h.hour) : '', value: h.visitsCount }));
+  const weekdayBars = insights.byWeekday.map((w) => ({ key: w.weekday, label: WEEKDAY_LABELS[w.weekday], value: w.visitsCount }));
+  const hasVisits = insights.byWeekday.some((w) => w.visitsCount > 0);
+  const topMasters = [...(byMaster || [])].sort((a, b) => b.revenue - a.revenue).filter((m) => m.visitsCount > 0);
+
+  return (
+    <>
+      {hasVisits && (
+        <Card>
+          <ST>Загруженность по дням недели</ST>
+          <VerticalBarChart bars={weekdayBars} formatValue={(v) => `${v} визитов`} />
+        </Card>
+      )}
+      {hasVisits && (
+        <Card>
+          <ST>Загруженность по часам</ST>
+          <VerticalBarChart bars={hourBars} formatValue={(v) => `${v} визитов`} color={CHART_COLORS.aqua} />
+        </Card>
+      )}
+      {insights.popularServices.length > 0 && (
+        <Card>
+          <ST>Популярные услуги</ST>
+          {insights.popularServices.map((s) => (
+            <div key={s.service} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>{s.service} <span style={{ color: C.subtle }}>· {s.visitsCount}</span></span>
+              <span style={{ fontWeight: 700 }}>{money(s.revenue)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+      {topMasters.length > 0 && (
+        <Card>
+          <ST>Рейтинг мастеров по выручке</ST>
+          {topMasters.map((m, i) => (
+            <div key={m.masterMembershipId} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: C.secondary }}>#{i + 1} {m.masterName || '—'} <span style={{ color: C.subtle }}>· {m.visitsCount}</span></span>
+              <span style={{ fontWeight: 700 }}>{money(m.revenue)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+      {insights.utilization && insights.utilization.byMaster.length > 0 && (
+        <Card>
+          <ST>Загрузка мастеров</ST>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10, lineHeight: 1.5 }}>
+            % занятого времени по дням, когда были визиты — из длительности услуг из каталога.
+          </div>
+          {insights.utilization.byMaster.map((m) => (
+            <div key={m.masterMembershipId} style={{ padding: '9px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: C.secondary }}>{m.masterName || '—'} <span style={{ color: C.subtle }}>· {m.workingDays} дн. по {m.dailyHours} ч</span></span>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{m.utilizationPercent != null ? `${m.utilizationPercent}%` : '—'}</span>
+              </div>
+              {m.dataCoveragePercent < 100 && (
+                <div style={{ fontSize: 11, color: C.orange, marginTop: 2 }}>
+                  Только {m.dataCoveragePercent}% визитов связаны с услугой из каталога — реальная загрузка выше
+                </div>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
+      <Card>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <StatTile label="Визитов со скидкой" value={`${insights.discountUsage.discountRate}%`} />
+          <StatTile label="Сумма скидок за период" value={money(insights.discountUsage.totalDiscountAmount)} />
+        </div>
+      </Card>
+      <Card>
+        <ST>Повторяемость клиентов (за всё время)</ST>
+        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+          <StatTile label="Вернулись хотя бы раз" value={`${insights.repeatClients.repeatRate}%`} />
+          <StatTile
+            label="Средний интервал"
+            value={insights.repeatClients.avgIntervalDays != null ? `${Math.round(insights.repeatClients.avgIntervalDays)} дн.` : '—'}
+          />
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function AnalyticsTab({ trends, error, insights: insightsData, insightsError, byMaster }) {
   if (error) return <div className="alert alert-error">{error}</div>;
   if (!trends) return <div className="page-loading">Загрузка...</div>;
   if (trends.every((t) => t.revenue === 0 && t.visitsCount === 0)) {
@@ -840,6 +1045,8 @@ function AnalyticsTab({ trends, error }) {
           />
         </Card>
       )}
+
+      <InsightsSection insights={insightsData} error={insightsError} byMaster={byMaster} />
     </div>
   );
 }
@@ -904,24 +1111,24 @@ function MasterFinance() {
   const period = usePeriodParams();
   const [visits, setVisits] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
-  const [companySummary, setCompanySummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   function load() {
     if (!period.ready) return Promise.resolve();
     const { from, to } = computePeriodRange(period.preset, period.customFrom, period.customTo);
+    // 15.08.2026: владелец пересмотрел решение "Задачи 3" — мастер видит
+    // только свои данные, не сводку компании целиком. /modules/visits и
+    // /modules/finance/adjustments и так уже отдают мастеру только его
+    // записи (role === 'master' фильтр внутри каждого роута), поэтому
+    // отдельный запрос /modules/finance/summary (компанейские агрегаты)
+    // сюда больше не идёт.
     return Promise.all([
       api.get('/modules/visits', { params: { dateFrom: `${from}T00:00:00`, dateTo: `${to}T23:59:59` } }),
       api.get('/modules/finance/adjustments', { params: { dateFrom: from, dateTo: to } }),
-      // Задача 3 (сверка ролей): раньше у мастера была только "своя" вкладка
-      // (комиссия с визитов) — по решению владельца добавлен просмотр общей
-      // сводки компании (без чистой прибыли — та скрыта и от администратора).
-      api.get('/modules/finance/summary', { params: period.params }),
     ])
-      .then(([v, a, s]) => {
+      .then(([v, a]) => {
         setVisits(v.data);
         setAdjustments(a.data);
-        setCompanySummary(s.data);
       })
       .finally(() => setLoading(false));
   }
@@ -959,17 +1166,6 @@ function MasterFinance() {
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(totalPayout)}</span>
         </div>
       </Card>
-
-      {companySummary && (
-        <Card>
-          <ST>Финансы компании · {companySummary.period.from === companySummary.period.to ? 'за день' : 'за период'} (только просмотр)</ST>
-          <ExpRow label="Выручка" value={money(companySummary.revenue)} />
-          <ExpRow label="Зарплаты мастеров" value={money(companySummary.masterSalaries)} />
-          <ExpRow label="Пост. расходы" value={money(companySummary.fixedExpenses)} />
-          <ExpRow label="% расходы" value={money(companySummary.percentExpenses)} />
-          <ExpRow label="Перем. расходы" value={money(companySummary.variableExpenses)} />
-        </Card>
-      )}
 
       {adjustments.length > 0 && (
         <Card>

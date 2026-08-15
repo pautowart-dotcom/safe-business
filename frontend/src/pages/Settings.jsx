@@ -31,6 +31,10 @@ export default function Settings() {
   const [company, setCompany] = useState(null);
   const [editingCompany, setEditingCompany] = useState(false);
   const [companyName, setCompanyName] = useState('');
+  // Рабочие часы по умолчанию (Этап 3 плана аналитики, 15.08.2026) —
+  // используются в расчёте загрузки мастеров (/finance/summary/insights),
+  // если у конкретного мастера нет своего переопределения (Команда).
+  const [defaultDailyHours, setDefaultDailyHours] = useState('');
   const [analyticsConsent, setAnalyticsConsent] = useState(!!user?.analytics_consent);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState(null);
@@ -110,12 +114,16 @@ export default function Settings() {
 
   function openEditCompany() {
     setCompanyName(company.name);
+    setDefaultDailyHours(String(company.default_daily_hours ?? 8));
     setEditingCompany(true);
   }
 
   async function saveCompanyName() {
     if (!companyName.trim()) return;
-    const { data } = await api.patch('/platform/companies/current', { name: companyName.trim() });
+    const { data } = await api.patch('/platform/companies/current', {
+      name: companyName.trim(),
+      defaultDailyHours: defaultDailyHours || undefined,
+    });
     setCompany(data);
     renameCurrentCompany(data.name);
     setEditingCompany(false);
@@ -189,6 +197,9 @@ export default function Settings() {
             <>
               <Field label="Название компании">
                 <TextInput autoFocus value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+              </Field>
+              <Field label="Рабочих часов в день по умолчанию (для загрузки мастеров в Финансах)">
+                <TextInput type="number" min="0.5" step="0.5" value={defaultDailyHours} onChange={(e) => setDefaultDailyHours(e.target.value)} />
               </Field>
               <div style={{ display: 'flex', gap: 8 }}>
                 <Btn small onClick={saveCompanyName}>Сохранить</Btn>

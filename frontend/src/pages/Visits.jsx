@@ -27,7 +27,7 @@ const PAYMENT_METHOD_OPTIONS = [
 
 const EMPTY_FORM = {
   lastName: '', firstName: '', clientId: null,
-  masterMembershipId: '', service: '', materials: '', amount: '', niche: '',
+  masterMembershipId: '', service: '', serviceId: null, materials: '', amount: '', niche: '',
   discountType: 'percent', discountPercent: '0', discountFixedAmount: '', paymentMethod: '',
   visitAt: nowLocal(), photoBeforeUrl: '', photoAfterUrl: '', photoBeforeUrl2: '', photoAfterUrl2: '', supplies: [],
   clientPackageId: null,
@@ -136,6 +136,13 @@ export default function Visits() {
   const [supplyCategoryPick, setSupplyCategoryPick] = useState('');
   const [supplyPick, setSupplyPick] = useState('');
   const [supplyQty, setSupplyQty] = useState('');
+  // Каталог услуг (Этап 2 плана аналитики, 15.08.2026) — длительность нужна
+  // для будущей метрики загрузки, отсюда и обязательность поля в быстром
+  // добавлении ниже.
+  const [services, setServices] = useState([]);
+  const [addingService, setAddingService] = useState(false);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceDuration, setNewServiceDuration] = useState('');
   // Абонементы выбранного клиента (11.08.2026) — предлагаем списать визит с
   // абонемента вместо ручного ввода суммы/скидки, только при создании (не
   // редактировании — PATCH /modules/visits не пересчитывает sessions_used).
@@ -192,6 +199,10 @@ export default function Visits() {
     api.get('/modules/supplies').then((res) => setSupplies(res.data));
   }, []);
 
+  useEffect(() => {
+    api.get('/modules/visits/services').then((res) => setServices(res.data));
+  }, []);
+
   // Ниша визита имеет смысл спрашивать только у студий с несколькими
   // нишами сразу (см. Финансы → "Выручка по нише") — при одной нише или
   // без ниш вообще поле просто не показываем, лишний выбор без вариантов.
@@ -222,6 +233,9 @@ export default function Visits() {
     setSupplyCategoryPick('');
     setSupplyPick('');
     setSupplyQty('');
+    setAddingService(false);
+    setNewServiceName('');
+    setNewServiceDuration('');
     setShowForm(true);
   }
 
@@ -232,6 +246,7 @@ export default function Visits() {
       clientId: v.client_id,
       masterMembershipId: v.master_membership_id || '',
       service: v.service || '',
+      serviceId: v.service_id || null,
       materials: v.materials || '',
       niche: v.niche || '',
       amount: String(v.amount ?? ''),
@@ -258,6 +273,9 @@ export default function Visits() {
     setSupplyCategoryPick('');
     setSupplyPick('');
     setSupplyQty('');
+    setAddingService(false);
+    setNewServiceName('');
+    setNewServiceDuration('');
     setShowForm(true);
   }
 
@@ -276,6 +294,24 @@ export default function Visits() {
 
   function removeSupplyFromForm(idx) {
     setForm({ ...form, supplies: form.supplies.filter((_, i) => i !== idx) });
+  }
+
+  async function submitNewService() {
+    if (!newServiceName.trim() || !newServiceDuration || Number(newServiceDuration) <= 0) return;
+    try {
+      const { data } = await api.post('/modules/visits/services', {
+        name: newServiceName.trim(),
+        durationMinutes: Number(newServiceDuration),
+        niche: form.niche || null,
+      });
+      setServices([...services, data]);
+      setForm({ ...form, service: data.name, serviceId: data.id });
+      setNewServiceName('');
+      setNewServiceDuration('');
+      setAddingService(false);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось добавить услугу в каталог');
+    }
   }
 
   function pickClient(client) {
@@ -354,6 +390,7 @@ export default function Visits() {
       const payload = {
         clientId,
         service: form.service,
+        serviceId: form.serviceId || null,
         materials: form.materials || null,
         niche: form.niche || null,
         amount: Number(form.amount),
@@ -522,9 +559,50 @@ export default function Visits() {
               </Select>
             </Field>
           )}
-          <Field label="Услуга">
-            <TextInput required ref={serviceRef} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} onKeyDown={(e) => handleEnter(e, materialsRef)} placeholder="Например: маникюр, массаж спины, стрижка" />
+          {services.length > 0 && (
+            <Field label="Услуга из каталога (необязательно)">
+              <Select
+                value={form.serviceId || ''}
+                onChange={(e) => {
+                  const svc = services.find((s) => String(s.id) === e.target.value);
+                  setForm(svc ? { ...form, serviceId: svc.id, service: svc.name } : { ...form, serviceId: null });
+                }}
+              >
+                <option value="">— свободный текст ниже —</option>
+                {services
+                  .filter((s) => !form.niche || !s.niche || s.niche === form.niche)
+                  .map((s) => <option key={s.id} value={s.id}>{s.name} · {s.duration_minutes} мин</option>)}
+              </Select>
+            </Field>
+          )}
+          <Field label={services.length > 0 ? 'Название услуги (если не выбрали из каталога выше)' : 'Услуга'}>
+            <TextInput
+              required
+              ref={serviceRef}
+              value={form.service}
+              onChange={(e) => setForm({ ...form, service: e.target.value, serviceId: null })}
+              onKeyDown={(e) => handleEnter(e, materialsRef)}
+              placeholder="Например: маникюр, массаж спины, стрижка"
+            />
           </Field>
+          {!addingService ? (
+            <button
+              type="button"
+              onClick={() => setAddingService(true)}
+              style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 14 }}
+            >
+              + Добавить услугу в каталог (с длительностью)
+            </button>
+          ) : (
+            <div style={{ background: C.surface, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+              <TextInput placeholder="Название услуги" value={newServiceName} onChange={(e) => setNewServiceName(e.target.value)} style={{ marginBottom: 8 }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <TextInput type="number" placeholder="Длительность, мин" value={newServiceDuration} onChange={(e) => setNewServiceDuration(e.target.value)} />
+                <Btn small type="button" onClick={submitNewService}>Добавить</Btn>
+                <Btn small type="button" variant="secondary" onClick={() => { setAddingService(false); setNewServiceName(''); setNewServiceDuration(''); }}>Отмена</Btn>
+              </div>
+            </div>
+          )}
           <Field label="Материалы">
             <TextInput ref={materialsRef} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} onKeyDown={(e) => handleEnter(e, priceRef)} placeholder="Например: гель-лак №47, масло для массажа..." />
           </Field>

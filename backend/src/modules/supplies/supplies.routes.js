@@ -81,18 +81,25 @@ router.delete(
   })
 );
 
+// unit_cost (Этап 4 плана аналитики, 15.08.2026) — закупочная цена, та же
+// чувствительность, что и netProfit (раскрывает себестоимость/маржу) —
+// мастеру в ответе не отдаём вообще, а не просто скрываем на фронте.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT s.id, s.name, s.unit, s.product_url, s.quantity, s.low_stock_threshold, s.is_disinfectant,
-              s.category_id, sc.name AS category_name, s.default_quantity_per_visit, s.container_size, s.created_at
+              s.category_id, sc.name AS category_name, s.default_quantity_per_visit, s.container_size, s.unit_cost, s.created_at
        FROM supplies s
        LEFT JOIN supply_categories sc ON sc.id = s.category_id
        WHERE s.company_id = $1 ORDER BY s.name`,
       [req.tenant.companyId]
     );
-    res.json(rows.map(withLowStock));
+    const mapped = rows.map(withLowStock);
+    if (req.tenant.role === 'master') {
+      return res.json(mapped.map(({ unit_cost, ...rest }) => rest));
+    }
+    res.json(mapped);
   })
 );
 
@@ -105,10 +112,14 @@ router.post(
   '/',
   requireRole('owner', 'admin', 'master'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize } = req.body;
+    const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize, unitCost } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Укажите название позиции' });
     }
+    // Мастер может завести новую позицию (05.08.2026), но не задать ей
+    // закупочную цену — тихо игнорируем unitCost из его запроса, а не
+    // ошибку 403 на весь POST (само создание позиции ему разрешено).
+    const resolvedUnitCost = req.tenant.role === 'master' ? null : unitCost || null;
     // Без уникального ограничения в БД (не заводили — переименование через
     // PATCH ниже тоже пишет name без проверки, значит потребовалась бы
     // проверка в обоих местах в любом случае) — сравнение без учёта
@@ -129,10 +140,10 @@ router.post(
       }
     }
     const { rows } = await pool.query(
-      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, created_at`,
-      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant, categoryId || null, defaultQuantityPerVisit || null, containerSize || null]
+      `INSERT INTO supplies (company_id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, unit_cost)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, unit_cost, created_at`,
+      [req.tenant.companyId, name, unit || null, productUrl || null, quantity || 0, lowStockThreshold || 0, !!isDisinfectant, categoryId || null, defaultQuantityPerVisit || null, containerSize || null, resolvedUnitCost]
     );
 
     await logEvent({
@@ -152,7 +163,7 @@ router.patch(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, unit, productUrl, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize } = req.body;
+    const { name, unit, productUrl, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize, unitCost } = req.body;
     // is_disinfectant/category_id/default_quantity_per_visit/container_size —
     // false/NULL тоже валидные значения (снять тег, снять категорию, убрать
     // норму расхода/объём тары), поэтому обычный COALESCE (как для остальных
@@ -161,6 +172,7 @@ router.patch(
     const categoryProvided = 'categoryId' in req.body;
     const defaultQtyProvided = 'defaultQuantityPerVisit' in req.body;
     const containerSizeProvided = 'containerSize' in req.body;
+    const unitCostProvided = 'unitCost' in req.body;
     if (name) {
       const dup = await pool.query(
         'SELECT 1 FROM supplies WHERE company_id = $1 AND LOWER(name) = LOWER($2) AND id != $3',
@@ -185,9 +197,10 @@ router.patch(
          is_disinfectant = CASE WHEN $7 THEN $8 ELSE is_disinfectant END,
          category_id = CASE WHEN $9 THEN $10 ELSE category_id END,
          default_quantity_per_visit = CASE WHEN $11 THEN $12 ELSE default_quantity_per_visit END,
-         container_size = CASE WHEN $13 THEN $14 ELSE container_size END
+         container_size = CASE WHEN $13 THEN $14 ELSE container_size END,
+         unit_cost = CASE WHEN $15 THEN $16 ELSE unit_cost END
        WHERE id = $5 AND company_id = $6
-       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, created_at`,
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, unit_cost, created_at`,
       [
         name || null,
         unit || null,
@@ -203,6 +216,8 @@ router.patch(
         defaultQuantityPerVisit || null,
         containerSizeProvided,
         containerSize || null,
+        unitCostProvided,
+        emptyToNull(unitCost),
       ]
     );
     if (rows.length === 0) {

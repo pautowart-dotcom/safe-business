@@ -20,7 +20,7 @@ export default function Users() {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [editForm, setEditForm] = useState({ payoutPercent: '' });
+  const [editForm, setEditForm] = useState({ payoutPercent: '', dailyHours: '' });
   const [confirmDel, setConfirmDel] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docForm, setDocForm] = useState(null);
@@ -44,7 +44,7 @@ export default function Users() {
 
   function openEdit(member) {
     setEditing(member);
-    setEditForm({ payoutPercent: member.payout_percent || '' });
+    setEditForm({ payoutPercent: member.payout_percent || '', dailyHours: member.daily_hours || '' });
     loadDocuments(member.id);
   }
 
@@ -121,6 +121,11 @@ export default function Users() {
         {editing.role === 'master' && (
           <Field label="% выплаты от суммы визита">
             <TextInput type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
+          </Field>
+        )}
+        {editing.role === 'master' && (
+          <Field label="Рабочих часов в день (необязательно — по умолчанию берётся из настроек компании)">
+            <TextInput type="number" min="0.5" step="0.5" placeholder="Например: 6" value={editForm.dailyHours} onChange={(e) => setEditForm({ ...editForm, dailyHours: e.target.value })} />
           </Field>
         )}
         <Btn onClick={handleEditSubmit}>Сохранить</Btn>

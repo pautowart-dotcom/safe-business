@@ -51,7 +51,7 @@ router.post(
 // сумма приоритетнее, когда задана (COALESCE).
 const DISCOUNT_AMOUNT_SQL = 'COALESCE(v.discount_fixed_amount, ROUND(v.amount * v.discount_percent / 100, 2))';
 const SELECT_COLUMNS = `
-  v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.materials, v.niche,
+  v.id, v.branch_id, v.client_id, v.master_membership_id, v.service, v.service_id, v.materials, v.niche,
   v.amount, v.discount_percent, v.discount_fixed_amount, v.master_payout_percent, v.payment_method, v.client_package_id,
   ${DISCOUNT_AMOUNT_SQL} AS discount_amount,
   ROUND(v.amount - (${DISCOUNT_AMOUNT_SQL}), 2) AS final_amount,
@@ -220,6 +220,7 @@ router.post(
     const {
       clientId,
       service,
+      serviceId,
       materials,
       amount,
       discountPercent,
@@ -303,6 +304,16 @@ router.post(
         return res.status(400).json({ error: 'Филиал не найден в этой компании' });
       }
     }
+    // service_id (Этап 2 плана аналитики) — необязательная связь с
+    // каталогом (services.routes.js), нужна только для будущей утилизации
+    // (Σ длительность / рабочие часы). service (текст) остаётся источником
+    // истины для отображения — тот же принцип, что и у niche/branchId выше.
+    if (serviceId) {
+      const svc = await pool.query('SELECT 1 FROM services WHERE id = $1 AND company_id = $2', [serviceId, req.tenant.companyId]);
+      if (svc.rows.length === 0) {
+        return res.status(400).json({ error: 'Услуга не найдена в каталоге этой компании' });
+      }
+    }
 
     // Мастер обязателен, только если в компании реально есть хотя бы один
     // активный мастер — иначе владелец без сотрудников ("Работаю один")
@@ -348,10 +359,10 @@ router.post(
       await dbClient.query('BEGIN');
       const insert = await dbClient.query(
         `INSERT INTO visits (
-           company_id, branch_id, client_id, master_membership_id, service, materials,
+           company_id, branch_id, client_id, master_membership_id, service, service_id, materials,
            amount, discount_percent, discount_fixed_amount, master_payout_percent, photo_before_url, photo_after_url,
            photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method, niche, client_package_id
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()), $16, $17, $18, $19)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, COALESCE($16, now()), $17, $18, $19, $20)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -359,6 +370,7 @@ router.post(
           clientId,
           resolvedMasterId,
           service,
+          serviceId || null,
           materials || null,
           finalAmount,
           finalDiscountPercent || 0,
@@ -446,13 +458,16 @@ router.patch(
     const current = existing.rows[0];
 
     const {
-      clientId, service, materials, amount, discountPercent, discountFixedAmount, visitAt, branchId,
+      clientId, service, serviceId, materials, amount, discountPercent, discountFixedAmount, visitAt, branchId,
       photoBeforeUrl, photoAfterUrl, photoBeforeUrl2, photoAfterUrl2, masterMembershipId, paymentMethod, niche, supplies,
     } = req.body;
     // discount_fixed_amount может понадобиться явно СБРОСИТЬ в NULL (мастер
     // переключился с "₽" обратно на "%") — обычный COALESCE-если-передано не
     // подходит, тот же паттерн, что и nullable-поля в supplies.routes.js.
     const discountFixedAmountProvided = 'discountFixedAmount' in req.body;
+    // service_id — та же логика: может понадобиться явно СБРОСИТЬ в NULL
+    // (мастер сменил услугу из каталога обратно на свободный текст).
+    const serviceIdProvided = 'serviceId' in req.body;
 
     if (paymentMethod && !PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Некорректный способ оплаты' });
@@ -503,6 +518,12 @@ router.patch(
         return res.status(400).json({ error: 'Филиал не найден в этой компании' });
       }
     }
+    if (serviceId) {
+      const svc = await pool.query('SELECT 1 FROM services WHERE id = $1 AND company_id = $2', [serviceId, req.tenant.companyId]);
+      if (svc.rows.length === 0) {
+        return res.status(400).json({ error: 'Услуга не найдена в каталоге этой компании' });
+      }
+    }
 
     const dbClient = await pool.connect();
     try {
@@ -524,7 +545,8 @@ router.patch(
            master_membership_id = $12,
            master_payout_percent = $13,
            payment_method = COALESCE($15, payment_method),
-           niche = COALESCE($18, niche)
+           niche = COALESCE($18, niche),
+           service_id = CASE WHEN $19 THEN $20 ELSE service_id END
          WHERE id = $14`,
         [
           clientId || null,
@@ -545,6 +567,8 @@ router.patch(
           discountFixedAmountProvided,
           discountFixedAmount || null,
           niche || null,
+          serviceIdProvided,
+          serviceId || null,
         ]
       );
 

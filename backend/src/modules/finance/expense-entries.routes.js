@@ -20,7 +20,7 @@ router.get(
       where += ` AND occurred_at <= $${params.length}`;
     }
     const { rows } = await pool.query(
-      `SELECT id, name, amount, occurred_at, created_at FROM expense_entries
+      `SELECT id, name, amount, category, channel, occurred_at, created_at FROM expense_entries
        WHERE ${where} ORDER BY occurred_at DESC LIMIT 200`,
       params
     );
@@ -28,18 +28,23 @@ router.get(
   })
 );
 
+// category — один из EXPENSE_CATEGORIES (см. миграцию 0080), не обязателен —
+// у старых записей его нет, гадать задним числом не пытаемся. channel имеет
+// смысл только при category='advertising' (какая именно реклама), но это не
+// проверяется на бэкенде — фронт просто не показывает поле для других
+// категорий, здесь достаточно принять то, что пришло.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { name, amount, occurredAt } = req.body;
+    const { name, amount, occurredAt, category, channel } = req.body;
     if (!name || amount === undefined || amount === null) {
       return res.status(400).json({ error: 'Укажите название и сумму расхода' });
     }
     const { rows } = await pool.query(
-      `INSERT INTO expense_entries (company_id, name, amount, occurred_at, created_by_user_id)
-       VALUES ($1, $2, $3, COALESCE($4, CURRENT_DATE), $5)
-       RETURNING id, name, amount, occurred_at, created_at`,
-      [req.tenant.companyId, name, amount, occurredAt || null, req.user.id]
+      `INSERT INTO expense_entries (company_id, name, amount, occurred_at, created_by_user_id, category, channel)
+       VALUES ($1, $2, $3, COALESCE($4, CURRENT_DATE), $5, $6, $7)
+       RETURNING id, name, amount, category, channel, occurred_at, created_at`,
+      [req.tenant.companyId, name, amount, occurredAt || null, req.user.id, category || null, channel || null]
     );
 
     await logEvent({
@@ -58,15 +63,17 @@ router.post(
 router.patch(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { name, amount, occurredAt } = req.body;
+    const { name, amount, occurredAt, category, channel } = req.body;
     const { rows } = await pool.query(
       `UPDATE expense_entries SET
          name = COALESCE($1, name),
          amount = COALESCE($2, amount),
-         occurred_at = COALESCE($3, occurred_at)
-       WHERE id = $4 AND company_id = $5
-       RETURNING id, name, amount, occurred_at, created_at`,
-      [name || null, emptyToNull(amount), occurredAt || null, req.params.id, req.tenant.companyId]
+         occurred_at = COALESCE($3, occurred_at),
+         category = COALESCE($4, category),
+         channel = COALESCE($5, channel)
+       WHERE id = $6 AND company_id = $7
+       RETURNING id, name, amount, category, channel, occurred_at, created_at`,
+      [name || null, emptyToNull(amount), occurredAt || null, category || null, channel || null, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Расход не найден' });

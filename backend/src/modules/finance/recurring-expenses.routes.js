@@ -10,25 +10,28 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT id, name, kind, amount, active, created_at FROM recurring_expenses WHERE company_id = $1 ORDER BY kind, name',
+      'SELECT id, name, kind, amount, category, channel, active, created_at FROM recurring_expenses WHERE company_id = $1 ORDER BY kind, name',
       [req.tenant.companyId]
     );
     res.json(rows);
   })
 );
 
+// category/channel — та же пара полей, что у expense_entries (миграция
+// 0080). Постоянный рекламный бюджет чаще всего сидит именно здесь
+// (fixed-статья "Реклама, N ₽/мес"), не как разовая запись.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { name, kind, amount } = req.body;
+    const { name, kind, amount, category, channel } = req.body;
     if (!name || !['fixed', 'percent'].includes(kind) || amount === undefined || amount === null) {
       return res.status(400).json({ error: 'Укажите название, тип (fixed или percent) и сумму' });
     }
     const { rows } = await pool.query(
-      `INSERT INTO recurring_expenses (company_id, name, kind, amount)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, kind, amount, active, created_at`,
-      [req.tenant.companyId, name, kind, amount]
+      `INSERT INTO recurring_expenses (company_id, name, kind, amount, category, channel)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, kind, amount, category, channel, active, created_at`,
+      [req.tenant.companyId, name, kind, amount, category || null, channel || null]
     );
 
     await logEvent({
@@ -47,15 +50,17 @@ router.post(
 router.patch(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { name, amount, active } = req.body;
+    const { name, amount, active, category, channel } = req.body;
     const { rows } = await pool.query(
       `UPDATE recurring_expenses SET
          name = COALESCE($1, name),
          amount = COALESCE($2, amount),
-         active = COALESCE($3, active)
-       WHERE id = $4 AND company_id = $5
-       RETURNING id, name, kind, amount, active, created_at`,
-      [name || null, emptyToNull(amount), emptyToNull(active), req.params.id, req.tenant.companyId]
+         active = COALESCE($3, active),
+         category = COALESCE($4, category),
+         channel = COALESCE($5, channel)
+       WHERE id = $6 AND company_id = $7
+       RETURNING id, name, kind, amount, category, channel, active, created_at`,
+      [name || null, emptyToNull(amount), emptyToNull(active), category || null, channel || null, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Статья расходов не найдена' });

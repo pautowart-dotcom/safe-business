@@ -218,4 +218,39 @@ export function StackedBarBreakdown({ segments, height = 28 }) {
   );
 }
 
+// Вертикальные столбцы — для распределений с фиксированным числом коротких
+// категорий (час/день недели), где TrendLineChart (сделан под непрерывный
+// временной ряд) и StackedBarBreakdown (сделан под "доля от целого", не под
+// "величина по категориям") не подходят по форме. bars — [{ key, label, value }].
+export function VerticalBarChart({ bars, height = 90, color = CHART_COLORS.blue, formatValue = money }) {
+  const max = Math.max(...bars.map((b) => b.value), 1);
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height }}>
+        {bars.map((b) => (
+          <div
+            key={b.key}
+            title={`${b.label}: ${formatValue(b.value)}`}
+            style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}
+          >
+            <div
+              style={{
+                width: '100%',
+                height: b.value > 0 ? `${Math.max((b.value / max) * 100, 3)}%` : 0,
+                background: color,
+                borderRadius: '2px 2px 0 0',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
+        {bars.map((b) => (
+          <div key={b.key} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: INK_MUTED }}>{b.label}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export { money, compactMoney };
