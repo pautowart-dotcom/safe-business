@@ -18,6 +18,9 @@ const PAID_QUESTIONS_BY_NICHE = {
   lashes_brows: require('./paid-questions/lashes-brows'),
   hair: require('./paid-questions/hair'),
   massage: require('./paid-questions/massage'),
+  tattoo: require('./paid-questions/tattoo'),
+  depilation: require('./paid-questions/depilation'),
+  solarium: require('./paid-questions/solarium'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -25,6 +28,9 @@ const VIOLATIONS_BY_NICHE = {
   lashes_brows: require('./violations/lashes-brows'),
   hair: require('./violations/hair'),
   massage: require('./violations/massage'),
+  tattoo: require('./violations/tattoo'),
+  depilation: require('./violations/depilation'),
+  solarium: require('./violations/solarium'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -32,6 +38,9 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   lashes_brows: require('./pdf/mandatory-documents/lashes-brows'),
   hair: require('./pdf/mandatory-documents/hair'),
   massage: require('./pdf/mandatory-documents/massage'),
+  tattoo: require('./pdf/mandatory-documents/tattoo'),
+  depilation: require('./pdf/mandatory-documents/depilation'),
+  solarium: require('./pdf/mandatory-documents/solarium'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -39,6 +48,9 @@ const ATTENTION_ZONES_BY_NICHE = {
   lashes_brows: require('./pdf/attention-zones/lashes-brows'),
   hair: require('./pdf/attention-zones/hair'),
   massage: require('./pdf/attention-zones/massage'),
+  tattoo: require('./pdf/attention-zones/tattoo'),
+  depilation: require('./pdf/attention-zones/depilation'),
+  solarium: require('./pdf/attention-zones/solarium'),
 };
 
 async function getSegments() {

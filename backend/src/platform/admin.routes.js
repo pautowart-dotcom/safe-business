@@ -545,10 +545,10 @@ router.get(
       ),
     ]);
 
-    // Код нарушения однозначно принадлежит одной нише (префикс MN-/LB-/HR-/MS-,
-    // см. content/violations/*.js) — ищем деталь по всем 4 нишам с готовым
-    // контентом, без обращения к профилю/сессиям конкретной компании.
-    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage'];
+    // Код нарушения однозначно принадлежит одной нише (префикс MN-/LB-/HR-/MS-/
+    // TT-/DP-/SL-, см. content/violations/*.js) — ищем деталь по всем нишам
+    // с готовым контентом, без обращения к профилю/сессиям конкретной компании.
+    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium'];
     const matricesByNiche = {};
     for (const niche of NICHES_WITH_CONTENT) {
       matricesByNiche[niche] = await securityRepository.getViolationMatrix(niche);

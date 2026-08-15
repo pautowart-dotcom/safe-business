@@ -20,6 +20,12 @@ const PREDICATES = {
   // со ссылкой "правило — Файл 02" — при расхождении берём более детальное
   // правило самого Файла 02 (единственный источник правды по сегментации).
   not_alone: (profile) => profile.workModel !== 'alone',
+
+  // Блок 8 ниши "Волосы" (химические процедуры — кератин, ботокс для волос,
+  // сложная завивка): показывается только тем, кто отметил такие услуги при
+  // выборе ниши (security_profile_niches.chemical_treatments). По умолчанию
+  // скрыт — обычная парикмахерская без этих составов блок не видит.
+  has_hair_chemical_treatments: (profile) => profile.hairChemicalTreatments === true,
 };
 
 function isVisible(showIf, profile) {

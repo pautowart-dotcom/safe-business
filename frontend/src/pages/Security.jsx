@@ -30,6 +30,9 @@ const SEGMENTS = [
       { key: 'lashes_brows', label: 'Ресницы и брови' },
       { key: 'hair', label: 'Волосы' },
       { key: 'massage', label: 'Массаж' },
+      { key: 'tattoo', label: 'Тату, пирсинг и ПМ' },
+      { key: 'depilation', label: 'Депиляция' },
+      { key: 'solarium', label: 'Солярий' },
     ],
   },
   {
@@ -408,16 +411,20 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
   const [workModel, setWorkModel] = useState(initial?.workModel || '');
   const [segment, setSegment] = useState(initial?.segment || '');
   const [niches, setNiches] = useState(initial?.niches || []);
+  const [hairChemicalTreatments, setHairChemicalTreatments] = useState(initial?.hairChemicalTreatments || false);
   const [stubMessage, setStubMessage] = useState('');
   const [error, setError] = useState('');
 
   const segmentContent = SEGMENTS.find((s) => s.key === segment);
   const multiNiche = !!segmentContent?.multiNiche;
+  const showHairChemicalQuestion = niches.includes('hair');
 
   async function submit() {
     setError('');
     try {
-      const { data } = await api.post('/modules/security/profile', { legalForm, workModel, segment, niches });
+      const { data } = await api.post('/modules/security/profile', {
+        legalForm, workModel, segment, niches, hairChemicalTreatments,
+      });
       if (data.stub) setStubMessage(data.message);
       else onSaved(false);
     } catch (err) {
@@ -458,6 +465,16 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
             onChange={(v) => setNiches(multiNiche ? v : [v])}
             valueKey="key"
             multiple={multiNiche}
+          />
+        </Field>
+      )}
+      {showHairChemicalQuestion && (
+        <Field label="Оказываете кератиновое выпрямление, ботокс для волос или другие процедуры с составами на основе формальдегида?">
+          <Chips
+            options={[{ key: 'yes', label: 'Да' }, { key: 'no', label: 'Нет' }]}
+            value={hairChemicalTreatments ? 'yes' : 'no'}
+            onChange={(v) => setHairChemicalTreatments(v === 'yes')}
+            valueKey="key"
           />
         </Field>
       )}

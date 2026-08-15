@@ -84,7 +84,7 @@ router.get(
 router.post(
   '/profile',
   asyncHandler(async (req, res) => {
-    const { legalForm, workModel, segment, niches } = req.body;
+    const { legalForm, workModel, segment, niches, hairChemicalTreatments } = req.body;
     if (!legalForm || !workModel || !segment) {
       return res.status(400).json({ error: 'Заполните форму работы, модель и сферу деятельности' });
     }
@@ -115,7 +115,14 @@ router.post(
       }
     }
 
-    await upsertProfile({ companyId: req.tenant.companyId, legalForm, workModel, segment, niches: nicheList });
+    await upsertProfile({
+      companyId: req.tenant.companyId,
+      legalForm,
+      workModel,
+      segment,
+      niches: nicheList,
+      hairChemicalTreatments: !!hairChemicalTreatments,
+    });
 
     await logEvent({
       companyId: req.tenant.companyId,
@@ -136,7 +143,7 @@ router.post(
 // между security_profiles и security_profile_niches. История сессий/
 // нарушений не затрагивается (обе таблицы ссылаются на company_id, не на
 // список ниш профиля) — убрать нишу из профиля не удаляет её прошлые данные.
-async function upsertProfile({ companyId, legalForm, workModel, segment, niches }) {
+async function upsertProfile({ companyId, legalForm, workModel, segment, niches, hairChemicalTreatments }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -150,7 +157,14 @@ async function upsertProfile({ companyId, legalForm, workModel, segment, niches 
     );
     await client.query('DELETE FROM security_profile_niches WHERE company_id = $1', [companyId]);
     for (const niche of niches) {
-      await client.query('INSERT INTO security_profile_niches (company_id, niche) VALUES ($1, $2)', [companyId, niche]);
+      // chemical_treatments сейчас осмыслен только для niche='hair' (see
+      // visibility.js has_hair_chemical_treatments) — для остальных ниш
+      // всегда NULL, отдельного поля-предиката под них ещё нет.
+      const chemicalTreatments = niche === 'hair' ? !!hairChemicalTreatments : null;
+      await client.query(
+        'INSERT INTO security_profile_niches (company_id, niche, chemical_treatments) VALUES ($1, $2, $3)',
+        [companyId, niche, chemicalTreatments]
+      );
     }
     await client.query('COMMIT');
   } catch (err) {

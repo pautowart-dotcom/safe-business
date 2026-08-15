@@ -13,6 +13,9 @@ const VIOLATIONS_BY_NICHE = {
   lashes_brows: require('../../security/content/violations/lashes-brows'),
   hair: require('../../security/content/violations/hair'),
   massage: require('../../security/content/violations/massage'),
+  tattoo: require('../../security/content/violations/tattoo'),
+  depilation: require('../../security/content/violations/depilation'),
+  solarium: require('../../security/content/violations/solarium'),
 };
 
 const NICHE_LABELS = {
@@ -20,6 +23,9 @@ const NICHE_LABELS = {
   lashes_brows: 'Ресницы и брови',
   hair: 'Волосы (парикмахерские услуги)',
   massage: 'Массаж (без медицинской лицензии)',
+  tattoo: 'Тату, пирсинг и перманентный макияж',
+  depilation: 'Депиляция (шугаринг, воск, нить)',
+  solarium: 'Солярий',
 };
 
 const LEGAL_FORM_LABELS = {

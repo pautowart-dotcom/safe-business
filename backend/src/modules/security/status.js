@@ -9,7 +9,11 @@ const { loadLatestCompletedSessionsByNiche } = require('./testedSessions');
 async function visiblePaidQuestions(niche, profile) {
   const all = await repository.getPaidQuestions(niche);
   if (!all) return null;
-  return filterVisible(all, { legalForm: profile.legalForm, workModel: profile.workModel });
+  return filterVisible(all, {
+    legalForm: profile.legalForm,
+    workModel: profile.workModel,
+    hairChemicalTreatments: profile.hairChemicalTreatments,
+  });
 }
 
 function emptyStatus(profile) {

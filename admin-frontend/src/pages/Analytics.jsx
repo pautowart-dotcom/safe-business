@@ -7,6 +7,9 @@ const NICHE_LABELS = {
   lashes_brows: 'Ресницы и брови',
   hair: 'Волосы',
   massage: 'Массаж',
+  tattoo: 'Тату, пирсинг и ПМ',
+  depilation: 'Депиляция',
+  solarium: 'Солярий',
 };
 
 const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
