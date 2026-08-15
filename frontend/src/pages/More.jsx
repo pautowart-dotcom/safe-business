@@ -12,6 +12,7 @@ const OWNER_ITEMS = [
   { label: 'Визиты', sub: 'Календарь визитов и услуг', icon: 'visit', to: '/visits', moduleKey: 'visits' },
   { label: 'Фотоотчёты', sub: 'Фото до/после по визитам', icon: 'photo', to: '/photo-reports', moduleKey: 'visits' },
   { label: 'Склад расходников', sub: 'Остатки, списание, пополнение', icon: 'supply', to: '/supplies' },
+  { label: 'Каталог услуг', sub: 'Длительность, оплата мастеру по услугам', icon: 'doc', to: '/services' },
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },

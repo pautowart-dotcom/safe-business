@@ -78,13 +78,23 @@ router.get(
     );
     const visitsCount = Number(visitsTotals.rows[0].total);
 
+    // master_payout_amount — сохранённая на визите сумма (Этап "модели
+    // оплаты", 15.08.2026), не формула на лету: покрывает и % от чека, и
+    // фиксированную сумму за визит. Оплата "за выход" визитов не касается
+    // вообще (мастер с payout_type='shift' даёт 0 в этом столбце на каждом
+    // визите) — её сумма приходит отдельно из master_shifts ниже.
     const salaryTotals = await pool.query(
-      `SELECT COALESCE(SUM(amount * master_payout_percent / 100), 0) AS master_salaries
+      `SELECT COALESCE(SUM(master_payout_amount), 0) AS master_salaries
        FROM visits
        WHERE company_id = $1 AND visit_at::date BETWEEN $2 AND $3`,
       [companyId, from, to]
     );
-    const masterSalaries = parseFloat(salaryTotals.rows[0].master_salaries);
+    const shiftTotals = await pool.query(
+      `SELECT COALESCE(SUM(payout_amount), 0) AS total FROM master_shifts
+       WHERE company_id = $1 AND shift_date BETWEEN $2 AND $3`,
+      [companyId, from, to]
+    );
+    const masterSalaries = parseFloat(salaryTotals.rows[0].master_salaries) + parseFloat(shiftTotals.rows[0].total);
 
     const revenueByMaster = await pool.query(
       `SELECT membership_id, COALESCE(SUM(amount), 0) AS revenue
@@ -120,15 +130,24 @@ router.get(
       [companyId, from, to]
     );
 
+    // earnings = сумма master_payout_amount по визитам (модели percent/fixed
+    // уже посчитаны туда при сохранении визита) + отдельно смены (модель
+    // shift, не привязана к визитам вообще, см. master_shifts).
     const byMaster = await pool.query(
       `SELECT m.id AS master_membership_id, u.name AS master_name,
               COUNT(v.id) AS visits_count,
-              COALESCE(SUM(v.amount * v.master_payout_percent / 100), 0) AS earnings
+              COALESCE(SUM(v.master_payout_amount), 0) + COALESCE(sh.shift_total, 0) AS earnings
        FROM memberships m
        LEFT JOIN users u ON u.id = m.user_id
        LEFT JOIN visits v ON v.master_membership_id = m.id AND v.visit_at::date BETWEEN $2 AND $3
+       LEFT JOIN (
+         SELECT master_membership_id, SUM(payout_amount) AS shift_total
+         FROM master_shifts
+         WHERE company_id = $1 AND shift_date BETWEEN $2 AND $3
+         GROUP BY master_membership_id
+       ) sh ON sh.master_membership_id = m.id
        WHERE m.company_id = $1 AND m.role = 'master'
-       GROUP BY m.id, u.name
+       GROUP BY m.id, u.name, sh.shift_total
        ORDER BY u.name`,
       [companyId, from, to]
     );
@@ -315,11 +334,20 @@ router.get(
        ),
        visits_by_month AS (
          SELECT date_trunc('month', visit_at)::date AS month_start,
-                SUM(amount * master_payout_percent / 100) AS master_salaries,
+                SUM(master_payout_amount) AS master_salaries,
                 COUNT(*) AS visits_count,
                 SUM(amount - COALESCE(discount_fixed_amount, amount * discount_percent / 100)) AS visits_revenue
          FROM visits
          WHERE company_id = $1 AND visit_at >= now() - make_interval(months => $2)
+         GROUP BY 1
+       ),
+       -- Смены "за выход" по месяцам — не входят в visits_by_month (не
+       -- привязаны к визитам), суммируются отдельно и складываются с ним
+       -- ниже в master_salaries.
+       shifts_by_month AS (
+         SELECT date_trunc('month', shift_date)::date AS month_start, SUM(payout_amount) AS shift_total
+         FROM master_shifts
+         WHERE company_id = $1 AND shift_date >= (now() - make_interval(months => $2))::date
          GROUP BY 1
        ),
        variable_by_month AS (
@@ -342,7 +370,7 @@ router.get(
        )
        SELECT to_char(m.month_start, 'YYYY-MM') AS month,
               COALESCE(r.revenue, 0) AS revenue,
-              COALESCE(v.master_salaries, 0) AS master_salaries,
+              COALESCE(v.master_salaries, 0) + COALESCE(sh.shift_total, 0) AS master_salaries,
               COALESCE(v.visits_count, 0) AS visits_count,
               COALESCE(v.visits_revenue, 0) AS visits_revenue,
               COALESCE(e.variable_expenses, 0) AS variable_expenses,
@@ -350,6 +378,7 @@ router.get(
        FROM months m
        LEFT JOIN revenue_by_month r ON r.month_start = m.month_start
        LEFT JOIN visits_by_month v ON v.month_start = m.month_start
+       LEFT JOIN shifts_by_month sh ON sh.month_start = m.month_start
        LEFT JOIN variable_by_month e ON e.month_start = m.month_start
        LEFT JOIN materials_by_month mat ON mat.month_start = m.month_start
        ORDER BY m.month_start`,

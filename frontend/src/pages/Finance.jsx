@@ -171,6 +171,8 @@ function OwnerFinance() {
   const [expenses, setExpenses] = useState([]);
   const [recurring, setRecurring] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [shiftForm, setShiftForm] = useState(null);
   const [revenue, setRevenue] = useState([]);
   const [masters, setMasters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -201,12 +203,14 @@ function OwnerFinance() {
           api.get('/modules/finance/expenses', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
           api.get('/modules/finance/adjustments', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
           api.get('/modules/finance/revenue', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
+          api.get('/modules/finance/shifts', { params: { dateFrom: res.data.period.from, dateTo: res.data.period.to } }),
         ]);
       })
-      .then(([exp, adj, rev]) => {
+      .then(([exp, adj, rev, sh]) => {
         setExpenses(exp.data);
         setAdjustments(adj.data);
         setRevenue(rev.data);
+        setShifts(sh.data);
       })
       .finally(() => setLoading(false));
   }
@@ -357,6 +361,18 @@ function OwnerFinance() {
     load();
   }
 
+  async function submitShift(e) {
+    e.preventDefault();
+    if (!shiftForm.shiftDate) return;
+    await api.post('/modules/finance/shifts', shiftForm);
+    setShiftForm(null);
+    load();
+  }
+  async function deleteShift(id) {
+    await api.delete(`/modules/finance/shifts/${id}`);
+    load();
+  }
+
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
 
   if (selectedMaster) {
@@ -365,6 +381,8 @@ function OwnerFinance() {
 
   const adjustmentsByMaster = {};
   for (const a of adjustments) (adjustmentsByMaster[a.master_membership_id] ||= []).push(a);
+  const shiftsByMaster = {};
+  for (const s of shifts) (shiftsByMaster[s.master_membership_id] ||= []).push(s);
 
   return (
     <div>
@@ -417,10 +435,14 @@ function OwnerFinance() {
       {tab === 'masters' && (
         <MastersTab
           byMaster={summary.byMaster}
+          masters={masters}
           adjustmentsByMaster={adjustmentsByMaster}
+          shiftsByMaster={shiftsByMaster}
           onSelectMaster={selectMaster}
           onAddAdjustment={(m) => setAdjustmentForm({ ...EMPTY_ADJUSTMENT_FORM, masterMembershipId: m.masterMembershipId })}
           onDeleteAdjustment={deleteAdjustment}
+          onAddShift={(m) => setShiftForm({ masterMembershipId: m.masterMembershipId, shiftDate: todayStr(), payoutAmount: '' })}
+          onDeleteShift={deleteShift}
         />
       )}
       {tab === 'analytics' && (
@@ -429,6 +451,9 @@ function OwnerFinance() {
 
       {adjustmentForm && (
         <AdjustmentModal form={adjustmentForm} setForm={setAdjustmentForm} masters={masters} onSubmit={submitAdjustment} onClose={() => setAdjustmentForm(null)} />
+      )}
+      {shiftForm && (
+        <ShiftModal form={shiftForm} setForm={setShiftForm} masters={masters} onSubmit={submitShift} onClose={() => setShiftForm(null)} />
       )}
     </div>
   );
@@ -756,13 +781,19 @@ function RecurringForm({ form, setForm, onSubmit, onCancel, unitLabel, editing }
   );
 }
 
-function MastersTab({ byMaster, adjustmentsByMaster, onSelectMaster, onAddAdjustment, onDeleteAdjustment }) {
+function MastersTab({ byMaster, masters, adjustmentsByMaster, shiftsByMaster, onSelectMaster, onAddAdjustment, onDeleteAdjustment, onAddShift, onDeleteShift }) {
   return (
     <Card style={{ padding: 0 }}>
       {byMaster.map((m, i) => {
         const adj = adjustmentsByMaster[m.masterMembershipId] || [];
         const adjTotal = adj.reduce((s, a) => s + Number(a.amount), 0);
         const totalPayout = Number(m.earnings) + adjTotal;
+        // Смены ("за выход") показываем только мастерам с этим типом
+        // оплаты — у остальных earnings уже полностью посчитан по визитам,
+        // раздел просто не имеет смысла.
+        const masterInfo = masters.find((mm) => String(mm.id) === String(m.masterMembershipId));
+        const isShiftPaid = masterInfo?.payout_type === 'shift';
+        const shiftRows = shiftsByMaster[m.masterMembershipId] || [];
         return (
           <div key={m.masterMembershipId} style={{ padding: '14px 16px', borderBottom: i < byMaster.length - 1 ? `1px solid ${C.border}` : 'none' }}>
             <div onClick={() => onSelectMaster(m)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
@@ -790,8 +821,27 @@ function MastersTab({ byMaster, adjustmentsByMaster, onSelectMaster, onAddAdjust
               </div>
             )}
 
+            {isShiftPaid && shiftRows.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                {shiftRows.map((s) => (
+                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: C.subtle, padding: '4px 0' }}>
+                    <span>Смена {new Date(s.shift_date).toLocaleDateString('ru-RU')}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>{money(s.payout_amount)}</span>
+                      <button onClick={() => onDeleteShift(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 11 }}>✕</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button onClick={() => onAddAdjustment(m)} style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>+ Добавить корректировку</button>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={() => onAddAdjustment(m)} style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>+ Корректировка</button>
+                {isShiftPaid && (
+                  <button onClick={() => onAddShift(m)} style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>+ Отметить смену</button>
+                )}
+              </div>
               <div style={{ fontSize: 15, fontWeight: 800 }}>Итого: {money(totalPayout)}</div>
             </div>
           </div>
@@ -817,6 +867,33 @@ function AdjustmentModal({ form, setForm, masters, onSubmit, onClose }) {
           </Field>
           <Field label="Дата">
             <TextInput type="date" value={form.occurredAt || todayStr()} onChange={(e) => setForm({ ...form, occurredAt: e.target.value })} />
+          </Field>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn type="submit">Сохранить</Btn>
+            <Btn type="button" variant="secondary" onClick={onClose}>Отмена</Btn>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Отметка смены для мастеров с оплатой "за выход" (15.08.2026) — сумма
+// необязательна, по умолчанию сервер берёт ставку из Команды
+// (memberships.shift_payout_amount); поле оставлено на случай разовой
+// корректировки (премиальная смена, неполный день и т.п.).
+function ShiftModal({ form, setForm, masters, onSubmit, onClose }) {
+  const master = masters.find((m) => String(m.id) === String(form.masterMembershipId));
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 50 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 16, padding: 20, width: '100%', maxWidth: 380 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>Смена{master ? `: ${master.user_name}` : ''}</div>
+        <form onSubmit={onSubmit}>
+          <Field label="Дата смены">
+            <TextInput type="date" value={form.shiftDate} onChange={(e) => setForm({ ...form, shiftDate: e.target.value })} required />
+          </Field>
+          <Field label="Сумма, ₽ (необязательно — по умолчанию ставка мастера)">
+            <TextInput type="number" min="0" value={form.payoutAmount} onChange={(e) => setForm({ ...form, payoutAmount: e.target.value })} placeholder={master?.shift_payout_amount ? String(master.shift_payout_amount) : ''} />
           </Field>
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn type="submit">Сохранить</Btn>

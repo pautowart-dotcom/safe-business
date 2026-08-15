@@ -13,6 +13,7 @@ import Clients from './pages/Clients.jsx';
 import Visits from './pages/Visits.jsx';
 import Finance from './pages/Finance.jsx';
 import Supplies from './pages/Supplies.jsx';
+import Services from './pages/Services.jsx';
 import Checklists from './pages/Checklists.jsx';
 import Knowledge from './pages/Knowledge.jsx';
 import Security from './pages/Security.jsx';
@@ -66,6 +67,14 @@ export default function App() {
         />
         <Route path="finance" element={<Finance />} />
         <Route path="supplies" element={<Supplies />} />
+        <Route
+          path="services"
+          element={
+            <PrivateRoute managementOnly>
+              <Services />
+            </PrivateRoute>
+          }
+        />
         <Route path="shift" element={<Checklists />} />
         <Route path="knowledge" element={<Knowledge />} />
         <Route

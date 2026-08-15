@@ -55,7 +55,7 @@ const SELECT_COLUMNS = `
   v.amount, v.discount_percent, v.discount_fixed_amount, v.master_payout_percent, v.payment_method, v.client_package_id,
   ${DISCOUNT_AMOUNT_SQL} AS discount_amount,
   ROUND(v.amount - (${DISCOUNT_AMOUNT_SQL}), 2) AS final_amount,
-  ROUND(v.amount * v.master_payout_percent / 100, 2) AS master_earnings,
+  v.master_payout_amount AS master_earnings,
   v.photo_before_url, v.photo_after_url, v.photo_before_url_2, v.photo_after_url_2, v.visit_at, v.created_at,
   c.first_name AS client_first_name, c.last_name AS client_last_name,
   mu.name AS master_name
@@ -135,6 +135,59 @@ async function restockVisitSupplies(client, { companyId, visitId, userId }) {
 
 // Мастер видит и ведёт только свои визиты (README, раздел "Визиты").
 // Владелец видит все и может назначать мастера.
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// Модели оплаты мастера (15.08.2026) — percent (как раньше), fixed
+// (фиксированная сумма за визит, не зависит от чека — частый случай для
+// массажа), shift (за смену, не зависит от визита вообще — этот визит
+// добавляет 0 к заработку, реальная сумма считается отдельно через
+// master_shifts). Приоритет переопределения: услуга из каталога >
+// базовая ставка мастера — тот же принцип "дефолт + переопределение",
+// что и у рабочих часов. "shift" на услуге не бывает — не валидный тип
+// переопределения там (см. миграцию 0084 — CHECK на services.payout_type
+// разрешает только percent/fixed).
+async function resolveMasterPayout({ masterMembershipId, serviceId, amount }) {
+  if (!masterMembershipId) return { payoutType: null, payoutPercent: null, payoutAmount: null };
+
+  const masterRes = await pool.query(
+    'SELECT payout_type, payout_percent, payout_fixed_amount FROM memberships WHERE id = $1',
+    [masterMembershipId]
+  );
+  if (masterRes.rows.length === 0) return { payoutType: null, payoutPercent: null, payoutAmount: null };
+  const master = masterRes.rows[0];
+
+  let service = null;
+  if (serviceId) {
+    const svcRes = await pool.query(
+      'SELECT payout_type, payout_percent, payout_fixed_amount FROM services WHERE id = $1',
+      [serviceId]
+    );
+    service = svcRes.rows[0] || null;
+  }
+
+  const effectiveType = service?.payout_type || master.payout_type;
+
+  if (effectiveType === 'percent') {
+    const percent = service?.payout_type === 'percent' ? service.payout_percent : master.payout_percent;
+    if (percent === null || percent === undefined) {
+      return { error: 'Для этого мастера не задан процент выплаты — попросите владельца указать его в разделе «Команда»' };
+    }
+    return { payoutType: 'percent', payoutPercent: percent, payoutAmount: round2((Number(amount) * Number(percent)) / 100) };
+  }
+
+  if (effectiveType === 'fixed') {
+    const fixed = service?.payout_type === 'fixed' ? service.payout_fixed_amount : master.payout_fixed_amount;
+    if (fixed === null || fixed === undefined) {
+      return { error: 'Для этого мастера/услуги не задана фиксированная сумма выплаты — попросите владельца указать её в разделе «Команда» или в каталоге услуг' };
+    }
+    return { payoutType: 'fixed', payoutPercent: null, payoutAmount: Number(fixed) };
+  }
+
+  // shift: заработок за конкретный визит — 0, реальная выплата считается
+  // по master_shifts (см. finance/shifts.routes.js), не по визитам.
+  return { payoutType: 'shift', payoutPercent: null, payoutAmount: 0 };
+}
+
 async function resolveMasterMembership(companyId, tenant, requestedMasterMembershipId) {
   if (tenant.role === 'master') {
     return tenant.membershipId;
@@ -345,12 +398,14 @@ router.post(
       }
     }
 
+    let payoutAmount = null;
     if (resolvedMasterId) {
-      const master = await pool.query('SELECT payout_percent FROM memberships WHERE id = $1', [resolvedMasterId]);
-      payoutPercent = master.rows[0].payout_percent;
-      if (payoutPercent === null) {
-        return res.status(400).json({ error: 'Для этого мастера не задан процент выплаты — попросите владельца указать его в разделе «Команда»' });
+      const resolvedPayout = await resolveMasterPayout({ masterMembershipId: resolvedMasterId, serviceId: serviceId || null, amount: finalAmount });
+      if (resolvedPayout.error) {
+        return res.status(400).json({ error: resolvedPayout.error });
       }
+      payoutPercent = resolvedPayout.payoutPercent;
+      payoutAmount = resolvedPayout.payoutAmount;
     }
 
     const dbClient = await pool.connect();
@@ -360,9 +415,9 @@ router.post(
       const insert = await dbClient.query(
         `INSERT INTO visits (
            company_id, branch_id, client_id, master_membership_id, service, service_id, materials,
-           amount, discount_percent, discount_fixed_amount, master_payout_percent, photo_before_url, photo_after_url,
+           amount, discount_percent, discount_fixed_amount, master_payout_percent, master_payout_amount, photo_before_url, photo_after_url,
            photo_before_url_2, photo_after_url_2, visit_at, created_by_user_id, payment_method, niche, client_package_id
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, COALESCE($16, now()), $17, $18, $19, $20)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, COALESCE($17, now()), $18, $19, $20, $21)
          RETURNING id, visit_at`,
         [
           req.tenant.companyId,
@@ -376,6 +431,7 @@ router.post(
           finalDiscountPercent || 0,
           finalDiscountFixedAmount || null,
           payoutPercent,
+          payoutAmount,
           bareFileUrl(photoBeforeUrl) || null,
           bareFileUrl(photoAfterUrl) || null,
           bareFileUrl(photoBeforeUrl2) || null,
@@ -483,18 +539,12 @@ router.patch(
     }
 
     let masterMembershipToSet = current.master_membership_id;
-    let payoutPercentToSet = current.master_payout_percent;
     if (req.tenant.role !== 'master' && masterMembershipId && masterMembershipId !== current.master_membership_id) {
       const resolved = await resolveMasterMembership(req.tenant.companyId, req.tenant, masterMembershipId);
       if (!resolved) {
         return res.status(400).json({ error: 'Мастер не найден в этой компании' });
       }
-      const master = await pool.query('SELECT payout_percent FROM memberships WHERE id = $1', [resolved]);
-      if (master.rows[0].payout_percent === null) {
-        return res.status(400).json({ error: 'Для этого мастера не задан процент выплаты' });
-      }
       masterMembershipToSet = resolved;
-      payoutPercentToSet = master.rows[0].payout_percent;
     }
 
     if (clientId) {
@@ -525,6 +575,28 @@ router.patch(
       }
     }
 
+    // Выплату пересчитываем заново при ЛЮБОЙ правке, а не только при смене
+    // мастера — сумма (при типе percent) и услуга (может нести своё
+    // переопределение) тоже влияют на итог, а PATCH позволяет менять их
+    // независимо друг от друга. Эффективные значения — переданные в этом
+    // запросе, если есть, иначе те, что уже сохранены на визите.
+    const effectiveServiceIdForPayout = serviceIdProvided ? (serviceId || null) : current.service_id;
+    const effectiveAmountForPayout = amount === undefined || amount === null ? Number(current.amount) : Number(amount);
+    let payoutPercentToSet = null;
+    let payoutAmountToSet = null;
+    if (masterMembershipToSet) {
+      const resolvedPayout = await resolveMasterPayout({
+        masterMembershipId: masterMembershipToSet,
+        serviceId: effectiveServiceIdForPayout,
+        amount: effectiveAmountForPayout,
+      });
+      if (resolvedPayout.error) {
+        return res.status(400).json({ error: resolvedPayout.error });
+      }
+      payoutPercentToSet = resolvedPayout.payoutPercent;
+      payoutAmountToSet = resolvedPayout.payoutAmount;
+    }
+
     const dbClient = await pool.connect();
     try {
       await dbClient.query('BEGIN');
@@ -546,7 +618,8 @@ router.patch(
            master_payout_percent = $13,
            payment_method = COALESCE($15, payment_method),
            niche = COALESCE($18, niche),
-           service_id = CASE WHEN $19 THEN $20 ELSE service_id END
+           service_id = CASE WHEN $19 THEN $20 ELSE service_id END,
+           master_payout_amount = $21
          WHERE id = $14`,
         [
           clientId || null,
@@ -569,6 +642,7 @@ router.patch(
           niche || null,
           serviceIdProvided,
           serviceId || null,
+          payoutAmountToSet,
         ]
       );
 

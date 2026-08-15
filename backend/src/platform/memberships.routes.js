@@ -56,7 +56,8 @@ router.get(
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.daily_hours, m.invite_status, m.invited_email, m.created_at, m.active,
+      `SELECT m.id, m.role, m.branch_id, m.payout_percent, m.payout_type, m.payout_fixed_amount, m.shift_payout_amount,
+              m.daily_hours, m.invite_status, m.invited_email, m.created_at, m.active,
               u.id AS user_id, u.name AS user_name, u.email AS user_email
        FROM memberships m
        LEFT JOIN users u ON u.id = m.user_id
@@ -140,7 +141,7 @@ router.patch(
   '/:id',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { payoutPercent, branchId, dailyHours } = req.body;
+    const { payoutPercent, branchId, dailyHours, payoutType, payoutFixedAmount, shiftPayoutAmount } = req.body;
 
     if (branchId) {
       const branch = await pool.query('SELECT 1 FROM branches WHERE id = $1 AND company_id = $2', [
@@ -154,6 +155,9 @@ router.patch(
     if (dailyHours !== undefined && dailyHours !== null && dailyHours !== '' && Number(dailyHours) <= 0) {
       return res.status(400).json({ error: 'Рабочих часов в день должно быть больше нуля' });
     }
+    if (payoutType !== undefined && payoutType !== null && !['percent', 'fixed', 'shift'].includes(payoutType)) {
+      return res.status(400).json({ error: 'Некорректный тип оплаты' });
+    }
 
     // daily_hours (Этап 3 плана аналитики) — переопределение дефолта
     // компании для этого конкретного мастера, nullable (сбрасывается в
@@ -163,14 +167,32 @@ router.patch(
     // хотя сама валидация выше уже не пускает 0/отрицательные — оставляем
     // проверку "передано ли поле" на будущее, если появится 0 как смысл.
     const dailyHoursProvided = 'dailyHours' in req.body;
+    // payout_type — не nullable в БД (DEFAULT 'percent'), обычный COALESCE
+    // подходит: пустое значение из формы просто не меняет текущий тип, не
+    // сбрасывает его в NULL (это и невозможно — CHECK-констрейнт).
     const { rows } = await pool.query(
       `UPDATE memberships SET
          payout_percent = COALESCE($1, payout_percent),
          branch_id = COALESCE($2, branch_id),
-         daily_hours = CASE WHEN $5 THEN $6 ELSE daily_hours END
+         daily_hours = CASE WHEN $5 THEN $6 ELSE daily_hours END,
+         payout_type = COALESCE($7, payout_type),
+         payout_fixed_amount = CASE WHEN $8 THEN $9 ELSE payout_fixed_amount END,
+         shift_payout_amount = CASE WHEN $10 THEN $11 ELSE shift_payout_amount END
        WHERE id = $3 AND company_id = $4 AND role IN ('master', 'admin')
-       RETURNING id, role, branch_id, payout_percent, daily_hours, invite_status`,
-      [emptyToNull(payoutPercent), emptyToNull(branchId), req.params.id, req.tenant.companyId, dailyHoursProvided, emptyToNull(dailyHours)]
+       RETURNING id, role, branch_id, payout_percent, payout_type, payout_fixed_amount, shift_payout_amount, daily_hours, invite_status`,
+      [
+        emptyToNull(payoutPercent),
+        emptyToNull(branchId),
+        req.params.id,
+        req.tenant.companyId,
+        dailyHoursProvided,
+        emptyToNull(dailyHours),
+        payoutType || null,
+        'payoutFixedAmount' in req.body,
+        emptyToNull(payoutFixedAmount),
+        'shiftPayoutAmount' in req.body,
+        emptyToNull(shiftPayoutAmount),
+      ]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Участник не найден' });

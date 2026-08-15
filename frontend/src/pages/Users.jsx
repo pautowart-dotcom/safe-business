@@ -20,7 +20,7 @@ export default function Users() {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [editForm, setEditForm] = useState({ payoutPercent: '', dailyHours: '' });
+  const [editForm, setEditForm] = useState({ payoutPercent: '', dailyHours: '', payoutType: 'percent', payoutFixedAmount: '', shiftPayoutAmount: '' });
   const [confirmDel, setConfirmDel] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docForm, setDocForm] = useState(null);
@@ -44,7 +44,13 @@ export default function Users() {
 
   function openEdit(member) {
     setEditing(member);
-    setEditForm({ payoutPercent: member.payout_percent || '', dailyHours: member.daily_hours || '' });
+    setEditForm({
+      payoutPercent: member.payout_percent || '',
+      dailyHours: member.daily_hours || '',
+      payoutType: member.payout_type || 'percent',
+      payoutFixedAmount: member.payout_fixed_amount || '',
+      shiftPayoutAmount: member.shift_payout_amount || '',
+    });
     loadDocuments(member.id);
   }
 
@@ -119,9 +125,33 @@ export default function Users() {
         <BackBtn onClick={() => setEditing(null)} />
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Изменить условия: {editing.user_name || editing.invited_email}</div>
         {editing.role === 'master' && (
+          <Field label="Тип оплаты">
+            <Select value={editForm.payoutType} onChange={(e) => setEditForm({ ...editForm, payoutType: e.target.value })}>
+              <option value="percent">% от суммы визита</option>
+              <option value="fixed">Фиксированная сумма за визит</option>
+              <option value="shift">Фиксированная сумма за смену ("за выход")</option>
+            </Select>
+          </Field>
+        )}
+        {editing.role === 'master' && editForm.payoutType === 'percent' && (
           <Field label="% выплаты от суммы визита">
             <TextInput type="number" min="0" max="100" value={editForm.payoutPercent} onChange={(e) => setEditForm({ ...editForm, payoutPercent: e.target.value })} />
           </Field>
+        )}
+        {editing.role === 'master' && editForm.payoutType === 'fixed' && (
+          <Field label="Фиксированная сумма за визит, ₽">
+            <TextInput type="number" min="0" value={editForm.payoutFixedAmount} onChange={(e) => setEditForm({ ...editForm, payoutFixedAmount: e.target.value })} placeholder="Например, 800" />
+          </Field>
+        )}
+        {editing.role === 'master' && editForm.payoutType === 'shift' && (
+          <>
+            <Field label="Сумма за смену, ₽">
+              <TextInput type="number" min="0" value={editForm.shiftPayoutAmount} onChange={(e) => setEditForm({ ...editForm, shiftPayoutAmount: e.target.value })} placeholder="Например, 2000" />
+            </Field>
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
+              Не зависит от числа визитов за смену. Сами смены отмечаются в «Финансы → По мастерам».
+            </div>
+          </>
         )}
         {editing.role === 'master' && (
           <Field label="Рабочих часов в день (необязательно — по умолчанию берётся из настроек компании)">
@@ -254,7 +284,9 @@ export default function Users() {
                 <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.user_name || m.invited_email || 'Приглашение отправлено'}</div>
                 <div style={{ fontSize: 12, color: C.subtle }}>
                   {ROLE_LABELS[m.role] || m.role}
-                  {m.role === 'master' && m.payout_percent != null && ` · ${m.payout_percent}% от чека`}
+                  {m.role === 'master' && m.payout_type === 'percent' && m.payout_percent != null && ` · ${m.payout_percent}% от чека`}
+                  {m.role === 'master' && m.payout_type === 'fixed' && m.payout_fixed_amount != null && ` · ${m.payout_fixed_amount}₽ за визит`}
+                  {m.role === 'master' && m.payout_type === 'shift' && m.shift_payout_amount != null && ` · ${m.shift_payout_amount}₽ за смену`}
                 </div>
               </div>
             </div>

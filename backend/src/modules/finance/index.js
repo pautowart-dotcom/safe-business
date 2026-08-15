@@ -9,6 +9,7 @@ const recurringExpensesRoutes = require('./recurring-expenses.routes');
 const expenseEntriesRoutes = require('./expense-entries.routes');
 const adjustmentsRoutes = require('./adjustments.routes');
 const revenueRoutes = require('./revenue.routes');
+const shiftsRoutes = require('./shifts.routes');
 
 const BASE_PATH = '/api/modules/finance';
 
@@ -29,6 +30,10 @@ router.use('/expenses', requireRole('owner', 'admin'), expenseEntriesRoutes);
 router.use('/adjustments', adjustmentsRoutes);
 // Записи о выручке (Пакет 3, Этап 1.2) — источник auto_from_visit/manual.
 router.use('/revenue', requireRole('owner', 'admin'), revenueRoutes);
+// Смены для оплаты "за выход" (15.08.2026) — роль проверяется внутри
+// shifts.routes.js по каждому эндпоинту (мастер видит свои, создаёт/
+// правит только owner/admin — та же граница, что у adjustments).
+router.use('/shifts', shiftsRoutes);
 
 registerModule({
   key: 'finance',
