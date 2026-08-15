@@ -48,12 +48,18 @@ async function registerDeadline({
   // Пуш — побочный эффект, не должен ронять регистрацию дедлайна (которая
   // уже успешно записана в БД), если push-служба браузера недоступна или
   // отвечает ошибкой, не связанной с самой подпиской.
+  // 15.08.2026: раньше заголовок пуша был общей обёрткой ("Новый срок в
+  // Дедлайнах"), а самое важное (что именно за срок) пряталось в тело —
+  // на iOS это выглядело как "Новый срок в Дедлайнах / from Безопасный
+  // бизнес / <суть>", много лишнего текста сверху. Имя приложения ("from
+  // ...") рисует сама ОС из имени PWA, дублировать его в заголовке не
+  // нужно — поэтому в заголовок идёт сама суть, а не обёртка.
   if (inserted) {
     sendPushToCompany({
       companyId,
       category,
-      title: 'Новый срок в "Дедлайнах"',
-      body: title,
+      title,
+      body: 'Новый срок — подробности в «Дедлайнах»',
       url: '/deadlines',
     }).catch((err) => console.error('sendPushToCompany failed:', err));
   }
@@ -96,8 +102,8 @@ async function registerAction({ companyId, category, title, relatedEntityType = 
     sendPushToCompany({
       companyId,
       category,
-      title: 'Новое действие в "Дедлайнах"',
-      body: title,
+      title,
+      body: 'Подробности — в «Дедлайнах»',
       url: '/deadlines',
     }).catch((err) => console.error('sendPushToCompany failed:', err));
   }
