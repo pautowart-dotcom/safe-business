@@ -25,6 +25,18 @@ export default function Supplies() {
   const [movementQty, setMovementQty] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Наборы расходников (16.08.2026) — именованные шаблоны "расходник +
+  // количество", применяются одним кликом в форме визита (Visits.jsx).
+  // Здесь — управление: переименование/состав/удаление, создаются сами
+  // наборы чаще всего прямо из визита ("Сохранить этот список как набор"),
+  // этот экран — для последующей правки, не единственный способ завести.
+  const [packages, setPackages] = useState([]);
+  const [managePackages, setManagePackages] = useState(false);
+  const [packageForm, setPackageForm] = useState(null); // { id: null|number, name, items: [{supplyId, quantity, name, unit}] }
+  const [pkgCategoryPick, setPkgCategoryPick] = useState('');
+  const [pkgSupplyPick, setPkgSupplyPick] = useState('');
+  const [pkgQty, setPkgQty] = useState('');
+  const [packageError, setPackageError] = useState('');
 
   function load() {
     api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
@@ -34,11 +46,77 @@ export default function Supplies() {
     api.get('/modules/supplies/categories').then((res) => setCategories(res.data));
   }
 
+  function loadPackages() {
+    api.get('/modules/supplies/packages').then((res) => setPackages(res.data));
+  }
+
   useEffect(() => {
     load();
     loadCategories();
+    loadPackages();
   }, []);
-  usePullToRefresh(() => Promise.all([load(), loadCategories()]));
+  usePullToRefresh(() => Promise.all([load(), loadCategories(), loadPackages()]));
+
+  function openPackageCreate() {
+    setPackageForm({ id: null, name: '', items: [] });
+    setPkgCategoryPick('');
+    setPkgSupplyPick('');
+    setPkgQty('');
+    setPackageError('');
+  }
+  function openPackageEdit(pkg) {
+    setPackageForm({ id: pkg.id, name: pkg.name, items: pkg.items.map((it) => ({ ...it, quantity: String(it.quantity) })) });
+    setPkgCategoryPick('');
+    setPkgSupplyPick('');
+    setPkgQty('');
+    setPackageError('');
+  }
+  function closePackageForm() {
+    setPackageForm(null);
+  }
+  function addItemToPackageForm() {
+    if (!pkgSupplyPick || !pkgQty || Number(pkgQty) <= 0) return;
+    const supply = supplies.find((s) => String(s.id) === String(pkgSupplyPick));
+    if (!supply) return;
+    const existingIdx = packageForm.items.findIndex((it) => String(it.supplyId) === String(supply.id));
+    const items = [...packageForm.items];
+    if (existingIdx >= 0) {
+      items[existingIdx] = { ...items[existingIdx], quantity: String(Number(items[existingIdx].quantity) + Number(pkgQty)) };
+    } else {
+      items.push({ supplyId: supply.id, quantity: pkgQty, name: supply.name, unit: supply.unit });
+    }
+    setPackageForm({ ...packageForm, items });
+    setPkgCategoryPick('');
+    setPkgSupplyPick('');
+    setPkgQty('');
+  }
+  function removeItemFromPackageForm(idx) {
+    setPackageForm({ ...packageForm, items: packageForm.items.filter((_, i) => i !== idx) });
+  }
+  async function savePackage() {
+    if (!packageForm.name.trim() || packageForm.items.length === 0) return;
+    setPackageError('');
+    const payload = {
+      name: packageForm.name.trim(),
+      items: packageForm.items.map((it) => ({ supplyId: it.supplyId, quantity: Number(it.quantity) })),
+    };
+    try {
+      if (packageForm.id) {
+        await api.patch(`/modules/supplies/packages/${packageForm.id}`, payload);
+      } else {
+        await api.post('/modules/supplies/packages', payload);
+      }
+      closePackageForm();
+      loadPackages();
+    } catch (err) {
+      setPackageError(err.response?.data?.error || 'Не удалось сохранить набор');
+    }
+  }
+  async function deletePackage(id) {
+    if (!confirm('Удалить набор? Уже внесённые визиты не изменятся, это только шаблон.')) return;
+    await api.delete(`/modules/supplies/packages/${id}`);
+    loadPackages();
+  }
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -275,6 +353,92 @@ export default function Supplies() {
             />
             <Btn small onClick={addCategory}>Добавить</Btn>
           </div>
+        </Card>
+      )}
+
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={() => setManagePackages((v) => !v)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.primary, fontSize: 13, fontWeight: 600, padding: 0 }}
+        >
+          {managePackages ? 'Скрыть наборы расходников' : 'Наборы расходников →'}
+        </button>
+      </div>
+
+      {managePackages && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: C.subtle }}>Наборы расходников</div>
+            {!packageForm && <button onClick={openPackageCreate} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.primary, fontSize: 12, fontWeight: 600 }}>+ Новый набор</button>}
+          </div>
+
+          {!packageForm && (
+            packages.length === 0 ? (
+              <div style={{ fontSize: 13, color: C.subtle }}>
+                Пока нет ни одного набора — быстрее всего завести его прямо из формы визита
+                кнопкой «Сохранить этот список как набор», или создать здесь.
+              </div>
+            ) : (
+              packages.map((p, i) => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < packages.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: C.subtle }}>{p.items.map((it) => it.name).join(', ')}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                    <button onClick={() => openPackageEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="edit" size={15} color={C.secondary} /></button>
+                    <button onClick={() => deletePackage(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="trash" size={15} color={C.subtle} /></button>
+                  </div>
+                </div>
+              ))
+            )
+          )}
+
+          {packageForm && (
+            <div>
+              <TextInput
+                autoFocus
+                value={packageForm.name}
+                onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })}
+                placeholder="Название набора, например «Стандартный маникюр»"
+                style={{ marginBottom: 10 }}
+              />
+              {packageForm.items.map((it, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+                  <span style={{ flex: 1, fontSize: 13 }}>{it.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{it.quantity} {it.unit}</span>
+                  <button type="button" onClick={() => removeItemFromPackageForm(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 14 }}>✕</button>
+                </div>
+              ))}
+              {(() => {
+                const itemsInCategory = pkgCategoryPick
+                  ? supplies.filter((s) => (pkgCategoryPick === 'none' ? !s.category_id : String(s.category_id) === pkgCategoryPick))
+                  : [];
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                    <Select value={pkgCategoryPick} onChange={(e) => { setPkgCategoryPick(e.target.value); setPkgSupplyPick(''); }}>
+                      <option value="">Выберите категорию расходника</option>
+                      {categories.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                      <option value="none">Без категории</option>
+                    </Select>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Select value={pkgSupplyPick} disabled={!pkgCategoryPick} onChange={(e) => setPkgSupplyPick(e.target.value)} style={{ flex: 2 }}>
+                        <option value="">{pkgCategoryPick ? 'Выберите расходник' : 'Сначала выберите категорию'}</option>
+                        {itemsInCategory.map((s) => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ''}</option>)}
+                      </Select>
+                      <TextInput type="number" min="0" step="0.01" placeholder="Кол-во" value={pkgQty} onChange={(e) => setPkgQty(e.target.value)} style={{ flex: 1 }} />
+                      <Btn small type="button" onClick={addItemToPackageForm}>+</Btn>
+                    </div>
+                  </div>
+                );
+              })()}
+              {packageError && <div className="alert alert-error" style={{ marginBottom: 10 }}>{packageError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn small onClick={savePackage}>Сохранить</Btn>
+                <Btn small variant="secondary" onClick={closePackageForm}>Отмена</Btn>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

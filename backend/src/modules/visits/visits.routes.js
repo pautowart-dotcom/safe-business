@@ -188,6 +188,20 @@ async function resolveMasterPayout({ masterMembershipId, serviceId, amount }) {
   return { payoutType: 'shift', payoutPercent: null, payoutAmount: 0 };
 }
 
+// 16.08.2026: мастер видит ВСЕХ клиентов и всю историю визитов (не только
+// свои) — нужна для контекста, когда обслуживаешь чужого постоянного
+// клиента. Владелец явно развёл это с "общими финансами компании":
+// сумма/чек визита — не то же самое, что чья-то зарплата. Поэтому здесь
+// прячем именно заработок МАСТЕРА по чужим визитам (комиссия коллеги —
+// его личная финансовая информация), а не сам визит целиком.
+function maskOtherMastersEarnings(rows, tenant) {
+  if (tenant.role !== 'master') return rows;
+  return rows.map((r) => {
+    if (r.master_membership_id === tenant.membershipId) return r;
+    return { ...r, master_earnings: null, master_payout_percent: null };
+  });
+}
+
 async function resolveMasterMembership(companyId, tenant, requestedMasterMembershipId) {
   if (tenant.role === 'master') {
     return tenant.membershipId;
@@ -209,7 +223,14 @@ router.get(
     const params = [req.tenant.companyId];
     let where = 'v.company_id = $1';
 
-    if (req.tenant.role === 'master') {
+    // 16.08.2026: мастер по умолчанию по-прежнему видит только свои визиты —
+    // это правильный дефолт для личных экранов (Дашборд "только свои дела",
+    // "Мои финансы", Фотоотчёты без явного выбора мастера), их бы молча
+    // сломало показом всей компании. Экран "Визиты" (общая история/поиск по
+    // клиенту) — единственное место, где мастеру нужен обзор по всей
+    // компании, поэтому именно он явно просит это через ?allMasters=1,
+    // остальные экраны ничего не меняют и продолжают работать как раньше.
+    if (req.tenant.role === 'master' && !req.query.allMasters) {
       params.push(req.tenant.membershipId);
       where += ` AND v.master_membership_id = $${params.length}`;
     } else if (req.query.masterMembershipId) {
@@ -242,7 +263,7 @@ router.get(
        WHERE ${where} ORDER BY v.visit_at DESC LIMIT 200`,
       params
     );
-    res.json(await attachSupplies(rows));
+    res.json(maskOtherMastersEarnings(await attachSupplies(rows), req.tenant));
   })
 );
 
@@ -251,7 +272,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const params = [req.params.id, req.tenant.companyId];
     let where = 'v.id = $1 AND v.company_id = $2';
-    if (req.tenant.role === 'master') {
+    if (req.tenant.role === 'master' && !req.query.allMasters) {
       params.push(req.tenant.membershipId);
       where += ` AND v.master_membership_id = $${params.length}`;
     }
@@ -263,7 +284,7 @@ router.get(
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Визит не найден' });
     }
-    res.json((await attachSupplies(rows))[0]);
+    res.json(maskOtherMastersEarnings(await attachSupplies(rows), req.tenant)[0]);
   })
 );
 

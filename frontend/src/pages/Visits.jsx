@@ -136,6 +136,11 @@ export default function Visits() {
   const [supplyCategoryPick, setSupplyCategoryPick] = useState('');
   const [supplyPick, setSupplyPick] = useState('');
   const [supplyQty, setSupplyQty] = useState('');
+  // Наборы расходников (16.08.2026) — именованные шаблоны "расходник +
+  // количество", чтобы не вводить одно и то же вручную на каждый визит.
+  const [packages, setPackages] = useState([]);
+  const [packagePick, setPackagePick] = useState('');
+  const [savingPackage, setSavingPackage] = useState(false);
   // Каталог услуг (Этап 2 плана аналитики, 15.08.2026) — длительность нужна
   // для будущей метрики загрузки, отсюда и обязательность поля в быстром
   // добавлении ниже.
@@ -161,8 +166,15 @@ export default function Visits() {
   // закрывать форму на список "Визитов", в котором владелец не был.
   const openedViaDeepLinkRef = useRef(false);
 
+  // allMasters=1 (16.08.2026) — владелец решил: мастер должен видеть всех
+  // клиентов и всю историю визитов здесь (полезно при работе с чужим
+  // постоянным клиентом), но не общую сводку финансов компании — то
+  // отдельная граница, уже есть в Finance.jsx/summary.routes.js, эта
+  // страница её не трогает. Только на этом экране, не везде: "Мои
+  // финансы"/Дашборд/Фотоотчёты продолжают запрашивать без флага и видят
+  // по-прежнему только своё — иначе они бы молча показали чужие данные.
   function load() {
-    return api.get('/modules/visits').then((res) => setVisits(res.data)).finally(() => setLoading(false));
+    return api.get('/modules/visits', { params: { allMasters: 1 } }).then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -197,6 +209,10 @@ export default function Visits() {
 
   useEffect(() => {
     api.get('/modules/supplies').then((res) => setSupplies(res.data));
+  }, []);
+
+  useEffect(() => {
+    api.get('/modules/supplies/packages').then((res) => setPackages(res.data));
   }, []);
 
   useEffect(() => {
@@ -294,6 +310,48 @@ export default function Visits() {
 
   function removeSupplyFromForm(idx) {
     setForm({ ...form, supplies: form.supplies.filter((_, i) => i !== idx) });
+  }
+
+  // Применить набор — добавляет все позиции набора в уже имеющийся список
+  // расходников визита (не заменяет его), список остаётся обычным
+  // редактируемым списком: можно убрать лишнее, поправить количество,
+  // дозаполнить вручную сверху. Если позиция из набора уже есть в списке —
+  // складываем количество, а не создаём вторую строку с тем же расходником.
+  function applyPackage(packageId) {
+    const pkg = packages.find((p) => String(p.id) === String(packageId));
+    if (!pkg) return;
+    const next = [...form.supplies];
+    for (const item of pkg.items) {
+      const existingIdx = next.findIndex((s) => String(s.supplyId) === String(item.supplyId));
+      if (existingIdx >= 0) {
+        next[existingIdx] = { ...next[existingIdx], quantity: String(Number(next[existingIdx].quantity) + item.quantity) };
+      } else {
+        next.push({ supplyId: item.supplyId, quantity: String(item.quantity), name: item.name, unit: item.unit });
+      }
+    }
+    setForm({ ...form, supplies: next });
+    setPackagePick('');
+  }
+
+  // Сохранить текущий список расходников визита как новый именованный
+  // набор — самый естественный способ "сформировать пакет": не отдельная
+  // абстрактная форма, а результат обычного заполнения визита один раз.
+  async function saveCurrentAsPackage() {
+    if (form.supplies.length === 0) return;
+    const name = window.prompt('Название набора (например: «Стандартный маникюр»)');
+    if (!name || !name.trim()) return;
+    setSavingPackage(true);
+    try {
+      const { data } = await api.post('/modules/supplies/packages', {
+        name: name.trim(),
+        items: form.supplies.map((s) => ({ supplyId: s.supplyId, quantity: Number(s.quantity) })),
+      });
+      setPackages([...packages, data].sort((a, b) => a.name.localeCompare(b.name, 'ru')));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Не удалось сохранить набор');
+    } finally {
+      setSavingPackage(false);
+    }
   }
 
   async function submitNewService() {
@@ -575,7 +633,12 @@ export default function Visits() {
               </Select>
             </Field>
           )}
-          <Field label={services.length > 0 ? 'Название услуги (если не выбрали из каталога выше)' : 'Услуга'}>
+          {/* 16.08.2026: переименовано из "Услуга"/"Название услуги" в
+              "Комментарий" по просьбе владельца — раз сама услуга теперь
+              выбирается из каталога выше, это поле по факту используется
+              как короткая заметка к визиту. Поведение не менялось: то же
+              обязательное поле, всё ещё пишет в visits.service. */}
+          <Field label="Комментарий">
             <TextInput
               required
               ref={serviceRef}
@@ -680,6 +743,16 @@ export default function Visits() {
           <ImageLightbox images={photoLightbox} onClose={() => setPhotoLightbox(null)} />
 
           <Field label="Расходники (необязательно)">
+            {packages.length > 0 && (
+              <Select
+                value={packagePick}
+                onChange={(e) => { setPackagePick(e.target.value); applyPackage(e.target.value); }}
+                style={{ marginBottom: 8 }}
+              >
+                <option value="">Применить набор…</option>
+                {packages.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.items.length})</option>)}
+              </Select>
+            )}
             {form.supplies.map((s, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
                 <span style={{ flex: 1, fontSize: 13 }}>{s.name}</span>
@@ -687,6 +760,16 @@ export default function Visits() {
                 <button type="button" onClick={() => removeSupplyFromForm(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 14 }}>✕</button>
               </div>
             ))}
+            {form.supplies.length > 0 && (
+              <button
+                type="button"
+                onClick={saveCurrentAsPackage}
+                disabled={savingPackage}
+                style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0 8px' }}
+              >
+                {savingPackage ? 'Сохраняем…' : '+ Сохранить этот список как набор'}
+              </button>
+            )}
             {/* Раньше здесь был ряд кнопок под каждый расходник с нормой на
                 клиента (несколько цветов геля — несколько кнопок) — при
                 десятках цветов это была стена кнопок на весь экран формы
@@ -775,7 +858,11 @@ export default function Visits() {
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{v.client_last_name} {v.client_first_name}</div>
                   <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                    {v.service} {isManagement && v.master_name && `· ${v.master_name.split(' ')[0]} `}· {new Date(v.visit_at).toLocaleString('ru-RU')}
+                    {/* 16.08.2026: раньше имя мастера показывали только owner/admin —
+                        у мастера все строки и так были его собственными, имя было бы
+                        просто шумом. Теперь мастер тоже видит чужие визиты (allMasters),
+                        без подписи было бы непонятно, чей это визит. */}
+                    {v.service} {v.master_name && `· ${v.master_name.split(' ')[0]} `}· {new Date(v.visit_at).toLocaleString('ru-RU')}
                   </div>
                 </div>
               </div>
