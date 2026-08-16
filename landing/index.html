@@ -156,11 +156,43 @@
 
   section { padding: 40px 0; border-top: 1px solid var(--border); }
   h2.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin: 0 0 20px; font-weight: 800; }
+  h3.module-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 8px; }
+  p.module-lead { font-size: 15px; color: var(--text-muted); max-width: 58ch; margin: 0 0 22px; }
+  .module-block { padding: 34px 0; }
+  .module-block + .module-block { border-top: 1px solid var(--border); }
+  .module-grid { display: grid; grid-template-columns: 1fr; gap: 28px; align-items: start; }
+  @media (min-width: 720px) { .module-grid { grid-template-columns: 1.1fr 0.9fr; } }
+  .module-grid.reverse { direction: rtl; }
+  .module-grid.reverse > * { direction: ltr; }
   .items { display: grid; grid-template-columns: 1fr; gap: 14px; }
   @media (min-width: 640px) { .items { grid-template-columns: 1fr 1fr; } }
   .item { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow-sm); }
   .item b { display: block; font-size: 15.5px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.1px; }
   .item span { font-size: 14px; color: var(--text-muted); }
+
+  /* Мини-макеты экранов (не фотоскриншоты — честная стилизованная
+     иллюстрация в том же визуальном языке, что и ledger-card в хиро) —
+     конкретные примеры, не абстрактные картинки. Общая база .mock-card
+     переиспользует форму ledger-card, дальше у каждого модуля свои строки. */
+  .mock-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px 22px 18px;
+    box-shadow: var(--shadow-lg);
+  }
+  .mock-label { font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 14px; }
+  .mock-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .mock-row:first-of-type { border-top: none; }
+  .mock-row .k { color: var(--text-muted); }
+  .mock-row .v { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mock-row.total { border-top: 2px solid var(--border); margin-top: 4px; padding-top: 12px; font-weight: 800; }
+  .mock-row.total .v { font-size: 18px; }
+  .mock-pill { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .pill-ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .pill-warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+  .pill-danger { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+  .mock-note { font-size: 11.5px; color: var(--text-muted); margin-top: 14px; }
   .price-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow-sm); }
   .price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
   .price b { font-size: 36px; font-weight: 800; letter-spacing: -1px; }
@@ -181,9 +213,9 @@
     <h1>Порядок и спокойствие для вашего бизнеса</h1>
     <p>
       Сервис для владельцев небольших студий красоты — держит в порядке
-      юридические, санитарные и финансовые сроки: медкнижки, огнетушители,
-      ЭЦП, патент, дезинфекция, вывоз отходов. Без давления и без обещаний,
-      которые невозможно проверить.
+      юридические, санитарные и финансовые сроки, а рядом — учёт визитов,
+      финансы и склад, если они вам нужны в одном месте. Без давления и без
+      обещаний, которые невозможно проверить.
     </p>
 
     <div class="ledger-card">
@@ -227,12 +259,135 @@
 
   <section>
     <h2 class="eyebrow">Что делает сервис</h2>
-    <div class="items">
-      <div class="item"><b>Бесплатная диагностика</b><span>Коротко показывает, чего вам не хватает — без сбора персональных дат на этом этапе.</span></div>
-      <div class="item"><b>«Мои сроки»</b><span>По желанию вносите точные даты нужных документов — приложение напоминает заранее.</span></div>
-      <div class="item"><b>Единая лента дел</b><span>«Центр действий» — что нужно сделать или оформить, в одном месте, а не в голове.</span></div>
-    </div>
+    <p style="font-size:15.5px; color:var(--text-muted); max-width:58ch; margin:0;">
+      Начиналось с теста безопасности — сегодня это уже несколько модулей.
+      Каждый включается отдельно, работает и по одному, и все вместе.
+    </p>
   </section>
+
+  <div class="module-block" style="border-top: 1px solid var(--border);">
+    <div class="module-grid">
+      <div>
+        <h3 class="module-title">Безопасность</h3>
+        <p class="module-lead">Бесплатный тест по вашей нише показывает индекс безопасности и конкретные
+          нарушения — с суммой штрафа и что сделать, без запугивания. Дальше — готовые PDF: обязательные
+          документы, зоны внимания при проверке, план устранения по срокам.</p>
+        <div class="items">
+          <div class="item"><b>Тест по нише</b><span>7 ниш красоты и здоровья — свой список требований под каждую.</span></div>
+          <div class="item"><b>«Мои сроки»</b><span>Вносите даты документов по желанию — напоминаем заранее, не когда уже поздно.</span></div>
+        </div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-label">Пример — Индекс безопасности</div>
+        <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+          <span style="font-size:34px; font-weight:800; letter-spacing:-1px;">64.7%</span>
+          <span class="mock-pill pill-warn">Жёлтая зона</span>
+        </div>
+        <div class="mock-row"><span class="k">Санитария</span><span class="v" style="color:var(--ok);">ОК</span></div>
+        <div class="mock-row"><span class="k">Документы для клиентов</span><span class="v" style="color:var(--warn);">2 нарушения</span></div>
+        <div class="mock-row"><span class="k">Пожарная безопасность</span><span class="v" style="color:var(--danger);">Не заполнено</span></div>
+        <div class="mock-note">Штраф по каждому пункту — с решением, не только с фактом нарушения.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module-block">
+    <div class="module-grid reverse">
+      <div>
+        <h3 class="module-title">Финансы</h3>
+        <p class="module-lead">Выручка (авто из визитов + вручную), расходы по категориям, себестоимость
+          материалов, чистая прибыль — видно, во что превращается выручка, не нужно складывать в уме.
+          Отдельно — загруженность по часам/дням, повторяемость клиентов, какие услуги популярны.</p>
+        <div class="items">
+          <div class="item"><b>Категории расходов</b><span>В том числе канал рекламы — какая реклама вообще окупается.</span></div>
+          <div class="item"><b>По мастерам</b><span>% от чека, фиксированная сумма за визит или за смену — три модели оплаты сразу.</span></div>
+        </div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-label">Пример — Финансы за месяц</div>
+        <div class="mock-row"><span class="k">Выручка</span><span class="v">312 000 ₽</span></div>
+        <div class="mock-row"><span class="k">Зарплаты мастеров</span><span class="v">− 118 000 ₽</span></div>
+        <div class="mock-row"><span class="k">Расходы</span><span class="v">− 64 000 ₽</span></div>
+        <div class="mock-row total"><span class="k">Чистая прибыль</span><span class="v" style="color:var(--ok);">130 000 ₽</span></div>
+        <div class="mock-note">Условные цифры для примера расчёта, не данные реального клиента.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module-block">
+    <div class="module-grid">
+      <div>
+        <h3 class="module-title">Визиты и фотоотчёты</h3>
+        <p class="module-lead">История визитов по клиенту, фото до/после привязаны к конкретному визиту —
+          не теряются в общей галерее телефона. Абонементы списываются автоматически.</p>
+        <div class="items">
+          <div class="item"><b>Каталог услуг</b><span>Название, длительность, ниша — выбирается при внесении визита или добавляется на лету.</span></div>
+          <div class="item"><b>Скидки и способ оплаты</b><span>% или фиксированная сумма, наличные/карта/перевод — видно, как считалась итоговая сумма.</span></div>
+        </div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-label">Пример — визит</div>
+        <div class="mock-row"><span class="k">Услуга</span><span class="v">Маникюр классический</span></div>
+        <div class="mock-row"><span class="k">Длительность</span><span class="v">40 мин</span></div>
+        <div class="mock-row"><span class="k">Фото</span><span class="v" style="color:var(--ok);">до / после ✓</span></div>
+        <div class="mock-note">Найти фото конкретного клиента — секунда, не поиск по 5000 снимкам в галерее.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module-block">
+    <div class="module-grid reverse">
+      <div>
+        <h3 class="module-title">Склад расходников</h3>
+        <p class="module-lead">Остатки, списание по визиту, приход — и предупреждение заранее, пока
+          расходник ещё не закончился на клиенте в кресле.</p>
+        <div class="items">
+          <div class="item"><b>Категории и себестоимость</b><span>Закупочная цена (видна только владельцу/админу) считается в чистую прибыль.</span></div>
+          <div class="item"><b>Норма расхода на визит</b><span>Списывается сама, если задать типовой расход — не нужно вбивать вручную каждый раз.</span></div>
+        </div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-label">Пример — Склад</div>
+        <div class="mock-row"><span class="k">Гель-лак база</span><span class="v pill-warn mock-pill">Заканчивается</span></div>
+        <div class="mock-row"><span class="k">Топ без липкого слоя</span><span class="v pill-ok mock-pill">В норме</span></div>
+        <div class="mock-row"><span class="k">Пилки одноразовые</span><span class="v pill-danger mock-pill">Закончились</span></div>
+        <div class="mock-note">Узнаёте накануне, а не когда клиент уже в кресле.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module-block">
+    <div class="module-grid">
+      <div>
+        <h3 class="module-title">Центр действий и команда</h3>
+        <p class="module-lead">Всё, что реально требует внимания сегодня — на одном экране, не в голове
+          и не на бумажке. Роли владельца, администратора и мастера видят разное: мастер — только своё,
+          прибыль компании — только владелец.</p>
+        <div class="items">
+          <div class="item"><b>Единая лента дел</b><span>Смена не открыта, выручка не внесена, заканчиваются расходники — всё в одном месте.</span></div>
+          <div class="item"><b>Разграничение доступа</b><span>Мастер не видит чужие финансы и прибыль компании — даже случайно.</span></div>
+        </div>
+      </div>
+      <div class="ledger-card" style="margin: 0;">
+        <div class="ledger-label">Пример — Центр действий</div>
+        <div class="ledger-row">
+          <span class="dot dot-warn"></span>
+          <span class="ledger-title">Смена не открыта</span>
+          <span class="ledger-meta">сегодня</span>
+        </div>
+        <div class="ledger-row">
+          <span class="dot dot-danger"></span>
+          <span class="ledger-title">Выручка не внесена</span>
+          <span class="ledger-meta">вчера</span>
+        </div>
+        <div class="ledger-row">
+          <span class="dot dot-warn"></span>
+          <span class="ledger-title">Заканчиваются расходники</span>
+          <span class="ledger-meta">3 позиции</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <section id="price">
     <h2 class="eyebrow">Тариф</h2>
