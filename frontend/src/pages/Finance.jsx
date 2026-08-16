@@ -517,24 +517,26 @@ function RevenueForm({ form, setForm, masters, onSubmit, onCancel }) {
 // нужно складывать числа в уме.
 // 16.08.2026: списки вроде "Выручка" за месяц у активной студии легко
 // доходят до 50-100+ строк (по одной на визит) — рендерить и листать всё
-// сразу было медленно и долго на телефоне. Показываем первую страницу,
-// остальное — по клику "Показать ещё", не сразу все 200 (лимит бэкенда,
-// finance/revenue.routes.js).
-function ShowMoreList({ items, pageSize = 20, renderItem, emptyText }) {
-  const [count, setCount] = useState(pageSize);
+// сразу было медленно и долго на телефоне. Показываем первую страницу
+// (по умолчанию 6 — свёрнутый вид должен помещаться на экран без
+// скролла), дальше простое переключение "Показать ещё" ⇄ "Свернуть", не
+// накопительная догрузка — так всегда можно вернуться к короткому виду,
+// не только листать дальше.
+function ShowMoreList({ items, pageSize = 6, renderItem, emptyText }) {
+  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) {
     return emptyText ? <div style={{ padding: '10px 0', textAlign: 'center', color: C.subtle, fontSize: 13 }}>{emptyText}</div> : null;
   }
-  const visible = items.slice(0, count);
+  const visible = expanded ? items : items.slice(0, pageSize);
   return (
     <>
       {visible.map(renderItem)}
-      {items.length > count && (
+      {items.length > pageSize && (
         <button
-          onClick={() => setCount((c) => c + pageSize)}
+          onClick={() => setExpanded((e) => !e)}
           style={{ display: 'block', width: '100%', textAlign: 'center', background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '10px 0 0' }}
         >
-          Показать ещё ({items.length - count})
+          {expanded ? 'Свернуть' : `Показать ещё (${items.length - pageSize})`}
         </button>
       )}
     </>
