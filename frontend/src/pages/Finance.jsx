@@ -515,6 +515,32 @@ function RevenueForm({ form, setForm, masters, onSubmit, onCancel }) {
 // статья расходов. По просьбе владельца (04.08.2026) заменили плитки-грид на
 // понятный "сверху вниз": видно, как выручка превращается в прибыль, не
 // нужно складывать числа в уме.
+// 16.08.2026: списки вроде "Выручка" за месяц у активной студии легко
+// доходят до 50-100+ строк (по одной на визит) — рендерить и листать всё
+// сразу было медленно и долго на телефоне. Показываем первую страницу,
+// остальное — по клику "Показать ещё", не сразу все 200 (лимит бэкенда,
+// finance/revenue.routes.js).
+function ShowMoreList({ items, pageSize = 20, renderItem, emptyText }) {
+  const [count, setCount] = useState(pageSize);
+  if (items.length === 0) {
+    return emptyText ? <div style={{ padding: '10px 0', textAlign: 'center', color: C.subtle, fontSize: 13 }}>{emptyText}</div> : null;
+  }
+  const visible = items.slice(0, count);
+  return (
+    <>
+      {visible.map(renderItem)}
+      {items.length > count && (
+        <button
+          onClick={() => setCount((c) => c + pageSize)}
+          style={{ display: 'block', width: '100%', textAlign: 'center', background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '10px 0 0' }}
+        >
+          Показать ещё ({items.length - count})
+        </button>
+      )}
+    </>
+  );
+}
+
 function PnlRow({ label, value, sign }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0' }}>
@@ -569,10 +595,11 @@ function OverviewTab({
         {revenueForm && (
           <RevenueForm form={revenueForm} setForm={setRevenueForm} masters={masters} onSubmit={submitRevenue} onCancel={closeRevenueForm} />
         )}
-        {revenue.map((r) => (
-          <RevenueRow key={r.id} entry={r} onDelete={deleteRevenue} />
-        ))}
-        {revenue.length === 0 && <div style={{ padding: '10px 0', textAlign: 'center', color: C.subtle, fontSize: 13 }}>Записей о выручке за период нет</div>}
+        <ShowMoreList
+          items={revenue}
+          emptyText="Записей о выручке за период нет"
+          renderItem={(r) => <RevenueRow key={r.id} entry={r} onDelete={deleteRevenue} />}
+        />
         {summary.unassignedRevenue > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: 4, fontSize: 12, color: C.subtle }}>
             <span>из них без сотрудника</span>
@@ -706,15 +733,18 @@ function OverviewTab({
             </div>
           </form>
         )}
-        {expenses.map((e) => (
-          <ExpRow
-            key={e.id}
-            label={`${e.name}${e.category ? ` · ${EXPENSE_CATEGORY_LABELS[e.category] || e.category}${e.channel ? ` (${e.channel})` : ''}` : ''} · ${new Date(e.occurred_at).toLocaleDateString('ru-RU')}`}
-            value={money(e.amount)}
-            onEdit={() => openEditExpense(e)}
-            onDel={() => deleteExpense(e.id)}
-          />
-        ))}
+        <ShowMoreList
+          items={expenses}
+          renderItem={(e) => (
+            <ExpRow
+              key={e.id}
+              label={`${e.name}${e.category ? ` · ${EXPENSE_CATEGORY_LABELS[e.category] || e.category}${e.channel ? ` (${e.channel})` : ''}` : ''} · ${new Date(e.occurred_at).toLocaleDateString('ru-RU')}`}
+              value={money(e.amount)}
+              onEdit={() => openEditExpense(e)}
+              onDel={() => deleteExpense(e.id)}
+            />
+          )}
+        />
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', marginTop: 4, borderTop: `2px solid ${C.border}` }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.subtle }}>Итого</span>
           <span style={{ fontSize: 14, fontWeight: 800 }}>{money(summary.variableExpenses)}</span>

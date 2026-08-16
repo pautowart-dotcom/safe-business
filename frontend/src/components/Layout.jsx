@@ -179,7 +179,10 @@ export default function Layout() {
     // height (не minHeight) — вместе с html/body/#root { height: 100%;
     // overflow: hidden } в styles.css это делает прокручиваемым только
     // внутренний scrollRef ниже, а не страницу целиком (см. комментарий там).
-    <div style={{ maxWidth: MAX_WIDTH, margin: '0 auto', height: '100vh', background: C.bg, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
+    // className="layout-viewport" — 100vh с откатом на 100dvh (styles.css),
+    // иначе на iOS Safari в обычной вкладке нижняя навигация уезжала за
+    // пределы реально видимой области, когда была видна панель браузера.
+    <div className="layout-viewport" style={{ maxWidth: MAX_WIDTH, margin: '0 auto', background: C.bg, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
       {!user?.onboarding_seen_at && <OnboardingModal />}
       <div style={{ padding: '16px 20px 12px', background: C.bg, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
