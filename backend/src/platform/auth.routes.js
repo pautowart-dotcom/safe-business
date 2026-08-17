@@ -101,10 +101,15 @@ async function activeMembershipsForUser(userId) {
 router.post(
   '/register',
   asyncHandler(async (req, res) => {
-    const { name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent } = req.body;
-    if (!name || !email || !password || !companyName) {
-      return res.status(400).json({ error: 'Заполните имя, email, пароль и название компании' });
+    const { name, email, password, industrySegment, acceptedTerms, analyticsConsent } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Заполните имя, email и пароль' });
     }
+    // Название компании убрано из формы регистрации (17.08.2026) — лишнее
+    // поле перед тем, как человек увидел хоть какую-то ценность продукта.
+    // Ставим редактируемую заглушку, переименовать можно сразу в Настройках
+    // (companies.routes.js PATCH /current).
+    const companyName = (req.body.companyName || '').trim() || 'Моя компания';
     if (password.length < 8) {
       return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });
     }

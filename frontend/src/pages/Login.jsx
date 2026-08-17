@@ -106,7 +106,6 @@ function RegisterForm({ onRegister, onBack }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [companyName, setCompanyName] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [analyticsConsent, setAnalyticsConsent] = useState(false);
   const [error, setError] = useState('');
@@ -118,7 +117,7 @@ function RegisterForm({ onRegister, onBack }) {
     setError('');
     setSubmitting(true);
     try {
-      await onRegister({ name, email, password, companyName, acceptedTerms, analyticsConsent });
+      await onRegister({ name, email, password, acceptedTerms, analyticsConsent });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось зарегистрироваться');
     } finally {
@@ -139,9 +138,10 @@ function RegisterForm({ onRegister, onBack }) {
         <Field label="Пароль">
           <TextInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
         </Field>
-        <Field label="Название студии/компании">
-          <TextInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Студия на Тверской" required />
-        </Field>
+        {/* Название компании убрано (17.08.2026) — заводится автоматически
+            ("Моя компания"), переименовать можно сразу после входа в
+            Настройках. Раньше поле было обязательным, лишний барьер перед
+            тем, как человек увидит хоть какую-то ценность продукта. */}
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
