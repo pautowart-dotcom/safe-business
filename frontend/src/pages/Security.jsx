@@ -43,6 +43,12 @@ const SEGMENTS = [
       { key: 'yoga', label: 'Йога / растяжка' },
     ],
   },
+  {
+    key: 'cleaning', label: 'Клининг',
+    niches: [
+      { key: 'cleaning_basic', label: 'Уборка помещений (жильё и офисы)' },
+    ],
+  },
   { key: 'retail', label: 'Розничная торговля', niches: [] },
   { key: 'food', label: 'Общепит', niches: [] },
   { key: 'other', label: 'Другое', niches: [] },

@@ -38,6 +38,18 @@ const SEGMENTS = [
       { key: 'yoga', label: 'Йога / растяжка', paidAudit: false },
     ],
   },
+  {
+    key: 'cleaning',
+    label: 'Клининг',
+    hasNicheStep: true,
+    // Один узкий ниша-пункт на старте (решение владельца) — спецклининг и
+    // биоклининг сознательно отложены на отдельный заход из-за
+    // концентрации юридической сложности именно там, см. комментарий в
+    // начале violations/cleaning-basic.js.
+    niches: [
+      { key: 'cleaning_basic', label: 'Уборка помещений (жильё и офисы)', paidAudit: true },
+    ],
+  },
   { key: 'retail', label: 'Розничная торговля', hasNicheStep: false, niches: [] },
   { key: 'food', label: 'Общепит', hasNicheStep: false, niches: [] },
   { key: 'other', label: 'Другое', hasNicheStep: false, niches: [] },

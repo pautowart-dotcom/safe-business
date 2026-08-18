@@ -4,12 +4,14 @@ const { requireAuth } = require('../../core/middleware/auth');
 const { requireTenant } = require('../../core/middleware/tenancy');
 const { requireRole } = require('../../core/middleware/role');
 const { requireModule } = require('../../core/sdk');
+const { requireAddon } = require('../../core/middleware/addon');
 const summaryRoutes = require('./summary.routes');
 const recurringExpensesRoutes = require('./recurring-expenses.routes');
 const expenseEntriesRoutes = require('./expense-entries.routes');
 const adjustmentsRoutes = require('./adjustments.routes');
 const revenueRoutes = require('./revenue.routes');
 const shiftsRoutes = require('./shifts.routes');
+const marginAdvisorRoutes = require('./margin-advisor.routes');
 
 const BASE_PATH = '/api/modules/finance';
 
@@ -34,6 +36,13 @@ router.use('/revenue', requireRole('owner', 'admin'), revenueRoutes);
 // shifts.routes.js по каждому эндпоинту (мастер видит свои, создаёт/
 // правит только owner/admin — та же граница, что у adjustments).
 router.use('/shifts', shiftsRoutes);
+// ИИ-советник по марже (Этап 6 плана аналитики, docs/plan-2026-08-15-analytics-ai-monthly-summary.md)
+// — owner-only (та же граница, что netProfit/materialsCost в /summary,
+// маржа по услуге раскрывает себестоимость и % мастера). 18.08.2026 —
+// добавлен биллинг-гейт: requireAddon пропускает "свои" студии владельца
+// бесплатно (companies.free_addons, миграция 0088) и остальных — после
+// разовой оплаты через /platform/addons/margin_advisor/checkout.
+router.use('/margin-advisor', requireRole('owner'), requireAddon('margin_advisor'), marginAdvisorRoutes);
 
 registerModule({
   key: 'finance',

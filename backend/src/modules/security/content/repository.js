@@ -21,6 +21,7 @@ const PAID_QUESTIONS_BY_NICHE = {
   tattoo: require('./paid-questions/tattoo'),
   depilation: require('./paid-questions/depilation'),
   solarium: require('./paid-questions/solarium'),
+  cleaning_basic: require('./paid-questions/cleaning-basic'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -31,6 +32,7 @@ const VIOLATIONS_BY_NICHE = {
   tattoo: require('./violations/tattoo'),
   depilation: require('./violations/depilation'),
   solarium: require('./violations/solarium'),
+  cleaning_basic: require('./violations/cleaning-basic'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -41,6 +43,7 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   tattoo: require('./pdf/mandatory-documents/tattoo'),
   depilation: require('./pdf/mandatory-documents/depilation'),
   solarium: require('./pdf/mandatory-documents/solarium'),
+  cleaning_basic: require('./pdf/mandatory-documents/cleaning-basic'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -51,6 +54,7 @@ const ATTENTION_ZONES_BY_NICHE = {
   tattoo: require('./pdf/attention-zones/tattoo'),
   depilation: require('./pdf/attention-zones/depilation'),
   solarium: require('./pdf/attention-zones/solarium'),
+  cleaning_basic: require('./pdf/attention-zones/cleaning-basic'),
 };
 
 async function getSegments() {
