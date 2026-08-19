@@ -58,11 +58,11 @@ function PendingActionCard({ confirmationText, busy, error, onConfirm, onCancel 
   );
 }
 
+const GREETING = { role: 'assistant', content: 'Здравствуйте. Сейчас я умею вносить расход — назовите сумму, категорию и, если нужно, комментарий.' };
+
 export default function AiAssistant() {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Здравствуйте. Сейчас я умею вносить расход — назовите сумму, категорию и, если нужно, комментарий.' },
-  ]);
+  const [messages, setMessages] = useState([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -70,6 +70,18 @@ export default function AiAssistant() {
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [confirmError, setConfirmError] = useState('');
   const listEndRef = useRef(null);
+
+  // История чата теперь сохраняется на сервере (19.08.2026, миграция 0094,
+  // владелец попросил не терять её при обновлении страницы) — приветствие
+  // остаётся статичным первым сообщением, реальная история подгружается
+  // сюда же следом.
+  useEffect(() => {
+    api.get('/modules/ai-assistant/messages').then((res) => {
+      if (res.data.length > 0) {
+        setMessages([GREETING, ...res.data.map((m) => ({ role: m.role, content: m.content }))]);
+      }
+    }).catch(() => {}); // история — не критичный путь, страница остаётся рабочей без неё
+  }, []);
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -143,22 +155,23 @@ export default function AiAssistant() {
     }
   }
 
+  // Раньше здесь была своя схема прокрутки (height:100% + flex + position:
+  // sticky на поле ввода) — конфликтовала с тем, как Layout.jsx уже
+  // прокручивает КАЖДУЮ страницу целиком (overflowY:auto на общем
+  // контейнере контента, см. Layout.jsx). Из-за конфликта карточка
+  // "Требует подтверждения" и кнопки под ней уезжали за экран без доступа
+  // к прокрутке. Починено 19.08.2026 — убрали свою схему, страница
+  // прокручивается как все остальные (Layout сам это делает), поле ввода
+  // просто внизу обычным потоком, не "прилипает".
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div>
       <BackBtn onClick={() => navigate(-1)} />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>ИИ-ассистент</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         Пока умеет только вносить расход — ничего не выдумывает и не подтверждает действие без вас.
       </div>
 
-      {/* minHeight: 0 — без этого flex:1 в flex-колонке не сжимается ниже
-          высоты своего содержимого (классическая ловушка flexbox), из-за
-          чего вся страница вылезала за пределы экрана, а карточка
-          подтверждения/кнопки "Подтвердить" внизу оказывались недостижимы —
-          прокрутка самого Layout (overflowY:auto) не захватывала этот
-          переполненный участок. overflowY:auto здесь же делает прокрутку
-          именно ленты сообщений, а не всей страницы. */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div>
         {messages.map((m, i) => (
           <Bubble key={i} role={m.role} text={m.content} />
         ))}
@@ -178,7 +191,7 @@ export default function AiAssistant() {
 
       {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', position: 'sticky', bottom: 0, background: C.bg, paddingTop: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         <TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}

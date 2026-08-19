@@ -1,10 +1,37 @@
 const express = require('express');
+const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const { encrypt, decrypt } = require('../../core/crypto');
 const yandexAgent = require('../../core/yandexAgent');
 const { listToolDefinitions, getTool } = require('./tools/registry');
 const { SYSTEM_PROMPT } = require('./systemPrompt');
 
 const router = express.Router();
+
+// История чата (19.08.2026, миграция 0094) — владелец явно попросил, раньше
+// пропадала при обновлении страницы. Последние 50 сообщений достаточно для
+// контекста человеку (не модели — контекст модели по-прежнему собирается из
+// того, что фронт прислал в history, не отсюда).
+const MESSAGE_HISTORY_LIMIT = 50;
+
+async function saveMessage(companyId, role, content) {
+  await pool.query(
+    `INSERT INTO ai_assistant_messages (company_id, role, content_enc) VALUES ($1, $2, $3)`,
+    [companyId, role, encrypt(content)]
+  );
+}
+
+router.get(
+  '/messages',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT role, content_enc, created_at FROM ai_assistant_messages
+       WHERE company_id = $1 ORDER BY created_at DESC LIMIT $2`,
+      [req.tenant.companyId, MESSAGE_HISTORY_LIMIT]
+    );
+    res.json(rows.reverse().map((r) => ({ role: r.role, content: decrypt(r.content_enc), createdAt: r.created_at })));
+  })
+);
 
 // Хвост истории диалога, который фронт присылает для контекста — фронт сам
 // хранит всю историю в состоянии страницы (см. задачу: "история — простой
@@ -39,7 +66,7 @@ router.post(
       return res.status(400).json({ error: 'Пустое сообщение' });
     }
     if (!yandexAgent.isAiConfigured()) {
-      return res.status(503).json({ error: 'ИИ-ассистент пока не настроен на сервере (нужны YANDEX_GPT_API_KEY и YANDEX_FOLDER_ID)' });
+      return res.status(503).json({ error: 'ИИ-ассистент пока не настроен на сервере (нужны YANDEX_AI_STUDIO_API_KEY и YANDEX_FOLDER_ID)' });
     }
 
     const messages = [
@@ -47,6 +74,11 @@ router.post(
       ...sanitizeHistory(req.body.history),
       { role: 'user', content: message },
     ];
+
+    // Сообщение пользователя сохраняем сразу, независимо от того, что
+    // ответит ИИ дальше — это реально было отправлено (тот же принцип, что
+    // и у истории на фронте, см. AiAssistant.jsx: "откатывать не нужно").
+    await saveMessage(req.tenant.companyId, 'user', message);
 
     let result;
     try {
@@ -56,6 +88,7 @@ router.post(
     }
 
     if (result.type === 'text') {
+      await saveMessage(req.tenant.companyId, 'assistant', result.text);
       return res.json({ type: 'text', text: result.text });
     }
 
@@ -66,28 +99,35 @@ router.post(
     const call = result.toolCalls[0];
     const tool = call && getTool(call.name);
     if (!tool) {
-      return res.json({
-        type: 'clarification',
-        text: 'Пока не умею выполнять такое действие. Сейчас доступно только "внести расход" — уточните, пожалуйста, что нужно сделать.',
-      });
+      const text = 'Пока не умею выполнять такое действие. Сейчас доступно только "внести расход" — уточните, пожалуйста, что нужно сделать.';
+      await saveMessage(req.tenant.companyId, 'assistant', text);
+      return res.json({ type: 'clarification', text });
     }
     if (call.arguments === null) {
-      return res.json({
-        type: 'clarification',
-        text: 'Не удалось разобрать параметры действия. Повторите, пожалуйста, какую сумму, категорию и дату внести.',
-      });
+      const text = 'Не удалось разобрать параметры действия. Повторите, пожалуйста, какую сумму, категорию и дату внести.';
+      await saveMessage(req.tenant.companyId, 'assistant', text);
+      return res.json({ type: 'clarification', text });
     }
 
     const { valid, errors } = tool.validate(call.arguments);
     if (!valid) {
-      return res.json({ type: 'clarification', text: errors.join(' ') });
+      const text = errors.join(' ');
+      await saveMessage(req.tenant.companyId, 'assistant', text);
+      return res.json({ type: 'clarification', text });
     }
+
+    const confirmationText = tool.buildConfirmation(call.arguments);
+    // Карточка подтверждения — не обычный чат-пузырь на фронте (см.
+    // PendingActionCard в AiAssistant.jsx), но в историю всё равно
+    // сохраняем как assistant-сообщение — иначе после обновления страницы
+    // от этого обмена не осталось бы вообще никакого следа в ленте.
+    await saveMessage(req.tenant.companyId, 'assistant', confirmationText);
 
     return res.json({
       type: 'pending_action',
       tool: tool.name,
       params: call.arguments,
-      confirmationText: tool.buildConfirmation(call.arguments),
+      confirmationText,
     });
   })
 );
@@ -111,6 +151,16 @@ router.post(
     }
 
     const record = await tool.execute(params, req);
+
+    // Тот же текст, что фронт сам добавляет в ленту локально
+    // (AiAssistant.jsx, money(record.amount)) — сохраняем и на сервере, чтобы
+    // после перезагрузки страницы этот системный пузырь тоже остался в
+    // истории, не только пара вопрос/предложение действия перед ним.
+    if (tool.name === 'create_expense' && record?.amount != null) {
+      const formatted = `${Number(record.amount).toLocaleString('ru-RU')} ₽`;
+      await saveMessage(req.tenant.companyId, 'system', `✓ Расход ${formatted} записан`);
+    }
+
     res.status(201).json({ tool: tool.name, record });
   })
 );
