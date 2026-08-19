@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, BackBtn, TextArea, Btn, C, F } from '../ui/components.jsx';
+import { MAX_WIDTH } from '../ui/theme.js';
 
 // Первый узкий срез ИИ-ассистента (задача 19.08.2026) — чат с function
 // calling на бэкенде (modules/ai-assistant), сейчас умеет только "внести
@@ -161,18 +162,24 @@ export default function AiAssistant() {
     }
   }
 
-  // Раньше здесь была своя схема прокрутки (height:100% + flex:1 на ленте +
-  // position:sticky на поле ввода) — сочетание height:100%+flex:1 (без
-  // minHeight:0) конфликтовало с тем, как Layout.jsx прокручивает КАЖДУЮ
-  // страницу целиком (overflowY:auto на общем контейнере контента), из-за
-  // чего карточка "Требует подтверждения" уезжала за экран без доступа к
-  // прокрутке. Убрали ВСЮ схему (19.08.2026) — но без sticky поле ввода
-  // просто стоит в обычном потоке сразу под последним сообщением, оставляя
-  // пустое место до нижнего меню и "уезжая" вниз с каждым новым сообщением.
-  // Возвращаем только position:sticky (без height:100%/flex:1, которые и
-  // были причиной исходного бага) — сам Layout.jsx уже прокручиваемый
-  // (overflowY:auto), sticky корректно прилипает к низу ЕГО области, не
-  // создавая новый конфликт.
+  // Прокрутка (19.08.2026, три захода):
+  // 1) height:100%+flex:1(без minHeight:0)+sticky — flex:1 не сжимался
+  //    ниже высоты содержимого, конфликтовало с тем, как Layout.jsx
+  //    прокручивает КАЖДУЮ страницу целиком (overflowY:auto на общем
+  //    контейнере) — карточка "Требует подтверждения" уезжала за экран.
+  // 2) Убрали всю схему — но без sticky поле ввода просто стояло в обычном
+  //    потоке под последним сообщением, оставляя пустое место и "уезжая"
+  //    вниз с каждым сообщением.
+  // 3) Вернули position:sticky — не сработало на реальных устройствах
+  //    (владелец проверил на двух): sticky "прилипает" только в пределах
+  //    границ СВОЕГО родителя, а этот div (без height:100%) высотой ровно
+  //    по контенту — почти нет "пробега", чтобы стикинес был заметен.
+  // Сейчас: position:fixed, тот же приём и те же координаты/центрирование,
+  // что у нижнего меню (см. <nav> в Layout.jsx, тоже fixed) — не зависит от
+  // родителя вообще, гарантированно внизу экрана. paddingBottom у последнего
+  // блока перед полем ввода — чтобы контент не прятался ПОД теперь двумя
+  // fixed-полосами (это поле + меню Layout.jsx) внизу.
+  const INPUT_BAR_HEIGHT = 64;
   return (
     <div>
       <BackBtn onClick={() => navigate(-1)} />
@@ -201,7 +208,20 @@ export default function AiAssistant() {
 
       {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', position: 'sticky', bottom: 0, background: C.bg, paddingTop: 8, paddingBottom: 8 }}>
+      {/* Пустой блок высотой с поле ввода — без него последнее сообщение/
+          карточка подтверждения оказались бы визуально ПОД зафиксированным
+          полем ввода при прокрутке до конца (Layout.jsx уже оставляет 90px
+          под своё меню, это дополнительно под наше поле поверх него). */}
+      <div style={{ height: INPUT_BAR_HEIGHT }} />
+
+      <div
+        style={{
+          display: 'flex', gap: 8, alignItems: 'flex-end',
+          position: 'fixed', bottom: 74, left: '50%', transform: 'translateX(-50%)',
+          width: '100%', maxWidth: MAX_WIDTH, boxSizing: 'border-box',
+          background: C.bg, borderTop: `1px solid ${C.border}`, padding: '10px 20px', zIndex: 90,
+        }}
+      >
         <TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}
