@@ -3,6 +3,7 @@ const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const emptyToNull = require('../../utils/emptyToNull');
 const { logEvent } = require('../../core/eventLog');
+const { createExpenseEntry } = require('./expense-entries.service');
 
 const router = express.Router();
 
@@ -33,30 +34,26 @@ router.get(
 // смысл только при category='advertising' (какая именно реклама), но это не
 // проверяется на бэкенде — фронт просто не показывает поле для других
 // категорий, здесь достаточно принять то, что пришло.
+// Логика создания вынесена в expense-entries.service.js (createExpenseEntry)
+// — 19.08.2026, чтобы её же переиспользовал инструмент create_expense
+// ИИ-ассистента (modules/ai-assistant/tools/registry.js) без дублирования
+// SQL. Сам роут не изменился по поведению — тот же 400 при отсутствии
+// name/amount (теперь бросается сервисом, ловится общим error-handler'ом в
+// app.js по err.status).
 router.post(
   '/',
   asyncHandler(async (req, res) => {
     const { name, amount, occurredAt, category, channel } = req.body;
-    if (!name || amount === undefined || amount === null) {
-      return res.status(400).json({ error: 'Укажите название и сумму расхода' });
-    }
-    const { rows } = await pool.query(
-      `INSERT INTO expense_entries (company_id, name, amount, occurred_at, created_by_user_id, category, channel)
-       VALUES ($1, $2, $3, COALESCE($4, CURRENT_DATE), $5, $6, $7)
-       RETURNING id, name, amount, category, channel, occurred_at, created_at`,
-      [req.tenant.companyId, name, amount, occurredAt || null, req.user.id, category || null, channel || null]
-    );
-
-    await logEvent({
+    const row = await createExpenseEntry({
       companyId: req.tenant.companyId,
-      moduleKey: 'finance',
       userId: req.user.id,
-      entityType: 'expense_entry',
-      entityId: rows[0].id,
-      action: 'expense_entry.created',
+      name,
+      amount,
+      occurredAt,
+      category,
+      channel,
     });
-
-    res.status(201).json(rows[0]);
+    res.status(201).json(row);
   })
 );
 

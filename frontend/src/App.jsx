@@ -29,6 +29,7 @@ import Deadlines from './pages/Deadlines.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
+import AiAssistant from './pages/AiAssistant.jsx';
 
 export default function App() {
   return (
@@ -72,6 +73,14 @@ export default function App() {
           element={
             <PrivateRoute ownerOnly>
               <AiAdvisor />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="ai-assistant"
+          element={
+            <PrivateRoute ownerOnly requireModule="ai-assistant">
+              <AiAssistant />
             </PrivateRoute>
           }
         />

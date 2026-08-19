@@ -10,3 +10,4 @@ require('./knowledge');
 require('./security');
 require('./feedback');
 require('./document-templates');
+require('./ai-assistant');
