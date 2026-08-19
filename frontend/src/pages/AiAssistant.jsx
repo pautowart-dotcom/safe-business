@@ -161,14 +161,18 @@ export default function AiAssistant() {
     }
   }
 
-  // Раньше здесь была своя схема прокрутки (height:100% + flex + position:
-  // sticky на поле ввода) — конфликтовала с тем, как Layout.jsx уже
-  // прокручивает КАЖДУЮ страницу целиком (overflowY:auto на общем
-  // контейнере контента, см. Layout.jsx). Из-за конфликта карточка
-  // "Требует подтверждения" и кнопки под ней уезжали за экран без доступа
-  // к прокрутке. Починено 19.08.2026 — убрали свою схему, страница
-  // прокручивается как все остальные (Layout сам это делает), поле ввода
-  // просто внизу обычным потоком, не "прилипает".
+  // Раньше здесь была своя схема прокрутки (height:100% + flex:1 на ленте +
+  // position:sticky на поле ввода) — сочетание height:100%+flex:1 (без
+  // minHeight:0) конфликтовало с тем, как Layout.jsx прокручивает КАЖДУЮ
+  // страницу целиком (overflowY:auto на общем контейнере контента), из-за
+  // чего карточка "Требует подтверждения" уезжала за экран без доступа к
+  // прокрутке. Убрали ВСЮ схему (19.08.2026) — но без sticky поле ввода
+  // просто стоит в обычном потоке сразу под последним сообщением, оставляя
+  // пустое место до нижнего меню и "уезжая" вниз с каждым новым сообщением.
+  // Возвращаем только position:sticky (без height:100%/flex:1, которые и
+  // были причиной исходного бага) — сам Layout.jsx уже прокручиваемый
+  // (overflowY:auto), sticky корректно прилипает к низу ЕГО области, не
+  // создавая новый конфликт.
   return (
     <div>
       <BackBtn onClick={() => navigate(-1)} />
@@ -197,7 +201,7 @@ export default function AiAssistant() {
 
       {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', position: 'sticky', bottom: 0, background: C.bg, paddingTop: 8, paddingBottom: 8 }}>
         <TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}
