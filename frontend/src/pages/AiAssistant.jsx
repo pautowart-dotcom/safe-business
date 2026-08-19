@@ -58,7 +58,10 @@ function PendingActionCard({ confirmationText, busy, error, onConfirm, onCancel 
   );
 }
 
-const GREETING = { role: 'assistant', content: 'Здравствуйте. Сейчас я умею вносить расход — назовите сумму, категорию и, если нужно, комментарий.' };
+const GREETING = {
+  role: 'assistant',
+  content: 'Здравствуйте. Сейчас умею: вносить расход, вносить доход, отвечать про выручку/расходы за период и про открытые нарушения безопасности. Ничего не выдумываю и не подтверждаю запись без вас.',
+};
 
 export default function AiAssistant() {
   const navigate = useNavigate();
@@ -129,9 +132,12 @@ export default function AiAssistant() {
     try {
       const res = await api.post('/modules/ai-assistant/confirm', { tool: pending.tool, params: pending.params });
       const record = res.data.record;
+      // Подпись зависит от того, какой инструмент подтвердили — то же
+      // соответствие, что и на бэкенде (ai-assistant.routes.js, SYSTEM_LABEL_BY_TOOL).
+      const label = pending.tool === 'create_income' ? 'Доход' : 'Расход';
       setMessages((prev) => [
         ...prev,
-        { role: 'system', content: `✓ Расход ${money(record.amount)} записан` },
+        { role: 'system', content: `✓ ${label} ${money(record.amount)} записан` },
       ]);
       setPending(null);
     } catch (err) {
@@ -168,7 +174,7 @@ export default function AiAssistant() {
       <BackBtn onClick={() => navigate(-1)} />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>ИИ-ассистент</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-        Пока умеет только вносить расход — ничего не выдумывает и не подтверждает действие без вас.
+        Расход, доход, вопросы про выручку и безопасность — ничего не выдумывает и не подтверждает запись без вас.
       </div>
 
       <div>

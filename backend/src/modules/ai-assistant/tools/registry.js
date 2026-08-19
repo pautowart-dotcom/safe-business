@@ -1,23 +1,41 @@
-// Реестр инструментов ИИ-ассистента (архитектура задачи 19.08.2026 — первый
-// узкий срез). Каждый инструмент — один объект { name, description,
-// parameters, validate, buildConfirmation, execute }:
-//   - name/description/parameters — то, что уходит модели как OpenAI-style
-//     function calling definition (см. listToolDefinitions()).
+// Реестр инструментов ИИ-ассистента (архитектура задачи 19.08.2026, первый
+// узкий срез — расширено в тот же день, п.6 плана "постепенно развивать").
+// Два вида инструментов:
+//
+// 1) Пишущие (readOnly не указан/false) — { name, description, parameters,
+//    validate, buildConfirmation, execute }:
 //   - validate(params) — семантическая проверка ДО подтверждения и ДО
-//     записи в БД (например категория обязана быть из фиксированного
-//     списка) — JSON Schema в parameters описывает форму для модели, но не
-//     заменяет эту проверку на бэкенде: модель вполне может прислать
-//     категорию не из enum, доверять ей нельзя.
+//     записи в БД (JSON Schema в parameters описывает форму для модели, но
+//     не заменяет эту проверку на бэкенде — модель может прислать значение
+//     не из enum, доверять ей нельзя).
 //   - buildConfirmation(params) — человекочитаемый текст подтверждения на
 //     русском, показывается пользователю ПЕРЕД записью.
-//   - execute(params, req) — реально пишет в БД. Вызывается ТОЛЬКО из
-//     POST /confirm, никогда из /chat.
+//   - execute(params, req) — реально пишет в БД, возвращает запись.
+//     Вызывается ТОЛЬКО из POST /confirm, никогда из /chat.
 //
-// Когда появится второй инструмент (например create_visit) — он просто
-// добавляется в массив REGISTRY ниже со своими validate/buildConfirmation/
-// execute; ai-assistant.routes.js, chat-цикл и фронт (AiAssistant.jsx)
-// ничего не знают про конкретные инструменты и не требуют переделки.
+// 2) Читающие (readOnly: true) — { name, description, parameters, execute }:
+//   - execute(params, req) — читает данные, возвращает уже готовую строку
+//     текстом (не запись БД) — ничего не меняется, поэтому подтверждение не
+//     нужно, ai-assistant.routes.js вызывает execute() прямо из /chat и
+//     сразу отдаёт результат как type:'text', минуя pending_action/confirm.
+//     validate/buildConfirmation не нужны — не пишущий инструмент.
+//
+// Новый инструмент — просто новый объект в REGISTRY ниже; ai-assistant.routes.js,
+// chat-цикл и фронт (AiAssistant.jsx) ничего не знают про конкретные
+// инструменты и не требуют переделки.
 const { createExpenseEntry } = require('../../finance/expense-entries.service');
+const { createRevenueEntry } = require('../../finance/revenue-entries.service');
+const pool = require('../../../db/pool');
+const { moscowDateStr } = require('../../../utils/moscowDate');
+// Кросс-модульный require — то же осознанное исключение из правила
+// core/sdk.js ("модуль не импортирует код другого модуля напрямую"), что уже
+// задокументировано в expense-entries.service.js, но по другой причине:
+// там — чтобы ассистент не мог обойти валидацию записи, здесь —
+// computeSecurityStatus() чисто читающая функция, дублировать её (индекс,
+// зона, матрица нарушений по нишам) заново было бы намного рискованнее
+// (реальный шанс разойтись с "настоящим" числом на экране Безопасности),
+// чем один точечный require уже проверенной логики.
+const { computeSecurityStatus } = require('../../security/status');
 
 // Тот же список, что EXPENSE_CATEGORIES в frontend/src/pages/Finance.jsx и
 // CHECK-констрейнт миграции 0080_expense_categories.sql — три места
@@ -122,6 +140,114 @@ async function executeCreateExpense(params, req) {
   });
 }
 
+// ---------- create_income (19.08.2026, п.3 плана расширения) ----------
+// Симметрично create_expense, но без категории — у ручной записи выручки
+// (finance_entries, source='manual') категорий нет в схеме вообще.
+
+function validateCreateIncome(params) {
+  const errors = [];
+  const p = params && typeof params === 'object' ? params : {};
+  const { amount, occurredAt, comment } = p;
+
+  if (amount === undefined || amount === null || amount === '') {
+    errors.push('Не указана сумма дохода.');
+  } else if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+    errors.push('Сумма дохода должна быть положительным числом.');
+  }
+  if (occurredAt !== undefined && occurredAt !== null && occurredAt !== '' && !DATE_RE.test(occurredAt)) {
+    errors.push('Дата должна быть в формате ГГГГ-ММ-ДД.');
+  }
+  if (comment !== undefined && comment !== null && typeof comment !== 'string') {
+    errors.push('Комментарий должен быть текстом.');
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function buildConfirmationCreateIncome(params) {
+  const dateLabel = params.occurredAt ? new Date(params.occurredAt).toLocaleDateString('ru-RU') : 'сегодняшним числом';
+  const parts = [`Записать доход ${money(params.amount)}`];
+  if (params.comment && params.comment.trim()) {
+    parts.push(`, комментарий «${params.comment.trim()}»`);
+  }
+  parts.push(`, ${dateLabel}`);
+  return parts.join('') + '. Подтвердить?';
+}
+
+async function executeCreateIncome(params, req) {
+  const { valid, errors } = validateCreateIncome(params);
+  if (!valid) {
+    const err = new Error(errors.join(' '));
+    err.status = 400;
+    throw err;
+  }
+  return createRevenueEntry({
+    companyId: req.tenant.companyId,
+    userId: req.user.id,
+    amount: params.amount,
+    occurredAt: params.occurredAt || null,
+    comment: params.comment || null,
+  });
+}
+
+// ---------- get_finance_summary (19.08.2026, п.2 плана расширения, читающий) ----------
+// Осознанно НЕ считает чистую прибыль здесь — та формула сложная
+// (постоянные/% расходы, зарплаты мастеров, себестоимость материалов, см.
+// finance/summary.routes.js) и дублировать её заново means риск разойтись с
+// "настоящим" числом на экране Финансов. Выручка/расходы — простые
+// однозначные суммы, дублировать их безопасно; для точной прибыли отправляем
+// на сам экран Финансов, а не гадаем.
+const PERIOD_LABELS = { today: 'сегодня', week: 'за последние 7 дней', month: 'за этот месяц', lastMonth: 'за прошлый месяц' };
+
+function resolveSimplePeriod(period) {
+  const toStr = moscowDateStr();
+  const [y, m, d] = toStr.split('-').map(Number);
+  const toDateStr = (dt) => dt.toISOString().slice(0, 10);
+  if (period === 'lastMonth') {
+    return { from: toDateStr(new Date(Date.UTC(y, m - 2, 1))), to: toDateStr(new Date(Date.UTC(y, m - 1, 0))) };
+  }
+  if (period === 'month') {
+    return { from: toDateStr(new Date(Date.UTC(y, m - 1, 1))), to: toStr };
+  }
+  if (period === 'week') {
+    return { from: toDateStr(new Date(Date.UTC(y, m - 1, d - 6))), to: toStr };
+  }
+  return { from: toStr, to: toStr };
+}
+
+async function executeGetFinanceSummary(params, req) {
+  const period = ['today', 'week', 'month', 'lastMonth'].includes(params?.period) ? params.period : 'today';
+  const { from, to } = resolveSimplePeriod(period);
+  const companyId = req.tenant.companyId;
+
+  const [revenueRes, expenseRes] = await Promise.all([
+    pool.query(`SELECT COALESCE(SUM(amount), 0) AS total FROM finance_entries WHERE company_id = $1 AND occurred_at BETWEEN $2 AND $3`, [companyId, from, to]),
+    pool.query(`SELECT COALESCE(SUM(amount), 0) AS total FROM expense_entries WHERE company_id = $1 AND occurred_at BETWEEN $2 AND $3`, [companyId, from, to]),
+  ]);
+  const revenue = parseFloat(revenueRes.rows[0].total);
+  const expenses = parseFloat(expenseRes.rows[0].total);
+
+  return (
+    `Выручка ${PERIOD_LABELS[period]}: ${money(revenue)}. Переменные расходы: ${money(expenses)}. ` +
+    'Это без зарплат мастеров, постоянных расходов и себестоимости материалов — точную чистую прибыль смотрите на экране "Финансы".'
+  );
+}
+
+// ---------- get_security_status (19.08.2026, п.2 плана расширения, читающий) ----------
+
+async function executeGetSecurityStatus(_params, req) {
+  const status = await computeSecurityStatus(req.tenant.companyId);
+  if (!status.hasProfile || status.testedNiches.length === 0) {
+    return 'Тест безопасности ещё не пройден — загляните в раздел "Безопасность", чтобы увидеть индекс и нарушения.';
+  }
+  const open = status.violations.filter((v) => v.status === 'open');
+  if (open.length === 0) {
+    return `Индекс безопасности — ${status.indexPercent}%. Открытых нарушений нет.`;
+  }
+  const list = open.slice(0, 5).map((v) => `«${v.title}»`).join(', ');
+  const more = open.length > 5 ? ` и ещё ${open.length - 5}` : '';
+  return `Индекс безопасности — ${status.indexPercent}%. Открытых нарушений: ${open.length} — ${list}${more}. Подробности и как устранить — в разделе "Безопасность".`;
+}
+
 const REGISTRY = [
   {
     name: 'create_expense',
@@ -164,6 +290,48 @@ const REGISTRY = [
     validate: validateCreateExpense,
     buildConfirmation: buildConfirmationCreateExpense,
     execute: executeCreateExpense,
+  },
+  {
+    name: 'create_income',
+    description: 'Внести ручную запись о выручке (не автоматически из визита — разовое поступление денег, которое пользователь называет сам).',
+    parameters: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'Сумма дохода в рублях, положительное число.' },
+        occurredAt: {
+          type: 'string',
+          description: 'Дата дохода в формате ГГГГ-ММ-ДД. Указывай, только если пользователь явно назвал дату — иначе не включай поле, будет сегодняшняя дата.',
+        },
+        comment: { type: 'string', description: 'Короткое описание своими словами пользователя, например "продажа подарочного сертификата". Необязательно.' },
+      },
+      required: ['amount'],
+    },
+    validate: validateCreateIncome,
+    buildConfirmation: buildConfirmationCreateIncome,
+    execute: executeCreateIncome,
+  },
+  {
+    name: 'get_finance_summary',
+    description: 'Узнать выручку и переменные расходы компании за период — читает данные, ничего не меняет.',
+    readOnly: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          enum: ['today', 'week', 'month', 'lastMonth'],
+          description: 'Период: today (сегодня, по умолчанию), week (последние 7 дней), month (этот месяц), lastMonth (прошлый месяц).',
+        },
+      },
+    },
+    execute: executeGetFinanceSummary,
+  },
+  {
+    name: 'get_security_status',
+    description: 'Узнать индекс безопасности компании и список открытых (неустранённых) нарушений теста безопасности — читает данные, ничего не меняет.',
+    readOnly: true,
+    parameters: { type: 'object', properties: {} },
+    execute: executeGetSecurityStatus,
   },
 ];
 

@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { logEvent } = require('../../core/eventLog');
+const { createRevenueEntry } = require('./revenue-entries.service');
 
 const router = express.Router();
 
@@ -43,36 +44,21 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const { amount, membershipId, occurredAt, comment } = req.body;
-    if (amount === undefined || amount === null || amount === '') {
-      return res.status(400).json({ error: 'Укажите сумму выручки' });
+    let entry;
+    try {
+      entry = await createRevenueEntry({
+        companyId: req.tenant.companyId,
+        userId: req.user.id,
+        amount,
+        occurredAt,
+        comment,
+        membershipId,
+      });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
     }
-    if (membershipId) {
-      const master = await pool.query(
-        `SELECT 1 FROM memberships WHERE id = $1 AND company_id = $2`,
-        [membershipId, req.tenant.companyId]
-      );
-      if (master.rows.length === 0) {
-        return res.status(400).json({ error: 'Сотрудник не найден в этой компании' });
-      }
-    }
-
-    const { rows } = await pool.query(
-      `INSERT INTO finance_entries (company_id, source, membership_id, amount, comment, occurred_at, created_by_user_id)
-       VALUES ($1, 'manual', $2, $3, $4, COALESCE($5, CURRENT_DATE), $6)
-       RETURNING id, source, visit_id, membership_id, amount, comment, occurred_at, created_at`,
-      [req.tenant.companyId, membershipId || null, amount, comment || null, occurredAt || null, req.user.id]
-    );
-
-    await logEvent({
-      companyId: req.tenant.companyId,
-      moduleKey: 'finance',
-      userId: req.user.id,
-      entityType: 'finance_entry',
-      entityId: rows[0].id,
-      action: 'finance_entry.created',
-    });
-
-    res.status(201).json(rows[0]);
+    res.status(201).json(entry);
   })
 );
 

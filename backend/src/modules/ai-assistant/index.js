@@ -30,7 +30,7 @@ router.use(requireAuth, requireTenant, requireModule('ai-assistant'), requireRol
 registerModule({
   key: 'ai-assistant',
   name: 'ИИ-ассистент',
-  description: 'Чат с ИИ, который по запросу выполняет действия в системе (сейчас — внести расход)',
+  description: 'Чат с ИИ, который по запросу выполняет действия в системе и отвечает на вопросы о бизнесе (сейчас — расход/доход, выручка за период, открытые нарушения безопасности)',
   icon: 'msg',
   category: 'studio-os',
   backendBasePath: BASE_PATH,

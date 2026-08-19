@@ -99,10 +99,25 @@ router.post(
     const call = result.toolCalls[0];
     const tool = call && getTool(call.name);
     if (!tool) {
-      const text = 'Пока не умею выполнять такое действие. Сейчас доступно только "внести расход" — уточните, пожалуйста, что нужно сделать.';
+      const text = 'Пока не умею выполнять такое действие — уточните, пожалуйста, что нужно сделать, или спросите, что я умею.';
       await saveMessage(req.tenant.companyId, 'assistant', text);
       return res.json({ type: 'clarification', text });
     }
+
+    // Читающие инструменты (readOnly: true) выполняются сразу здесь, без
+    // подтверждения — ничего не меняется, значит и спрашивать "точно?" не
+    // нужно (см. комментарий в tools/registry.js про два вида инструментов).
+    if (tool.readOnly) {
+      let text;
+      try {
+        text = await tool.execute(call.arguments || {}, req);
+      } catch (err) {
+        return res.status(502).json({ error: 'Не удалось получить данные: ' + err.message });
+      }
+      await saveMessage(req.tenant.companyId, 'assistant', text);
+      return res.json({ type: 'text', text });
+    }
+
     if (call.arguments === null) {
       const text = 'Не удалось разобрать параметры действия. Повторите, пожалуйста, какую сумму, категорию и дату внести.';
       await saveMessage(req.tenant.companyId, 'assistant', text);
@@ -156,9 +171,11 @@ router.post(
     // (AiAssistant.jsx, money(record.amount)) — сохраняем и на сервере, чтобы
     // после перезагрузки страницы этот системный пузырь тоже остался в
     // истории, не только пара вопрос/предложение действия перед ним.
-    if (tool.name === 'create_expense' && record?.amount != null) {
+    const SYSTEM_LABEL_BY_TOOL = { create_expense: 'Расход', create_income: 'Доход' };
+    const label = SYSTEM_LABEL_BY_TOOL[tool.name];
+    if (label && record?.amount != null) {
       const formatted = `${Number(record.amount).toLocaleString('ru-RU')} ₽`;
-      await saveMessage(req.tenant.companyId, 'system', `✓ Расход ${formatted} записан`);
+      await saveMessage(req.tenant.companyId, 'system', `✓ ${label} ${formatted} записан`);
     }
 
     res.status(201).json({ tool: tool.name, record });
