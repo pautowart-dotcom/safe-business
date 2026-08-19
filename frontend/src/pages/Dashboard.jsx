@@ -48,19 +48,35 @@ function buildActionsCenter(deadlines) {
   return [...urgent, ...withoutDate, ...future];
 }
 
+// Карточка "ИИ-советник" (Задача 4, семья советников
+// margin/discount/master-departure) ведёт на её собственный экран
+// /ai-advisor, не на общий /deadlines — единственное исключение из общего
+// правила "клик по любому действию открывает список Дедлайнов", поэтому
+// маршрут выбирается по related_entity_type конкретного пункта, а не
+// зашит в один общий onClick, как раньше.
+function actionTarget(d) {
+  if (d.related_entity_type === 'ai_advisor_digest') return '/ai-advisor';
+  return '/deadlines';
+}
+
 function ActionsCenterCard({ items, navigate }) {
   if (items.length === 0) return null;
   const today = todayStr();
   const visible = items.slice(0, ACTIONS_CENTER_VISIBLE);
+  const allSameTarget = visible.every((d) => actionTarget(d) === actionTarget(visible[0]));
 
   return (
-    <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/deadlines')}>
+    <Card style={{ cursor: 'pointer' }} onClick={() => navigate(allSameTarget ? actionTarget(visible[0]) : '/deadlines')}>
       <ST>Центр действий</ST>
       {visible.map((d) => {
         const overdue = d.due_date && d.due_date < today;
         const isToday = d.due_date === today;
         return (
-          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+          <div
+            key={d.id}
+            onClick={(e) => { e.stopPropagation(); navigate(actionTarget(d)); }}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '6px 0' }}
+          >
             <span style={{ fontSize: 14, color: C.primary, minWidth: 0, flex: 1 }}>{d.title}</span>
             {!d.due_date ? (
               <span style={{ fontSize: 11, color: C.subtle, flexShrink: 0 }}>Требует внимания</span>
@@ -187,6 +203,15 @@ function OwnerDashboard() {
 
   const recommendations = buildRecommendations({ deadlines: complianceDeadlines, subscription: company, today });
 
+  // Карточка "ИИ-советник" (Задача 4, семья советников margin/discount/
+  // master-departure) — регистрируется через registerAction той же
+  // category='financial', что и остальные ежедневные напоминания
+  // (dailyOperationsNudges.js), но OwnerDashboard не использует общий
+  // ActionsCenterCard (редизайн 05.08.2026 убрал его отсюда специально) —
+  // поэтому здесь отдельная, не-красная карточка (это не критический срок, а
+  // финансовая находка), рендерится только когда действие реально есть.
+  const aiAdvisorAction = deadlines.find((d) => d.related_entity_type === 'ai_advisor_digest');
+
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
@@ -246,6 +271,18 @@ function OwnerDashboard() {
           {recommendations.map((r) => (
             <div key={r.id} style={{ fontSize: 14, color: C.primary, padding: '6px 0' }}>{r.text}</div>
           ))}
+        </Card>
+      )}
+
+      {/* 3б. ИИ-советник — см. комментарий у aiAdvisorAction выше. Заголовок
+          на карточке намеренно общий (без сумм/имён мастеров) — подробности
+          только на самом экране /ai-advisor. */}
+      {aiAdvisorAction && (
+        <Card style={{ cursor: 'pointer', marginBottom: 12 }} onClick={() => navigate('/ai-advisor')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 14, color: C.primary, fontWeight: 600 }}>{aiAdvisorAction.title}</span>
+            <span style={{ fontSize: 11, color: C.primary, fontWeight: 700, flexShrink: 0 }}>Открыть →</span>
+          </div>
         </Card>
       )}
 

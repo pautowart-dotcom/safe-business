@@ -28,6 +28,7 @@ import Support from './pages/Support.jsx';
 import Deadlines from './pages/Deadlines.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
+import AiAdvisor from './pages/AiAdvisor.jsx';
 
 export default function App() {
   return (
@@ -66,6 +67,14 @@ export default function App() {
           }
         />
         <Route path="finance" element={<Finance />} />
+        <Route
+          path="ai-advisor"
+          element={
+            <PrivateRoute ownerOnly>
+              <AiAdvisor />
+            </PrivateRoute>
+          }
+        />
         <Route path="supplies" element={<Supplies />} />
         <Route
           path="services"

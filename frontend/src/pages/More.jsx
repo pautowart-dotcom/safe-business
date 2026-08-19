@@ -13,6 +13,11 @@ const OWNER_ITEMS = [
   { label: 'Фотоотчёты', sub: 'Фото до/после по визитам', icon: 'photo', to: '/photo-reports', moduleKey: 'visits' },
   { label: 'Склад расходников', sub: 'Остатки, списание, пополнение', icon: 'supply', to: '/supplies' },
   { label: 'Каталог услуг', sub: 'Длительность, оплата мастеру по услугам', icon: 'doc', to: '/services' },
+  // 19.08.2026: продолжение marginAdvisor — семья ИИ-советников (маржа,
+  // скидки, цена ушедшего мастера). Только владелец — все три советника
+  // owner-only на бэкенде (finance/index.js), та же граница, что у
+  // "Безопасность" ниже.
+  { label: 'ИИ-советник', sub: 'Маржа, скидки, цена ушедшего мастера', icon: 'bell', to: '/ai-advisor', moduleKey: 'finance' },
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
@@ -48,7 +53,7 @@ function OwnerMore() {
   // касаются администратора и мастера, для них это не действие.
   const items = OWNER_ITEMS
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
-    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/legal/faq'));
+    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/legal/faq' && i.to !== '/ai-advisor'));
 
   return (
     <div>

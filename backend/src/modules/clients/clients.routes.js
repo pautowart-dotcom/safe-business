@@ -53,7 +53,8 @@ router.get(
       where += ` AND ${clause}`;
     }
     const { rows } = await pool.query(
-      `SELECT id, first_name, last_name, phone, preferences, notes, allergies, created_at FROM clients
+      `SELECT id, first_name, last_name, phone, preferences, notes, allergies,
+              client_type, engagement_type, organization_name, inn, created_at FROM clients
        WHERE ${where} ORDER BY last_name, first_name LIMIT 50`,
       params
     );
@@ -312,7 +313,9 @@ router.get(
   '/:id',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT id, first_name, last_name, phone, preferences, notes, allergies, created_at FROM clients WHERE id = $1 AND company_id = $2',
+      `SELECT id, first_name, last_name, phone, preferences, notes, allergies,
+              client_type, engagement_type, organization_name, inn, created_at
+       FROM clients WHERE id = $1 AND company_id = $2`,
       [req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) {
@@ -342,7 +345,10 @@ async function findClientByPhone(companyId, phone, excludeId) {
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { firstName, lastName, phone, preferences, notes, allergies, confirmDuplicate } = req.body;
+    const {
+      firstName, lastName, phone, preferences, notes, allergies, confirmDuplicate,
+      clientType, engagementType, organizationName, inn,
+    } = req.body;
     if (!firstName || !lastName) {
       return res.status(400).json({ error: 'Укажите имя и фамилию клиента' });
     }
@@ -356,10 +362,17 @@ router.post(
       }
     }
     const { rows } = await pool.query(
-      `INSERT INTO clients (company_id, first_name, last_name, phone, preferences, notes, allergies, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, first_name, last_name, phone, preferences, notes, allergies, created_at`,
-      [req.tenant.companyId, firstName, lastName, phone || null, preferences || null, notes || null, allergies || null, req.user.id]
+      `INSERT INTO clients (
+         company_id, first_name, last_name, phone, preferences, notes, allergies,
+         client_type, engagement_type, organization_name, inn, created_by_user_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING id, first_name, last_name, phone, preferences, notes, allergies,
+                 client_type, engagement_type, organization_name, inn, created_at`,
+      [
+        req.tenant.companyId, firstName, lastName, phone || null, preferences || null, notes || null, allergies || null,
+        clientType || 'individual', engagementType || null, organizationName || null, inn || null, req.user.id,
+      ]
     );
 
     await logEvent({
@@ -378,7 +391,10 @@ router.post(
 router.patch(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { firstName, lastName, phone, preferences, notes, allergies, confirmDuplicate } = req.body;
+    const {
+      firstName, lastName, phone, preferences, notes, allergies, confirmDuplicate,
+      clientType, engagementType, organizationName, inn,
+    } = req.body;
     if (phone && !confirmDuplicate) {
       const existing = await findClientByPhone(req.tenant.companyId, phone, req.params.id);
       if (existing) {
@@ -395,10 +411,19 @@ router.patch(
          phone = COALESCE($3, phone),
          preferences = COALESCE($4, preferences),
          notes = COALESCE($5, notes),
-         allergies = COALESCE($6, allergies)
-       WHERE id = $7 AND company_id = $8
-       RETURNING id, first_name, last_name, phone, preferences, notes, allergies, created_at`,
-      [firstName || null, lastName || null, phone || null, preferences || null, notes || null, allergies || null, req.params.id, req.tenant.companyId]
+         allergies = COALESCE($6, allergies),
+         client_type = COALESCE($7, client_type),
+         engagement_type = COALESCE($8, engagement_type),
+         organization_name = COALESCE($9, organization_name),
+         inn = COALESCE($10, inn)
+       WHERE id = $11 AND company_id = $12
+       RETURNING id, first_name, last_name, phone, preferences, notes, allergies,
+                 client_type, engagement_type, organization_name, inn, created_at`,
+      [
+        firstName || null, lastName || null, phone || null, preferences || null, notes || null, allergies || null,
+        clientType || null, engagementType || null, organizationName || null, inn || null,
+        req.params.id, req.tenant.companyId,
+      ]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Клиент не найден' });

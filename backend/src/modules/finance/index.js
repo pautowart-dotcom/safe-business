@@ -4,7 +4,7 @@ const { requireAuth } = require('../../core/middleware/auth');
 const { requireTenant } = require('../../core/middleware/tenancy');
 const { requireRole } = require('../../core/middleware/role');
 const { requireModule } = require('../../core/sdk');
-const { requireAddon } = require('../../core/middleware/addon');
+const { requirePaidPlanOrFreeAddons } = require('../../core/middleware/subscription');
 const summaryRoutes = require('./summary.routes');
 const recurringExpensesRoutes = require('./recurring-expenses.routes');
 const expenseEntriesRoutes = require('./expense-entries.routes');
@@ -12,6 +12,9 @@ const adjustmentsRoutes = require('./adjustments.routes');
 const revenueRoutes = require('./revenue.routes');
 const shiftsRoutes = require('./shifts.routes');
 const marginAdvisorRoutes = require('./margin-advisor.routes');
+const discountAdvisorRoutes = require('./discount-advisor.routes');
+const masterDepartureAdvisorRoutes = require('./master-departure-advisor.routes');
+const aiAdvisorDigestRoutes = require('./ai-advisor-digest.routes');
 
 const BASE_PATH = '/api/modules/finance';
 
@@ -36,13 +39,30 @@ router.use('/revenue', requireRole('owner', 'admin'), revenueRoutes);
 // shifts.routes.js по каждому эндпоинту (мастер видит свои, создаёт/
 // правит только owner/admin — та же граница, что у adjustments).
 router.use('/shifts', shiftsRoutes);
-// ИИ-советник по марже (Этап 6 плана аналитики, docs/plan-2026-08-15-analytics-ai-monthly-summary.md)
-// — owner-only (та же граница, что netProfit/materialsCost в /summary,
-// маржа по услуге раскрывает себестоимость и % мастера). 18.08.2026 —
-// добавлен биллинг-гейт: requireAddon пропускает "свои" студии владельца
-// бесплатно (companies.free_addons, миграция 0088) и остальных — после
-// разовой оплаты через /platform/addons/margin_advisor/checkout.
-router.use('/margin-advisor', requireRole('owner'), requireAddon('margin_advisor'), marginAdvisorRoutes);
+// ИИ-советники ("ИИ-управляющий" — маржа/скидки/уход мастера, см.
+// docs/business-ideas-backlog.md) — owner-only (та же граница, что
+// netProfit/materialsCost в /summary). 19.08.2026: разовый платный гейт на
+// марже (заведён 18.08.2026 через requireAddon/addon_purchases) снят —
+// владелец сам назвал эту цену/модель неправильной на следующий день, и
+// плодить три разных статуса платности на одном экране бессмысленно, пока
+// не построена настоящая единая ежемесячная подписка на ИИ-управляющего.
+// Вместо этого — requirePaidPlanOrFreeAddons: советники недоступны в
+// бесплатный пробный месяц (subscription_status = 'trial'), чтобы нельзя
+// было получить пользу от ИИ бесплатно и уйти без оплаты. Доступны любой
+// реально оплаченной подписке — это ещё не отдельная допподписка на ИИ (та
+// же техническая причина, что и раньше: recurring-биллинг для допов не
+// построен), просто закрывает конкретную дыру с бесплатным месяцем. Когда
+// появится настоящая допподписка на ИИ-управляющего — сузить этот гейт с
+// "любая оплаченная подписка" до "оплаченная допподписка конкретно на ИИ".
+// 19.08.2026: добавлена вторая лазейка — companies.free_addons = true
+// (переключатель в админке, PATCH /platform/admin/companies/:id/free-addons)
+// пропускает советников независимо от subscription_status, тем же способом,
+// каким этот флаг уже даёт бесплатный доступ к платным надстройкам
+// (core/middleware/addon.js) — один SQL-запрос вместо двух проверок подряд.
+router.use('/margin-advisor', requireRole('owner'), requirePaidPlanOrFreeAddons, marginAdvisorRoutes);
+router.use('/discount-advisor', requireRole('owner'), requirePaidPlanOrFreeAddons, discountAdvisorRoutes);
+router.use('/master-departure-advisor', requireRole('owner'), requirePaidPlanOrFreeAddons, masterDepartureAdvisorRoutes);
+router.use('/ai-advisor-digest', requireRole('owner'), requirePaidPlanOrFreeAddons, aiAdvisorDigestRoutes);
 
 registerModule({
   key: 'finance',

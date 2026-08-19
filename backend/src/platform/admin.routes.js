@@ -145,11 +145,36 @@ router.patch(
   })
 );
 
+// Ручной переключатель "доступ к платным надстройкам бесплатно" (миграция
+// 0088) — изначально заводился только вручную через SQL для собственных
+// студий владельца (см. комментарий в миграции). С 19.08.2026 даёт также
+// доступ к ИИ-советникам (Финансы → margin/discount/master-departure
+// advisor, ai-advisor-digest) независимо от subscription_status — см.
+// requirePaidPlanOrFreeAddons в core/middleware/subscription.js. Тот же
+// паттерн (Super Admin only, простой boolean UPDATE), что и test-flag выше.
+router.patch(
+  '/companies/:id/free-addons',
+  asyncHandler(async (req, res) => {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled должен быть true/false' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE companies SET free_addons = $1 WHERE id = $2 RETURNING id, free_addons`,
+      [enabled, req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Компания не найдена' });
+    }
+    res.json(rows[0]);
+  })
+);
+
 router.get(
   '/companies/:id',
   asyncHandler(async (req, res) => {
     const companyResult = await pool.query(
-      'SELECT id, name, industry_segment, subscription_status, trial_ends_at, created_at, is_test FROM companies WHERE id = $1',
+      'SELECT id, name, industry_segment, subscription_status, trial_ends_at, created_at, is_test, free_addons FROM companies WHERE id = $1',
       [req.params.id]
     );
     if (companyResult.rows.length === 0) {

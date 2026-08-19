@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, BackBtn, Field, TextInput, TextArea, Btn, Avatar, C } from '../ui/components.jsx';
+import { Card, BackBtn, Field, TextInput, TextArea, Select, Btn, Avatar, C } from '../ui/components.jsx';
 import { downloadPdf, downloadFile } from '../utils/downloadPdf.js';
 
-const EMPTY_FORM = { firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '' };
+const EMPTY_FORM = {
+  firstName: '', lastName: '', phone: '', preferences: '', notes: '', allergies: '',
+  clientType: 'individual', engagementType: 'one_time', organizationName: '', inn: '',
+};
 const EMPTY_WAITLIST_FORM = { service: '', comment: '' };
 const EMPTY_PACKAGE_FORM = { title: '', totalSessions: '', totalAmount: '' };
 
@@ -204,6 +207,10 @@ export default function Clients() {
       preferences: client.preferences || '',
       notes: client.notes || '',
       allergies: client.allergies || '',
+      clientType: client.client_type || 'individual',
+      engagementType: client.engagement_type || 'one_time',
+      organizationName: client.organization_name || '',
+      inn: client.inn || '',
     });
     setEditingId(client.id);
     setSelected(null);
@@ -273,6 +280,30 @@ export default function Clients() {
           <Field label="Телефон">
             <TextInput value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+7 900 000-00-00" />
           </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Тип клиента">
+              <Select value={form.clientType} onChange={(e) => setForm({ ...form, clientType: e.target.value })}>
+                <option value="individual">Физлицо</option>
+                <option value="legal_entity">Юрлицо</option>
+              </Select>
+            </Field>
+            <Field label="Формат работы">
+              <Select value={form.engagementType} onChange={(e) => setForm({ ...form, engagementType: e.target.value })}>
+                <option value="one_time">Разовый</option>
+                <option value="contract">На обслуживании</option>
+              </Select>
+            </Field>
+          </div>
+          {form.clientType === 'legal_entity' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Field label="Название организации">
+                <TextInput value={form.organizationName} onChange={(e) => setForm({ ...form, organizationName: e.target.value })} placeholder="ООО «Ромашка»" />
+              </Field>
+              <Field label="ИНН">
+                <TextInput value={form.inn} onChange={(e) => setForm({ ...form, inn: e.target.value })} placeholder="7712345678" />
+              </Field>
+            </div>
+          )}
           <Field label="Пожелания">
             <TextArea value={form.preferences} onChange={(e) => setForm({ ...form, preferences: e.target.value })} placeholder="Например: любит крепкий кофе, не любит разговоры во время процедуры" />
           </Field>

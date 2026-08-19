@@ -17,6 +17,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   const [updatingSubscription, setUpdatingSubscription] = useState(false);
   const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
   const [grantingAddon, setGrantingAddon] = useState(null);
+  const [updatingFreeAddons, setUpdatingFreeAddons] = useState(false);
 
   function load() {
     api.get(`/platform/admin/companies/${id}`).then((res) => setData(res.data));
@@ -77,6 +78,23 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     }
   }
 
+  // Ручной доступ к платным штукам бесплатно (companies.free_addons,
+  // миграция 0088) — с 19.08.2026 открывает в т.ч. ИИ-советников (Финансы)
+  // независимо от статуса подписки, не только разовые надстройки.
+  async function toggleFreeAddons() {
+    const next = !data.company.free_addons;
+    if (!confirm(next
+      ? 'Открыть этой компании ИИ-советников и платные надстройки бесплатно, независимо от статуса подписки?'
+      : 'Закрыть бесплатный доступ к ИИ-советникам и платным надстройкам для этой компании?')) return;
+    setUpdatingFreeAddons(true);
+    try {
+      await api.patch(`/platform/admin/companies/${id}/free-addons`, { enabled: next });
+      load();
+    } finally {
+      setUpdatingFreeAddons(false);
+    }
+  }
+
   if (!data) return <div className="page-loading">Загрузка...</div>;
   const { company, memberships, modules, addons, activityByModule, recentActivity } = data;
   const lastActivityAt = activityByModule.length > 0
@@ -91,6 +109,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
         {company.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
+        {company.free_addons && <Badge color={C.green} bg={C.greenBg}>ИИ-советники + надстройки бесплатно</Badge>}
       </div>
       <div style={{ fontSize: 12, color: C.subtle, margin: '10px 0 12px' }}>
         Регистрация {new Date(company.created_at).toLocaleDateString('ru-RU')}
@@ -123,6 +142,13 @@ function CompanyDetail({ id, onBack, onDeleted }) {
           style={{ background: 'none', border: `1px solid ${C.purple}`, color: C.purple, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
         >
           {company.is_test ? 'Убрать пометку теста' : 'Пометить как тестовую'}
+        </button>
+        <button
+          onClick={toggleFreeAddons}
+          disabled={updatingFreeAddons}
+          style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+        >
+          {company.free_addons ? 'Выключить ИИ-советников бесплатно' : 'Включить ИИ-советников бесплатно'}
         </button>
       </div>
 
