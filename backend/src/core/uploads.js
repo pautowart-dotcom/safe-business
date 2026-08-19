@@ -60,4 +60,22 @@ const uploadCsv = multer({
   },
 }).single('file');
 
-module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments, uploadCsv };
+// Проверка документа на риски (19.08.2026) — только PDF/DOCX с текстовым
+// слоем (pdf-parse/mammoth, см. document-risk-check.routes.js), НЕ фото/скан
+// — извлечение текста из изображения потребовало бы OCR, отдельная задача,
+// не в этом заходе. Лимит ниже, чем у uploadDocument (8M) — договоры без
+// изображений обычно на порядок легче.
+const uploadRiskCheckDocument = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const okMime = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ].includes(file.mimetype);
+    if (!okMime) return cb(new Error('Файл должен быть в формате PDF или DOCX'));
+    cb(null, true);
+  },
+}).single('file');
+
+module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments, uploadCsv, uploadRiskCheckDocument };

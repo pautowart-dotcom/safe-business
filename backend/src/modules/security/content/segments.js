@@ -26,6 +26,11 @@ const SEGMENTS = [
       { key: 'tattoo', label: 'Тату, пирсинг и перманентный макияж', paidAudit: true },
       { key: 'depilation', label: 'Депиляция (шугаринг, воск, нить)', paidAudit: true },
       { key: 'solarium', label: 'Солярий', paidAudit: true },
+      // Барбершоп (19.08.2026) — та же нормативная база, что "Волосы"
+      // (СП 2.1.3678-20 не выделяет барбершопы отдельно), контент —
+      // адаптация hair.js без блока химических составов (не типично для
+      // барбершопа), см. комментарий в content/violations/barbershop.js.
+      { key: 'barbershop', label: 'Барбершоп', paidAudit: true },
     ],
   },
   {

@@ -5,12 +5,14 @@ const { requireTenant } = require('../../core/middleware/tenancy');
 const { requireModule } = require('../../core/sdk');
 const securityRoutes = require('./security.routes');
 const reportRoutes = require('./report.routes');
+const documentRiskCheckRoutes = require('./document-risk-check.routes');
 
 const BASE_PATH = '/api/modules/security';
 
 const router = express.Router();
 router.use(requireAuth, requireTenant, requireModule('security'), securityRoutes);
 router.use(requireAuth, requireTenant, requireModule('security'), reportRoutes);
+router.use(requireAuth, requireTenant, requireModule('security'), documentRiskCheckRoutes);
 
 registerModule({
   key: 'security',

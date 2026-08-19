@@ -12,6 +12,7 @@ export const NICHE_LABELS = {
   depilation: 'Депиляция',
   solarium: 'Солярий',
   cleaning_basic: 'Уборка помещений',
+  barbershop: 'Барбершоп',
 };
 
 export function nicheLabel(key) {

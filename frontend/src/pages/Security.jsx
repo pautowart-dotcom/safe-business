@@ -33,6 +33,7 @@ const SEGMENTS = [
       { key: 'tattoo', label: 'Тату, пирсинг и ПМ' },
       { key: 'depilation', label: 'Депиляция' },
       { key: 'solarium', label: 'Солярий' },
+      { key: 'barbershop', label: 'Барбершоп' },
     ],
   },
   {
@@ -106,6 +107,13 @@ async function downloadPdf(sessionId, setError, setPdfPaywall) {
   }
 }
 
+// Кнопка "купить один раз" убрана отсюда 19.08.2026 (решение владельца) —
+// для уже зарегистрированного владельца разовая покупка не нужна: если он
+// готов регистрироваться, он либо подписывается, либо нет, отдельного
+// промежуточного варианта тут не требуется. Сам механизм разовой покупки
+// (checkout-one-time, миграция 0091) не удалён — им пользуется публичный
+// анонимный аудит без регистрации (AnonymousAudit.jsx, /lk/audit), для
+// которого он и был на самом деле задуман.
 function PdfPaywallNotice({ onSubscribe }) {
   return (
     <div className="alert alert-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -774,6 +782,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
       <DocumentTemplatesCard isManagement={isManagement} />
+      <DocumentRiskCheckCard isManagement={isManagement} />
 
       {/* "Подписка «Спокойствие»" убрана как отдельный продукт (12.08.2026,
           решение владельца) — избыточна поверх уже существующей базовой
@@ -797,6 +806,10 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
 // modules/security/report.routes.js GET /opening-roadmap) — никаких вопросов
 // заново. hasPaidPlan/402 — тот же паттерн, что downloadPdf/PdfPaywallNotice
 // выше в этом файле.
+// Разовая покупка (см. PdfPaywallNotice/buyOnce) НЕ применяется здесь — она
+// привязана к id конкретного отчёта security_reports (миграция 0091), а
+// roadmap-PDF ("открытие ещё одной точки") — отдельный ресурс без такого id.
+// Этот PDF остаётся доступен только по настоящей подписке.
 function OpeningRoadmapCard({ isManagement, hasPaidPlan, isTestCompany, onGoSubscribe }) {
   const [roadmap, setRoadmap] = useState(null);
   const [nicheChoice, setNicheChoice] = useState(null);
@@ -1216,6 +1229,153 @@ function FranchiseCard({ isManagement, isTestCompany }) {
   );
 }
 
+const RISK_CHECK_DOCUMENT_TYPES = [
+  ['labor_contract', 'Трудовой договор'],
+  ['lease', 'Договор аренды'],
+  ['supplier_contract', 'Договор с поставщиком/подрядчиком'],
+  ['other', 'Другой документ'],
+];
+
+// "Проверка документа на риски" (19.08.2026, п.6 плана, часть B) — в
+// отличие от "Объяснить простыми словами" у шаблонов документов (которая
+// работает с текстом ШАБЛОНА, без данных компании), здесь владелец сам
+// загружает произвольный документ (например, договор с арендодателем) —
+// ИИ ищет только отсутствующие ОБЯЗАТЕЛЬНЫЕ ПО ЗАКОНУ пункты, не оценивает
+// выгодность условий (см. system-промпт в document-risk-check.routes.js).
+// Бесплатно — тот же принцип, что у остального ИИ-контента в этом разделе.
+function DocumentRiskCheckCard({ isManagement }) {
+  const [checks, setChecks] = useState(null);
+  const [documentType, setDocumentType] = useState('other');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [openId, setOpenId] = useState(null);
+  const [openDetail, setOpenDetail] = useState(null);
+
+  function load() {
+    api.get('/modules/security/document-risk-checks').then((res) => setChecks(res.data));
+  }
+
+  useEffect(() => {
+    if (!isManagement) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManagement]);
+
+  // Пока есть проверки в статусе "обрабатывается" — досчитываем в фоне
+  // (POST отвечает сразу с id, сам вызов ИИ идёт после ответа, см. backend).
+  useEffect(() => {
+    if (!checks || !checks.some((c) => c.status === 'pending')) return;
+    const t = setTimeout(load, 4000);
+    return () => clearTimeout(t);
+  }, [checks]);
+
+  if (!isManagement) return null;
+
+  async function upload() {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('documentType', documentType);
+      await api.post('/modules/security/document-risk-checks', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setFile(null);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось загрузить документ');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function openCheck(id) {
+    if (openId === id) {
+      setOpenId(null);
+      setOpenDetail(null);
+      return;
+    }
+    setOpenId(id);
+    setOpenDetail(null);
+    const { data } = await api.get(`/modules/security/document-risk-checks/${id}`);
+    setOpenDetail(data);
+  }
+
+  async function remove(id) {
+    if (!confirm('Удалить проверку? Загруженный файл тоже удалится.')) return;
+    await api.delete(`/modules/security/document-risk-checks/${id}`);
+    if (openId === id) {
+      setOpenId(null);
+      setOpenDetail(null);
+    }
+    load();
+  }
+
+  return (
+    <Card>
+      <ST>Проверка документа на риски</ST>
+      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+        Загрузите договор (PDF или DOCX с текстовым слоем, не скан/фото) — ИИ проверит, каких обязательных
+        по закону пунктов не хватает. Это не юридическая консультация, только сигнал, на что обратить
+        внимание перед подписанием.
+      </div>
+
+      <Field label="Тип документа">
+        <Select value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
+          {RISK_CHECK_DOCUMENT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </Select>
+      </Field>
+      <Field label="Файл (PDF или DOCX)">
+        <input
+          type="file"
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+      </Field>
+      {error && <div className="alert alert-error">{error}</div>}
+      <Btn small onClick={upload} disabled={!file || uploading}>{uploading ? 'Загружаем…' : 'Загрузить и проверить'}</Btn>
+
+      {checks && checks.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          {checks.map((c) => (
+            <div key={c.id} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{c.originalFilename}</div>
+                  <div style={{ fontSize: 12, color: C.subtle }}>{c.documentTypeLabel} · {new Date(c.createdAt).toLocaleDateString('ru-RU')}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+                  {c.status === 'pending' && <span style={{ fontSize: 12, color: C.subtle }}>Обрабатывается…</span>}
+                  {c.status === 'failed' && <span style={{ fontSize: 12, color: C.red }}>Ошибка</span>}
+                  {c.status === 'done' && (
+                    <button onClick={() => openCheck(c.id)} style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 600, cursor: 'pointer', fontSize: 12, padding: 0 }}>
+                      {openId === c.id ? 'Скрыть' : 'Показать результат'}
+                    </button>
+                  )}
+                  <button onClick={() => remove(c.id)} style={{ background: 'none', border: 'none', color: C.subtle, cursor: 'pointer', fontSize: 12, padding: 0 }}>Удалить</button>
+                </div>
+              </div>
+              {c.status === 'failed' && c.errorMessage && (
+                <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>{c.errorMessage}</div>
+              )}
+              {openId === c.id && (
+                openDetail?.id === c.id ? (
+                  <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', marginTop: 8, fontSize: 13, color: C.secondary, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                    {openDetail.riskAnalysis}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>Загрузка…</div>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // Тихая обкатка снята 13.08.2026 (решение владельца) — доступно всем
 // компаниям, вместе с backend-гейтом в document-templates.routes.js.
 function DocumentTemplatesCard({ isManagement }) {
@@ -1228,6 +1388,26 @@ function DocumentTemplatesCard({ isManagement }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [lastResult, setLastResult] = useState(null);
+  // Объяснения по ключу шаблона (19.08.2026, п.6 плана) — { loading, text,
+  // error } на каждый t.key, запрашивается лениво по клику, не все сразу.
+  const [explanations, setExplanations] = useState({});
+
+  async function explainTemplate(key) {
+    if (explanations[key]?.text || explanations[key]?.loading) return;
+    setExplanations((prev) => ({ ...prev, [key]: { loading: true } }));
+    try {
+      const { data } = await api.get(`/modules/document-templates/templates/${key}/explain`);
+      if (!data.aiConfigured) {
+        setExplanations((prev) => ({ ...prev, [key]: { loading: false, error: 'Объяснения от ИИ пока не подключены' } }));
+      } else if (data.error || !data.explanation) {
+        setExplanations((prev) => ({ ...prev, [key]: { loading: false, error: data.error || 'Не удалось получить объяснение' } }));
+      } else {
+        setExplanations((prev) => ({ ...prev, [key]: { loading: false, text: data.explanation } }));
+      }
+    } catch (err) {
+      setExplanations((prev) => ({ ...prev, [key]: { loading: false, error: err.response?.data?.error || 'Не удалось получить объяснение' } }));
+    }
+  }
 
   function load() {
     Promise.all([
@@ -1354,6 +1534,25 @@ function DocumentTemplatesCard({ isManagement }) {
             </div>
           )}
           {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}
+
+          {!explanations[t.key]?.text && (
+            <button
+              type="button"
+              onClick={() => explainTemplate(t.key)}
+              disabled={explanations[t.key]?.loading}
+              style={{ display: 'block', background: 'none', border: 'none', color: C.primary, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 12, marginBottom: 8 }}
+            >
+              {explanations[t.key]?.loading ? 'Спрашиваем ИИ…' : 'Объяснить простыми словами'}
+            </button>
+          )}
+          {explanations[t.key]?.error && (
+            <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>{explanations[t.key].error}</div>
+          )}
+          {explanations[t.key]?.text && (
+            <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', marginBottom: 8, fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+              {explanations[t.key].text}
+            </div>
+          )}
 
           {!addon || !addon.purchased ? (
             <Btn small variant="secondary" disabled>Заполнить и сгенерировать 🔒</Btn>
@@ -1584,11 +1783,26 @@ function DocumentsTab({ documents, sections, isManagement, onChange }) {
     );
   }
 
+  // Проверка на риски — часть 1 (19.08.2026, п.6 плана, уточнение владельца
+  // "не хватает обязательных пунктов/документов по закону"): чисто
+  // механическое сравнение "что требуется по нише" (sections, уже
+  // рассчитано на бэкенде из mandatory-documents/*.js) с "что реально
+  // загружено" (documents) — без ИИ, потому что это детерминированный
+  // подсчёт, не текстовый анализ. ИИ пригодится для части 2 (риски во
+  // внешних документах вроде договоров) — то отдельная, более крупная и
+  // юридически рискованная задача, не в этом заходе.
+  const missingCategories = categories.filter((c) => !byCategory[c] || byCategory[c].length === 0);
+
   return (
     <div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 12 }}>
         Разделы соответствуют структуре отчёта — так видно, какие документы относятся к каждой категории требований.
       </div>
+      {missingCategories.length > 0 && (
+        <div className="alert alert-error" style={{ marginBottom: 12 }}>
+          Не хватает документов в {missingCategories.length} из {categories.length} категорий: {missingCategories.join(', ')}.
+        </div>
+      )}
       {isManagement && <div style={{ marginBottom: 16 }}><Btn small onClick={openForm}>+ Добавить документ</Btn></div>}
 
       {categories.map((category) => (

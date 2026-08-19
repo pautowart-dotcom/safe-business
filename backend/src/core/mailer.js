@@ -26,9 +26,13 @@ function getTransporter() {
 // настроена или временно недоступна, вызывающий код должен сам решить,
 // критично ли это (см. auth.routes.js — регистрация не должна падать из-за
 // письма, а восстановление пароля без него бесполезно для клиента).
-async function sendMail({ to, subject, html }) {
+//
+// attachments (19.08.2026, анонимный разовый аудит) — nodemailer принимает
+// массив как есть ({ filename, content } с Buffer в content), просто
+// прокидываем без изменений.
+async function sendMail({ to, subject, html, attachments }) {
   const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  await getTransporter().sendMail({ from, to, subject, html });
+  await getTransporter().sendMail({ from, to, subject, html, attachments });
 }
 
 module.exports = { sendMail };

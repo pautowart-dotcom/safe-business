@@ -8,6 +8,10 @@
 //    источник фактов, без дублирования цифр в отдельном roadmap-контенте.
 const { registrationItems } = require('./registrationSteps');
 
+// cleaning_basic и barbershop добавлены 19.08.2026 — cleaning_basic сюда не
+// попал при своём добавлении (пропуск, не осознанное решение): чек-лист
+// открытия бизнеса для этой ниши почти неделю показывал только шаги
+// регистрации юрформы, без пунктов из матрицы нарушений.
 const VIOLATIONS_BY_NICHE = {
   manicure: require('../../security/content/violations/manicure'),
   lashes_brows: require('../../security/content/violations/lashes-brows'),
@@ -16,6 +20,8 @@ const VIOLATIONS_BY_NICHE = {
   tattoo: require('../../security/content/violations/tattoo'),
   depilation: require('../../security/content/violations/depilation'),
   solarium: require('../../security/content/violations/solarium'),
+  cleaning_basic: require('../../security/content/violations/cleaning-basic'),
+  barbershop: require('../../security/content/violations/barbershop'),
 };
 
 const NICHE_LABELS = {
@@ -26,6 +32,8 @@ const NICHE_LABELS = {
   tattoo: 'Тату, пирсинг и перманентный макияж',
   depilation: 'Депиляция (шугаринг, воск, нить)',
   solarium: 'Солярий',
+  cleaning_basic: 'Уборка помещений (жильё и офисы)',
+  barbershop: 'Барбершоп',
 };
 
 const LEGAL_FORM_LABELS = {

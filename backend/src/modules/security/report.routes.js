@@ -2,7 +2,7 @@ const express = require('express');
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
-const { requirePaidPlan } = require('../../core/middleware/subscription');
+const { requirePaidPlan, isSubscriptionActive } = require('../../core/middleware/subscription');
 const { requireTestCompany } = require('../../core/middleware/testCompany');
 const { logEvent } = require('../../core/eventLog');
 const repository = require('./content/repository');
@@ -38,6 +38,30 @@ async function loadReportInputs(companyId, profile) {
     mandatoryDocuments: mergeDocumentSections(sectionsPerNiche.filter(Boolean)),
     attentionZones: mergeAttentionZones(zonesPerNiche.filter(Boolean)),
   };
+}
+
+// Вынесено в функцию (19.08.2026) — нужна не только обработчику скачивания
+// ниже, но и вебхуку разовой оплаты анонимного аудита (subscription.routes.js),
+// который отправляет PDF вложением на почту гостя вместо отдачи по HTTP.
+async function buildReportPdfBuffer(companyId, reportRow) {
+  const profile = await loadProfile(companyId);
+  const { status, mandatoryDocuments, attentionZones } = await loadReportInputs(companyId, profile);
+
+  const report = await buildReport({
+    niches: status.testedNiches,
+    profile,
+    score: status.answersWithBlocks.reduce((sum, a) => sum + a.points, 0),
+    maxScore: status.answersWithBlocks.length,
+    indexPercent: status.indexPercent,
+    zone: status.zone,
+    violations: status.violations,
+    answersWithBlocks: status.answersWithBlocks,
+    mandatoryDocuments,
+    attentionZones,
+    reportNumber: reportRow.report_number,
+  });
+
+  return renderPdf(report);
 }
 
 router.post(
@@ -119,9 +143,15 @@ router.get(
 // Сам тест и результат (индекс, зона, карта нарушений) бесплатны всем —
 // paywall стоит только на этом роуте (скачивание файла), не на генерации
 // записи отчёта (POST /sessions/:id/report) и не на /sessions/:id/result.
+//
+// НЕ requirePaidPlan-middleware напрямую (19.08.2026) — нужно ЕЩЁ одно
+// условие прохода в дополнение к настоящей подписке: reportRow.
+// unlocked_without_subscription (разовая покупка именно ЭТОГО отчёта, см.
+// POST /platform/subscription/checkout-one-time и миграцию 0091) — middleware
+// срабатывало бы ДО того, как мы знаем id отчёта из URL, поэтому проверка
+// перенесена внутрь обработчика, после загрузки строки отчёта.
 router.get(
   '/reports/:id/download',
-  requirePaidPlan,
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM security_reports WHERE id = $1 AND company_id = $2', [
       req.params.id,
@@ -130,24 +160,14 @@ router.get(
     const reportRow = rows[0];
     if (!reportRow) return res.status(404).json({ error: 'Отчёт не найден' });
 
-    const profile = await loadProfile(req.tenant.companyId);
-    const { status, mandatoryDocuments, attentionZones } = await loadReportInputs(req.tenant.companyId, profile);
+    if (!reportRow.unlocked_without_subscription && !(await isSubscriptionActive(req.tenant.companyId))) {
+      return res.status(402).json({
+        error: 'Скачивание PDF доступно после оплаты подписки на платформу',
+        requiresSubscription: true,
+      });
+    }
 
-    const report = await buildReport({
-      niches: status.testedNiches,
-      profile,
-      score: status.answersWithBlocks.reduce((sum, a) => sum + a.points, 0),
-      maxScore: status.answersWithBlocks.length,
-      indexPercent: status.indexPercent,
-      zone: status.zone,
-      violations: status.violations,
-      answersWithBlocks: status.answersWithBlocks,
-      mandatoryDocuments,
-      attentionZones,
-      reportNumber: reportRow.report_number,
-    });
-
-    const pdfBuffer = await renderPdf(report);
+    const pdfBuffer = await buildReportPdfBuffer(req.tenant.companyId, reportRow);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${reportRow.report_number}.pdf"`);
     res.send(pdfBuffer);
@@ -232,3 +252,4 @@ router.get(
 );
 
 module.exports = router;
+module.exports.buildReportPdfBuffer = buildReportPdfBuffer;

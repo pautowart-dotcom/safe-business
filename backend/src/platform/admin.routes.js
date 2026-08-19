@@ -596,9 +596,13 @@ router.get(
     ]);
 
     // Код нарушения однозначно принадлежит одной нише (префикс MN-/LB-/HR-/MS-/
-    // TT-/DP-/SL-, см. content/violations/*.js) — ищем деталь по всем нишам
-    // с готовым контентом, без обращения к профилю/сессиям конкретной компании.
-    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium'];
+    // TT-/DP-/SL-/CL-/BB-, см. content/violations/*.js) — ищем деталь по всем
+    // нишам с готовым контентом, без обращения к профилю/сессиям конкретной
+    // компании. cleaning_basic и barbershop добавлены 19.08.2026 — раньше
+    // cleaning_basic сюда не попал при своём добавлении (пропуск, не
+    // осознанное решение), нарушения этой ниши не подписывались деталями
+    // в этом дашборде почти неделю.
+    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'cleaning_basic', 'barbershop'];
     const matricesByNiche = {};
     for (const niche of NICHES_WITH_CONTENT) {
       matricesByNiche[niche] = await securityRepository.getViolationMatrix(niche);

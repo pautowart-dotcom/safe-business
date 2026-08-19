@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, BackBtn, TextInput, C, F } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Btn, TextInput, C, F } from '../ui/components.jsx';
 import { money } from '../ui/charts.jsx';
 import { localDateStr } from '../utils/localDate.js';
 
@@ -83,18 +83,13 @@ function AdviceText({ text }) {
   );
 }
 
-function MarginSection({ data, error, paywall }) {
+function MarginSection({ data, error }) {
   return (
     <Card>
       <ST>Маржа по услугам · ₽/мин</ST>
-      {paywall && (
-        <div style={{ fontSize: 13, color: C.subtle }}>
-          Эта функция платная (разовое подключение) — сейчас недоступна для этой компании.
-        </div>
-      )}
-      {!paywall && error && <div className="alert alert-error">{error}</div>}
-      {!paywall && !error && !data && <div style={{ fontSize: 13, color: C.subtle }}>Загрузка...</div>}
-      {!paywall && !error && data && (
+      {error && <div className="alert alert-error">{error}</div>}
+      {!error && !data && <div style={{ fontSize: 13, color: C.subtle }}>Загрузка...</div>}
+      {!error && data && (
         <>
           <AdviceText text={data.advice} />
           {data.services.length === 0 ? (
@@ -197,22 +192,66 @@ function MasterDepartureSection({ data, error }) {
   );
 }
 
+// Единая подписка на ИИ-управляющего (19.08.2026, миграция 0090) — четыре
+// эндпоинта ниже гейтятся одним и тем же requireAiAdvisorSubscription, так
+// что 402 у любого из них означает "нет подписки" у всех сразу. Раньше
+// (до этой подписки) 402 обрабатывал только margin-advisor — остальные три
+// просто показывали текст ошибки, что было несогласованно.
+function SubscribeCard({ company, starting, error, onStart, justPaid }) {
+  const price = company?.ai_advisor_subscription_price_rub || 990;
+  const status = company?.ai_advisor_subscription_status;
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>ИИ-советник — платная подписка</div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
+        Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера) плюс общий текстовый вывод —
+        по вашим данным, без гарантий и без давления.
+      </div>
+      {justPaid && (
+        <div className="alert" style={{ marginBottom: 12 }}>
+          Оплата обрабатывается — обычно это занимает несколько секунд. Обновите страницу, если доступ ещё не открылся.
+        </div>
+      )}
+      {status === 'past_due' && (
+        <div className="alert alert-error" style={{ marginBottom: 12 }}>
+          Не удалось списать оплату за продление — проверьте способ оплаты, доступ отключится, если списание не пройдёт.
+        </div>
+      )}
+      {error && <div className="alert alert-error">{error}</div>}
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{price} ₽/мес</div>
+      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
+        Оплата через ЮKassa, дальше списывается автоматически раз в месяц — оформить нужно один раз, независимо от статуса основной подписки на платформу.
+      </div>
+      <Btn onClick={onStart} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
+    </Card>
+  );
+}
+
 export default function AiAdvisor() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [preset, setPreset] = useState('month');
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const ready = preset !== 'custom' || (customFrom && customTo);
 
+  const [company, setCompany] = useState(null);
+  const [starting, setStarting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [paywalled, setPaywalled] = useState(false);
+
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState('');
   const [margin, setMargin] = useState(null);
   const [marginError, setMarginError] = useState('');
-  const [marginPaywall, setMarginPaywall] = useState(false);
   const [discount, setDiscount] = useState(null);
   const [discountError, setDiscountError] = useState('');
   const [departure, setDeparture] = useState(null);
   const [departureError, setDepartureError] = useState('');
+
+  function loadCompany() {
+    return api.get('/platform/companies/current').then((res) => setCompany(res.data));
+  }
 
   function load() {
     if (!ready) return Promise.resolve();
@@ -220,7 +259,6 @@ export default function AiAdvisor() {
 
     setDigestError('');
     setMarginError('');
-    setMarginPaywall(false);
     setDiscountError('');
     setDepartureError('');
 
@@ -230,11 +268,15 @@ export default function AiAdvisor() {
       api.get('/modules/finance/discount-advisor', { params }),
       api.get('/modules/finance/master-departure-advisor'),
     ]).then(([digestRes, marginRes, discountRes, departureRes]) => {
+      const results = [digestRes, marginRes, discountRes, departureRes];
+      const anyPaywalled = results.some((r) => r.status === 'rejected' && r.reason.response?.status === 402);
+      setPaywalled(anyPaywalled);
+      if (anyPaywalled) return;
+
       if (digestRes.status === 'fulfilled') setDigest(digestRes.value.data);
       else setDigestError(digestRes.reason.response?.data?.error || 'Не удалось загрузить дайджест');
 
       if (marginRes.status === 'fulfilled') setMargin(marginRes.value.data);
-      else if (marginRes.reason.response?.status === 402) setMarginPaywall(true);
       else setMarginError(marginRes.reason.response?.data?.error || 'Не удалось загрузить советник по марже');
 
       if (discountRes.status === 'fulfilled') setDiscount(discountRes.value.data);
@@ -245,11 +287,36 @@ export default function AiAdvisor() {
     });
   }
 
+  useEffect(() => {
+    loadCompany();
+  }, []);
+  // Возврат со страницы оплаты ЮKassa (?payment=done) — статус приходит
+  // вебхуком асинхронно, поэтому просто перезагружаем компанию и советников.
+  useEffect(() => {
+    if (searchParams.get('payment') === 'done') {
+      loadCompany();
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     load();
   }, [preset, customFrom, customTo]);
-  usePullToRefresh(load);
+  usePullToRefresh(() => Promise.all([loadCompany(), load()]));
+
+  async function startCheckout() {
+    setStarting(true);
+    setCheckoutError('');
+    try {
+      const { data } = await api.post('/platform/ai-advisor-subscription/checkout');
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error || 'Не удалось начать оплату');
+      setStarting(false);
+    }
+  }
 
   return (
     <div>
@@ -259,24 +326,36 @@ export default function AiAdvisor() {
         На чём бизнес теряет деньги — по вашим же данным, без гарантий и без давления.
       </div>
 
-      <PeriodBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+      {paywalled ? (
+        <SubscribeCard
+          company={company}
+          starting={starting}
+          error={checkoutError}
+          onStart={startCheckout}
+          justPaid={searchParams.get('payment') === 'done'}
+        />
+      ) : (
+        <>
+          <PeriodBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 
-      {digestError && <div className="alert alert-error">{digestError}</div>}
-      {digest?.digest && (
-        <Card style={{ background: C.primary, color: '#FFF' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 10 }}>Общий вывод</div>
-          <div style={{ fontSize: 14, lineHeight: 1.5 }}>{digest.digest}</div>
-        </Card>
-      )}
-      {digest && !digest.digest && digest.aiConfigured === false && (
-        <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 12, padding: '0 4px' }}>
-          Текстовые выводы от ИИ пока не подключены — ниже только цифры.
-        </div>
-      )}
+          {digestError && <div className="alert alert-error">{digestError}</div>}
+          {digest?.digest && (
+            <Card style={{ background: C.primary, color: '#FFF' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 10 }}>Общий вывод</div>
+              <div style={{ fontSize: 14, lineHeight: 1.5 }}>{digest.digest}</div>
+            </Card>
+          )}
+          {digest && !digest.digest && digest.aiConfigured === false && (
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 12, padding: '0 4px' }}>
+              Текстовые выводы от ИИ пока не подключены — ниже только цифры.
+            </div>
+          )}
 
-      <MarginSection data={margin} error={marginError} paywall={marginPaywall} />
-      <DiscountSection data={discount} error={discountError} />
-      <MasterDepartureSection data={departure} error={departureError} />
+          <MarginSection data={margin} error={marginError} />
+          <DiscountSection data={discount} error={discountError} />
+          <MasterDepartureSection data={departure} error={departureError} />
+        </>
+      )}
     </div>
   );
 }

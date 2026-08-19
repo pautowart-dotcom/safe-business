@@ -71,6 +71,21 @@ async function saveSupportAttachment(buffer, mimetype) {
   throw wrapped;
 }
 
+// Проверка документа на риски (19.08.2026) — PDF/DOCX сохраняются как есть,
+// то же обоснование, что у PDF в saveDocumentFile: пересжатие/перекодирование
+// не нужно и потеряло бы текстовый слой, который как раз и извлекается
+// (pdf-parse/mammoth, см. document-risk-check.routes.js).
+const RISK_CHECK_EXTENSIONS = {
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+};
+async function saveRiskCheckDocument(buffer, mimetype) {
+  const ext = RISK_CHECK_EXTENSIONS[mimetype];
+  const filename = `${crypto.randomUUID()}.${ext}`;
+  await fs.promises.writeFile(path.join(UPLOADS_DIR, filename), buffer);
+  return filename;
+}
+
 function getFileUrl(filename) {
   return `/api/uploads/${filename}`;
 }
@@ -172,4 +187,4 @@ async function deleteFile(filename) {
   }
 }
 
-module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, saveSupportAttachment, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, signAvatarUrl, verifyFileUrlSignature };
+module.exports = { UPLOADS_DIR, saveImage, saveDocumentFile, saveSupportAttachment, saveRiskCheckDocument, getFileUrl, filenameFromUrl, bareFileUrl, deleteFile, signFileUrl, signAvatarUrl, verifyFileUrlSignature };

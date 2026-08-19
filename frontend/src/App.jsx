@@ -30,6 +30,7 @@ import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
 import AiAssistant from './pages/AiAssistant.jsx';
+import AnonymousAudit from './pages/AnonymousAudit.jsx';
 
 export default function App() {
   return (
@@ -40,6 +41,10 @@ export default function App() {
       <Route path="/invite/:token" element={<AcceptInvite />} />
       <Route path="/legal/:key" element={<LegalDocument />} />
       <Route path="/j/:token" element={<JournalVerify />} />
+      {/* Разовый аудит без регистрации (19.08.2026) — публичный, вне
+          PrivateRoute/Layout, своя авторизация (гостевой JWT в замыкании
+          страницы, не в общем localStorage), см. AnonymousAudit.jsx. */}
+      <Route path="/audit" element={<AnonymousAudit />} />
       <Route
         path="/"
         element={

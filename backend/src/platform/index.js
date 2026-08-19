@@ -23,6 +23,8 @@ const roadmapRoutes = require('./roadmap.routes');
 const businessPassportRoutes = require('./businessPassport.routes');
 const franchiseRoutes = require('./franchise.routes');
 const addonsRoutes = require('./addons.routes');
+const aiAdvisorSubscriptionRoutes = require('./ai-advisor-subscription.routes');
+const anonymousAuditRoutes = require('./anonymous-audit.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -47,5 +49,7 @@ platformRouter.use('/roadmap', roadmapRoutes);
 platformRouter.use('/business-passport', businessPassportRoutes);
 platformRouter.use('/franchise', franchiseRoutes);
 platformRouter.use('/addons', addonsRoutes);
+platformRouter.use('/ai-advisor-subscription', aiAdvisorSubscriptionRoutes);
+platformRouter.use('/anonymous-audit', anonymousAuditRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
