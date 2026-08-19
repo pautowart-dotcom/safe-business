@@ -9,20 +9,26 @@
 // проверено поиском август 2026, вживую реальным ключом не проверено —
 // владелец подключит ключ сам на сервере, как и с yandexAssist.js).
 //
-// Переменные окружения — те же YANDEX_GPT_API_KEY/YANDEX_FOLDER_ID, что уже
-// использует yandexAssist.js (один сервисный аккаунт Yandex Cloud вполне
-// может обслуживать оба эндпоинта), но модель — ОТДЕЛЬНАЯ переменная
-// YANDEX_GPT_AGENT_MODEL (не YANDEX_GPT_MODEL): function calling требует
-// модель, которая это умеет (yandexgpt/rc — YandexGPT Pro 5.1, по
-// документации поддерживает tools), а YANDEX_GPT_MODEL уже занята под
-// yandexgpt-lite/latest для текстовых советников (margin-advisor и т.д.),
-// смешивать их — значит один флаг окружения начнёт влиять на два разных,
-// технически несовместимых сценария использования.
+// 19.08.2026, подтверждено вживую владельцем (скриншот aistudio.yandex.ru,
+// "Создание API-ключа"): это ДЕЙСТВИТЕЛЬНО отдельный ключ, не переиспользование
+// YANDEX_GPT_API_KEY — интерфейс AI Studio создаёт свой API-ключ + свой
+// сервисный аккаунт с минимальными ролями именно под этот продукт, отдельно
+// от того сервисного аккаунта/ключа, что уже работает для yandexAssist.js
+// (Foundation Models). Поэтому отдельная переменная — YANDEX_AI_STUDIO_API_KEY.
+// YANDEX_FOLDER_ID переиспользуем — это id каталога Yandex Cloud, не часть
+// ключа, тот же каталог для обоих сервисов.
+//
+// Модель — ОТДЕЛЬНАЯ переменная YANDEX_GPT_AGENT_MODEL (не YANDEX_GPT_MODEL):
+// function calling требует модель, которая это умеет (yandexgpt/rc —
+// YandexGPT Pro 5.1, по документации поддерживает tools), а YANDEX_GPT_MODEL
+// уже занята под yandexgpt-lite/latest для текстовых советников
+// (margin-advisor и т.д.) — смешивать их означает, что один флаг окружения
+// начнёт влиять на два разных, технически несовместимых сценария использования.
 const AGENT_MODEL_SUFFIX = process.env.YANDEX_GPT_AGENT_MODEL || 'yandexgpt/rc';
 const AGENT_CHAT_URL = 'https://ai.api.cloud.yandex.net/v1/chat/completions';
 
 function isAiConfigured() {
-  return !!process.env.YANDEX_GPT_API_KEY && !!process.env.YANDEX_FOLDER_ID;
+  return !!process.env.YANDEX_AI_STUDIO_API_KEY && !!process.env.YANDEX_FOLDER_ID;
 }
 
 // messages — обычный OpenAI-формат ([{role, content}, ...], role один из
@@ -36,7 +42,7 @@ function isAiConfigured() {
 // сам решить, что с этим делать, здесь не гадаем).
 async function chat({ messages, tools, maxTokens = 800, temperature = 0.2 }) {
   if (!isAiConfigured()) {
-    const err = new Error('ИИ-ассистент не настроен: заполните YANDEX_GPT_API_KEY и YANDEX_FOLDER_ID в .env');
+    const err = new Error('ИИ-ассистент не настроен: заполните YANDEX_AI_STUDIO_API_KEY и YANDEX_FOLDER_ID в .env');
     err.code = 'AI_NOT_CONFIGURED';
     throw err;
   }
@@ -57,15 +63,18 @@ async function chat({ messages, tools, maxTokens = 800, temperature = 0.2 }) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Api-Key — тот же статический ключ сервисного аккаунта, что и в
-      // yandexAssist.js (см. комментарий там про выбор Api-Key vs
-      // IAM-токена). Folder id для OpenAI-совместимого эндпоинта передаётся
-      // заголовком, а не частью URL — по документации это `OpenAI-Project`;
-      // дублируем в `x-folder-id`, который встречается в примерах для
-      // других эндпоинтов Yandex Cloud — лишний заголовок безвреден, а
-      // живого ключа для проверки, какой именно заголовок реально нужен
-      // именно этому эндпоинту, на момент написания не было.
-      Authorization: `Api-Key ${process.env.YANDEX_GPT_API_KEY}`,
+      // Api-Key — формат заголовка пока не проверен вживую реальным ключом
+      // (только что созданным через AI Studio, "Создание API-ключа") — если
+      // после подстановки ключа всё ещё 401/403, первое, что проверить:
+      // может понадобиться `Bearer` вместо `Api-Key` (AI Studio — отдельный,
+      // OpenAI-совместимый продукт, необязательно повторяет формат
+      // Foundation Models). Folder id для OpenAI-совместимого эндпоинта
+      // передаётся заголовком, а не частью URL — по документации это
+      // `OpenAI-Project`; дублируем в `x-folder-id`, который встречается в
+      // примерах для других эндпоинтов Yandex Cloud — лишний заголовок
+      // безвреден, а живого ключа для проверки, какой именно заголовок
+      // реально нужен именно этому эндпоинту, на момент написания не было.
+      Authorization: `Api-Key ${process.env.YANDEX_AI_STUDIO_API_KEY}`,
       'OpenAI-Project': process.env.YANDEX_FOLDER_ID,
       'x-folder-id': process.env.YANDEX_FOLDER_ID,
     },
