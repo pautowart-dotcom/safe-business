@@ -31,6 +31,7 @@ import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
 import AnonymousAudit from './pages/AnonymousAudit.jsx';
+import PublicLeadForm from './pages/PublicLeadForm.jsx';
 
 export default function App() {
   return (
@@ -45,6 +46,9 @@ export default function App() {
           PrivateRoute/Layout, своя авторизация (гостевой JWT в замыкании
           страницы, не в общем localStorage), см. AnonymousAudit.jsx. */}
       <Route path="/audit" element={<AnonymousAudit />} />
+      {/* Публичная форма приёма заявок (20.08.2026) — вне PrivateRoute/Layout,
+          та же логика, что у /audit выше, см. PublicLeadForm.jsx. */}
+      <Route path="/l/:token" element={<PublicLeadForm />} />
       <Route
         path="/"
         element={

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, Field, TextInput, TextArea, Select, Btn, C } from '../ui/components.jsx';
 
 // Модуль "Заявки" (20.08.2026) — первый повод: клининг, владелица сама
@@ -57,6 +58,13 @@ export default function Leads() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Публичная ссылка приёма заявок (20.08.2026) — грузится лениво по клику
+  // "Показать ссылку", а не сразу при открытии страницы: токен генерируется
+  // на бэкенде при первом запросе (leads-public.routes.js), незачем делать
+  // это на каждое открытие "Заявок", если владелица ссылкой не пользуется.
+  const [publicLink, setPublicLink] = useState(null);
+  const [publicLinkLoading, setPublicLinkLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   function load() {
     return api.get('/modules/leads').then((res) => setLeads(res.data)).finally(() => setLoading(false));
@@ -65,6 +73,17 @@ export default function Leads() {
   useEffect(() => {
     load();
   }, []);
+
+  async function showPublicLink() {
+    if (publicLink) return;
+    setPublicLinkLoading(true);
+    try {
+      const res = await api.get('/platform/leads-public/token');
+      setPublicLink(`${window.location.origin}/l/${res.data.token}`);
+    } finally {
+      setPublicLinkLoading(false);
+    }
+  }
 
   async function handleAdd() {
     if (!form.name.trim()) {
@@ -112,6 +131,38 @@ export default function Leads() {
         <div style={{ fontSize: 20, fontWeight: 800 }}>Заявки</div>
         <Btn small onClick={() => setShowForm((v) => !v)}>{showForm ? 'Отмена' : '+ Новая заявка'}</Btn>
       </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Приём заявок без вашего участия</div>
+        {!publicLink ? (
+          <>
+            <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
+              Публичная ссылка — вставьте её в шапку Instagram, автоответ WhatsApp и т.п.: тот, кто перейдёт, сам оставит контакт, и заявка появится в списке ниже.
+            </div>
+            <Btn small variant="secondary" onClick={showPublicLink} disabled={publicLinkLoading}>
+              {publicLinkLoading ? 'Загрузка...' : 'Показать ссылку'}
+            </Btn>
+          </>
+        ) : (
+          <>
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', marginBottom: 10, wordBreak: 'break-all', fontSize: 13 }}>
+              {publicLink}
+            </div>
+            <Btn
+              small
+              onClick={async () => {
+                const ok = await copyToClipboard(publicLink);
+                if (ok) {
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 1500);
+                }
+              }}
+            >
+              {linkCopied ? '✓ Скопировано' : 'Скопировать ссылку'}
+            </Btn>
+          </>
+        )}
+      </Card>
 
       {showForm && (
         <Card style={{ marginBottom: 16 }}>

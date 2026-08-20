@@ -25,6 +25,7 @@ const franchiseRoutes = require('./franchise.routes');
 const addonsRoutes = require('./addons.routes');
 const aiAdvisorSubscriptionRoutes = require('./ai-advisor-subscription.routes');
 const anonymousAuditRoutes = require('./anonymous-audit.routes');
+const leadsPublicRoutes = require('./leads-public.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -51,5 +52,6 @@ platformRouter.use('/franchise', franchiseRoutes);
 platformRouter.use('/addons', addonsRoutes);
 platformRouter.use('/ai-advisor-subscription', aiAdvisorSubscriptionRoutes);
 platformRouter.use('/anonymous-audit', anonymousAuditRoutes);
+platformRouter.use('/leads-public', leadsPublicRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
