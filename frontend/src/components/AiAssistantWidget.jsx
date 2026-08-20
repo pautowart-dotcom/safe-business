@@ -170,29 +170,31 @@ export default function AiAssistantWidget() {
   return (
     <div style={{ position: 'fixed', inset: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
       {/* По центру, над нижним меню (владелец: "не типовой кружок чата в
-          углу") — иконка "искры" вместо "сообщения" (Icon.jsx, spark) и
+          углу") — иконка робота вместо "искры"/"сообщения" (Icon.jsx, bot) и
           мягкая пульсирующая аура (styles.css, @keyframes ai-pulse) вместо
-          статичного кружка. */}
+          статичного кружка. Размер/отступ уменьшены 20.08.2026 (владелец:
+          кружок перекрывал контент карточек) — 40px и bottom:70 вместо 52px
+          и 84, чтобы кружок не заезжал в контент выше и был ближе к нижнему меню. */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Открыть ИИ-ассистента"
           style={{
-            position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 84,
-            width: 52, height: 52, borderRadius: '50%',
+            position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 70,
+            width: 40, height: 40, borderRadius: '50%',
             background: C.primary, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto',
             animation: 'ai-pulse 2.5s ease-in-out infinite',
           }}
         >
-          <Icon name="spark" size={24} color="#FFF" sw={1.8} />
+          <Icon name="bot" size={19} color="#FFF" sw={1.8} />
         </button>
       )}
 
       {open && (
         <div
           style={{
-            position: 'absolute', right: 16, left: 16, bottom: 84, maxHeight: '65vh',
+            position: 'absolute', right: 16, left: 16, bottom: 70, maxHeight: '65vh',
             display: 'flex', flexDirection: 'column', pointerEvents: 'auto',
             background: C.bg, borderRadius: 16, border: `1px solid ${C.border}`,
             boxShadow: '0 8px 30px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: F,
