@@ -197,15 +197,19 @@ function MasterDepartureSection({ data, error }) {
 // что 402 у любого из них означает "нет подписки" у всех сразу. Раньше
 // (до этой подписки) 402 обрабатывал только margin-advisor — остальные три
 // просто показывали текст ошибки, что было несогласованно.
+// 20.08.2026: та же подписка теперь гейтит и плавающий ИИ-ассистент
+// (AiAssistantWidget.jsx, modules/ai-assistant/index.js) — раньше он был
+// бесплатным весь триал, владелец явно попросил не отделять его от
+// остальных ИИ-фич по деньгам.
 function SubscribeCard({ company, starting, error, onStart, justPaid }) {
   const price = company?.ai_advisor_subscription_price_rub || 990;
   const status = company?.ai_advisor_subscription_status;
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>ИИ-советник — платная подписка</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>ИИ-управляющий — платная подписка</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
-        Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера) плюс общий текстовый вывод —
-        по вашим данным, без гарантий и без давления.
+        Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и
+        ИИ-ассистент в чате — по вашим данным, без гарантий и без давления.
       </div>
       {justPaid && (
         <div className="alert" style={{ marginBottom: 12 }}>

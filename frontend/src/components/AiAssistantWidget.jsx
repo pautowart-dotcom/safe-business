@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Btn, TextArea, C, F } from '../ui/components.jsx';
 import { MAX_WIDTH } from '../ui/theme.js';
@@ -60,8 +61,33 @@ const GREETING = {
   content: 'Здравствуйте. Сейчас умею: записывать визит клиента, вносить расход, вносить доход, отвечать про выручку/расходы за период и про открытые нарушения безопасности. Ничего не выдумываю и не подтверждаю запись без вас.',
 };
 
+// Оформить подписку прямо здесь (20.08.2026, владелец: кружок "спокойно
+// открывался" сразу после регистрации, до всякой оплаты) — компактная
+// версия SubscribeCard из AiAdvisor.jsx, не импортируется оттуда (та
+// рассчитана на полноэкранную страницу, не на узкую всплывающую панель) —
+// кнопка ведёт на /ai-advisor, где уже есть настоящий чек-аут, не дублирует
+// его здесь.
+function PaywallCard({ price }) {
+  const navigate = useNavigate();
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Доступно по подписке «ИИ-управляющий»</div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 12 }}>
+        Ассистент — часть той же подписки, что и советники по марже, скидкам и уходу мастеров, {price} ₽/мес.
+      </div>
+      <Btn small onClick={() => navigate('/ai-advisor')}>Оформить подписку</Btn>
+    </div>
+  );
+}
+
 export default function AiAssistantWidget() {
   const [open, setOpen] = useState(false);
+  // null — ещё не знаем (идёт запрос), true/false — реальный статус
+  // requireAiAdvisorSubscription на бэкенде (companies.routes.js /current).
+  // Пока не знаем — просто не показываем ни чат, ни пейвол, чтобы не
+  // мигать одним, потом другим.
+  const [subscribed, setSubscribed] = useState(null);
+  const [aiPrice, setAiPrice] = useState(990);
   const [messages, setMessages] = useState([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -71,17 +97,31 @@ export default function AiAssistantWidget() {
   const [confirmError, setConfirmError] = useState('');
   const listEndRef = useRef(null);
 
-  // История подгружается один раз при монтировании виджета (он смонтирован
-  // всегда, панель просто скрыта до клика по кружку) — не только при
-  // открытии, чтобы кружок мог позже показать бейдж с непрочитанным, если
-  // это понадобится.
+  // Статус подписки — тот же company-эндпоинт, что уже использует
+  // AiAdvisor.jsx (companies.routes.js /current, отдаёт
+  // ai_advisor_subscription_status и free_addons), та же логика, что
+  // requireAiAdvisorSubscription на бэкенде (core/middleware/subscription.js)
+  // — active/past_due или ручная лазейка free_addons.
   useEffect(() => {
+    api.get('/platform/companies/current').then((res) => {
+      const c = res.data;
+      setAiPrice(c.ai_advisor_subscription_price_rub || 990);
+      setSubscribed(!!(c.free_addons || c.ai_advisor_subscription_status === 'active' || c.ai_advisor_subscription_status === 'past_due'));
+    }).catch(() => setSubscribed(false));
+  }, []);
+
+  // История подгружается один раз, только если подписка есть (иначе
+  // /modules/ai-assistant/messages всё равно ответит 402 — незачем дёргать
+  // впустую) — не только при открытии, чтобы кружок мог позже показать
+  // бейдж с непрочитанным, если это понадобится.
+  useEffect(() => {
+    if (!subscribed) return;
     api.get('/modules/ai-assistant/messages').then((res) => {
       if (res.data.length > 0) {
         setMessages([GREETING, ...res.data.map((m) => ({ role: m.role, content: m.content }))]);
       }
     }).catch(() => {});
-  }, []);
+  }, [subscribed]);
 
   useEffect(() => {
     if (open) listEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -121,7 +161,7 @@ export default function AiAssistantWidget() {
     try {
       const res = await api.post('/modules/ai-assistant/confirm', { tool: pending.tool, params: pending.params });
       const record = res.data.record;
-      const label = pending.tool === 'create_income' ? 'Доход' : 'Расход';
+      const label = pending.tool === 'create_income' ? 'Доход' : pending.tool === 'log_visit' ? 'Визит' : 'Расход';
       setMessages((prev) => [...prev, { role: 'system', content: `✓ ${label} ${money(record.amount)} записан` }]);
       setPending(null);
     } catch (err) {
@@ -212,7 +252,7 @@ export default function AiAssistantWidget() {
           статичного кружка. Размер/отступ уменьшены 20.08.2026 (владелец:
           кружок перекрывал контент карточек) — 40px и bottom:70 вместо 52px
           и 84, чтобы кружок не заезжал в контент выше и был ближе к нижнему меню. */}
-      {!open && (
+      {!open && subscribed !== null && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Открыть ИИ-ассистента"
@@ -240,12 +280,14 @@ export default function AiAssistantWidget() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 800 }}>ИИ-ассистент</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button
-                onClick={newDialog}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.subtle, fontSize: 12, fontWeight: 600 }}
-              >
-                Новый диалог
-              </button>
+              {subscribed && (
+                <button
+                  onClick={newDialog}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.subtle, fontSize: 12, fontWeight: 600 }}
+                >
+                  Новый диалог
+                </button>
+              )}
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Закрыть"
@@ -256,43 +298,49 @@ export default function AiAssistantWidget() {
             </div>
           </div>
 
-          {/* minHeight:0 обязателен — тот же баг, что уже чинили на
-              полноэкранной версии: без него flex:1 не сжимается ниже высоты
-              содержимого и лента не прокручивается сама, толкая всю панель
-              за пределы экрана. Здесь панель — самостоятельный fixed-блок
-              (не встроена в прокрутку Layout.jsx), поэтому эта же схема,
-              которая раньше конфликтовала со страницей, здесь работает
-              штатно — конфликтовать не с чем.
-          */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
-            {messages.map((m, i) => (
-              <Bubble key={i} role={m.role} text={m.content} />
-            ))}
-            {sending && <Bubble role="assistant" text="Думаю..." />}
-            {pending && (
-              <PendingActionCard
-                confirmationText={pending.confirmationText}
-                busy={confirmBusy}
-                error={confirmError}
-                onConfirm={confirmPending}
-                onCancel={cancelPending}
-              />
-            )}
-            {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
-            <div ref={listEndRef} />
-          </div>
+          {!subscribed ? (
+            <PaywallCard price={aiPrice} />
+          ) : (
+            <>
+              {/* minHeight:0 обязателен — тот же баг, что уже чинили на
+                  полноэкранной версии: без него flex:1 не сжимается ниже высоты
+                  содержимого и лента не прокручивается сама, толкая всю панель
+                  за пределы экрана. Здесь панель — самостоятельный fixed-блок
+                  (не встроена в прокрутку Layout.jsx), поэтому эта же схема,
+                  которая раньше конфликтовала со страницей, здесь работает
+                  штатно — конфликтовать не с чем.
+              */}
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+                {messages.map((m, i) => (
+                  <Bubble key={i} role={m.role} text={m.content} />
+                ))}
+                {sending && <Bubble role="assistant" text="Думаю..." />}
+                {pending && (
+                  <PendingActionCard
+                    confirmationText={pending.confirmationText}
+                    busy={confirmBusy}
+                    error={confirmError}
+                    onConfirm={confirmPending}
+                    onCancel={cancelPending}
+                  />
+                )}
+                {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
+                <div ref={listEndRef} />
+              </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-            <TextArea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder="Например: внести расход 5000 на аренду"
-              style={{ minHeight: 40, flex: 1, fontFamily: F, fontSize: 13 }}
-              disabled={sending}
-            />
-            <Btn small onClick={send} disabled={sending || !input.trim()}>→</Btn>
-          </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+                <TextArea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Например: внести расход 5000 на аренду"
+                  style={{ minHeight: 40, flex: 1, fontFamily: F, fontSize: 13 }}
+                  disabled={sending}
+                />
+                <Btn small onClick={send} disabled={sending || !input.trim()}>→</Btn>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
