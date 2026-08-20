@@ -782,3 +782,8 @@ router.delete(
 );
 
 module.exports = router;
+// resolveMasterPayout переиспользуется вне этого файла (visits.service.js,
+// 20.08.2026, для tool log_visit ИИ-ассистента) — чтобы формула заработка
+// мастера не могла разойтись между обычной формой визита и чатом.
+module.exports.resolveMasterPayout = resolveMasterPayout;
+module.exports.PAYMENT_METHODS = PAYMENT_METHODS;

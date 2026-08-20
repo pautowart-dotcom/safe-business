@@ -36,6 +36,11 @@ const { moscowDateStr } = require('../../../utils/moscowDate');
 // (реальный шанс разойтись с "настоящим" числом на экране Безопасности),
 // чем один точечный require уже проверенной логики.
 const { computeSecurityStatus } = require('../../security/status');
+// Тот же кросс-модульный require, что и computeSecurityStatus выше, по той же
+// причине — log_visit (20.08.2026) должен писать визит ТЕМ ЖЕ путём, что и
+// обычная форма (createVisit), а не собственным INSERT.
+const { createVisit, resolveVisitParticipants, CHAT_PAYMENT_METHODS } = require('../../visits/visits.service');
+const { hasModuleAccess } = require('../../../core/sdk');
 
 // Тот же список, что EXPENSE_CATEGORIES в frontend/src/pages/Finance.jsx и
 // CHECK-констрейнт миграции 0080_expense_categories.sql — три места
@@ -272,7 +277,145 @@ async function executeGetSecurityStatus(_params, req) {
   return `Индекс безопасности — ${status.indexPercent}%. Открытых нарушений: ${open.length} — ${list}${more}. Подробности и как устранить — в разделе "Безопасность".`;
 }
 
+// ---------- log_visit (20.08.2026, п.1 плана AI-ассистента — "визит",
+// отмечен как более низкий риск, чем списание расходников, поэтому идёт
+// раньше него) ----------
+// В отличие от create_income, здесь ассистент пишет полноценный визит через
+// createVisit() (visits.service.js) — она сама создаёт finance_entries с
+// source='auto_from_visit', поэтому модель НЕ должна дополнительно вызывать
+// create_income за ту же сумму (см. systemPrompt.js). Клиент и мастер
+// приходят по имени (модель не знает внутренние id) — резолвятся в БД
+// внутри validate/execute, поэтому оба стали async (см. правку
+// ai-assistant.routes.js: await tool.validate(params, req)). buildConfirmation
+// остаётся синхронным и показывает буквально то, что назвал пользователь —
+// само существование клиента/мастера уже проверено на этапе validate, если
+// дошли до подтверждения.
+// Сознательно НЕ поддерживает скидку/абонемент/фото/списание материалов —
+// то же поэтапное ограничение, что и у createVisit() (см. её комментарий).
+
+function validateLogVisitShape(params) {
+  const errors = [];
+  const p = params && typeof params === 'object' ? params : {};
+  const { clientName, service, amount, occurredAt, paymentMethod } = p;
+
+  if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
+    errors.push('Не указано имя клиента.');
+  }
+  if (!service || typeof service !== 'string' || !service.trim()) {
+    errors.push('Не указана услуга.');
+  }
+  if (amount === undefined || amount === null || amount === '') {
+    errors.push('Не указана сумма визита.');
+  } else if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+    errors.push('Сумма визита должна быть положительным числом.');
+  }
+  if (occurredAt !== undefined && occurredAt !== null && occurredAt !== '' && !DATE_RE.test(occurredAt)) {
+    errors.push('Дата должна быть в формате ГГГГ-ММ-ДД.');
+  }
+  if (paymentMethod !== undefined && paymentMethod !== null && paymentMethod !== '' && !CHAT_PAYMENT_METHODS.includes(paymentMethod)) {
+    errors.push(`Способ оплаты должен быть одним из: ${CHAT_PAYMENT_METHODS.join(', ')}.`);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+// visits/clients — опциональные (toggleable) модули, выключены по умолчанию
+// (core/modules-registry.js). У самого чата (modules/ai-assistant/index.js)
+// нет requireModule('visits')/('clients') — тот путь есть только у роутеров
+// visits.routes.js/clients.routes.js, которые log_visit не проходит вообще
+// (пишет через visits.service.js напрямую). Без этой проверки владелец с
+// выключенным разделом "Визиты" мог бы через чат создать визит, который
+// потом негде посмотреть/поправить в UI — проверяем здесь вручную, тем же
+// hasModuleAccess(), что использует requireModule() у самих роутеров.
+async function checkVisitModulesEnabled(companyId) {
+  const [visitsOn, clientsOn] = await Promise.all([
+    hasModuleAccess(companyId, 'visits'),
+    hasModuleAccess(companyId, 'clients'),
+  ]);
+  if (!visitsOn || !clientsOn) {
+    return 'Раздел "Визиты" не подключён для вашей компании — включите его в настройках, чтобы я мог записывать визиты.';
+  }
+  return null;
+}
+
+async function validateLogVisit(params, req) {
+  const shape = validateLogVisitShape(params);
+  if (!shape.valid) return shape;
+
+  const moduleError = await checkVisitModulesEnabled(req.tenant.companyId);
+  if (moduleError) return { valid: false, errors: [moduleError] };
+
+  const p = params && typeof params === 'object' ? params : {};
+  const participants = await resolveVisitParticipants(req.tenant.companyId, {
+    clientName: p.clientName,
+    masterName: p.masterName,
+  });
+  if (participants.errors) return { valid: false, errors: participants.errors };
+  return { valid: true, errors: [] };
+}
+
+function buildConfirmationLogVisit(params) {
+  const dateLabel = params.occurredAt ? new Date(params.occurredAt).toLocaleDateString('ru-RU') : 'сегодняшним числом';
+  const parts = [`Записать визит: клиент «${params.clientName.trim()}», услуга «${params.service.trim()}», ${money(params.amount)}`];
+  if (params.masterName && params.masterName.trim()) {
+    parts.push(`, мастер «${params.masterName.trim()}»`);
+  }
+  parts.push(`, ${dateLabel}`);
+  return parts.join('') + '. Выручка добавится автоматически. Подтвердить?';
+}
+
+async function executeLogVisit(params, req) {
+  const { valid, errors } = await validateLogVisit(params, req);
+  if (!valid) {
+    const err = new Error(errors.join(' '));
+    err.status = 400;
+    throw err;
+  }
+  return createVisit({
+    companyId: req.tenant.companyId,
+    userId: req.user.id,
+    clientName: params.clientName,
+    masterName: params.masterName || null,
+    service: params.service,
+    amount: params.amount,
+    occurredAt: params.occurredAt || null,
+    paymentMethod: params.paymentMethod || null,
+  });
+}
+
 const REGISTRY = [
+  {
+    name: 'log_visit',
+    description:
+      'Записать визит клиента: услуга, сумма, кто из мастеров выполнил (если в компании есть мастера). ' +
+      'Создаёт визит и АВТОМАТИЧЕСКИ добавляет выручку — не вызывай отдельно create_income для той же суммы. ' +
+      'Не подходит, если нужна скидка, оплата с абонемента, фото до/после или списание материалов — для этого ' +
+      'нужен раздел "Визиты" в приложении, честно скажи об этом пользователю.',
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: 'Имя (и, если названа, фамилия) клиента — как назвал пользователь, дословно.' },
+        service: { type: 'string', description: 'Название услуги своими словами пользователя, например "маникюр с покрытием".' },
+        amount: { type: 'number', description: 'Сумма визита в рублях, положительное число.' },
+        masterName: {
+          type: 'string',
+          description: 'Имя мастера, который выполнил визит. Указывай, только если пользователь его явно назвал — не угадывай.',
+        },
+        occurredAt: {
+          type: 'string',
+          description: 'Дата визита в формате ГГГГ-ММ-ДД. Указывай, только если пользователь явно назвал дату — иначе не включай поле, будет сегодняшняя дата.',
+        },
+        paymentMethod: {
+          type: 'string',
+          enum: CHAT_PAYMENT_METHODS,
+          description: `Способ оплаты, только если пользователь его назвал: ${CHAT_PAYMENT_METHODS.join(', ')}.`,
+        },
+      },
+      required: ['clientName', 'service', 'amount'],
+    },
+    validate: validateLogVisit,
+    buildConfirmation: buildConfirmationLogVisit,
+    execute: executeLogVisit,
+  },
   {
     name: 'create_expense',
     description:

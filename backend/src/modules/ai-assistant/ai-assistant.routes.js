@@ -138,7 +138,7 @@ router.post(
       return res.json({ type: 'clarification', text });
     }
 
-    const { valid, errors } = tool.validate(call.arguments);
+    const { valid, errors } = await tool.validate(call.arguments, req);
     if (!valid) {
       const text = errors.join(' ');
       await saveMessage(req.tenant.companyId, 'assistant', text);
@@ -174,7 +174,7 @@ router.post(
       return res.status(400).json({ error: 'Неизвестное действие' });
     }
 
-    const { valid, errors } = tool.validate(params || {});
+    const { valid, errors } = await tool.validate(params || {}, req);
     if (!valid) {
       return res.status(400).json({ error: errors.join(' ') });
     }
@@ -185,7 +185,7 @@ router.post(
     // (AiAssistant.jsx, money(record.amount)) — сохраняем и на сервере, чтобы
     // после перезагрузки страницы этот системный пузырь тоже остался в
     // истории, не только пара вопрос/предложение действия перед ним.
-    const SYSTEM_LABEL_BY_TOOL = { create_expense: 'Расход', create_income: 'Доход' };
+    const SYSTEM_LABEL_BY_TOOL = { create_expense: 'Расход', create_income: 'Доход', log_visit: 'Визит' };
     const label = SYSTEM_LABEL_BY_TOOL[tool.name];
     if (label && record?.amount != null) {
       const formatted = `${Number(record.amount).toLocaleString('ru-RU')} ₽`;
