@@ -192,7 +192,7 @@ async function executeCreateIncome(params, req) {
 // ---------- get_finance_summary (19.08.2026, п.2 плана расширения, читающий) ----------
 // Осознанно НЕ считает чистую прибыль здесь — та формула сложная
 // (постоянные/% расходы, зарплаты мастеров, себестоимость материалов, см.
-// finance/summary.routes.js) и дублировать её заново means риск разойтись с
+// finance/summary.routes.js) и дублировать её заново — риск разойтись с
 // "настоящим" числом на экране Финансов. Выручка/расходы — простые
 // однозначные суммы, дублировать их безопасно; для точной прибыли отправляем
 // на сам экран Финансов, а не гадаем.
@@ -214,10 +214,34 @@ function resolveSimplePeriod(period) {
   return { from: toStr, to: toStr };
 }
 
+// daysAgo (19.08.2026, продолжение того же вечера — владелец: "за последние
+// 3 дня" не сработало) — модель сама умеет посчитать, сколько дней назад
+// упомянул пользователь ("3 дня" → 3), но НЕ должна сама вычислять
+// календарные даты (легко ошибиться на границе месяца/года) — поэтому здесь
+// только число дней, дату считает сервер по той же схеме, что и week/month.
+function resolveDaysAgoPeriod(daysAgo) {
+  const n = Math.min(365, Math.max(1, Math.round(daysAgo)));
+  const toStr = moscowDateStr();
+  const [y, m, d] = toStr.split('-').map(Number);
+  const toDateStr = (dt) => dt.toISOString().slice(0, 10);
+  return { from: toDateStr(new Date(Date.UTC(y, m - 1, d - (n - 1)))), to: toStr, days: n };
+}
+
 async function executeGetFinanceSummary(params, req) {
-  const period = ['today', 'week', 'month', 'lastMonth'].includes(params?.period) ? params.period : 'today';
-  const { from, to } = resolveSimplePeriod(period);
   const companyId = req.tenant.companyId;
+  let from, to, label;
+
+  const daysAgo = Number(params?.daysAgo);
+  if (Number.isFinite(daysAgo) && daysAgo > 0) {
+    const resolved = resolveDaysAgoPeriod(daysAgo);
+    from = resolved.from;
+    to = resolved.to;
+    label = `за последние ${resolved.days} дн.`;
+  } else {
+    const period = ['today', 'week', 'month', 'lastMonth'].includes(params?.period) ? params.period : 'today';
+    ({ from, to } = resolveSimplePeriod(period));
+    label = PERIOD_LABELS[period];
+  }
 
   const [revenueRes, expenseRes] = await Promise.all([
     pool.query(`SELECT COALESCE(SUM(amount), 0) AS total FROM finance_entries WHERE company_id = $1 AND occurred_at BETWEEN $2 AND $3`, [companyId, from, to]),
@@ -227,7 +251,7 @@ async function executeGetFinanceSummary(params, req) {
   const expenses = parseFloat(expenseRes.rows[0].total);
 
   return (
-    `Выручка ${PERIOD_LABELS[period]}: ${money(revenue)}. Переменные расходы: ${money(expenses)}. ` +
+    `Выручка ${label}: ${money(revenue)}. Переменные расходы: ${money(expenses)}. ` +
     'Это без зарплат мастеров, постоянных расходов и себестоимости материалов — точную чистую прибыль смотрите на экране "Финансы".'
   );
 }
@@ -312,7 +336,10 @@ const REGISTRY = [
   },
   {
     name: 'get_finance_summary',
-    description: 'Узнать выручку и переменные расходы компании за период — читает данные, ничего не меняет.',
+    description:
+      'Узнать выручку и переменные расходы компании за период — читает данные, ничего не меняет. Для стандартных ' +
+      'периодов используй period. Для "за последние N дней" своими словами (например "за последние 3 дня") используй ' +
+      'daysAgo=N вместо period — НЕ пытайся сам вычислить календарные даты, просто передай число дней, сервер посчитает сам.',
     readOnly: true,
     parameters: {
       type: 'object',
@@ -320,7 +347,11 @@ const REGISTRY = [
         period: {
           type: 'string',
           enum: ['today', 'week', 'month', 'lastMonth'],
-          description: 'Период: today (сегодня, по умолчанию), week (последние 7 дней), month (этот месяц), lastMonth (прошлый месяц).',
+          description: 'Период: today (сегодня, по умолчанию), week (последние 7 дней), month (этот месяц), lastMonth (прошлый месяц). Не указывай вместе с daysAgo.',
+        },
+        daysAgo: {
+          type: 'number',
+          description: 'Произвольное число дней назад от сегодня (например 3 для "за последние 3 дня"). Если указано — period игнорируется.',
         },
       },
     },

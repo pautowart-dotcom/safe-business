@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { PrivateRoute } from './components/PrivateRoute.jsx';
 import Layout from './components/Layout.jsx';
 import { PullToRefreshProvider } from './context/PullToRefreshContext.jsx';
@@ -29,7 +29,6 @@ import Deadlines from './pages/Deadlines.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
-import AiAssistant from './pages/AiAssistant.jsx';
 import AnonymousAudit from './pages/AnonymousAudit.jsx';
 
 export default function App() {
@@ -81,14 +80,10 @@ export default function App() {
             </PrivateRoute>
           }
         />
-        <Route
-          path="ai-assistant"
-          element={
-            <PrivateRoute ownerOnly requireModule="ai-assistant">
-              <AiAssistant />
-            </PrivateRoute>
-          }
-        />
+        {/* Отдельная страница ассистента заменена плавающим виджетом
+            (20.08.2026, Layout.jsx → AiAssistantWidget.jsx) — старая ссылка
+            на всякий случай не 404-ит, а просто ведёт на главную. */}
+        <Route path="ai-assistant" element={<Navigate to="/" replace />} />
         <Route path="supplies" element={<Supplies />} />
         <Route
           path="services"

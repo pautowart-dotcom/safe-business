@@ -1,0 +1,229 @@
+import { useEffect, useRef, useState } from 'react';
+import api from '../api/client.js';
+import { Card, Btn, TextArea, C, F } from '../ui/components.jsx';
+import { MAX_WIDTH } from '../ui/theme.js';
+import Icon from '../ui/Icon.jsx';
+
+// Плавающий виджет ИИ-ассистента (20.08.2026, по просьбе владельца —
+// "не отдельный раздел, а маленький кружок как обычно на сайтах") —
+// заменяет собой отдельную страницу /ai-assistant (была в pages/AiAssistant.jsx,
+// удалена). Монтируется в Layout.jsx на каждой странице, где виден
+// (isOwner && hasModule('ai-assistant')), поэтому доступен из любого места
+// приложения, а не только из своего раздела. Логика чата (send/confirm/
+// история) один в один перенесена со старой страницы — изменилась только
+// обвязка вокруг нею (кружок/панель вместо полноэкранной страницы).
+function money(v) {
+  return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
+}
+
+function Bubble({ role, text }) {
+  const isUser = role === 'user';
+  const isSystem = role === 'system';
+  return (
+    <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
+      <div
+        style={{
+          maxWidth: '85%',
+          background: isUser ? C.primary : isSystem ? C.greenBg : C.surface,
+          color: isUser ? '#FFF' : isSystem ? C.green : C.secondary,
+          borderRadius: 14,
+          padding: '10px 14px',
+          fontSize: 13,
+          lineHeight: 1.5,
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function PendingActionCard({ confirmationText, busy, error, onConfirm, onCancel }) {
+  return (
+    <Card style={{ border: `1.5px solid ${C.primary}`, marginBottom: 12 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>
+        Требует подтверждения
+      </div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>{confirmationText}</div>
+      {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn small onClick={onConfirm} disabled={busy}>{busy ? 'Записываю...' : 'Подтвердить'}</Btn>
+        <Btn small variant="secondary" onClick={onCancel} disabled={busy}>Отменить</Btn>
+      </div>
+    </Card>
+  );
+}
+
+const GREETING = {
+  role: 'assistant',
+  content: 'Здравствуйте. Сейчас умею: вносить расход, вносить доход, отвечать про выручку/расходы за период и про открытые нарушения безопасности. Ничего не выдумываю и не подтверждаю запись без вас.',
+};
+
+export default function AiAssistantWidget() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([GREETING]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [pending, setPending] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
+  const listEndRef = useRef(null);
+
+  // История подгружается один раз при монтировании виджета (он смонтирован
+  // всегда, панель просто скрыта до клика по кружку) — не только при
+  // открытии, чтобы кружок мог позже показать бейдж с непрочитанным, если
+  // это понадобится.
+  useEffect(() => {
+    api.get('/modules/ai-assistant/messages').then((res) => {
+      if (res.data.length > 0) {
+        setMessages([GREETING, ...res.data.map((m) => ({ role: m.role, content: m.content }))]);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (open) listEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, pending, open]);
+
+  async function send() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setError('');
+    setSending(true);
+
+    const userMessage = { role: 'user', content: text };
+    const history = messages.filter((m) => m.role === 'user' || m.role === 'assistant').map((m) => ({ role: m.role, content: m.content }));
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+
+    try {
+      const res = await api.post('/modules/ai-assistant/chat', { message: text, history });
+      const data = res.data;
+      if (data.type === 'text' || data.type === 'clarification') {
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.text }]);
+      } else if (data.type === 'pending_action') {
+        setPending({ tool: data.tool, params: data.params, confirmationText: data.confirmationText });
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось получить ответ от ассистента');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function confirmPending() {
+    if (!pending) return;
+    setConfirmBusy(true);
+    setConfirmError('');
+    try {
+      const res = await api.post('/modules/ai-assistant/confirm', { tool: pending.tool, params: pending.params });
+      const record = res.data.record;
+      const label = pending.tool === 'create_income' ? 'Доход' : 'Расход';
+      setMessages((prev) => [...prev, { role: 'system', content: `✓ ${label} ${money(record.amount)} записан` }]);
+      setPending(null);
+    } catch (err) {
+      setConfirmError(err.response?.data?.error || 'Не удалось записать расход');
+    } finally {
+      setConfirmBusy(false);
+    }
+  }
+
+  function cancelPending() {
+    setPending(null);
+    setConfirmError('');
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
+  // Обёртка — тот же приём центрирования, что у нижнего меню в Layout.jsx
+  // (left:50% + translateX(-50%) + maxWidth), чтобы кружок/панель были
+  // частью той же колонки MAX_WIDTH, а не прилипали к краю широкого окна
+  // браузера на десктопе. pointerEvents:'none' на обёртке — она перекрывает
+  // весь экран по высоте (inset:0), но не должна перехватывать клики мимо
+  // самого кружка/панели; pointerEvents:'auto' возвращается на них точечно.
+  return (
+    <div style={{ position: 'fixed', inset: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Открыть ИИ-ассистента"
+          style={{
+            position: 'absolute', right: 16, bottom: 84, width: 52, height: 52, borderRadius: '50%',
+            background: C.primary, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto',
+          }}
+        >
+          <Icon name="msg" size={24} color="#FFF" sw={2} />
+        </button>
+      )}
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute', right: 16, left: 16, bottom: 84, maxHeight: '65vh',
+            display: 'flex', flexDirection: 'column', pointerEvents: 'auto',
+            background: C.bg, borderRadius: 16, border: `1px solid ${C.border}`,
+            boxShadow: '0 8px 30px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: F,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>ИИ-ассистент</div>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Закрыть"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: C.subtle, fontSize: 18, lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* minHeight:0 обязателен — тот же баг, что уже чинили на
+              полноэкранной версии: без него flex:1 не сжимается ниже высоты
+              содержимого и лента не прокручивается сама, толкая всю панель
+              за пределы экрана. Здесь панель — самостоятельный fixed-блок
+              (не встроена в прокрутку Layout.jsx), поэтому эта же схема,
+              которая раньше конфликтовала со страницей, здесь работает
+              штатно — конфликтовать не с чем.
+          */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+            {messages.map((m, i) => (
+              <Bubble key={i} role={m.role} text={m.content} />
+            ))}
+            {sending && <Bubble role="assistant" text="Думаю..." />}
+            {pending && (
+              <PendingActionCard
+                confirmationText={pending.confirmationText}
+                busy={confirmBusy}
+                error={confirmError}
+                onConfirm={confirmPending}
+                onCancel={cancelPending}
+              />
+            )}
+            {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
+            <div ref={listEndRef} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+            <TextArea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Например: внести расход 5000 на аренду"
+              style={{ minHeight: 40, flex: 1, fontFamily: F, fontSize: 13 }}
+              disabled={sending}
+            />
+            <Btn small onClick={send} disabled={sending || !input.trim()}>→</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -18,15 +18,10 @@ const OWNER_ITEMS = [
   // owner-only на бэкенде (finance/index.js), та же граница, что у
   // "Безопасность" ниже.
   { label: 'ИИ-советник', sub: 'Маржа, скидки, цена ушедшего мастера', icon: 'bell', to: '/ai-advisor', moduleKey: 'finance' },
-  // 19.08.2026: первый узкий срез ИИ-ассистента — чат с function calling,
-  // сейчас умеет только "внести расход" (modules/ai-assistant). moduleKey
-  // отдельный от finance ('ai-assistant', не 'finance') — в отличие от
-  // ИИ-советника выше, у ассистента есть собственная запись в реестре
-  // модулей (core/modules-registry.js) и собственный флаг в company_modules,
-  // потому что он не про финансовую аналитику конкретно, а про выполнение
-  // действий в системе вообще — со временем инструменты появятся и для
-  // других модулей (визиты, склад), общий шлюз логично держать отдельно.
-  { label: 'ИИ-ассистент', sub: 'Чат, который выполняет действия — сейчас: внести расход', icon: 'msg', to: '/ai-assistant', moduleKey: 'ai-assistant' },
+  // ИИ-ассистент убран из этого меню 20.08.2026 — теперь плавающий виджет
+  // (Layout.jsx → AiAssistantWidget.jsx, доступен на любой странице), не
+  // отдельный раздел. Гейт (owner-only + company_modules['ai-assistant'])
+  // перенесён туда же, тот же принцип, что и раньше.
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
@@ -62,7 +57,7 @@ function OwnerMore() {
   // касаются администратора и мастера, для них это не действие.
   const items = OWNER_ITEMS
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
-    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/legal/faq' && i.to !== '/ai-advisor' && i.to !== '/ai-assistant'));
+    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/legal/faq' && i.to !== '/ai-advisor'));
 
   return (
     <div>

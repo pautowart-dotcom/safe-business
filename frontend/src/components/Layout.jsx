@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
 import Icon from '../ui/Icon.jsx';
 import OnboardingModal from './OnboardingModal.jsx';
+import AiAssistantWidget from './AiAssistantWidget.jsx';
 import { C, F, MAX_WIDTH } from '../ui/theme.js';
 
 const PULL_THRESHOLD = 64;
@@ -293,6 +294,11 @@ export default function Layout() {
           );
         })}
       </nav>
+
+      {/* Плавающий виджет ИИ-ассистента (20.08.2026) — та же граница, что
+          раньше была у пункта меню/роута: owner-only + модуль ai-assistant
+          включён для компании (company_modules). */}
+      {isOwner && hasModule('ai-assistant') && <AiAssistantWidget />}
     </div>
   );
 }
