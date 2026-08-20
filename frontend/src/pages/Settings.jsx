@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Select, Btn, Icon, C } from '../ui/components.jsx';
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
-const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 const SUBSCRIPTION_STATUS_LABELS = {
   trial: 'Бесплатный период',
   active: 'Подписка активна',
@@ -26,7 +25,9 @@ const NOTIFICATION_CATEGORIES = [
 ];
 
 export default function Settings() {
-  const { user, currentCompany, isManagement, logout, switchCompany, renameCurrentCompany, setUserAvatar } = useAuth();
+  const { user, currentCompany, isManagement, logout, switchCompany, renameCurrentCompany, setUserAvatar, masterLabel } = useAuth();
+  // Термин роли зависит от ниши компании (ui/roleLabels.js, 20.08.2026).
+  const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: masterLabel };
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);
   const [editingCompany, setEditingCompany] = useState(false);

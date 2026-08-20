@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, Select, TextInput, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
 import { localDateStr } from '../utils/localDate.js';
@@ -12,6 +13,7 @@ function todayStr() {
 }
 
 export default function Dossier() {
+  const { masterLabel } = useAuth();
   const [roster, setRoster] = useState([]);
   // Раньше можно было выбрать только один день — не было способа собрать
   // досье за интервал (например, за неделю). "До" по умолчанию равен "От",
@@ -62,12 +64,13 @@ export default function Dossier() {
       </Card>
 
       <Card>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>По мастеру</div>
-        <Field label="Мастер">
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>По {masterLabel === 'Мастер' ? 'мастеру' : 'сотруднику'}</div>
+        <Field label={masterLabel}>
           <Select value={membershipId} onChange={(e) => setMembershipId(e.target.value)}>
-            <option value="">Выберите мастера</option>
-            {/* Поле подписано "Мастер", но /roster отдаёт весь состав (владелец,
-                админ, мастера) — без фильтра в списке был и сам владелец. */}
+            <option value="">Выберите {masterLabel === 'Мастер' ? 'мастера' : 'сотрудника'}</option>
+            {/* Поле подписано термином роли (ui/roleLabels.js), но /roster
+                отдаёт весь состав (владелец, админ, мастера/сотрудники) —
+                без фильтра в списке был и сам владелец. */}
             {roster.filter((m) => m.role === 'master').map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}

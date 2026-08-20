@@ -6,12 +6,14 @@ import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '' };
-const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: 'Мастер' };
 const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
 const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '', file: null };
 
 export default function Users() {
-  const { isOwner } = useAuth();
+  const { isOwner, masterLabel } = useAuth();
+  // Термин роли "master" зависит от ниши компании (ui/roleLabels.js,
+  // 20.08.2026) — "Мастер" для красоты, "Сотрудник" для клининга и т.п.
+  const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: masterLabel };
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -101,7 +103,7 @@ export default function Users() {
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Пригласить сотрудника</div>
         <Field label="Роль">
           <Select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
-            <option value="master">Мастер</option>
+            <option value="master">{masterLabel}</option>
             <option value="admin">Администратор</option>
             <option value="owner">Владелец</option>
           </Select>

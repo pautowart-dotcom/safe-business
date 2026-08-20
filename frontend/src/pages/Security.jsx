@@ -421,6 +421,7 @@ function Chips({ options, value, onChange, labelKey = 'label', valueKey = 'value
 }
 
 function SegmentationForm({ initial, onSaved, onCancel }) {
+  const { refreshNiches, refreshModules } = useAuth();
   const [legalForm, setLegalForm] = useState(initial?.legalForm || '');
   const [workModel, setWorkModel] = useState(initial?.workModel || '');
   const [segment, setSegment] = useState(initial?.segment || '');
@@ -439,6 +440,12 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
       const { data } = await api.post('/modules/security/profile', {
         legalForm, workModel, segment, niches, hairChemicalTreatments,
       });
+      // Термин "Мастер"/"Сотрудник" (ui/roleLabels.js) зависит от ниши, а
+      // выбор ниши "Клининг" сам включает модуль "Заявки" на бэкенде
+      // (ensureNicheModules, security.routes.js) — обновляем оба сразу, не
+      // дожидаясь следующего логина/select-company, иначе ни термин, ни
+      // пункт меню "Заявки" не появятся до перезахода в этой же сессии.
+      await Promise.all([refreshNiches(), refreshModules()]);
       if (data.stub) setStubMessage(data.message);
       else onSaved(false);
     } catch (err) {

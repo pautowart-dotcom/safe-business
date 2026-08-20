@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { masterLabel, masterLabelGenitivePlural } from '../ui/roleLabels.js';
 
 const AuthContext = createContext(null);
 
@@ -46,11 +47,26 @@ export function AuthProvider({ children }) {
   // момента считает всё доступным, чтобы не мигать нав-баром на типичном
   // случае (модуль включён), а не наоборот.
   const [modules, setModules] = useState({});
+  // Ниши профиля безопасности (20.08.2026) — раньше нигде не читались на
+  // фронте глобально, только внутри /security. Нужны здесь, чтобы термин
+  // "Мастер"/"Сотрудник" (ui/roleLabels.js) мог зависеть от ниши компании
+  // (клининг и т.п.) в любом месте приложения, не только в разделе
+  // "Безопасность". GET /security/profile не требует доступа к самому
+  // модулю "Безопасность" в нав-баре (owner-only там — только видимость
+  // пункта меню), сам роут открыт любой роли компании.
+  const [niches, setNiches] = useState([]);
 
   function loadModules() {
     return api.get('/platform/modules').then((res) => {
       setModules(Object.fromEntries(res.data.map((m) => [m.key, m.enabled])));
     });
+  }
+
+  function loadNiches() {
+    return api
+      .get('/modules/security/profile')
+      .then((res) => setNiches(res.data?.niches || []))
+      .catch(() => setNiches([]));
   }
 
   useEffect(() => {
@@ -68,7 +84,7 @@ export function AuthProvider({ children }) {
 
         if (tenant) {
           applyCompany(tenant.companyId, companies, tenant.role, tenant.branchId);
-          await loadModules();
+          await Promise.all([loadModules(), loadNiches()]);
         } else if (companies.length === 0) {
           setNeedsCompany(true);
         } else if (companies.length === 1) {
@@ -169,6 +185,7 @@ export function AuthProvider({ children }) {
     setPendingCompanies(null);
     setNeedsCompany(false);
     setModules({});
+    setNiches([]);
   }
 
   // Меняет активный токен с базового на company-scoped (или переключает
@@ -183,7 +200,8 @@ export function AuthProvider({ children }) {
     setCurrentCompany(cc);
     setPendingCompanies(null);
     setModules({});
-    await loadModules();
+    setNiches([]);
+    await Promise.all([loadModules(), loadNiches()]);
   }
 
   async function login(email, password) {
@@ -281,6 +299,11 @@ export function AuthProvider({ children }) {
         isSuperAdmin: !!user?.is_super_admin,
         // false только когда модуль явно выключен (см. комментарий у useState(modules))
         hasModule: (key) => modules[key] !== false,
+        niches,
+        refreshNiches: loadNiches,
+        refreshModules: loadModules,
+        masterLabel: masterLabel(niches),
+        masterLabelGenitivePlural: masterLabelGenitivePlural(niches),
       }}
     >
       {children}

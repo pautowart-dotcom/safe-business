@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
 
 export default function Feedback() {
+  const { masterLabel } = useAuth();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +34,7 @@ export default function Feedback() {
         messages.map((m) => (
           <Card key={m.id} style={{ borderLeft: m.read ? 'none' : `3px solid ${C.primary}`, opacity: m.read ? 0.7 : 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{m.from_name || 'Мастер'}</div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{m.from_name || masterLabel}</div>
               <div style={{ fontSize: 11, color: C.subtle }}>{new Date(m.created_at).toLocaleString('ru-RU')}</div>
             </div>
             <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}><Linkify text={m.message} /></div>

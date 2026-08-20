@@ -123,6 +123,7 @@ router.post(
       niches: nicheList,
       hairChemicalTreatments: !!hairChemicalTreatments,
     });
+    await ensureNicheModules(req.tenant.companyId, nicheList);
 
     await logEvent({
       companyId: req.tenant.companyId,
@@ -172,6 +173,33 @@ async function upsertProfile({ companyId, legalForm, workModel, segment, niches,
     throw err;
   } finally {
     client.release();
+  }
+}
+
+// Ниши, которым по умолчанию нужен ещё какой-то модуль сверх общего набора
+// (clients/visits уже включены всем компаниям, см. auth.routes.js/
+// companies.routes.js) — 20.08.2026, владелец не хочет вручную включать
+// "Заявки" в админке под каждую клининговую компанию, включаем сами, как
+// только клининг попадает в список ниш профиля. Односторонне (только
+// включаем, ON CONFLICT DO NOTHING) — тот же принцип, что у auth.routes.js:
+// снятие ниши позже не выключает модуль автоматически, и если админ уже
+// выключил его вручную для этой компании, повторное сохранение профиля не
+// перезаписывает это явное решение.
+const NICHE_EXTRA_MODULES = {
+  cleaning_basic: ['leads'],
+};
+
+async function ensureNicheModules(companyId, niches) {
+  const moduleKeys = new Set();
+  for (const niche of niches) {
+    for (const key of NICHE_EXTRA_MODULES[niche] || []) moduleKeys.add(key);
+  }
+  for (const moduleKey of moduleKeys) {
+    await pool.query(
+      `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
+       ON CONFLICT (company_id, module_key) DO NOTHING`,
+      [companyId, moduleKey]
+    );
   }
 }
 

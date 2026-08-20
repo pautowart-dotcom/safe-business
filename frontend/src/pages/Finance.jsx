@@ -814,6 +814,7 @@ function RecurringForm({ form, setForm, onSubmit, onCancel, unitLabel, editing }
 }
 
 function MastersTab({ byMaster, masters, adjustmentsByMaster, shiftsByMaster, onSelectMaster, onAddAdjustment, onDeleteAdjustment, onAddShift, onDeleteShift }) {
+  const { masterLabelGenitivePlural } = useAuth();
   return (
     <Card style={{ padding: 0 }}>
       {byMaster.map((m, i) => {
@@ -879,7 +880,7 @@ function MastersTab({ byMaster, masters, adjustmentsByMaster, shiftsByMaster, on
           </div>
         );
       })}
-      {byMaster.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Мастеров пока нет</div>}
+      {byMaster.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>{masterLabelGenitivePlural} пока нет</div>}
     </Card>
   );
 }

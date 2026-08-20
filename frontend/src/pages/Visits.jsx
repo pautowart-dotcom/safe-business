@@ -116,7 +116,7 @@ function PhotoUploadCell({ label, url, onUploaded, onZoom }) {
 }
 
 export default function Visits() {
-  const { isManagement } = useAuth();
+  const { isManagement, masterLabel } = useAuth();
   const [visits, setVisits] = useState([]);
   const [masters, setMasters] = useState([]);
   const [supplies, setSupplies] = useState([]);
@@ -599,9 +599,9 @@ export default function Visits() {
               (соло-владелец) — иначе он видит обязательное поле, выбрать в
               котором нечего, и не может сохранить визит вовсе. */}
           {isManagement && masters.length > 0 && (
-            <Field label="Мастер">
+            <Field label={masterLabel}>
               <Select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
-                <option value="">Выберите мастера</option>
+                <option value="">Выберите {masterLabel === 'Мастер' ? 'мастера' : 'сотрудника'}</option>
                 {masters
                   .filter((m) => m.active !== false || String(m.id) === String(form.masterMembershipId))
                   .map((m) => <option key={m.id} value={m.id}>{m.user_name}{m.active === false ? ' (уволен)' : ''}</option>)}
