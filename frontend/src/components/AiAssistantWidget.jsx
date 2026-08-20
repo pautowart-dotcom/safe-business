@@ -136,6 +136,24 @@ export default function AiAssistantWidget() {
     setConfirmError('');
   }
 
+  // Начать заново (20.08.2026) — если модель "залипла" на своём же старом
+  // ответе из истории (см. комментарий у DELETE /messages на бэкенде),
+  // владелец должен уметь сбросить диалог явно, а не только рассчитывать,
+  // что модель сама пересмотрит позицию.
+  async function newDialog() {
+    if (!confirm('Начать новый диалог? Вся история переписки с ассистентом будет удалена.')) return;
+    try {
+      await api.delete('/modules/ai-assistant/messages');
+    } catch {
+      // не критично — если удаление на сервере не удалось, локально всё
+      // равно начинаем с чистого листа, просто при следующей загрузке
+      // страницы старая история подгрузится обратно.
+    }
+    setMessages([GREETING]);
+    setPending(null);
+    setError('');
+  }
+
   function onKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -151,17 +169,23 @@ export default function AiAssistantWidget() {
   // самого кружка/панели; pointerEvents:'auto' возвращается на них точечно.
   return (
     <div style={{ position: 'fixed', inset: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
+      {/* По центру, над нижним меню (владелец: "не типовой кружок чата в
+          углу") — иконка "искры" вместо "сообщения" (Icon.jsx, spark) и
+          мягкая пульсирующая аура (styles.css, @keyframes ai-pulse) вместо
+          статичного кружка. */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Открыть ИИ-ассистента"
           style={{
-            position: 'absolute', right: 16, bottom: 84, width: 52, height: 52, borderRadius: '50%',
+            position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 84,
+            width: 52, height: 52, borderRadius: '50%',
             background: C.primary, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto',
+            animation: 'ai-pulse 2.5s ease-in-out infinite',
           }}
         >
-          <Icon name="msg" size={24} color="#FFF" sw={2} />
+          <Icon name="spark" size={24} color="#FFF" sw={1.8} />
         </button>
       )}
 
@@ -176,13 +200,21 @@ export default function AiAssistantWidget() {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 800 }}>ИИ-ассистент</div>
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="Закрыть"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: C.subtle, fontSize: 18, lineHeight: 1 }}
-            >
-              ✕
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={newDialog}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.subtle, fontSize: 12, fontWeight: 600 }}
+              >
+                Новый диалог
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="Закрыть"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: C.subtle, fontSize: 18, lineHeight: 1 }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* minHeight:0 обязателен — тот же баг, что уже чинили на
