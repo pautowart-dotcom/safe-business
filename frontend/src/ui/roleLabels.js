@@ -4,10 +4,10 @@
 // "Мастер"). Формы нужны для верной грамматики ("Мастеров пока нет" /
 // "Сотрудников пока нет") — только там, где реально используется
 // множественное число, не автосклонение "+ов" (хрупко на будущих нишах).
-const DEFAULT_LABEL = { nominative: 'Мастер', nominativePlural: 'Мастера', genitivePlural: 'Мастеров' };
+const DEFAULT_LABEL = { nominative: 'Мастер', nominativePlural: 'Мастера', genitivePlural: 'Мастеров', genitiveSingular: 'мастера' };
 
 const NICHE_LABELS = {
-  cleaning_basic: { nominative: 'Сотрудник', nominativePlural: 'Сотрудники', genitivePlural: 'Сотрудников' },
+  cleaning_basic: { nominative: 'Сотрудник', nominativePlural: 'Сотрудники', genitivePlural: 'Сотрудников', genitiveSingular: 'сотрудника' },
 };
 
 // Если у компании несколько ниш (мультивыбор в "Красота и здоровье") и хотя
@@ -29,4 +29,9 @@ export function masterLabelPlural(niches) {
 }
 export function masterLabelGenitivePlural(niches) {
   return labelFor(niches).genitivePlural;
+}
+// Родительный/винительный падеж ед.ч. ("привязывайте мастера"/"...сотрудника") —
+// у одушевлённых существительных м.р. винительный совпадает с родительным.
+export function masterLabelGenitiveSingular(niches) {
+  return labelFor(niches).genitiveSingular;
 }

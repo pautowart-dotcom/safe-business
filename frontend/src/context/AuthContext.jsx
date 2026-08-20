@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import api from '../api/client.js';
-import { masterLabel, masterLabelGenitivePlural } from '../ui/roleLabels.js';
+import { masterLabel, masterLabelGenitivePlural, masterLabelGenitiveSingular } from '../ui/roleLabels.js';
 
 const AuthContext = createContext(null);
 
@@ -313,6 +313,7 @@ export function AuthProvider({ children }) {
         refreshModules: loadModules,
         masterLabel: masterLabel(niches),
         masterLabelGenitivePlural: masterLabelGenitivePlural(niches),
+        masterLabelGenitiveSingular: masterLabelGenitiveSingular(niches),
       }}
     >
       {children}
