@@ -68,7 +68,7 @@ router.post(
     }
 
     await pool.query(
-      `INSERT INTO leads (company_id, name, phone, client_type, comment) VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO sales_leads (company_id, name, phone, client_type, comment) VALUES ($1, $2, $3, $4, $5)`,
       [company.rows[0].id, name.trim(), phone || null, clientType || 'individual', comment || null]
     );
     res.status(201).json({ ok: true });

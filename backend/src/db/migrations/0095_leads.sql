@@ -6,7 +6,14 @@
 -- реквизитов, если это юрлицо), а раздувать обязательные поля clients ради
 -- этого не нужно. Конвертация заявки в клиента (если понадобится) — ручное
 -- действие пользователя на странице "Клиенты", не автоматика здесь.
-CREATE TABLE IF NOT EXISTS leads (
+--
+-- Названа sales_leads, а НЕ leads — в БД уже была таблица "leads" от более
+-- старого публичного продукта "Роадмап для новичков" (roadmap.routes.js,
+-- поля niche/legal_form/intake_answers, совсем другая сущность). Обнаружено
+-- на реальном деплое: CREATE TABLE IF NOT EXISTS тихо не создал свою версию
+-- (чужая таблица с тем же именем уже была), а следующий ALTER TABLE упал на
+-- отсутствующей колонке — вся миграция откатилась, чужие данные не задеты.
+CREATE TABLE IF NOT EXISTS sales_leads (
     id                  SERIAL PRIMARY KEY,
     company_id          INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     name                VARCHAR(200) NOT NULL,
@@ -19,14 +26,14 @@ CREATE TABLE IF NOT EXISTS leads (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_client_type_check;
-ALTER TABLE leads ADD CONSTRAINT leads_client_type_check
+ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_client_type_check;
+ALTER TABLE sales_leads ADD CONSTRAINT sales_leads_client_type_check
   CHECK (client_type IN ('individual', 'legal_entity'));
 
 -- new → contacted → ordered → paid — тот же смысл, что и в 8-пунктном
 -- роадмапе ("Новый лид→Связались→Заказ→Оплачено"), закреплён в БД буквально.
-ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_status_check;
-ALTER TABLE leads ADD CONSTRAINT leads_status_check
+ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_status_check;
+ALTER TABLE sales_leads ADD CONSTRAINT sales_leads_status_check
   CHECK (status IN ('new', 'contacted', 'ordered', 'paid'));
 
-CREATE INDEX IF NOT EXISTS idx_leads_company_status ON leads(company_id, status);
+CREATE INDEX IF NOT EXISTS idx_sales_leads_company_status ON sales_leads(company_id, status);

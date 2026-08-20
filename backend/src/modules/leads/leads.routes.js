@@ -16,7 +16,7 @@ router.get(
     // не нужно листать закрытые заявки, чтобы найти новую.
     const { rows } = await pool.query(
       `SELECT id, name, phone, client_type, comment, status, created_at, updated_at
-       FROM leads WHERE company_id = $1
+       FROM sales_leads WHERE company_id = $1
        ORDER BY (status = 'paid') ASC, array_position(ARRAY['new','contacted','ordered','paid'], status), created_at DESC`,
       [req.tenant.companyId]
     );
@@ -35,7 +35,7 @@ router.post(
       return res.status(400).json({ error: 'Некорректный тип клиента' });
     }
     const { rows } = await pool.query(
-      `INSERT INTO leads (company_id, name, phone, client_type, comment, created_by_user_id)
+      `INSERT INTO sales_leads (company_id, name, phone, client_type, comment, created_by_user_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, phone, client_type, comment, status, created_at, updated_at`,
       [req.tenant.companyId, name.trim(), phone || null, clientType || 'individual', comment || null, req.user.id]
@@ -65,7 +65,7 @@ router.patch(
       return res.status(400).json({ error: 'Некорректный статус' });
     }
     const { rows } = await pool.query(
-      `UPDATE leads SET
+      `UPDATE sales_leads SET
          name = COALESCE($1, name),
          phone = COALESCE($2, phone),
          client_type = COALESCE($3, client_type),
@@ -96,7 +96,7 @@ router.patch(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query('DELETE FROM leads WHERE id = $1 AND company_id = $2', [
+    const { rowCount } = await pool.query('DELETE FROM sales_leads WHERE id = $1 AND company_id = $2', [
       req.params.id,
       req.tenant.companyId,
     ]);
