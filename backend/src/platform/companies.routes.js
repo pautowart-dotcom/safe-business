@@ -110,7 +110,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const [companyRes, nichesRes] = await Promise.all([
       pool.query(
-        `SELECT id, name, industry_segment, subscription_status, plan_key, trial_ends_at, tax_regime,
+        `SELECT id, name, industry_segment, signup_niche, subscription_status, plan_key, trial_ends_at, tax_regime,
                 subscription_current_period_end, subscription_price_rub,
                 ai_advisor_subscription_status, ai_advisor_subscription_current_period_end,
                 ai_advisor_subscription_price_rub, free_addons,

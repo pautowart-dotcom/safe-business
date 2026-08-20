@@ -62,10 +62,19 @@ export function AuthProvider({ children }) {
     });
   }
 
+  // Источник — /platform/companies/current (не /modules/security/profile),
+  // потому что тот отдаёт 404, пока владелец не прошёл настоящий тест
+  // безопасности, а термин ("Мастер"/"Сотрудник") должен быть верным сразу
+  // после регистрации — используем signup_niche (companies.routes.js,
+  // 20.08.2026) как временный источник, пока реального профиля ещё нет;
+  // после прохождения теста niches там же заменяются настоящими.
   function loadNiches() {
     return api
-      .get('/modules/security/profile')
-      .then((res) => setNiches(res.data?.niches || []))
+      .get('/platform/companies/current')
+      .then((res) => {
+        const real = res.data?.niches || [];
+        setNiches(real.length > 0 ? real : (res.data?.signup_niche ? [res.data.signup_niche] : []));
+      })
       .catch(() => setNiches([]));
   }
 
@@ -133,8 +142,8 @@ export function AuthProvider({ children }) {
   // (backend/platform/auth.routes.js: loginOrRequireVerification) — первый
   // вход всегда с "неподтверждённого" устройства, поэтому регистрация и
   // подтверждение нового устройства при входе технически одно и то же.
-  async function register({ name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent }) {
-    const res = await api.post('/auth/register', { name, email, password, companyName, industrySegment, acceptedTerms, analyticsConsent });
+  async function register({ name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent }) {
+    const res = await api.post('/auth/register', { name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent });
     return res.data; // { requiresDeviceVerification: true, email }
   }
 

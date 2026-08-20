@@ -1,14 +1,26 @@
 import { useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Btn, Field, TextInput, C, F } from '../ui/components.jsx';
+import { Btn, Field, TextInput, Select, C, F } from '../ui/components.jsx';
+import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
+
+// Группировка NICHE_OPTIONS по сегменту для <optgroup> — только для
+// отображения на форме регистрации, сам список остаётся плоским везде,
+// где сегмент не нужен (ui/nicheOptions.js).
+const NICHE_GROUPS = [
+  ['beauty', 'Красота и здоровье'],
+  ['cleaning', 'Клининг'],
+].map(([segmentKey, segmentLabel]) => [
+  segmentLabel,
+  NICHE_OPTIONS.filter(([, , seg]) => seg === segmentKey),
+]);
 
 export function AuthShell({ children }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
-        <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Платформа для студий красоты и здоровья</div>
+        <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Сроки, документы и проверки под контролем — для малого бизнеса</div>
       </div>
       <div style={{ width: '100%', maxWidth: 390 }}>{children}</div>
     </div>
@@ -103,6 +115,7 @@ function CreateCompanyForm({ onCreate, onBack }) {
 // уже существующего владельца (AcceptInvite.jsx). Тот, кто просто пришёл
 // с лендинга, не мог зарегистрироваться сам — этой формы не было.
 function RegisterForm({ onRegister, onBack }) {
+  const [niche, setNiche] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -113,11 +126,11 @@ function RegisterForm({ onRegister, onBack }) {
 
   async function submit(e) {
     e.preventDefault();
-    if (!acceptedTerms) return;
+    if (!acceptedTerms || !niche) return;
     setError('');
     setSubmitting(true);
     try {
-      await onRegister({ name, email, password, acceptedTerms, analyticsConsent });
+      await onRegister({ name, email, password, niche, acceptedTerms, analyticsConsent });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось зарегистрироваться');
     } finally {
@@ -129,6 +142,21 @@ function RegisterForm({ onRegister, onBack }) {
     <AuthShell>
       <form onSubmit={submit}>
         {error && <div className="alert alert-error">{error}</div>}
+        {/* Ниша — первое поле (20.08.2026, владелец лично столкнулся: раньше
+            её вообще не спрашивали) — определяет термины и содержимое всего
+            дальнейшего онбординга, поэтому идёт раньше даже имени. */}
+        <Field label="Чем занимается ваш бизнес">
+          <Select value={niche} onChange={(e) => setNiche(e.target.value)} required>
+            <option value="" disabled>Выберите направление</option>
+            {NICHE_GROUPS.map(([groupLabel, options]) => (
+              <optgroup key={groupLabel} label={groupLabel}>
+                {options.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </Select>
+        </Field>
         <Field label="Ваше имя">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required />
         </Field>
@@ -157,7 +185,7 @@ function RegisterForm({ onRegister, onBack }) {
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно, можно отозвать позже в настройках)</span>
         </label>
 
-        <Btn type="submit" disabled={submitting || !acceptedTerms}>{submitting ? 'Создаём аккаунт...' : 'Зарегистрироваться'}</Btn>
+        <Btn type="submit" disabled={submitting || !acceptedTerms || !niche}>{submitting ? 'Создаём аккаунт...' : 'Зарегистрироваться'}</Btn>
         <button
           type="button"
           onClick={onBack}

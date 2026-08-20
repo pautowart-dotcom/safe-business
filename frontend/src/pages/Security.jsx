@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, Select, Icon, C } from '../ui/components.jsx';
 import MyDeadlinesTab from './MyDeadlines.jsx';
+import { segmentForNiche } from '../ui/nicheOptions.js';
 
 const LEGAL_FORM_OPTIONS = [
   { value: 'self_employed', label: 'Самозанятый' },
@@ -154,6 +155,9 @@ export default function Security() {
   // решит показать всем — убрать этот флаг из условия рендера карточки ниже,
   // остальной код (роуты/движок) трогать не придётся.
   const [isTestCompany, setIsTestCompany] = useState(false);
+  // Ниша, выбранная на регистрации (20.08.2026, companies.signup_niche) —
+  // предзаполняет форму сегментации ниже, чтобы не спрашивать нишу дважды.
+  const [signupNiche, setSignupNiche] = useState(null);
   const [pdfPaywall, setPdfPaywall] = useState(false);
   // Пакет 4, Этап 2: два таба верхнего уровня внутри "Безопасности" — "Тест"
   // (существующая панель ниже) и новая "Мои сроки". Таб переключается только
@@ -187,6 +191,7 @@ export default function Security() {
       setProfile(profileRes.data);
       setHasPaidPlan(!!companyRes.data?.subscription_status && companyRes.data.subscription_status !== 'trial');
       setIsTestCompany(!!companyRes.data?.is_test);
+      setSignupNiche(companyRes.data?.signup_niche || null);
       if (profileRes.data) await loadDashboardData();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось загрузить данные');
@@ -322,9 +327,14 @@ export default function Security() {
     );
   }
   if (!profile || editingProfile) {
+    // Профиля ещё нет (свежая компания) — предзаполняем нишу/сегмент тем,
+    // что выбрали на регистрации (companies.signup_niche), чтобы не
+    // спрашивать одно и то же дважды; legalForm/workModel всё равно нужно
+    // выбрать здесь — их на регистрации не спрашивали (лишняя форма).
+    const initial = profile || (signupNiche ? { niches: [signupNiche], segment: segmentForNiche(signupNiche) } : null);
     return (
       <SegmentationForm
-        initial={profile}
+        initial={initial}
         onSaved={async (stub) => {
           setEditingProfile(false);
           if (!stub) await loadAll();

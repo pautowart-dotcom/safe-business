@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/components.jsx';
+import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 
 // Разовый аудит без регистрации (19.08.2026, п.5 плана, переделано по явному
 // уточнению владельца) — публичная страница, НЕ обёрнута в PrivateRoute/
@@ -15,19 +16,9 @@ import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/componen
 // тот же скоринг, тот же PDF, та же разовая покупка (миграция 0091).
 const guestApi = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api', timeout: 30000 });
 
-// Только ниши с готовым контентом теста (paidAudit: true в backend/segments.js)
-// — анонимному платному продукту незачем вести на "лист ожидания".
-const NICHE_OPTIONS = [
-  ['manicure', 'Маникюр и педикюр', 'beauty'],
-  ['lashes_brows', 'Ресницы и брови', 'beauty'],
-  ['hair', 'Волосы (парикмахерские услуги)', 'beauty'],
-  ['massage', 'Массаж (без медицинской лицензии)', 'beauty'],
-  ['tattoo', 'Тату, пирсинг и перманентный макияж', 'beauty'],
-  ['depilation', 'Депиляция (шугаринг, воск, нить)', 'beauty'],
-  ['solarium', 'Солярий', 'beauty'],
-  ['barbershop', 'Барбершоп', 'beauty'],
-  ['cleaning_basic', 'Уборка помещений (жильё и офисы)', 'cleaning'],
-];
+// NICHE_OPTIONS — общий список (ui/nicheOptions.js), только ниши с готовым
+// контентом теста (paidAudit: true) — анонимному платному продукту незачем
+// вести на "лист ожидания".
 const LEGAL_FORM_OPTIONS = [
   ['self_employed', 'Самозанятый'],
   ['ip', 'ИП'],

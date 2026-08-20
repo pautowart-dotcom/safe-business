@@ -13,10 +13,17 @@ const { saveImage, getFileUrl, signAvatarUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
+const { SEGMENTS } = require('../modules/security/content/segments');
 
 const router = express.Router();
 
 const VERIFICATION_CODE_TTL_MINUTES = 10;
+
+// Ниши, которые можно выбрать прямо на регистрации (20.08.2026) — те же,
+// что показывает публичный анонимный аудит (frontend/ui/nicheOptions.js):
+// только paidAudit=true, у остальных ещё нет готового контента теста,
+// предлагать их на первом же экране нечестно.
+const SIGNUP_NICHE_KEYS = SEGMENTS.flatMap((s) => s.niches).filter((n) => n.paidAudit).map((n) => n.key);
 
 // Общий механизм для двух разных поводов ("подтвердите email при
 // регистрации" и "подтвердите новое устройство при входе") — оба сводятся
@@ -101,9 +108,17 @@ async function activeMembershipsForUser(userId) {
 router.post(
   '/register',
   asyncHandler(async (req, res) => {
-    const { name, email, password, industrySegment, acceptedTerms, analyticsConsent } = req.body;
+    const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Заполните имя, email и пароль' });
+    }
+    // Ниша (20.08.2026, владелец лично столкнулся: раньше её вообще не
+    // спрашивали, хотя у продукта разное наполнение под разные направления) —
+    // обязательна, чтобы онбординг и термины ("Мастер"/"Сотрудник",
+    // ui/roleLabels.js) были правильными с первой секунды, а не только
+    // после отдельного прохождения теста безопасности.
+    if (!niche || !SIGNUP_NICHE_KEYS.includes(niche)) {
+      return res.status(400).json({ error: 'Выберите, чем занимается ваш бизнес' });
     }
     // Название компании убрано из формы регистрации (17.08.2026) — лишнее
     // поле перед тем, как человек увидел хоть какую-то ценность продукта.
@@ -141,10 +156,10 @@ router.post(
       user = userResult.rows[0];
 
       const companyResult = await client.query(
-        `INSERT INTO companies (name, industry_segment, created_by_user_id, trial_ends_at)
-         VALUES ($1, $2, $3, now() + interval '30 days')
+        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at)
+         VALUES ($1, $2, $3, $4, now() + interval '30 days')
          RETURNING id, name`,
-        [companyName, industrySegment || null, user.id]
+        [companyName, industrySegment || null, niche, user.id]
       );
       company = companyResult.rows[0];
 
