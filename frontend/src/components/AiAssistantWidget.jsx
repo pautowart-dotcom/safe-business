@@ -165,10 +165,47 @@ export default function AiAssistantWidget() {
   // (left:50% + translateX(-50%) + maxWidth), чтобы кружок/панель были
   // частью той же колонки MAX_WIDTH, а не прилипали к краю широкого окна
   // браузера на десктопе. pointerEvents:'none' на обёртке — она перекрывает
-  // весь экран по высоте (inset:0), но не должна перехватывать клики мимо
-  // самого кружка/панели; pointerEvents:'auto' возвращается на них точечно.
+  // весь экран по высоте, но не должна перехватывать клики мимо самого
+  // кружка/панели; pointerEvents:'auto' возвращается на них точечно.
+  //
+  // top/height берутся из window.visualViewport, а не из inset:0/100dvh
+  // (20.08.2026, владелец: "всё смещается при выдвижении клавиатуры") —
+  // на iOS Safari при открытии клавиатуры position:fixed продолжает
+  // считаться от полной (нерезиновой) высоты страницы, а не от реально
+  // видимой области, поэтому панель "зависала" выше клавиатуры, и в щели
+  // между ними проглядывало нижнее меню. visualViewport.height/offsetTop —
+  // это и есть реально видимая сейчас область, обновляется на resize/scroll
+  // клавиатуры; там, где API недоступен (старые браузеры), просто остаётся
+  // window.innerHeight/0 — прежнее поведение, без регресса.
+  const [viewport, setViewport] = useState(() => ({
+    height: typeof window !== 'undefined' ? window.innerHeight : 0,
+    offsetTop: 0,
+  }));
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    function update() {
+      setViewport({ height: vv.height, offsetTop: vv.offsetTop });
+    }
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  // Когда клавиатура открыта, нижнее меню всё равно скрыто под ней — не
+  // нужен запас 70px, чтобы его не перекрывать, панель может стоять
+  // вплотную к клавиатуре (12px). Порог 100px — чтобы мелкие колебания
+  // высоты (адресная строка на iOS) не принимались за открытие клавиатуры.
+  const keyboardOpen = typeof window !== 'undefined' && window.innerHeight - viewport.height > 100;
+  const panelBottom = keyboardOpen ? 12 : 70;
+
   return (
-    <div style={{ position: 'fixed', inset: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
+    <div style={{ position: 'fixed', top: viewport.offsetTop, height: viewport.height, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
       {/* По центру, над нижним меню (владелец: "не типовой кружок чата в
           углу") — иконка робота вместо "искры"/"сообщения" (Icon.jsx, bot) и
           мягкая пульсирующая аура (styles.css, @keyframes ai-pulse) вместо
@@ -194,7 +231,7 @@ export default function AiAssistantWidget() {
       {open && (
         <div
           style={{
-            position: 'absolute', right: 16, left: 16, bottom: 70, maxHeight: '65vh',
+            position: 'absolute', right: 16, left: 16, bottom: panelBottom, maxHeight: '65%',
             display: 'flex', flexDirection: 'column', pointerEvents: 'auto',
             background: C.bg, borderRadius: 16, border: `1px solid ${C.border}`,
             boxShadow: '0 8px 30px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: F,
