@@ -2,7 +2,11 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- interactive-widget=resizes-content (20.08.2026) — на iOS Safari 17.4+/Chrome
+         Android заставляет браузер реально сжимать layout viewport под клавиатуру,
+         поэтому нижнее меню (Layout.jsx, position:fixed;bottom:0) и панель ИИ-ассистента
+         больше не "всплывают" в щели над клавиатурой — фикс на уровне браузера, а не JS. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
     <!-- До официального запуска — не индексировать (см. robots.txt рядом). Убрать, когда продукт готов к публичному поиску. -->
     <meta name="robots" content="noindex, nofollow" />
     <title>Безопасный бизнес</title>
