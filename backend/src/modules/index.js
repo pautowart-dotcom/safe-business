@@ -11,3 +11,4 @@ require('./security');
 require('./feedback');
 require('./document-templates');
 require('./ai-assistant');
+require('./leads');

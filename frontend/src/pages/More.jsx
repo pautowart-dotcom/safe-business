@@ -8,6 +8,9 @@ import { Card, Btn, TextArea, ChevronRow, Icon, C } from '../ui/components.jsx';
 // освободила "Безопасность" — новый пункт нижней навигации). moduleKey — та
 // же логика, что раньше двигала видимость в нижнем меню (Пакет 3, Этап 1.1).
 const OWNER_ITEMS = [
+  // "Заявки" (20.08.2026) — отдельный переключаемый модуль, не у всех ниш
+  // есть эта боль (у маникюра, например, обычно запись, а не входящая заявка).
+  { label: 'Заявки', sub: 'Новый лид → связались → заказ → оплачено', icon: 'inbox', to: '/leads', moduleKey: 'leads' },
   { label: 'Клиенты', sub: 'База клиентов, история визитов', icon: 'clients', to: '/clients', moduleKey: 'clients' },
   { label: 'Визиты', sub: 'Календарь визитов и услуг', icon: 'visit', to: '/visits', moduleKey: 'visits' },
   { label: 'Фотоотчёты', sub: 'Фото до/после по визитам', icon: 'photo', to: '/photo-reports', moduleKey: 'visits' },

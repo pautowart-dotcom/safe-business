@@ -10,6 +10,7 @@ import LegalDocument from './pages/LegalDocument.jsx';
 import JournalVerify from './pages/JournalVerify.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clients from './pages/Clients.jsx';
+import Leads from './pages/Leads.jsx';
 import Visits from './pages/Visits.jsx';
 import Finance from './pages/Finance.jsx';
 import Supplies from './pages/Supplies.jsx';
@@ -60,6 +61,14 @@ export default function App() {
           element={
             <PrivateRoute requireModule="clients">
               <Clients />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="leads"
+          element={
+            <PrivateRoute requireModule="leads">
+              <Leads />
             </PrivateRoute>
           }
         />

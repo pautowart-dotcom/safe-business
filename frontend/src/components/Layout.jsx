@@ -58,7 +58,7 @@ const MASTER_NAV = [
 // '/journals' убран из всех трёх списков 05.08.2026 — раздел заморожен,
 // пункта меню больше нет (More.jsx), роут остался только как заглушка
 // "временно недоступно" для старых ссылок/закладок.
-const OWNER_HUB_PATHS = ['/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
+const OWNER_HUB_PATHS = ['/leads', '/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
 // У администратора теперь свои прямые вкладки на /clients, /shift, /supplies
 // (ADMIN_NAV) — не дублируем их здесь, иначе "Ещё" подсвечивалась бы
 // активной одновременно со своей прямой вкладкой.
@@ -66,6 +66,7 @@ const ADMIN_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/feedback',
 const MASTER_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/settings'];
 
 const TITLES = {
+  '/leads': 'Заявки',
   '/clients': 'Клиенты',
   '/visits': 'Визиты',
   '/photo-reports': 'Фотоотчёты',
