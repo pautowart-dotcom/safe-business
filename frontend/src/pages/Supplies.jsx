@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -37,6 +38,12 @@ export default function Supplies() {
   const [pkgSupplyPick, setPkgSupplyPick] = useState('');
   const [pkgQty, setPkgQty] = useState('');
   const [packageError, setPackageError] = useState('');
+  // ?packages=1 (21.08.2026) — из формы визита нет способа отредактировать
+  // уже сохранённый набор (там можно только применить/создать новый), эта
+  // страница — единственное место, где есть полноценное редактирование;
+  // ссылка "Изменить наборы →" в Visits.jsx ведёт сюда с этим параметром,
+  // чтобы сразу открыть нужный блок, а не заставлять искать его руками.
+  const [searchParams] = useSearchParams();
 
   function load() {
     api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
@@ -54,6 +61,7 @@ export default function Supplies() {
     load();
     loadCategories();
     loadPackages();
+    if (searchParams.get('packages') === '1') setManagePackages(true);
   }, []);
   usePullToRefresh(() => Promise.all([load(), loadCategories(), loadPackages()]));
 

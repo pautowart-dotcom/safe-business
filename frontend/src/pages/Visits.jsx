@@ -744,14 +744,29 @@ export default function Visits() {
 
           <Field label="Расходники (необязательно)">
             {packages.length > 0 && (
-              <Select
-                value={packagePick}
-                onChange={(e) => { setPackagePick(e.target.value); applyPackage(e.target.value); }}
-                style={{ marginBottom: 8 }}
-              >
-                <option value="">Применить набор…</option>
-                {packages.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.items.length})</option>)}
-              </Select>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <Select
+                  value={packagePick}
+                  onChange={(e) => { setPackagePick(e.target.value); applyPackage(e.target.value); }}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Применить набор…</option>
+                  {packages.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.items.length})</option>)}
+                </Select>
+                {/* Здесь можно только применить готовый набор или создать новый
+                    ("+ Сохранить этот список как набор" ниже) — переименовать
+                    состав уже сохранённого набора отсюда нельзя, полноценное
+                    редактирование есть только на "Складе" (Supplies.jsx,
+                    managePackages) — эта ссылка ведёт туда напрямую, а не
+                    заставляет искать этот блок руками. */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/supplies?packages=1')}
+                  style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}
+                >
+                  Изменить наборы →
+                </button>
+              </div>
             )}
             {form.supplies.map((s, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
