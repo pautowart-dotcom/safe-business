@@ -244,24 +244,28 @@ export default function AiAssistantWidget() {
   const panelBottom = keyboardOpen ? 12 : 70;
 
   return (
-    <div style={{ position: 'fixed', top: viewport.offsetTop, height: viewport.height, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
-      {/* По центру, над нижним меню (владелец: "не типовой кружок чата в
-          углу") — монограмма "Б" вместо иконки (21.08.2026, см. комментарий
-          у кнопки ниже) и мягкая пульсирующая аура (styles.css, @keyframes
-          ai-pulse) вместо статичного кружка. Размер/отступ уменьшены
-          20.08.2026 (владелец: кружок перекрывал контент карточек) — 40px и
-          bottom:70 вместо 52px и 84, чтобы кружок не заезжал в контент выше
-          и был ближе к нижнему меню. */}
+    <>
+      {/* Кружок-кнопка (закрытое состояние) — отдельный простой position:fixed
+          (21.08.2026), как у <nav> в Layout.jsx (position:fixed, bottom),
+          БЕЗ зависимости от window.visualViewport. Раньше кружок сидел внутри
+          того же JS-считаемого враппера (top/height от viewport), что и
+          открытая панель чата — на части устройств visualViewport.height
+          возвращал заниженное/устаревшее значение, и кружок оказывался
+          заметно выше реального низа экрана, наезжая на контент вместо того
+          чтобы быть у нижнего меню (владелец: "ассистент посередине экрана").
+          Панели чата такая JS-подстройка высоты реально нужна (обход
+          клавиатуры iOS, см. ниже), кнопке — нет, ей достаточно чистого CSS,
+          как у nav. */}
       {!open && subscribed !== null && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Открыть ИИ-ассистента"
           style={{
-            position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 70,
+            position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
             width: 40, height: 40, borderRadius: '50%',
             background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto',
-            animation: 'ai-pulse 2.5s ease-in-out infinite',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            animation: 'ai-pulse 2.5s ease-in-out infinite', zIndex: 200,
           }}
         >
           {/* Монограмма "Б" вместо иконки бота (21.08.2026, владелец: значок
@@ -272,6 +276,7 @@ export default function AiAssistantWidget() {
       )}
 
       {open && (
+        <div style={{ position: 'fixed', top: viewport.offsetTop, height: viewport.height, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
         <div
           style={{
             position: 'absolute', right: 16, left: 16, bottom: panelBottom, maxHeight: '65%',
@@ -345,7 +350,8 @@ export default function AiAssistantWidget() {
             </>
           )}
         </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
