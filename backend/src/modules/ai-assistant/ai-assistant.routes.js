@@ -51,7 +51,7 @@ router.delete(
 // хранит всю историю в состоянии страницы (см. задачу: "история — простой
 // массив последних сообщений, не нужно хранить в БД в этом заходе"), здесь
 // только защита от случайно присланного огромного массива.
-const MAX_HISTORY_MESSAGES = 12;
+const MAX_HISTORY_MESSAGES = 8;
 
 function sanitizeHistory(history) {
   if (!Array.isArray(history)) return [];
