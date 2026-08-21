@@ -6,7 +6,7 @@ const cs = (base, ...rest) => Object.assign({}, base, ...rest);
 
 export function Card({ children, style = {}, onClick }) {
   return (
-    <div onClick={onClick} style={cs({ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 12 }, style)}>
+    <div onClick={onClick} style={cs({ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }, style)}>
       {children}
     </div>
   );
