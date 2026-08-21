@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Btn, TextArea, C, F } from '../ui/components.jsx';
 import { MAX_WIDTH } from '../ui/theme.js';
-import Icon from '../ui/Icon.jsx';
 
 // Плавающий виджет ИИ-ассистента (20.08.2026, по просьбе владельца —
 // "не отдельный раздел, а маленький кружок как обычно на сайтах") —
@@ -247,11 +246,12 @@ export default function AiAssistantWidget() {
   return (
     <div style={{ position: 'fixed', top: viewport.offsetTop, height: viewport.height, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
       {/* По центру, над нижним меню (владелец: "не типовой кружок чата в
-          углу") — иконка робота вместо "искры"/"сообщения" (Icon.jsx, bot) и
-          мягкая пульсирующая аура (styles.css, @keyframes ai-pulse) вместо
-          статичного кружка. Размер/отступ уменьшены 20.08.2026 (владелец:
-          кружок перекрывал контент карточек) — 40px и bottom:70 вместо 52px
-          и 84, чтобы кружок не заезжал в контент выше и был ближе к нижнему меню. */}
+          углу") — монограмма "Б" вместо иконки (21.08.2026, см. комментарий
+          у кнопки ниже) и мягкая пульсирующая аура (styles.css, @keyframes
+          ai-pulse) вместо статичного кружка. Размер/отступ уменьшены
+          20.08.2026 (владелец: кружок перекрывал контент карточек) — 40px и
+          bottom:70 вместо 52px и 84, чтобы кружок не заезжал в контент выше
+          и был ближе к нижнему меню. */}
       {!open && subscribed !== null && (
         <button
           onClick={() => setOpen(true)}
@@ -259,12 +259,15 @@ export default function AiAssistantWidget() {
           style={{
             position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 70,
             width: 40, height: 40, borderRadius: '50%',
-            background: C.primary, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto',
             animation: 'ai-pulse 2.5s ease-in-out infinite',
           }}
         >
-          <Icon name="bot" size={19} color="#FFF" sw={1.8} />
+          {/* Монограмма "Б" вместо иконки бота (21.08.2026, владелец: значок
+              бота "полный бред") — узнаваемый фирменный знак, не клише
+              звёздочки/робота, которое сейчас у всех ИИ-продуктов. */}
+          <span style={{ fontSize: 17, fontWeight: 800, color: '#FFF', lineHeight: 1, fontFamily: F }}>Б</span>
         </button>
       )}
 

@@ -25,5 +25,10 @@ export const C = {
 };
 
 export const F = "-apple-system,'SF Pro Text','Segoe UI',sans-serif";
+// Моноширинный стек для денежных сумм и процентов (21.08.2026, редизайн
+// главного экрана) — табличные цифры вместо обычных, чтобы суммы читались
+// как показания прибора, а не как обычный текст; используется точечно
+// (money-значения, индекс%), не заменяет F везде.
+export const FM = "ui-monospace,'SF Mono','Menlo','Consolas',monospace";
 
 export const MAX_WIDTH = 430;

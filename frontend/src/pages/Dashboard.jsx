@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
+import { FM } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import InstallAppBanner from '../components/InstallAppBanner.jsx';
 import { localDateStr } from '../utils/localDate.js';
@@ -321,7 +322,7 @@ function OwnerDashboard() {
       )}
 
       <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(revenue)}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
 
@@ -350,10 +351,13 @@ function OwnerDashboard() {
       </Card>
 
       {security ? (
-        <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Безопасность</span>
-            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}>{security.indexPercent}%</Badge>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ZONE_COLOR[security.zone], flexShrink: 0 }} />
+              Безопасность
+            </span>
+            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}><span style={{ fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{security.indexPercent}%</span></Badge>
           </div>
           <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${security.indexPercent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
@@ -504,7 +508,7 @@ function ManagementDashboard() {
       </Card>
 
       <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(revenue)}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
 
@@ -540,10 +544,13 @@ function ManagementDashboard() {
       </Card>
 
       {isOwner && (security ? (
-        <Card style={{ borderLeft: `3px solid ${ZONE_COLOR[security.zone]}`, cursor: 'pointer' }} onClick={() => navigate('/security')}>
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Безопасность</span>
-            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}>{security.indexPercent}%</Badge>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ZONE_COLOR[security.zone], flexShrink: 0 }} />
+              Безопасность
+            </span>
+            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}><span style={{ fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{security.indexPercent}%</span></Badge>
           </div>
           <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${security.indexPercent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
@@ -638,14 +645,17 @@ function MasterDashboard() {
       </div>
 
       {summary.shiftStatus && (
-        <Card style={{ borderLeft: `3px solid ${SHIFT_COLOR[summary.shiftStatus]}` }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Моя смена</div>
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: SHIFT_COLOR[summary.shiftStatus], flexShrink: 0 }} />
+            Моя смена
+          </div>
           <div style={{ fontSize: 14 }}>{SHIFT_LABEL[summary.shiftStatus]}</div>
         </Card>
       )}
 
       <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px' }}>{money(masterEarned)}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(masterEarned)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Мои финансы сегодня</div>
       </div>
 
