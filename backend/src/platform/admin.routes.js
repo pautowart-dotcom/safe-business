@@ -29,7 +29,7 @@ const CURRENT_PRICE_RUB = 1990;
 router.get(
   '/metrics',
   asyncHandler(async (req, res) => {
-    const [statusCounts, signupsByDay, activeLast7Days, supportCounts, landingVisitsByDay, landingVisitsTotals] = await Promise.all([
+    const [statusCounts, signupsByDay, activeLast7Days, supportCounts, landingVisitsByDay, landingVisitsTotals, aiAssistantUsage, aiAssistantSubscribers] = await Promise.all([
       // is_test = false везде ниже, где считаются компании (обсуждение
       // 09.08.2026) — тестовые студии (свои и смоук-тест) искажали картину
       // роста/конверсии, см. migrations/0067.
@@ -68,6 +68,24 @@ router.get(
                 COUNT(*) FILTER (WHERE created_at > now() - interval '30 days') AS last_30d
          FROM landing_visits`
       ),
+      // ИИ-ассистент: сколько реально стоит эксплуатация (21.08.2026, п. "нужно
+      // больше данных в админку" из разговора про экономику ассистента) — только
+      // роль 'user' считаем (каждое сообщение пользователя = один запрос к
+      // модели, ответы ассистента не тратят отдельный вызов). Число подписанных
+      // компаний считаем ОТДЕЛЬНО от companies напрямую (не через JOIN с
+      // сообщениями) — иначе подписчик, который ни разу не написал в чат,
+      // молча выпал бы из знаменателя и средняя нагрузка на компанию завысилась бы.
+      pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE m.created_at > now() - interval '7 days') AS msgs_7d,
+           COUNT(*) FILTER (WHERE m.created_at > now() - interval '30 days') AS msgs_30d
+         FROM ai_assistant_messages m
+         JOIN companies c ON c.id = m.company_id
+         WHERE m.role = 'user' AND c.is_test = false`
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS n FROM companies WHERE is_test = false AND ai_advisor_subscription_status IN ('active', 'past_due')`
+      ),
     ]);
 
     const byStatus = Object.fromEntries(statusCounts.rows.map((r) => [r.subscription_status, r]));
@@ -104,6 +122,17 @@ router.get(
       // реальной сквозной аналитики.
       landingToSignupConversionPercent:
         landingVisitsLast30Days > 0 ? Math.round((newCompaniesLast30Days / landingVisitsLast30Days) * 1000) / 10 : null,
+      // ИИ-ассистент: реальная нагрузка на платящую компанию (21.08.2026) —
+      // считает только role='user' (запросы к модели), делит на число компаний
+      // с активной допподпиской, чтобы видеть среднюю нагрузку на подписчика,
+      // а не общий шум по всей базе.
+      aiAssistantSubscribers: Number(aiAssistantSubscribers.rows[0].n),
+      aiAssistantMessagesLast7Days: Number(aiAssistantUsage.rows[0].msgs_7d),
+      aiAssistantMessagesLast30Days: Number(aiAssistantUsage.rows[0].msgs_30d),
+      aiAssistantAvgMessagesPerSubscriberLast30Days:
+        Number(aiAssistantSubscribers.rows[0].n) > 0
+          ? Math.round((Number(aiAssistantUsage.rows[0].msgs_30d) / Number(aiAssistantSubscribers.rows[0].n)) * 10) / 10
+          : null,
     });
   })
 );

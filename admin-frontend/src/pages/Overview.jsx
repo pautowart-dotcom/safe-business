@@ -160,6 +160,12 @@ export default function Overview() {
           value={metrics.landingToSignupConversionPercent === null ? '—' : `${metrics.landingToSignupConversionPercent}%`}
           hint="грубо, за 30 дней: визиты и регистрации не связаны напрямую"
         />
+        <StatTile label="Подписчиков ИИ-ассистента" value={metrics.aiAssistantSubscribers} hint={`${metrics.aiAssistantMessagesLast7Days} сообщений за 7 дней`} />
+        <StatTile
+          label="Сообщений на подписчика/мес"
+          value={metrics.aiAssistantAvgMessagesPerSubscriberLast30Days === null ? '—' : metrics.aiAssistantAvgMessagesPerSubscriberLast30Days}
+          hint={`${metrics.aiAssistantMessagesLast30Days} всего за 30 дней — для решения по цене`}
+        />
       </div>
 
       <Card>
