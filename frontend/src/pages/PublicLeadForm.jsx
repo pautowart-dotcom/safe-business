@@ -54,7 +54,15 @@ export default function PublicLeadForm() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg, padding: 20, fontFamily: F }}>
+    // height+overflowY+alignItems:flex-start, не minHeight+center (21.08.2026,
+    // тот же класс бага, что и в AnonymousAudit.jsx/LegalDocument.jsx) —
+    // html/body у приложения overflow:hidden, а вертикальное центрирование
+    // через flex вдобавок само по себе обрезает начало контента при
+    // переполнении в части браузеров, даже если прокрутку включить отдельно.
+    // paddingTop вместо центрирования — короткая форма всё ещё выглядит
+    // прилично, а длинная (ошибка валидации, мобильная клавиатура) не
+    // становится недоступной.
+    <div style={{ height: '100vh', overflowY: 'auto', display: 'flex', justifyContent: 'center', background: C.bg, padding: '40px 20px', fontFamily: F }}>
       <Card style={{ maxWidth: 420, width: '100%' }}>
         {sent ? (
           <div style={{ textAlign: 'center', padding: '12px 0' }}>

@@ -23,7 +23,12 @@ export default function LegalDocument() {
   }, [key]);
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', minHeight: '100vh', background: C.bg, fontFamily: F, padding: '24px 20px 60px' }}>
+    // height+overflowY, не minHeight (21.08.2026, тот же класс бага, что и в
+    // AnonymousAudit.jsx) — html/body у всего приложения overflow:hidden,
+    // публичная страница вне Layout.jsx без своего скролл-контейнера не
+    // прокручивалась дальше первого экрана. Для оферты/политики это критично
+    // — длинный документ был физически недочитываем до конца.
+    <div style={{ maxWidth: 640, margin: '0 auto', height: '100vh', overflowY: 'auto', background: C.bg, fontFamily: F, padding: '24px 20px 60px' }}>
       <button
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
         style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 14, marginBottom: 20, padding: 0 }}

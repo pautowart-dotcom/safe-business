@@ -282,7 +282,14 @@ export default function AnonymousAudit() {
   }
 
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F }}>
+    // height+overflowY обязательны здесь (21.08.2026, живой баг: тест из 34
+    // вопросов не прокручивался ниже первого экрана) — html/body у ВСЕГО
+    // приложения зафиксированы overflow:hidden (styles.css), а прокрутку
+    // обеспечивает свой internal-контейнер в Layout.jsx. Эта страница —
+    // единственная публичная, вне Layout (см. комментарий в начале файла),
+    // без своего скролл-контейнера она наследовала overflow:hidden от body
+    // и была прокручиваемой только на первый экран, дальше — тупик.
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F, height: '100vh', overflowY: 'auto' }}>
       {paymentDone && <DoneStep />}
       {!paymentDone && step === 'intro' && (
         <IntroStep
