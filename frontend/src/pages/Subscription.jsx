@@ -75,18 +75,27 @@ export default function Subscription() {
     }
   }
 
+  // Та же константа, что и на бэкенде (core/subscriptionGrace.js) — не
+  // импортируется напрямую (разные приложения), держать в синхроне вручную,
+  // если там поменяется.
+  const PAST_DUE_GRACE_DAYS = 3;
   const periodEnd = company?.subscription_current_period_end
     ? new Date(company.subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const trialDaysLeft = company?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(company.trial_ends_at) - new Date()) / 86400000))
     : null;
-  // Доступ после отмены/просрочки сохраняется до конца уже оплаченного
-  // периода (см. core/middleware/subscription.js:isSubscriptionActive) — та
-  // же дата, что и period_end, просто отдельно считаем "ещё в будущем", чтобы
-  // не показывать кнопку "Восстановить" для периода, который уже истёк
-  // (тогда это не восстановление, а новая оплата — /checkout, не /reactivate).
-  const accessStillOpen = company?.subscription_current_period_end && new Date(company.subscription_current_period_end) > new Date();
+  // Доступ после отмены сохраняется ровно до конца уже оплаченного периода;
+  // после просрочки (past_due) — до конца периода ПЛЮС грейс-период на
+  // повторные попытки списания (см. core/middleware/subscription.js —
+  // isSubscriptionActive считает точно так же, иначе кнопка тут и реальный
+  // доступ на сервере разошлись бы).
+  const graceEndDate = company?.subscription_current_period_end
+    ? new Date(new Date(company.subscription_current_period_end).getTime() + PAST_DUE_GRACE_DAYS * 86400000)
+    : null;
+  const graceEnd = graceEndDate ? graceEndDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+  const accessDeadline = company?.subscription_status === 'past_due' ? graceEndDate : company?.subscription_current_period_end ? new Date(company.subscription_current_period_end) : null;
+  const accessStillOpen = accessDeadline && accessDeadline > new Date();
 
   return (
     <div>
@@ -131,7 +140,7 @@ export default function Subscription() {
           <>
             <div className="alert" style={{ marginBottom: 14 }}>
               {company?.subscription_status === 'past_due'
-                ? `Не удалось списать оплату. Доступ сохранится до ${periodEnd} — обновите способ оплаты в ЮKassa, иначе после этой даты подписка закроется.`
+                ? `Не удалось списать оплату. Мы пробуем списать ещё раз в течение ближайших дней — доступ сохранится до ${graceEnd}. Если способ оплаты не обновится, после этой даты подписка закроется.`
                 : `Подписка отменена. Доступ к PDF-отчётам и другим платным функциям сохранится до ${periodEnd}, дальше закроется — новых списаний не будет.`}
             </div>
             {company?.subscription_status === 'cancelled' && (

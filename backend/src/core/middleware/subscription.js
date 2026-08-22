@@ -1,5 +1,6 @@
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const { PAST_DUE_GRACE_DAYS } = require('../subscriptionGrace');
 
 // "Оплачено" = статус active, либо cancelled/past_due, но ещё в пределах
 // уже оплаченного периода (subscription_current_period_end в будущем).
@@ -22,11 +23,21 @@ async function isSubscriptionActive(companyId) {
   const row = rows[0];
   if (!row || !row.subscription_status || row.subscription_status === 'trial') return false;
   if (row.subscription_status === 'active') return true;
-  // cancelled/past_due — доступ сохраняется до конца уже оплаченного периода
-  // (если он вообще был зафиксирован — старые компании до введения
-  // period_end могли его не иметь, тогда трактуем как "период уже кончился",
-  // безопасный дефолт в пользу "не даём доступ по ошибке навсегда").
-  return !!row.subscription_current_period_end && new Date(row.subscription_current_period_end) > new Date();
+  if (!row.subscription_current_period_end) return false;
+  const periodEnd = new Date(row.subscription_current_period_end);
+  // cancelled — доступ ровно до конца уже оплаченного периода, без бонусных
+  // дней (человек сам решил не продлевать, ждать тут нечего).
+  // past_due — то же самое ПЛЮС грейс-период (PAST_DUE_GRACE_DAYS): списание
+  // не удалось не по воле Пользователя (карта/банк), даём время на повторную
+  // попытку (chargeRecurringSubscriptions.js) и на замену способа оплаты,
+  // прежде чем реально закрыть доступ — то же окно, в которое скрипт ещё
+  // пробует списать, иначе доступ закрылся бы раньше, чем кончились попытки.
+  if (row.subscription_status === 'past_due') {
+    const graceEnd = new Date(periodEnd);
+    graceEnd.setDate(graceEnd.getDate() + PAST_DUE_GRACE_DAYS);
+    return graceEnd > new Date();
+  }
+  return periodEnd > new Date();
 }
 
 const requirePaidPlan = asyncHandler(async (req, res, next) => {

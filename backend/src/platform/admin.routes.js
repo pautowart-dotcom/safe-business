@@ -210,7 +210,7 @@ router.get(
       return res.status(404).json({ error: 'Компания не найдена' });
     }
 
-    const [branches, memberships, modules, addonPurchases, activityByModule, recentActivity] = await Promise.all([
+    const [branches, memberships, modules, addonPurchases, activityByModule, recentActivity, reports] = await Promise.all([
       pool.query('SELECT id, name, address, created_at FROM branches WHERE company_id = $1 ORDER BY name', [
         req.params.id,
       ]),
@@ -247,6 +247,13 @@ router.get(
          WHERE el.company_id = $1 ORDER BY el.created_at DESC LIMIT 20`,
         [req.params.id]
       ),
+      // Скачивания PDF-отчётов (21.08.2026) — для решений по возвратам, см.
+      // оферту §3.4(в) и комментарий у report.routes.js:/reports/:id/download.
+      pool.query(
+        `SELECT report_number, generated_at, first_downloaded_at, download_count
+         FROM security_reports WHERE company_id = $1 ORDER BY generated_at DESC`,
+        [req.params.id]
+      ),
     ]);
 
     const purchasedAddonKeys = new Set(addonPurchases.rows.map((r) => r.addon_key));
@@ -269,6 +276,7 @@ router.get(
         lastAt: r.last_at,
       })),
       recentActivity: recentActivity.rows,
+      reports: reports.rows,
     });
   })
 );

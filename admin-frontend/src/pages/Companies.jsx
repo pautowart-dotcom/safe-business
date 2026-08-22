@@ -96,7 +96,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   }
 
   if (!data) return <div className="page-loading">Загрузка...</div>;
-  const { company, memberships, modules, addons, activityByModule, recentActivity } = data;
+  const { company, memberships, modules, addons, activityByModule, recentActivity, reports } = data;
   const lastActivityAt = activityByModule.length > 0
     ? activityByModule.reduce((max, m) => (!max || new Date(m.lastAt) > new Date(max) ? m.lastAt : max), null)
     : null;
@@ -180,6 +180,28 @@ function CompanyDetail({ id, onBack, onDeleted }) {
           </>
         )}
       </Card>
+
+      {/* Для решений по возвратам (21.08.2026, оферта §3.4(в)) — скачан ли
+          PDF-отчёт хотя бы раз в оплаченном периоде. Не показывается вообще,
+          если отчётов ещё не генерировали — обычная пустая карточка тут
+          только шумела бы. */}
+      {(reports || []).length > 0 && (
+        <Card>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Отчёты (для возвратов)</div>
+          {reports.map((r) => (
+            <div key={r.report_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', fontSize: 13 }}>
+              <span>{r.report_number}</span>
+              {r.first_downloaded_at ? (
+                <Badge color={C.orange} bg={C.orangeBg}>
+                  скачан {new Date(r.first_downloaded_at).toLocaleDateString('ru-RU')}{r.download_count > 1 ? ` (${r.download_count}×)` : ''}
+                </Badge>
+              ) : (
+                <Badge color={C.subtle} bg={C.surface}>не скачивался</Badge>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
 
       <Card>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Сотрудники ({memberships.length})</div>

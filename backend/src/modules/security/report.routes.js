@@ -168,6 +168,14 @@ router.get(
     }
 
     const pdfBuffer = await buildReportPdfBuffer(req.tenant.companyId, reportRow);
+    // Факт и время скачивания (21.08.2026) — для решений по возвратам
+    // (оферта §3.4(в): скачанный PDF = услуга за период оказана), видно в
+    // /office/companies/:id. first_downloaded_at ставится только один раз
+    // (COALESCE), download_count растёт на каждое скачивание.
+    await pool.query(
+      `UPDATE security_reports SET first_downloaded_at = COALESCE(first_downloaded_at, now()), download_count = download_count + 1 WHERE id = $1`,
+      [reportRow.id]
+    );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${reportRow.report_number}.pdf"`);
     res.send(pdfBuffer);
