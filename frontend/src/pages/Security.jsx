@@ -1359,7 +1359,7 @@ function DocumentRiskCheckCard({ isManagement }) {
             <div key={c.id} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{c.originalFilename}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{c.originalFilename}</div>
                   <div style={{ fontSize: 12, color: C.subtle }}>{c.documentTypeLabel} · {new Date(c.createdAt).toLocaleDateString('ru-RU')}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
