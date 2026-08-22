@@ -321,7 +321,7 @@ function OwnerDashboard() {
         </Card>
       )}
 
-      <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+      <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
@@ -507,7 +507,7 @@ function ManagementDashboard() {
         )}
       </Card>
 
-      <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+      <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
@@ -654,7 +654,7 @@ function MasterDashboard() {
         </Card>
       )}
 
-      <div style={{ background: C.primary, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+      <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(masterEarned)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Мои финансы сегодня</div>
       </div>
@@ -721,7 +721,7 @@ function QuickAction({ label, icon, onClick }) {
   return (
     <button
       onClick={onClick}
-      style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+      style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
     >
       <Icon name={icon} size={20} color={C.primary} />
       <span style={{ fontSize: 12, color: C.secondary, fontWeight: 500 }}>{label}</span>
