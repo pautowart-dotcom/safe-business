@@ -15,13 +15,14 @@ const SUBSCRIPTION_PRICE_RUB = 1990;
 const router = express.Router();
 
 // Общая часть чек-аута для двух режимов ниже.
-async function startCheckout({ companyId, description, returnUrl, savePaymentMethod, reportId }) {
+async function startCheckout({ companyId, description, returnUrl, savePaymentMethod, reportId, receiptEmail }) {
   const payment = await createPayment({
     amountRub: SUBSCRIPTION_PRICE_RUB,
     description,
     returnUrl,
     savePaymentMethod,
     metadata: { companyId: String(companyId) },
+    receiptEmail,
   });
 
   await pool.query(
@@ -49,6 +50,7 @@ router.post(
       description: `Подписка «Безопасный бизнес» — ${company.name}`,
       returnUrl: `${process.env.FRONTEND_URL}/subscription?payment=done`,
       savePaymentMethod: true,
+      receiptEmail: req.user.email,
     });
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
   })
@@ -91,6 +93,10 @@ router.post(
     // подтверждённый email и оферта принята при регистрации.
     const { rows: userRows } = await pool.query('SELECT is_guest, email FROM users WHERE id = $1', [req.user.id]);
     const isGuest = !!userRows[0]?.is_guest;
+    // receiptEmail — нужен ниже для чека ЮKassa (54-ФЗ), не только для
+    // сохранения в users; объявлен здесь, а не внутри if, чтобы был виден и
+    // для не-гостя (req.user.email, у него уже подтверждённая почта).
+    let receiptEmail = req.user.email;
     if (isGuest) {
       const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
       if (!email || !email.includes('@')) {
@@ -109,6 +115,7 @@ router.post(
         'UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3 WHERE id = $1',
         [req.user.id, email, !!req.body?.analyticsConsent]
       );
+      receiptEmail = email;
     }
 
     const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.tenant.companyId]);
@@ -126,6 +133,7 @@ router.post(
       returnUrl: `${process.env.FRONTEND_URL}/audit?payment=done`,
       savePaymentMethod: false,
       reportId,
+      receiptEmail,
     });
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
   })

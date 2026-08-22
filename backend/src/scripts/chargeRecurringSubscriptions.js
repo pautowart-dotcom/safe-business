@@ -47,6 +47,7 @@ async function chargeDueCompanies() {
         amountRub: company.subscription_price_rub,
         description: `Продление подписки «Безопасный бизнес» — ${company.name}`,
         paymentMethodId: company.yookassa_payment_method_id,
+        receiptEmail: company.owner_email,
       });
 
       await pool.query(
@@ -103,13 +104,19 @@ async function chargeDueCompanies() {
 // назначение платежа (`description`) отличаются, а дублирование тут дешевле
 // параметризации ради одного вызова раз в сутки.
 async function chargeDueAiAdvisorCompanies() {
+  // owner_email — тот же коррелированный подзапрос и та же причина, что и в
+  // chargeDueCompanies выше (без него, для чека ЮKassa, платёж падал бы
+  // "Receipt is missing", а JOIN рисковал бы задвоить списание).
   const { rows: due } = await pool.query(
-    `SELECT id, name, ai_advisor_subscription_price_rub AS price_rub, ai_advisor_yookassa_payment_method_id AS payment_method_id,
-            ai_advisor_subscription_current_period_end AS period_end
-     FROM companies
-     WHERE ai_advisor_subscription_status = 'active'
-       AND ai_advisor_yookassa_payment_method_id IS NOT NULL
-       AND ai_advisor_subscription_current_period_end <= now()`
+    `SELECT c.id, c.name, c.ai_advisor_subscription_price_rub AS price_rub,
+            c.ai_advisor_yookassa_payment_method_id AS payment_method_id,
+            c.ai_advisor_subscription_current_period_end AS period_end,
+            (SELECT u.email FROM memberships m JOIN users u ON u.id = m.user_id
+             WHERE m.company_id = c.id AND m.role = 'owner' ORDER BY m.id LIMIT 1) AS owner_email
+     FROM companies c
+     WHERE c.ai_advisor_subscription_status = 'active'
+       AND c.ai_advisor_yookassa_payment_method_id IS NOT NULL
+       AND c.ai_advisor_subscription_current_period_end <= now()`
   );
 
   console.log(`ИИ-подписка, к списанию: ${due.length} компани${due.length === 1 ? 'я' : 'й'}`);
@@ -120,6 +127,7 @@ async function chargeDueAiAdvisorCompanies() {
         amountRub: company.price_rub,
         description: `Продление подписки «ИИ-управляющий» — ${company.name}`,
         paymentMethodId: company.payment_method_id,
+        receiptEmail: company.owner_email,
       });
 
       await pool.query(

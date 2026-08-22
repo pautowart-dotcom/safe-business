@@ -120,6 +120,7 @@ router.post(
       returnUrl,
       savePaymentMethod: false,
       metadata: { leadId: String(lead.id) },
+      receiptEmail: lead.email,
     });
 
     await pool.query(

@@ -70,6 +70,7 @@ router.post(
       returnUrl,
       savePaymentMethod: false,
       metadata: { companyId: String(req.tenant.companyId), addonKey: req.params.addonKey },
+      receiptEmail: req.user.email,
     });
 
     await pool.query(

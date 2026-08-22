@@ -36,12 +36,36 @@ async function request(path, { method = 'GET', body, idempotenceKey } = {}) {
 // оплаты, без участия клиента (confirmation не нужен). Не передан → первый
 // платёж, клиента ведём на страницу оплаты (confirmation.confirmation_url) и
 // просим ЮKassa сохранить способ оплаты для будущих автосписаний.
-async function createPayment({ amountRub, description, returnUrl, savePaymentMethod, paymentMethodId, metadata }) {
+//
+// receiptEmail (21.08.2026, живой баг: первый же реальный платёж падал с
+// "Receipt is missing or illegal") — магазин настроен требовать фискальный
+// чек (54-ФЗ) на каждый платёж, а этот код его никогда не отправлял. Ни один
+// реальный платёж не мог пройти с самого начала, не только тестовый.
+// vat_code:1 ("без НДС") — стандартное значение для ИП/самозанятых на
+// упрощёнке; если налоговый режим другой — эту цифру нужно будет уточнить
+// отдельно, я не знаю точный режим владельца.
+async function createPayment({ amountRub, description, returnUrl, savePaymentMethod, paymentMethodId, metadata, receiptEmail }) {
+  if (!receiptEmail) {
+    throw new Error('Не указан email для чека — ЮKassa требует фискальный чек на каждый платёж');
+  }
   const body = {
     amount: { value: amountRub.toFixed(2), currency: 'RUB' },
     capture: true,
     description,
     metadata,
+    receipt: {
+      customer: { email: receiptEmail },
+      items: [
+        {
+          description: description.slice(0, 128), // лимит ЮKassa на длину описания позиции чека
+          quantity: '1.00',
+          amount: { value: amountRub.toFixed(2), currency: 'RUB' },
+          vat_code: 1,
+          payment_mode: 'full_payment',
+          payment_subject: 'service',
+        },
+      ],
+    },
   };
   if (paymentMethodId) {
     body.payment_method_id = paymentMethodId;

@@ -43,6 +43,7 @@ router.post(
       returnUrl,
       savePaymentMethod: true,
       metadata: { companyId: String(req.tenant.companyId), product: 'ai_advisor' },
+      receiptEmail: req.user.email,
     });
 
     await pool.query(
