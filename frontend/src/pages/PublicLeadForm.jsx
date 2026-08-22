@@ -13,24 +13,61 @@ import { Card, Btn, TextInput, TextArea, Field, C, F } from '../ui/components.js
 // просто оставляет контакт; уточняется потом внутри, при обработке заявки.
 const publicApi = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api', timeout: 20000 });
 
+// Жёсткий формат номера (21.08.2026, владелец: "могут вводить неправильно" —
+// реальный случай был "5455225412224", 13 цифр без структуры). Маска builds
+// "+7 (XXX) XXX-XX-XX" по мере ввода, лишние цифры сверх 10 просто
+// отбрасываются, а не накапливаются — тот же принцип, что и у обычных полей
+// телефона в банковских приложениях. Ведущие 7/8 (человек мог начать вводить
+// с них по привычке) снимаются, чтобы не задвоить с уже выведенным +7.
+function formatPhoneInput(raw) {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('7') || digits.startsWith('8')) digits = digits.slice(1);
+  digits = digits.slice(0, 10);
+  let out = '+7';
+  if (digits.length > 0) out += ` (${digits.slice(0, 3)}`;
+  if (digits.length >= 3) out += ')';
+  if (digits.length > 3) out += ` ${digits.slice(3, 6)}`;
+  if (digits.length > 6) out += `-${digits.slice(6, 8)}`;
+  if (digits.length > 8) out += `-${digits.slice(8, 10)}`;
+  return out;
+}
+
 export default function PublicLeadForm() {
   const { token } = useParams();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [comment, setComment] = useState('');
+  const [consent, setConsent] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+
+  function onPhoneChange(e) {
+    let digits = e.target.value.replace(/\D/g, '');
+    if (digits.startsWith('7') || digits.startsWith('8')) digits = digits.slice(1);
+    // Стереть поле целиком (backspace до пустоты) должно давать пустую
+    // строку, а не "+7" — иначе постоянный префикс мешает очистить поле,
+    // если номер ввели по ошибке.
+    setPhone(digits.length === 0 ? '' : formatPhoneInput(e.target.value));
+  }
 
   async function submit() {
     if (!name.trim()) {
       setError('Укажите, пожалуйста, имя');
       return;
     }
+    if (phone && phone.replace(/\D/g, '').length !== 11) {
+      setError('Проверьте номер телефона — введено не всё, или поле стоит очистить');
+      return;
+    }
+    if (!consent) {
+      setError('Нужно согласие на обработку персональных данных');
+      return;
+    }
     setSending(true);
     setError('');
     try {
-      await publicApi.post(`/platform/leads-public/${token}`, { name, phone, comment });
+      await publicApi.post(`/platform/leads-public/${token}`, { name, phone, comment, personalDataConsent: true });
       setSent(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось отправить — попробуйте ещё раз');
@@ -56,11 +93,18 @@ export default function PublicLeadForm() {
               <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Как к вам обращаться" />
             </Field>
             <Field label="Телефон">
-              <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 123-45-67" />
+              <TextInput type="tel" value={phone} onChange={onPhoneChange} placeholder="+7 (900) 123-45-67" />
             </Field>
             <Field label="Комментарий">
               <TextArea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Что нужно сделать, адрес, удобное время..." />
             </Field>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 2 }} required />
+              <span>
+                Согласен(на) на обработку персональных данных в соответствии с{' '}
+                <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политикой конфиденциальности</a>
+              </span>
+            </label>
             <Btn onClick={submit} disabled={sending} style={{ width: '100%' }}>{sending ? 'Отправляю...' : 'Отправить заявку'}</Btn>
           </>
         )}

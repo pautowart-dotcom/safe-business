@@ -17,6 +17,11 @@ const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit
 const router = express.Router();
 
 const CLIENT_TYPES = ['individual', 'legal_entity'];
+// Ровно 10 цифр после кода страны (российский мобильный/городской номер без
+// +7/8) — маска на фронте (PublicLeadForm.jsx) уже приводит ввод к этому
+// виду, но публичный роут без авторизации нельзя валидировать только на
+// клиенте (тривиально обойти прямым запросом), поэтому проверяем и здесь.
+const PHONE_DIGITS_RE = /^\d{10}$/;
 
 router.get(
   '/token',
@@ -46,7 +51,7 @@ router.post(
       return res.status(429).json({ error: 'Слишком много заявок с этого адреса — попробуйте позже' });
     }
 
-    const { name, phone, clientType, comment } = req.body;
+    const { name, phone, clientType, comment, personalDataConsent } = req.body;
     if (!name || !name.trim()) {
       await recordFailedLogin(req.ip, `leads-public:${req.params.token}`);
       return res.status(400).json({ error: 'Укажите имя или название' });
@@ -54,6 +59,19 @@ router.post(
     if (clientType && !CLIENT_TYPES.includes(clientType)) {
       await recordFailedLogin(req.ip, `leads-public:${req.params.token}`);
       return res.status(400).json({ error: 'Некорректный тип клиента' });
+    }
+    // Телефон необязателен (как и раньше — человек мог оставить только имя
+    // и комментарий), но если указан — должен быть похож на настоящий
+    // номер, а не произвольный текст/цифры (маска на фронте уже приводит
+    // к 10 цифрам, здесь просто перепроверяем то же самое).
+    const phoneDigits = phone ? phone.replace(/\D/g, '').replace(/^7|^8/, '') : '';
+    if (phone && !PHONE_DIGITS_RE.test(phoneDigits)) {
+      await recordFailedLogin(req.ip, `leads-public:${req.params.token}`);
+      return res.status(400).json({ error: 'Некорректный номер телефона' });
+    }
+    if (!personalDataConsent) {
+      await recordFailedLogin(req.ip, `leads-public:${req.params.token}`);
+      return res.status(400).json({ error: 'Нужно согласие на обработку персональных данных' });
     }
 
     const company = await pool.query(
@@ -68,8 +86,9 @@ router.post(
     }
 
     await pool.query(
-      `INSERT INTO sales_leads (company_id, name, phone, client_type, comment) VALUES ($1, $2, $3, $4, $5)`,
-      [company.rows[0].id, name.trim(), phone || null, clientType || 'individual', comment || null]
+      `INSERT INTO sales_leads (company_id, name, phone, client_type, comment, personal_data_consent_at)
+       VALUES ($1, $2, $3, $4, $5, now())`,
+      [company.rows[0].id, name.trim(), phone ? `+7${phoneDigits}` : null, clientType || 'individual', comment || null]
     );
     res.status(201).json({ ok: true });
   })

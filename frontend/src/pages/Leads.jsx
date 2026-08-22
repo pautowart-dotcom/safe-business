@@ -23,15 +23,15 @@ function LeadCard({ lead, onAdvance, onStatusChange, onDelete }) {
   const paid = lead.status === 'paid';
   return (
     <Card style={{ opacity: paid ? 0.6 : 1, marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{lead.name}</div>
-          <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-            {CLIENT_TYPE_LABELS[lead.client_type] || lead.client_type}{lead.phone ? ` · ${lead.phone}` : ''}
-          </div>
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: paid ? C.green : C.primary, textAlign: 'right', whiteSpace: 'nowrap' }}>
-          {STATUS_LABELS[lead.status] || lead.status}
+      {/* Статус раньше показывался и здесь текстом, и ниже в <Select> (текущее
+          значение выпадающего списка) — одно и то же слово дважды на одной
+          карточке (21.08.2026, владелец: "новый клиент пишутся два раза").
+          Выпадающий список и так всегда показывает актуальный статус,
+          отдельная подпись была чистым дублированием. */}
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{lead.name}</div>
+        <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
+          {CLIENT_TYPE_LABELS[lead.client_type] || lead.client_type}{lead.phone ? ` · ${lead.phone}` : ''}
         </div>
       </div>
       {lead.comment && <div style={{ fontSize: 13, color: C.secondary, marginTop: 8 }}>{lead.comment}</div>}
