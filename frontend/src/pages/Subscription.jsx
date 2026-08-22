@@ -14,6 +14,7 @@ const STATUS_LABELS = {
 export default function Subscription() {
   const [company, setCompany] = useState(null);
   const [starting, setStarting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
   const [searchParams] = useSearchParams();
 
@@ -45,12 +46,47 @@ export default function Subscription() {
     }
   }
 
+  // Отмена не спрашивает подтверждения через window.confirm — предупреждение
+  // и так на экране текстом (до какой даты сохранится доступ) перед самой
+  // кнопкой, дублировать его нативным confirm() было бы избыточно.
+  async function cancelSubscription() {
+    setCancelling(true);
+    setError('');
+    try {
+      await api.post('/platform/subscription/cancel');
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось отменить подписку');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function reactivateSubscription() {
+    setCancelling(true);
+    setError('');
+    try {
+      await api.post('/platform/subscription/reactivate');
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось восстановить подписку');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   const periodEnd = company?.subscription_current_period_end
     ? new Date(company.subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const trialDaysLeft = company?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(company.trial_ends_at) - new Date()) / 86400000))
     : null;
+  // Доступ после отмены/просрочки сохраняется до конца уже оплаченного
+  // периода (см. core/middleware/subscription.js:isSubscriptionActive) — та
+  // же дата, что и period_end, просто отдельно считаем "ещё в будущем", чтобы
+  // не показывать кнопку "Восстановить" для периода, который уже истёк
+  // (тогда это не восстановление, а новая оплата — /checkout, не /reactivate).
+  const accessStillOpen = company?.subscription_current_period_end && new Date(company.subscription_current_period_end) > new Date();
 
   return (
     <div>
@@ -79,9 +115,31 @@ export default function Subscription() {
       <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_price_rub || 1990} ₽/мес</div>
         {company?.subscription_status === 'active' ? (
-          <div style={{ fontSize: 13, color: C.subtle }}>
-            Списывается автоматически {periodEnd ? `до ${periodEnd}` : 'каждый месяц'} — ничего делать не нужно.
-          </div>
+          <>
+            <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
+              Продлевается автоматически {periodEnd ? `— следующее списание ${periodEnd}` : 'раз в месяц'}.
+            </div>
+            <Btn variant="secondary" onClick={cancelSubscription} disabled={cancelling}>
+              {cancelling ? 'Отменяем...' : 'Отменить подписку'}
+            </Btn>
+          </>
+        ) : accessStillOpen ? (
+          // Подписка отменена/не удалось списать, но оплаченный период ещё не
+          // кончился — предупреждение с конкретной датой, а не молчаливая
+          // потеря доступа (владелец: "конечно хочу [чтобы отмена реально
+          // работала], только с предупреждениями").
+          <>
+            <div className="alert" style={{ marginBottom: 14 }}>
+              {company?.subscription_status === 'past_due'
+                ? `Не удалось списать оплату. Доступ сохранится до ${periodEnd} — обновите способ оплаты в ЮKassa, иначе после этой даты подписка закроется.`
+                : `Подписка отменена. Доступ к PDF-отчётам и другим платным функциям сохранится до ${periodEnd}, дальше закроется — новых списаний не будет.`}
+            </div>
+            {company?.subscription_status === 'cancelled' && (
+              <Btn onClick={reactivateSubscription} disabled={cancelling}>
+                {cancelling ? 'Восстанавливаем...' : 'Возобновить подписку'}
+              </Btn>
+            )}
+          </>
         ) : (
           <>
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>

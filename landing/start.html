@@ -123,6 +123,10 @@
       <input type="tel" id="phone" placeholder="+7 900 000-00-00" style="margin-top:8px;">
     </fieldset>
 
+    <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.5; margin:16px 0; cursor:pointer;">
+      <input type="checkbox" id="accepted-terms" required style="margin-top:2px;">
+      <span>Согласен(на) с условиями <a href="/lk/legal/oferta" target="_blank" rel="noreferrer">оферты</a> и <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer">политики конфиденциальности</a></span>
+    </label>
     <button type="submit" class="btn" id="submit-btn">Получить roadmap за 1490 ₽</button>
     <div class="error" id="error" hidden></div>
     <div class="hint">Оплата через ЮKassa. Лид сохраняется даже если вы не дойдёте до оплаты — мы не потеряем заявку.</div>
@@ -177,7 +181,8 @@
     submitBtn.textContent = 'Переходим к оплате…';
     try {
       var res = await fetch('/api/platform/roadmap/checkout', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: leadId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: leadId, acceptedTerms: document.getElementById('accepted-terms').checked }),
       });
       var data = await res.json();
       if (!res.ok) throw new Error(errorMessage(data, 'Не получилось создать оплату'));
@@ -194,6 +199,7 @@
     errorBox.hidden = true;
     if (!document.getElementById('niche').value) return showError('Выберите нишу');
     if (!document.getElementById('email').value) return showError('Укажите email');
+    if (!document.getElementById('accepted-terms').checked) return showError('Нужно принять условия оферты и политики конфиденциальности');
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'Секунду…';

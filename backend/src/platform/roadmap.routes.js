@@ -92,7 +92,15 @@ router.post(
 router.post(
   '/checkout',
   asyncHandler(async (req, res) => {
-    const { leadId } = req.body || {};
+    const { leadId, acceptedTerms } = req.body || {};
+    // 21.08.2026 — раньше чек-аут этого продукта вообще не ссылался на
+    // оферту/политику конфиденциальности, оплата принималась без явного
+    // акцепта (найдено при разборе политики возвратов). accepted_terms_at
+    // фиксирует момент согласия так же, как это уже делает /auth/register
+    // и checkout-one-time гостевого аудита (subscription.routes.js).
+    if (!acceptedTerms) {
+      return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
+    }
     const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [leadId]);
     const lead = rows[0];
     if (!lead) {
@@ -115,8 +123,8 @@ router.post(
     });
 
     await pool.query(
-      `INSERT INTO roadmap_orders (lead_id, amount_rub, yookassa_payment_id, access_token, status)
-       VALUES ($1, $2, $3, $4, 'pending')`,
+      `INSERT INTO roadmap_orders (lead_id, amount_rub, yookassa_payment_id, access_token, status, accepted_terms_at)
+       VALUES ($1, $2, $3, $4, 'pending', now())`,
       [lead.id, ROADMAP_PRICE_RUB, payment.id, token]
     );
 

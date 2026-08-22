@@ -131,6 +131,60 @@ router.post(
   })
 );
 
+// Отмена подписки (21.08.2026, владелец: "нужна отмена подписки уже
+// сейчас") — НЕ удаляет и не трогает уже прошедшие списания, только
+// останавливает будущие: chargeRecurringSubscriptions.js списывает только
+// WHERE subscription_status = 'active', так что простого изменения статуса
+// достаточно, отдельно "выключать" автосписание не нужно. Доступ к уже
+// оплаченному функционалу не пропадает мгновенно — isSubscriptionActive()
+// (core/middleware/subscription.js) сама разрешает доступ до конца текущего
+// subscription_current_period_end, дальше сработает как обычная неактивная
+// подписка. Если подписка уже не active (trial/cancelled/past_due) —
+// отменять нечего, 400, а не молчаливый успех.
+router.post(
+  '/cancel',
+  requireAuth,
+  requireTenant,
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `UPDATE companies SET subscription_status = 'cancelled'
+       WHERE id = $1 AND subscription_status = 'active'
+       RETURNING subscription_current_period_end`,
+      [req.tenant.companyId]
+    );
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Активной подписки для отмены нет' });
+    }
+    res.json({ ok: true, accessUntil: rows[0].subscription_current_period_end });
+  })
+);
+
+// Отменить отмену (21.08.2026) — пока оплаченный период ещё не закончился,
+// передумавший владелец просто возвращается в 'active' одним кликом, без
+// повторной оплаты и без похода в поддержку. После того как период истёк
+// (isSubscriptionActive уже вернула бы false) — это уже не "передумал",
+// а фактически новая подписка, для нового периода нужен /checkout заново,
+// поэтому реактивация запрещена, если period_end уже в прошлом.
+router.post(
+  '/reactivate',
+  requireAuth,
+  requireTenant,
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `UPDATE companies SET subscription_status = 'active'
+       WHERE id = $1 AND subscription_status = 'cancelled' AND subscription_current_period_end > now()
+       RETURNING id`,
+      [req.tenant.companyId]
+    );
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Восстановить эту подписку уже нельзя — оформите новую' });
+    }
+    res.json({ ok: true });
+  })
+);
+
 // Вебхук ЮKassa — публичный маршрут (без requireAuth), ЮKassa стучится сюда
 // сама, без пользовательской сессии. URL нужно один раз указать в настройках
 // магазина ЮKassa: https://business-safe.ru/api/platform/subscription/webhook
