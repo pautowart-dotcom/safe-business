@@ -8,6 +8,11 @@ const NAV = [
   { to: '/', label: 'Обзор', icon: 'home', end: true },
   { to: '/analytics', label: 'Аналитика', icon: 'finance' },
   { to: '/companies', label: 'Компании', icon: 'team' },
+  // Монограмма "Б" вместо Icon (21.08.2026) — тот же фирменный знак, что уже
+  // принят для клиентского ассистента (AiAssistantWidget.jsx), а не новая
+  // иконка: единообразие важнее, третий вариант "как обозначить ИИ" за один
+  // день уже был бы перебором.
+  { to: '/ai-manager', label: 'ИИ-управляющий', icon: 'ai-monogram' },
   { to: '/support', label: 'Поддержка', icon: 'msg' },
   { to: '/client-errors', label: 'Логи краша', icon: 'bug' },
   { to: '/legal', label: 'Юридические документы', icon: 'doc' },
@@ -62,7 +67,13 @@ export default function Layout() {
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} style={linkStyle} onClick={() => setMobileOpen(false)}>
-              <Icon name={n.icon} size={17} />
+              {n.icon === 'ai-monogram' ? (
+                <span style={{ width: 17, height: 17, borderRadius: '50%', background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', lineHeight: 1 }}>Б</span>
+                </span>
+              ) : (
+                <Icon name={n.icon} size={17} />
+              )}
               {n.label}
             </NavLink>
           ))}
