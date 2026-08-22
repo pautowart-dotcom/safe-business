@@ -117,6 +117,7 @@ function CreateCompanyForm({ onCreate, onBack }) {
 function RegisterForm({ onRegister, onBack }) {
   const [niche, setNiche] = useState('');
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -130,7 +131,7 @@ function RegisterForm({ onRegister, onBack }) {
     setError('');
     setSubmitting(true);
     try {
-      await onRegister({ name, email, password, niche, acceptedTerms, analyticsConsent });
+      await onRegister({ name, email, password, companyName, niche, acceptedTerms, analyticsConsent });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось зарегистрироваться');
     } finally {
@@ -166,10 +167,16 @@ function RegisterForm({ onRegister, onBack }) {
         <Field label="Пароль">
           <TextInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
         </Field>
-        {/* Название компании убрано (17.08.2026) — заводится автоматически
-            ("Моя компания"), переименовать можно сразу после входа в
-            Настройках. Раньше поле было обязательным, лишний барьер перед
-            тем, как человек увидит хоть какую-то ценность продукта. */}
+        {/* Название компании было убрано целиком 17.08.2026 (обязательное
+            поле — лишний барьер перед первой ценностью продукта). Возвращено
+            21.08.2026, но НЕОБЯЗАТЕЛЬНЫМ — владелец лично столкнулся: заведя
+            несколько тестовых компаний подряд, все они назывались "Моя
+            компания" и стали неразличимы в списке. Без required человек
+            может пропустить поле так же легко, как раньше, когда его вообще
+            не было — барьер не возвращается, а различимость появляется. */}
+        <Field label="Название компании (необязательно)">
+          <TextInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Например: Студия «Ноготок»" />
+        </Field>
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
