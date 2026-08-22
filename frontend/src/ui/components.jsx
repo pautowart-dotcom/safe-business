@@ -25,8 +25,13 @@ export function BackBtn({ onClick, label = 'Назад' }) {
   );
 }
 
+// Контурный стиль вместо закрашенной пастельной плашки (21.08.2026,
+// редизайн главного экрана продолжается на весь Badge сразу — 23
+// использования по всему приложению проходят через этот один компонент,
+// bg-параметр каждый вызывающий передаёт по-прежнему, просто здесь больше
+// не рендерится заливкой — не нужно трогать каждое место по отдельности).
 export function Badge({ children, color, bg }) {
-  return <span style={{ background: bg, color, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{children}</span>;
+  return <span style={{ background: 'transparent', color, padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, border: `1px solid ${color}` }}>{children}</span>;
 }
 
 export function Btn({ children, onClick, type = 'button', variant = 'primary', small = false, disabled = false, style = {} }) {
