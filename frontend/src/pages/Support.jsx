@@ -2,11 +2,18 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
+import { Card, ST, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
+import MarkdownLite from '../ui/MarkdownLite.jsx';
 
 const MAX_ATTACHMENTS = 3;
 
+// FAQ встроен сюда же (21.08.2026, владелец: "объединить чтобы меньше было
+// разделов") — раньше "Вопросы и ответы" был отдельным пунктом меню
+// (/legal/faq, LegalDocument.jsx), теперь просто карточка над формой
+// обращения. Сам /legal/:key и таблица legal_documents не тронуты — там
+// живут и другие документы (оферта и т.д.), это просто ещё один потребитель
+// того же /legal/faq эндпоинта, без дублирования контента.
 export default function Support() {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
@@ -16,6 +23,11 @@ export default function Support() {
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [faq, setFaq] = useState(null);
+
+  useEffect(() => {
+    api.get('/legal/faq').then((res) => setFaq(res.data)).catch(() => {});
+  }, []);
 
   // Баг №3: раньше "✓ Отправлено" исчезало насовсем при уходе со страницы —
   // не было способа увидеть, что обращение реально дошло, если вернуться
@@ -57,10 +69,19 @@ export default function Support() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Поддержка</div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Помощь и поддержка</div>
+
+      {faq && (
+        <Card style={{ marginBottom: 12 }}>
+          <ST>{faq.title || 'Вопросы и ответы'}</ST>
+          <MarkdownLite text={faq.content} />
+        </Card>
+      )}
+
       <Card>
+        <ST>Написать в поддержку</ST>
         <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-          Опишите вопрос или проблему — ответ увидите здесь же, в "Ваших обращениях" (и продублируем на email).
+          Не нашли ответ выше? Опишите вопрос или проблему — ответ увидите здесь же, в "Ваших обращениях" (и продублируем на email).
         </div>
         {error && <div className="alert alert-error">{error}</div>}
         {!sent ? (
