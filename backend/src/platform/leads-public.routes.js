@@ -13,15 +13,12 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireModule } = require('../core/sdk');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
+const { normalizeRuPhone } = require('../utils/phone');
+const { findMatchingClientId } = require('../modules/leads/leadMatching');
 
 const router = express.Router();
 
 const CLIENT_TYPES = ['individual', 'legal_entity'];
-// Ровно 10 цифр после кода страны (российский мобильный/городской номер без
-// +7/8) — маска на фронте (PublicLeadForm.jsx) уже приводит ввод к этому
-// виду, но публичный роут без авторизации нельзя валидировать только на
-// клиенте (тривиально обойти прямым запросом), поэтому проверяем и здесь.
-const PHONE_DIGITS_RE = /^\d{10}$/;
 
 router.get(
   '/token',
@@ -63,9 +60,10 @@ router.post(
     // Телефон необязателен (как и раньше — человек мог оставить только имя
     // и комментарий), но если указан — должен быть похож на настоящий
     // номер, а не произвольный текст/цифры (маска на фронте уже приводит
-    // к 10 цифрам, здесь просто перепроверяем то же самое).
-    const phoneDigits = phone ? phone.replace(/\D/g, '').replace(/^7|^8/, '') : '';
-    if (phone && !PHONE_DIGITS_RE.test(phoneDigits)) {
+    // к 10 цифрам, здесь просто перепроверяем то же самое — та же функция,
+    // что и у ручного добавления заявки, leads.routes.js).
+    const normalizedPhone = phone ? normalizeRuPhone(phone) : null;
+    if (phone && !normalizedPhone) {
       await recordFailedLogin(req.ip, `leads-public:${req.params.token}`);
       return res.status(400).json({ error: 'Некорректный номер телефона' });
     }
@@ -85,10 +83,11 @@ router.post(
       return res.status(404).json({ error: 'Ссылка недействительна' });
     }
 
+    const clientId = normalizedPhone ? await findMatchingClientId(company.rows[0].id, normalizedPhone) : null;
     await pool.query(
-      `INSERT INTO sales_leads (company_id, name, phone, client_type, comment, personal_data_consent_at)
-       VALUES ($1, $2, $3, $4, $5, now())`,
-      [company.rows[0].id, name.trim(), phone ? `+7${phoneDigits}` : null, clientType || 'individual', comment || null]
+      `INSERT INTO sales_leads (company_id, name, phone, client_type, comment, personal_data_consent_at, client_id)
+       VALUES ($1, $2, $3, $4, $5, now(), $6)`,
+      [company.rows[0].id, name.trim(), normalizedPhone, clientType || 'individual', comment || null, clientId]
     );
     res.status(201).json({ ok: true });
   })

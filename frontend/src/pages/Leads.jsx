@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { copyToClipboard } from '../utils/clipboard.js';
+import { nextPhoneValue } from '../utils/phone.js';
 import { Card, Field, TextInput, TextArea, Select, Btn, C } from '../ui/components.jsx';
 
 // Модуль "Заявки" (20.08.2026) — первый повод: клининг, владелица сама
@@ -18,6 +19,16 @@ function nextStatus(status) {
   return i >= 0 && i < STATUS_ORDER.length - 1 ? STATUS_ORDER[i + 1] : null;
 }
 
+// "2 раза"/"5 раз"/"21 раз" — стандартное русское склонение числительных,
+// не завязано конкретно на "раз" (пригодится, если понадобится где-то ещё).
+function pluralRu(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
 function LeadCard({ lead, onAdvance, onStatusChange, onDelete }) {
   const next = nextStatus(lead.status);
   const paid = lead.status === 'paid';
@@ -33,6 +44,19 @@ function LeadCard({ lead, onAdvance, onStatusChange, onDelete }) {
         <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
           {CLIENT_TYPE_LABELS[lead.client_type] || lead.client_type}{lead.phone ? ` · ${lead.phone}` : ''}
         </div>
+        {/* Связь с "Клиентами" и повторные обращения (21.08.2026, владелец:
+            "если клиент уже третий раз закажет уборку, определится ли он?")
+            — сопоставление по телефону при создании заявки, см.
+            backend/src/modules/leads/leadMatching.js. repeat_count включает
+            саму текущую заявку, поэтому ">1" — правильное условие "уже было". */}
+        {lead.client_name && (
+          <div style={{ fontSize: 11, color: C.primary, fontWeight: 600, marginTop: 3 }}>Клиент: {lead.client_name}</div>
+        )}
+        {lead.repeat_count > 1 && (
+          <div style={{ fontSize: 11, color: C.orange, fontWeight: 600, marginTop: 3 }}>
+            Обращались {lead.repeat_count} {pluralRu(lead.repeat_count, 'раз', 'раза', 'раз')}
+          </div>
+        )}
       </div>
       {lead.comment && <div style={{ fontSize: 13, color: C.secondary, marginTop: 8 }}>{lead.comment}</div>}
       <div style={{ fontSize: 11, color: C.subtle, marginTop: 8 }}>
@@ -65,6 +89,31 @@ export default function Leads() {
   const [publicLink, setPublicLink] = useState(null);
   const [publicLinkLoading, setPublicLinkLoading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Выгрузка CSV (21.08.2026) — api.get с responseType:'blob', а не обычная
+  // <a href="...">: авторизация здесь по Bearer-токену в заголовке
+  // (api/client.js), не по cookie, обычная ссылка не смогла бы его
+  // передать. Временный <a download> + blob-URL — стандартный обходной путь
+  // для скачивания файла через авторизованный axios-запрос.
+  async function handleExportCsv() {
+    setExporting(true);
+    try {
+      const res = await api.get('/modules/leads/export.csv', { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leads.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Не удалось скачать список');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function load() {
     return api.get('/modules/leads').then((res) => setLeads(res.data)).finally(() => setLoading(false));
@@ -131,9 +180,14 @@ export default function Leads() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>Заявки</div>
-        <Btn small onClick={() => setShowForm((v) => !v)}>{showForm ? 'Отмена' : '+ Новая заявка'}</Btn>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {leads.length > 0 && (
+            <Btn small variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? '…' : 'Скачать CSV'}</Btn>
+          )}
+          <Btn small onClick={() => setShowForm((v) => !v)}>{showForm ? 'Отмена' : '+ Новая заявка'}</Btn>
+        </div>
       </div>
 
       <Card style={{ marginBottom: 16 }}>
@@ -175,7 +229,7 @@ export default function Leads() {
             <TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Мария Иванова или ООО «Ромашка»" />
           </Field>
           <Field label="Телефон">
-            <TextInput value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+7 900 123-45-67" />
+            <TextInput type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: nextPhoneValue(e.target.value) })} placeholder="+7 (900) 123-45-67" />
           </Field>
           <Field label="Тип клиента">
             <Select value={form.clientType} onChange={(e) => setForm({ ...form, clientType: e.target.value })}>

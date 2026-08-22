@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card, Btn, TextInput, TextArea, Field, C, F } from '../ui/components.jsx';
+import { nextPhoneValue } from '../utils/phone.js';
 
 // Публичная форма приёма заявок (20.08.2026) — НЕ обёрнута в PrivateRoute/
 // Layout, свой изолированный axios-инстанс (тот же приём, что в
@@ -12,25 +13,6 @@ import { Card, Btn, TextInput, TextArea, Field, C, F } from '../ui/components.js
 // не спрашиваем на публичной форме — лишнее трение для человека, который
 // просто оставляет контакт; уточняется потом внутри, при обработке заявки.
 const publicApi = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api', timeout: 20000 });
-
-// Жёсткий формат номера (21.08.2026, владелец: "могут вводить неправильно" —
-// реальный случай был "5455225412224", 13 цифр без структуры). Маска builds
-// "+7 (XXX) XXX-XX-XX" по мере ввода, лишние цифры сверх 10 просто
-// отбрасываются, а не накапливаются — тот же принцип, что и у обычных полей
-// телефона в банковских приложениях. Ведущие 7/8 (человек мог начать вводить
-// с них по привычке) снимаются, чтобы не задвоить с уже выведенным +7.
-function formatPhoneInput(raw) {
-  let digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('7') || digits.startsWith('8')) digits = digits.slice(1);
-  digits = digits.slice(0, 10);
-  let out = '+7';
-  if (digits.length > 0) out += ` (${digits.slice(0, 3)}`;
-  if (digits.length >= 3) out += ')';
-  if (digits.length > 3) out += ` ${digits.slice(3, 6)}`;
-  if (digits.length > 6) out += `-${digits.slice(6, 8)}`;
-  if (digits.length > 8) out += `-${digits.slice(8, 10)}`;
-  return out;
-}
 
 export default function PublicLeadForm() {
   const { token } = useParams();
@@ -43,12 +25,7 @@ export default function PublicLeadForm() {
   const [error, setError] = useState('');
 
   function onPhoneChange(e) {
-    let digits = e.target.value.replace(/\D/g, '');
-    if (digits.startsWith('7') || digits.startsWith('8')) digits = digits.slice(1);
-    // Стереть поле целиком (backspace до пустоты) должно давать пустую
-    // строку, а не "+7" — иначе постоянный префикс мешает очистить поле,
-    // если номер ввели по ошибке.
-    setPhone(digits.length === 0 ? '' : formatPhoneInput(e.target.value));
+    setPhone(nextPhoneValue(e.target.value));
   }
 
   async function submit() {
