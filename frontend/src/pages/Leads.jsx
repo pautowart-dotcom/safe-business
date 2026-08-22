@@ -79,7 +79,11 @@ export default function Leads() {
     setPublicLinkLoading(true);
     try {
       const res = await api.get('/platform/leads-public/token');
-      setPublicLink(`${window.location.origin}/l/${res.data.token}`);
+      // Роутер смонтирован с basename="/lk" (main.jsx) — путь /l/:token в
+      // App.jsx на самом деле открывается только по /lk/l/:token, у nginx
+      // нет отдельного location для голого /l/ на корне домена, без этого
+      // префикса ссылка проваливалась в лендинг вместо формы заявки.
+      setPublicLink(`${window.location.origin}/lk/l/${res.data.token}`);
     } finally {
       setPublicLinkLoading(false);
     }
