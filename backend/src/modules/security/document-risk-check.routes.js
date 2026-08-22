@@ -115,10 +115,19 @@ router.post(
 
     const filename = await saveRiskCheckDocument(req.file.buffer, req.file.mimetype);
 
+    // multer/busboy декодирует имя файла из multipart-заголовка как latin1 по
+    // умолчанию, даже когда браузер реально прислал UTF-8 (кириллица) —
+    // известная особенность, не баг конкретно нашего кода. Без этой
+    // перекодировки кириллическое имя файла превращалось в кракозябры
+    // ("Ð Ð¾Ð»Ð¸Ñ‚Ð¸ÐºÐ°..." вместо "Политика...") везде, где original_filename
+    // потом показывается — Buffer.from(...,'latin1').toString('utf8') это
+    // стандартный, задокументированный обходной путь.
+    const originalFilename = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
     const { rows } = await pool.query(
       `INSERT INTO document_risk_checks (company_id, original_filename, document_type, file_url, extracted_text_enc, created_by_user_id)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [req.tenant.companyId, req.file.originalname, documentType, getFileUrl(filename), encrypt(text), req.user.id]
+      [req.tenant.companyId, originalFilename, documentType, getFileUrl(filename), encrypt(text), req.user.id]
     );
     const checkId = rows[0].id;
 
