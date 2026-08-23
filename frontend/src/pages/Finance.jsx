@@ -567,8 +567,32 @@ function OverviewTab({
   recurringForm, setRecurringForm, editingRecurringId, openAddRecurring, openEditRecurring, closeRecurringForm, submitRecurring, deleteRecurring,
   expenseForm, setExpenseForm, editingExpenseId, openAddExpense, openEditExpense, closeExpenseForm, submitExpense, deleteExpense,
 }) {
+  const isDesktop = useIsDesktop();
+  // На десктопе (23.08.2026) карточка П&Л на всю ширину читалась как один
+  // растянутый тёмный блок с огромными пустыми промежутками между надписью и
+  // суммой (живой скриншот владельца) — сама по себе карточка не менялась,
+  // просто раньше не было ограничения по ширине. Стат-ряд сверху даёт
+  // "картину одним взглядом", а весь список карточек ниже (включая ту же
+  // П&Л-карточку) идёт в адаптивную сетку — тот же приём, что уже
+  // сработал на "Главной", здесь просто применён к тому же самому JSX.
+  const totalExpenses = (summary.masterSalaries || 0) + (summary.fixedExpenses || 0) + (summary.percentExpenses || 0) + (summary.variableExpenses || 0) + (summary.materialsCost || 0);
+
   return (
     <div>
+      {isDesktop && (
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', gap: 24, marginBottom: 16 }}>
+          <StatTile label="Выручка за период" value={money(summary.revenue)} />
+          <StatTile label="Расходы за период" value={money(totalExpenses)} />
+          {summary.netProfit != null && (
+            <div style={{ flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 11, color: C.subtle, marginBottom: 4 }}>Чистая прибыль</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: summary.netProfit >= 0 ? C.primary : C.red }}>{money(summary.netProfit)}</div>
+            </div>
+          )}
+          <StatTile label="Услуг за период" value={summary.visitsCount ?? 0} />
+        </div>
+      )}
+      <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' } : undefined}>
       <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 10px' }}>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Услуг за период</div>
@@ -785,6 +809,8 @@ function OverviewTab({
           ))}
         </Card>
       )}
+
+      </div>
     </div>
   );
 }
