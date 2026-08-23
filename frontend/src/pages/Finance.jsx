@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
 import { TrendLineChart, StatTile, StackedBarBreakdown, VerticalBarChart, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
+import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { nicheLabel } from '../utils/niches.js';
 
@@ -87,6 +88,7 @@ function usePeriodParams() {
 
 function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, setCustomTo }) {
   const isCustom = preset === 'custom';
+  const isDesktop = useIsDesktop();
   // Баг №10: flex:1 на 5 кнопках без переноса/прокрутки заставлял их делить
   // ширину строки поровну независимо от длины текста ("Прошлый месяц" не
   // помещался) — на узком экране кнопки сжимались и наезжали друг на друга,
@@ -100,19 +102,25 @@ function PeriodBar({ preset, setPreset, customFrom, setCustomFrom, customTo, set
   });
   return (
     <div style={{ marginBottom: 16 }}>
+      {/* На десктопе (23.08.2026) сегменты больше не растягиваются
+          space-between на всю ширину — это выглядело как разбросанные по
+          экрану кнопки с пустотой между ними на широком мониторе (см.
+          скриншот владельца). Плотный ряд слева, как нативный сегментный
+          переключатель на Маке, вместо растянутого на всю ширину. На
+          телефоне поведение не тронуто. */}
       {/* "Даты" раньше была пятой кнопкой в этом же ряду — при переносе на
           вторую строку (flexWrap) оставалась там одна, с пустым местом
           рядом (не нравилось владельцу). Вынесена отдельной строкой-ссылкой
           под сегментами — так у 4 пресетов ровный ряд, а свой период не
           ломает раскладку, даже если сам заголовок "Даты" короче остальных. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, background: C.surface, borderRadius: 12, padding: 3 }}>
+      <div style={{ display: isDesktop ? 'inline-flex' : 'flex', flexWrap: 'wrap', justifyContent: isDesktop ? 'flex-start' : 'space-between', gap: 4, background: C.surface, borderRadius: 12, padding: 3 }}>
         {PERIOD_PRESETS.map(([k, l]) => (
           <button key={k} onClick={() => setPreset(k)} style={tabStyle(preset === k)}>{l}</button>
         ))}
       </div>
       <button
         onClick={() => setPreset('custom')}
-        style={{ display: 'block', marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontFamily: F, padding: '10px 2px 0', fontSize: 12, fontWeight: isCustom ? 700 : 500, color: isCustom ? C.primary : C.subtle }}
+        style={{ display: 'block', marginLeft: isDesktop ? 0 : 'auto', background: 'none', border: 'none', cursor: 'pointer', fontFamily: F, padding: '10px 2px 0', fontSize: 12, fontWeight: isCustom ? 700 : 500, color: isCustom ? C.primary : C.subtle }}
       >
         {isCustom ? 'Свой период ✓' : 'Указать даты вручную ›'}
       </button>
@@ -164,6 +172,7 @@ export default function Finance() {
 // ---------- Владелец ----------
 
 function OwnerFinance() {
+  const isDesktop = useIsDesktop();
   const period = usePeriodParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') || 'overview');
@@ -389,12 +398,12 @@ function OwnerFinance() {
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Финансы</div>
       <PeriodBar {...period} />
 
-      <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
+      <div style={{ display: isDesktop ? 'inline-flex' : 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
         {[['overview', 'Обзор'], ['masters', 'По мастерам'], ['analytics', 'Аналитика']].map(([k, l]) => (
           <button
             key={k}
             onClick={() => changeTab(k)}
-            style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: F, background: tab === k ? C.bg : 'transparent', color: tab === k ? C.primary : C.subtle, fontSize: 13, fontWeight: tab === k ? 700 : 400, boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
+            style={{ flex: isDesktop ? 'none' : 1, padding: isDesktop ? '9px 18px' : '9px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: F, background: tab === k ? C.bg : 'transparent', color: tab === k ? C.primary : C.subtle, fontSize: 13, fontWeight: tab === k ? 700 : 400, boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
           >
             {l}
           </button>

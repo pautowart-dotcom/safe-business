@@ -8,7 +8,22 @@ import AiAssistantWidget from './AiAssistantWidget.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { C, F, MAX_WIDTH } from '../ui/theme.js';
 
-const DESKTOP_CONTENT_WIDTH = 1200;
+// 23.08.2026: первая версия просто сажала весь контент на 1200px — на
+// "лёгких" экранах (одна карточка-сводка, форма, список из пары строк) это
+// растягивало сегменты/вкладки/карточки на всю ширину с огромными пустыми
+// промежутками (см. живой скриншот "Финансов"). Разные экраны по факту
+// рассчитаны на очень разную плотность — по умолчанию узкая колонка (ближе
+// к тому, как на Маке не растягивают простые окна на весь экран), и только
+// явно "списочные" разделы получают широкий контейнер. Список неполный —
+// это первая прикидка по смыслу раздела, не проверено вживую по каждому;
+// расширять по мере того, как реально увидим растянутость или наоборот тесноту.
+const DESKTOP_WIDE_ROUTES = ['/', '/clients', '/leads', '/visits', '/team', '/supplies', '/photo-reports'];
+const DESKTOP_WIDE_WIDTH = 1200;
+const DESKTOP_NARROW_WIDTH = 760;
+
+function desktopContentWidth(pathname) {
+  return DESKTOP_WIDE_ROUTES.includes(pathname) ? DESKTOP_WIDE_WIDTH : DESKTOP_NARROW_WIDTH;
+}
 
 const PULL_THRESHOLD = 64;
 const PULL_MAX = 100;
@@ -237,7 +252,7 @@ export default function Layout() {
             <div style={{ fontSize: 14.5, fontWeight: 700, color: C.primary }}>{isHome ? 'Главная' : TITLES[location.pathname] || ''}</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
-            <div style={{ maxWidth: DESKTOP_CONTENT_WIDTH, margin: '0 auto' }}>
+            <div style={{ maxWidth: desktopContentWidth(location.pathname), margin: '0 auto' }}>
               <Outlet />
             </div>
           </div>
