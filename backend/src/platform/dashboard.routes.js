@@ -51,6 +51,7 @@ const ACTION_LABELS = {
   'membership.deactivated': () => 'Сотрудник уволен из команды',
   'feedback_message.sent': () => 'Отправлено сообщение в обратную связь',
   'calendar_event.created': () => 'Добавлено событие в календарь',
+  'document_risk_check.created': () => 'Проверен документ на риски',
 };
 
 function humanizeEvent(row) {

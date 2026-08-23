@@ -83,6 +83,30 @@ const OWNER_HUB_PATHS = ['/leads', '/clients', '/visits', '/photo-reports', '/su
 const ADMIN_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
 const MASTER_HUB_PATHS = ['/visits', '/photo-reports', '/knowledge', '/settings'];
 
+// Иконки для пунктов хаба "Ещё" — те же, что уже использует More.jsx для
+// тех же разделов, просто вынесены сюда, чтобы сайдбар на десктопе мог
+// показать их прямыми пунктами (23.08.2026: пустой сайдбар из 4 пунктов
+// на весь экран высотой в 840px выглядел незаконченным — на десктопе места
+// достаточно, чтобы не прятать разделы за "Ещё", как на телефоне).
+const HUB_ICONS = {
+  '/leads': 'inbox',
+  '/clients': 'clients',
+  '/visits': 'visit',
+  '/photo-reports': 'photo',
+  '/supplies': 'supply',
+  '/shift': 'shift',
+  '/knowledge': 'book',
+  '/feedback': 'msg',
+  '/team': 'team',
+  '/settings': 'settings',
+  '/dossier': 'doc',
+};
+// Те же ограничения по модулям, что и у More.jsx (OWNER_ITEMS) — на
+// десктопе пункты идут прямыми ссылками в сайдбаре, но видимость должна
+// остаться той же, иначе компания без модуля "Заявки"/"Визиты" увидит
+// ссылку на выключенный для неё раздел.
+const HUB_MODULE_KEYS = { '/leads': 'leads', '/visits': 'visits', '/photo-reports': 'visits' };
+
 const TITLES = {
   '/leads': 'Заявки',
   '/clients': 'Клиенты',
@@ -118,6 +142,14 @@ export default function Layout() {
 
   const nav = (isOwner ? OWNER_NAV : isManagement ? ADMIN_NAV : MASTER_NAV).filter((n) => !n.moduleKey || hasModule(n.moduleKey));
   const hubPaths = isOwner ? OWNER_HUB_PATHS : isManagement ? ADMIN_HUB_PATHS : MASTER_HUB_PATHS;
+  // Только для сайдбара на десктопе — прямые пункты + хаб-разделы одним
+  // списком, вместо того чтобы часть прятать за "Ещё" (там места мало
+  // осмысленно, здесь — нет, см. HUB_ICONS выше).
+  const desktopNav = [
+    ...nav.filter((n) => n.to !== '/more'),
+    ...hubPaths.filter((p) => !HUB_MODULE_KEYS[p] || hasModule(HUB_MODULE_KEYS[p])).map((p) => ({ to: p, label: TITLES[p], icon: HUB_ICONS[p] || 'doc' })),
+    nav.find((n) => n.to === '/more'),
+  ].filter(Boolean);
   const isHome = location.pathname === '/';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));
   const initial = user?.name?.[0]?.toUpperCase() || '?';
@@ -196,11 +228,14 @@ export default function Layout() {
     }
   }
 
-  // Первая версия десктопного каркаса (23.08.2026) — сайдбар вместо нижней
-  // навигации от 900px, тот же набор пунктов nav/hubPaths, что и в
-  // мобильной версии (не разворачиваем хаб "Ещё" в отдельные пункты сайдбара
-  // — сознательно оставлено на потом, чтобы не менять IA явочным порядком).
-  // Мобильная ветка ниже не тронута ни на символ.
+  // Десктопный каркас (23.08.2026, второй проход) — сайдбар вместо нижней
+  // навигации от 900px. Первая версия показывала только 4 прямых пункта —
+  // на 840px высоты сайдбар выглядел пустым и незаконченным (живой
+  // скриншот владельца), поэтому теперь показывает и разделы хаба "Ещё"
+  // тоже (desktopNav выше) — на десктопе для этого достаточно места, в
+  // отличие от телефона. "Ещё" остаётся в конце списка для того, что не
+  // вошло (Каталог услуг, ИИ-советник, Поддержка и т.д.). Мобильная ветка
+  // ниже не тронута ни на символ.
   if (isDesktop) {
     return (
       <div style={{ height: '100vh', display: 'flex', background: C.bg, fontFamily: F }}>
@@ -213,8 +248,8 @@ export default function Layout() {
               </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCompany?.name}</div>
             </div>
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {nav.map((n) => {
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>
+              {desktopNav.map((n) => {
                 const active = n.to === '/more' ? location.pathname === '/more' || moreActive : n.end ? location.pathname === n.to : location.pathname.startsWith(n.to);
                 return (
                   <NavLink

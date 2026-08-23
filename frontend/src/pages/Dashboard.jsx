@@ -244,9 +244,13 @@ function OwnerDashboard() {
 
   return (
     <div>
+      {/* На десктопе название компании уже есть в сайдбаре (Layout.jsx) и в
+          шапке раздела — третье повторение здесь (23.08.2026, живой
+          скриншот) только отъедало место без смысла. Дата/приветствие
+          остаются — это не дубль, единственное место, где они есть. */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.primary }}>{currentCompany?.name}</div>
-        <div style={{ fontSize: 13, color: C.subtle, marginTop: 4 }}>
+        {!isDesktop && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.primary }}>{currentCompany?.name}</div>}
+        <div style={{ fontSize: isDesktop ? 14 : 13, color: C.subtle, marginTop: isDesktop ? 0 : 4 }}>
           {greeting()} · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
       </div>
@@ -366,10 +370,16 @@ function OwnerDashboard() {
         </Card>
       )}
 
-      <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
-      </div>
+      {/* На десктопе выручка уже показана в стат-ряду сверху — этот тёмный
+          блок здесь просто дублировал то же число и визуально не сочетался
+          с белыми карточками-соседями по сетке (живой скриншот 23.08.2026).
+          На телефоне это по-прежнему единственное место, где видна выручка. */}
+      {!isDesktop && (
+        <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
+        </div>
+      )}
 
       <Card>
         <ST>Личные заметки на сегодня</ST>
