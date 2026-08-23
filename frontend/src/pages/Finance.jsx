@@ -4,7 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
-import { TrendLineChart, StatTile, StackedBarBreakdown, VerticalBarChart, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
+import { TrendLineChart, StatTile, StackedBarBreakdown, VerticalBarChart, Sparkline, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { nicheLabel } from '../utils/niches.js';
@@ -439,6 +439,7 @@ function OwnerFinance() {
           closeExpenseForm={closeExpenseForm}
           submitExpense={submitExpense}
           deleteExpense={deleteExpense}
+          trends={trends}
         />
       )}
       {tab === 'masters' && (
@@ -566,6 +567,7 @@ function OverviewTab({
   revenueForm, setRevenueForm, openAddRevenue, closeRevenueForm, submitRevenue, deleteRevenue,
   recurringForm, setRecurringForm, editingRecurringId, openAddRecurring, openEditRecurring, closeRecurringForm, submitRecurring, deleteRecurring,
   expenseForm, setExpenseForm, editingExpenseId, openAddExpense, openEditExpense, closeExpenseForm, submitExpense, deleteExpense,
+  trends,
 }) {
   const isDesktop = useIsDesktop();
   // На десктопе (23.08.2026) карточка П&Л на всю ширину читалась как один
@@ -575,23 +577,82 @@ function OverviewTab({
   // "картину одним взглядом", а весь список карточек ниже (включая ту же
   // П&Л-карточку) идёт в адаптивную сетку — тот же приём, что уже
   // сработал на "Главной", здесь просто применён к тому же самому JSX.
+  //
+  // 23.08.2026, второй проход: "колхозно" (владелец) — просто разложить те
+  // же карточки по сетке было мало, нужен настоящий контент, которого не
+  // было в "Обзоре". Тренд-график и разбивка расходов по структуре уже были
+  // построены для вкладки "Аналитика" (AnalyticsTab ниже) — тот же
+  // TrendLineChart/StackedBarBreakdown, те же данные (trends уже
+  // загружаются в OwnerFinance независимо от вкладки), просто на "Обзоре"
+  // их не было видно, пока не переключишься на "Аналитику". Дублировать
+  // здесь не считаю проблемой — эти графики о другом, чем построчный П&Л
+  // ниже (тренд по месяцам vs текущий период), и оба взгляда уместны.
   const totalExpenses = (summary.masterSalaries || 0) + (summary.fixedExpenses || 0) + (summary.percentExpenses || 0) + (summary.variableExpenses || 0) + (summary.materialsCost || 0);
+  const hasTrends = isDesktop && trends && trends.length >= 2;
+  const trendCurr = hasTrends ? trends[trends.length - 1] : null;
+  const trendPrev = hasTrends ? trends[trends.length - 2] : null;
+  const trendHasProfit = hasTrends && trendCurr.netProfit !== undefined;
+  const revenueDelta = hasTrends ? pctChange(trendCurr.revenue, trendPrev.revenue) : null;
+  const profitDelta = trendHasProfit ? pctChange(trendCurr.netProfit, trendPrev.netProfit) : null;
+  const chartPoints = hasTrends
+    ? trends.map((t) => ({ x: monthLabel(t.month), values: trendHasProfit ? { revenue: t.revenue, netProfit: t.netProfit } : { revenue: t.revenue } }))
+    : null;
+  const chartSeries = trendHasProfit
+    ? [{ key: 'revenue', label: 'Выручка', color: CHART_COLORS.blue }, { key: 'netProfit', label: 'Прибыль', color: CHART_COLORS.orange }]
+    : [{ key: 'revenue', label: 'Выручка', color: CHART_COLORS.blue }];
+  const structureSegments = [
+    { key: 'salaries', label: 'Зарплаты', value: summary.masterSalaries || 0, color: CHART_COLORS.blue },
+    { key: 'fixed', label: 'Пост. расходы', value: summary.fixedExpenses || 0, color: CHART_COLORS.orange },
+    { key: 'percent', label: '% расходы', value: summary.percentExpenses || 0, color: CHART_COLORS.aqua },
+    { key: 'variable', label: 'Перем. расходы', value: summary.variableExpenses || 0, color: CHART_COLORS.yellow },
+  ];
+  const categoryColorCycle = [CHART_COLORS.blue, CHART_COLORS.orange, CHART_COLORS.aqua, CHART_COLORS.yellow];
 
   return (
     <div>
       {isDesktop && (
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', gap: 24, marginBottom: 16 }}>
-          <StatTile label="Выручка за период" value={money(summary.revenue)} />
+          <StatTile
+            label="Выручка за период"
+            value={money(summary.revenue)}
+            delta={revenueDelta != null ? `${revenueDelta >= 0 ? '+' : ''}${revenueDelta}% к прошлому мес.` : null}
+            deltaGood={revenueDelta != null ? revenueDelta >= 0 : null}
+            trend={hasTrends ? trends.map((t) => t.revenue) : null}
+            trendColor={CHART_COLORS.blue}
+          />
           <StatTile label="Расходы за период" value={money(totalExpenses)} />
           {summary.netProfit != null && (
             <div style={{ flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 11, color: C.subtle, marginBottom: 4 }}>Чистая прибыль</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: summary.netProfit >= 0 ? C.primary : C.red }}>{money(summary.netProfit)}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: summary.netProfit >= 0 ? C.primary : C.red }}>{money(summary.netProfit)}</div>
+                  {profitDelta != null && (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: profitDelta >= 0 ? C.green : C.red }}>{profitDelta >= 0 ? '+' : ''}{profitDelta}% к прошлому мес.</div>
+                  )}
+                </div>
+                {trendHasProfit && <Sparkline values={trends.map((t) => t.netProfit)} color={CHART_COLORS.orange} />}
+              </div>
             </div>
           )}
           <StatTile label="Услуг за период" value={summary.visitsCount ?? 0} />
         </div>
       )}
+
+      {isDesktop && chartPoints && (
+        <Card style={{ marginBottom: 16 }}>
+          <ST>Выручка{trendHasProfit ? ' и прибыль' : ''} по месяцам</ST>
+          <TrendLineChart points={chartPoints} series={chartSeries} formatY={compactMoney} />
+        </Card>
+      )}
+
+      {isDesktop && summary.netProfit != null && totalExpenses > 0 && (
+        <Card style={{ marginBottom: 16 }}>
+          <ST>Структура расходов за период</ST>
+          <StackedBarBreakdown segments={structureSegments} />
+        </Card>
+      )}
+
       <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' } : undefined}>
       <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 10px' }}>
@@ -789,24 +850,42 @@ function OverviewTab({
       {summary.expensesByCategory && summary.expensesByCategory.length > 0 && (
         <Card>
           <ST>Переменные расходы по категориям</ST>
-          {summary.expensesByCategory.map((row) => (
-            <div key={row.category} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
-              <span style={{ color: C.secondary }}>{EXPENSE_CATEGORY_LABELS[row.category] || row.category}</span>
-              <span style={{ fontWeight: 700 }}>{money(row.total)}</span>
-            </div>
-          ))}
+          {isDesktop ? (
+            <StackedBarBreakdown
+              segments={summary.expensesByCategory.map((row, i) => ({
+                key: row.category, label: EXPENSE_CATEGORY_LABELS[row.category] || row.category, value: row.total,
+                color: categoryColorCycle[i % categoryColorCycle.length],
+              }))}
+            />
+          ) : (
+            summary.expensesByCategory.map((row) => (
+              <div key={row.category} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+                <span style={{ color: C.secondary }}>{EXPENSE_CATEGORY_LABELS[row.category] || row.category}</span>
+                <span style={{ fontWeight: 700 }}>{money(row.total)}</span>
+              </div>
+            ))
+          )}
         </Card>
       )}
 
       {summary.advertisingByChannel && summary.advertisingByChannel.length > 0 && (
         <Card>
           <ST>Реклама по каналам</ST>
-          {summary.advertisingByChannel.map((row) => (
-            <div key={row.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
-              <span style={{ color: C.secondary }}>{AD_CHANNEL_LABELS[row.channel] || row.channel}</span>
-              <span style={{ fontWeight: 700 }}>{money(row.total)}</span>
-            </div>
-          ))}
+          {isDesktop ? (
+            <StackedBarBreakdown
+              segments={summary.advertisingByChannel.map((row, i) => ({
+                key: row.channel, label: AD_CHANNEL_LABELS[row.channel] || row.channel, value: row.total,
+                color: categoryColorCycle[i % categoryColorCycle.length],
+              }))}
+            />
+          ) : (
+            summary.advertisingByChannel.map((row) => (
+              <div key={row.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+                <span style={{ color: C.secondary }}>{AD_CHANNEL_LABELS[row.channel] || row.channel}</span>
+                <span style={{ fontWeight: 700 }}>{money(row.total)}</span>
+              </div>
+            ))
+          )}
         </Card>
       )}
 
