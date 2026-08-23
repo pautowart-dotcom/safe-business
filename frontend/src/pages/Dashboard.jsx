@@ -7,6 +7,7 @@ import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
 import { FM } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import InstallAppBanner from '../components/InstallAppBanner.jsx';
+import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 
@@ -128,9 +129,37 @@ export default function Dashboard() {
 // не задеть админа/мастера.
 const COMPLIANCE_CATEGORIES = ['staff', 'premises', 'documents'];
 
+// Приборная панель из 4 показателей — только на десктопе (23.08.2026,
+// первая версия десктопного каркаса, см. Layout.jsx). Числа берутся из уже
+// загруженных данных экрана, ничего не выдумываем сверху: там, где для
+// владельца сейчас нет метрики "визитов" (это поле есть только у мастера/
+// отчётов смены), показываем "Отчётов" — заполненность посещений за день.
+function StatRow({ revenueLabel, revenue, reportsDone, reportsTotal, criticalCount, indexPercent }) {
+  const stats = [
+    { label: 'Выручка сегодня', value: money(revenue) },
+    { label: 'Отчётов', value: reportsTotal > 0 ? `${reportsDone}/${reportsTotal}` : '—' },
+    { label: 'Критических действий', value: criticalCount, dot: criticalCount > 0 ? C.red : null },
+    { label: 'Индекс безопасности', value: indexPercent != null ? `${indexPercent}%` : '—', dot: indexPercent != null ? C.orange : null },
+  ];
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 0', display: 'flex', marginBottom: 16 }}>
+      {stats.map((s, i) => (
+        <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, borderLeft: i > 0 ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.subtle, textTransform: 'uppercase' }}>{s.label}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {s.dot && <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />}
+            <div style={{ fontSize: 19, fontWeight: 800, color: C.primary, fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OwnerDashboard() {
   const { currentCompany } = useAuth();
   const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
   const [summary, setSummary] = useState(null);
   const [revenue, setRevenue] = useState(0);
   const [security, setSecurity] = useState(null);
@@ -222,6 +251,16 @@ function OwnerDashboard() {
         </div>
       </div>
 
+      {isDesktop && (
+        <StatRow
+          revenue={revenue}
+          reportsDone={summary.reportsDone}
+          reportsTotal={summary.reportsTotal}
+          criticalCount={criticalCount}
+          indexPercent={security?.indexPercent}
+        />
+      )}
+
       {/* 1. Критические действия — самый заметный блок, но только когда
           реально есть что показать. Раньше блок оставался на экране и
           пустым/зелёным состоянием "критических действий нет" — владелец
@@ -249,6 +288,12 @@ function OwnerDashboard() {
           ))}
         </Card>
       )}
+
+      {/* От "Статус документов" и до конца — на десктопе раскладываем в
+          адаптивную сетку (2-3 колонки в зависимости от ширины), вместо
+          одной длинной ленты как на телефоне. Содержимое каждой карточки не
+          трогали — только контейнер вокруг них. */}
+      <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, alignItems: 'start' } : undefined}>
 
       {/* 2. Статус в целом — просто числа, без индекса/скоринга. */}
       <Card style={{ marginBottom: 12 }}>
@@ -399,6 +444,8 @@ function OwnerDashboard() {
           ))}
         </Card>
       )}
+
+      </div>
     </div>
   );
 }
