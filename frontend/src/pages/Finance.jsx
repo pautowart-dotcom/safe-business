@@ -611,24 +611,24 @@ function OverviewTab({
   return (
     <div>
       {isDesktop && (
-        <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', gap: 24, marginBottom: 16 }}>
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 20, marginBottom: 16 }}>
           <StatTile
             label="Выручка за период"
             value={money(summary.revenue)}
-            delta={revenueDelta != null ? `${revenueDelta >= 0 ? '+' : ''}${revenueDelta}% к прошлому мес.` : null}
+            delta={revenueDelta != null ? `${revenueDelta >= 0 ? '+' : ''}${revenueDelta}%` : null}
             deltaGood={revenueDelta != null ? revenueDelta >= 0 : null}
             trend={hasTrends ? trends.map((t) => t.revenue) : null}
             trendColor={CHART_COLORS.blue}
           />
           <StatTile label="Расходы за период" value={money(totalExpenses)} />
           {summary.netProfit != null && (
-            <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: 11, color: C.subtle, marginBottom: 4 }}>Чистая прибыль</div>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: summary.netProfit >= 0 ? C.primary : C.red }}>{money(summary.netProfit)}</div>
                   {profitDelta != null && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: profitDelta >= 0 ? C.green : C.red }}>{profitDelta >= 0 ? '+' : ''}{profitDelta}% к прошлому мес.</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: profitDelta >= 0 ? C.green : C.red }}>{profitDelta >= 0 ? '+' : ''}{profitDelta}%</div>
                   )}
                 </div>
                 {trendHasProfit && <Sparkline values={trends.map((t) => t.netProfit)} color={CHART_COLORS.orange} />}
@@ -639,18 +639,25 @@ function OverviewTab({
         </div>
       )}
 
-      {isDesktop && chartPoints && (
-        <Card style={{ marginBottom: 16 }}>
-          <ST>Выручка{trendHasProfit ? ' и прибыль' : ''} по месяцам</ST>
-          <TrendLineChart points={chartPoints} series={chartSeries} formatY={compactMoney} />
-        </Card>
-      )}
-
-      {isDesktop && summary.netProfit != null && totalExpenses > 0 && (
-        <Card style={{ marginBottom: 16 }}>
-          <ST>Структура расходов за период</ST>
-          <StackedBarBreakdown segments={structureSegments} />
-        </Card>
+      {/* График и структура расходов рядом, не друг под другом — график
+          важнее и шире (2/3), структура — компактная боковая карточка (1/3),
+          тот же приём, что у Stripe/Mercury-стиля дашбордов: главный график
+          не делит внимание поровну со вспомогательной разбивкой. */}
+      {isDesktop && (chartPoints || (summary.netProfit != null && totalExpenses > 0)) && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
+          {chartPoints && (
+            <Card style={{ flex: 2, minWidth: 0, marginBottom: 0 }}>
+              <ST>Выручка{trendHasProfit ? ' и прибыль' : ''} по месяцам</ST>
+              <TrendLineChart points={chartPoints} series={chartSeries} formatY={compactMoney} />
+            </Card>
+          )}
+          {summary.netProfit != null && totalExpenses > 0 && (
+            <Card style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
+              <ST>Структура расходов</ST>
+              <StackedBarBreakdown segments={structureSegments} />
+            </Card>
+          )}
+        </div>
       )}
 
       <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' } : undefined}>

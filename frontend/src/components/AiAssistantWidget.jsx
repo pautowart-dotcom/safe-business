@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Btn, TextArea, C, F } from '../ui/components.jsx';
 import { MAX_WIDTH } from '../ui/theme.js';
+import useIsDesktop from '../hooks/useIsDesktop.js';
 
 // Плавающий виджет ИИ-ассистента (20.08.2026, по просьбе владельца —
 // "не отдельный раздел, а маленький кружок как обычно на сайтах") —
@@ -80,6 +81,7 @@ function PaywallCard({ price }) {
 }
 
 export default function AiAssistantWidget() {
+  const isDesktop = useIsDesktop();
   const [open, setOpen] = useState(false);
   // null — ещё не знаем (идёт запрос), true/false — реальный статус
   // requireAiAdvisorSubscription на бэкенде (companies.routes.js /current).
@@ -256,11 +258,22 @@ export default function AiAssistantWidget() {
           Панели чата такая JS-подстройка высоты реально нужна (обход
           клавиатуры iOS, см. ниже), кнопке — нет, ей достаточно чистого CSS,
           как у nav. */}
+      {/* 23.08.2026: на десктопе нет ни MAX_WIDTH-колонки, ни нижнего меню
+          (сайдбар вместо них, Layout.jsx) — left:50%/translateX(-50%) центрировал
+          кружок по всей ширине окна браузера, и он всплывал прямо посреди
+          контента (владелец: "ассистент посередине, тут он не нужен"). На
+          десктопе — снизу справа, как обычно у чат-виджетов на сайтах. */}
       {!open && subscribed !== null && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Открыть ИИ-ассистента"
-          style={{
+          style={isDesktop ? {
+            position: 'fixed', right: 28, bottom: 28,
+            width: 44, height: 44, borderRadius: '50%',
+            background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            animation: 'ai-pulse 2.5s ease-in-out infinite', zIndex: 200,
+          } : {
             position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
             width: 40, height: 40, borderRadius: '50%',
             background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
@@ -275,7 +288,21 @@ export default function AiAssistantWidget() {
         </button>
       )}
 
-      {open && (
+      {open && isDesktop && (
+        // Десктоп — фиксированная панель снизу справа, без обхода мобильной
+        // клавиатуры (viewport.offsetTop/height ей ни к чему, это чисто
+        // iOS-специфичная подстройка выше).
+        <div style={{ position: 'fixed', right: 28, bottom: 28, width: 380, height: 520, maxHeight: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', pointerEvents: 'auto', background: C.bg, borderRadius: 16, border: `1px solid ${C.border}`, boxShadow: '0 8px 30px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: F, zIndex: 200 }}>
+          <AiAssistantPanelBody
+            subscribed={subscribed} aiPrice={aiPrice} messages={messages} sending={sending} pending={pending}
+            error={error} confirmBusy={confirmBusy} confirmError={confirmError} listEndRef={listEndRef}
+            input={input} setInput={setInput} onKeyDown={onKeyDown} send={send}
+            onConfirm={confirmPending} onCancel={cancelPending} onClose={() => setOpen(false)} onNewDialog={newDialog}
+          />
+        </div>
+      )}
+
+      {open && !isDesktop && (
         <div style={{ position: 'fixed', top: viewport.offsetTop, height: viewport.height, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, pointerEvents: 'none', zIndex: 200 }}>
         <div
           style={{
@@ -285,72 +312,90 @@ export default function AiAssistantWidget() {
             boxShadow: '0 8px 30px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: F,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>ИИ-ассистент</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {subscribed && (
-                <button
-                  onClick={newDialog}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.subtle, fontSize: 12, fontWeight: 600 }}
-                >
-                  Новый диалог
-                </button>
-              )}
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="Закрыть"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: C.subtle, fontSize: 18, lineHeight: 1 }}
-              >
-                ✕
-              </button>
-            </div>
+          <AiAssistantPanelBody
+            subscribed={subscribed} aiPrice={aiPrice} messages={messages} sending={sending} pending={pending}
+            error={error} confirmBusy={confirmBusy} confirmError={confirmError} listEndRef={listEndRef}
+            input={input} setInput={setInput} onKeyDown={onKeyDown} send={send}
+            onConfirm={confirmPending} onCancel={cancelPending} onClose={() => setOpen(false)} onNewDialog={newDialog}
+          />
+        </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Тело панели — общее для десктопной (снизу справа) и мобильной (над нижним
+// меню) обвязки выше, различается только внешний fixed-контейнер.
+function AiAssistantPanelBody({
+  subscribed, aiPrice, messages, sending, pending, error, confirmBusy, confirmError, listEndRef,
+  input, setInput, onKeyDown, send, onConfirm, onCancel, onClose, onNewDialog,
+}) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>ИИ-ассистент</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {subscribed && (
+            <button
+              onClick={onNewDialog}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: C.subtle, fontSize: 12, fontWeight: 600 }}
+            >
+              Новый диалог
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="Закрыть"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: C.subtle, fontSize: 18, lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {!subscribed ? (
+        <PaywallCard price={aiPrice} />
+      ) : (
+        <>
+          {/* minHeight:0 обязателен — тот же баг, что уже чинили на
+              полноэкранной версии: без него flex:1 не сжимается ниже высоты
+              содержимого и лента не прокручивается сама, толкая всю панель
+              за пределы экрана. Здесь панель — самостоятельный fixed-блок
+              (не встроена в прокрутку Layout.jsx), поэтому эта же схема,
+              которая раньше конфликтовала со страницей, здесь работает
+              штатно — конфликтовать не с чем.
+          */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+            {messages.map((m, i) => (
+              <Bubble key={i} role={m.role} text={m.content} />
+            ))}
+            {sending && <Bubble role="assistant" text="Думаю..." />}
+            {pending && (
+              <PendingActionCard
+                confirmationText={pending.confirmationText}
+                busy={confirmBusy}
+                error={confirmError}
+                onConfirm={onConfirm}
+                onCancel={onCancel}
+              />
+            )}
+            {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
+            <div ref={listEndRef} />
           </div>
 
-          {!subscribed ? (
-            <PaywallCard price={aiPrice} />
-          ) : (
-            <>
-              {/* minHeight:0 обязателен — тот же баг, что уже чинили на
-                  полноэкранной версии: без него flex:1 не сжимается ниже высоты
-                  содержимого и лента не прокручивается сама, толкая всю панель
-                  за пределы экрана. Здесь панель — самостоятельный fixed-блок
-                  (не встроена в прокрутку Layout.jsx), поэтому эта же схема,
-                  которая раньше конфликтовала со страницей, здесь работает
-                  штатно — конфликтовать не с чем.
-              */}
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
-                {messages.map((m, i) => (
-                  <Bubble key={i} role={m.role} text={m.content} />
-                ))}
-                {sending && <Bubble role="assistant" text="Думаю..." />}
-                {pending && (
-                  <PendingActionCard
-                    confirmationText={pending.confirmationText}
-                    busy={confirmBusy}
-                    error={confirmError}
-                    onConfirm={confirmPending}
-                    onCancel={cancelPending}
-                  />
-                )}
-                {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
-                <div ref={listEndRef} />
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-                <TextArea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder="Например: внести расход 5000 на аренду"
-                  style={{ minHeight: 40, flex: 1, fontFamily: F, fontSize: 13 }}
-                  disabled={sending}
-                />
-                <Btn small onClick={send} disabled={sending || !input.trim()}>→</Btn>
-              </div>
-            </>
-          )}
-        </div>
-        </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+            <TextArea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Например: внести расход 5000 на аренду"
+              style={{ minHeight: 40, flex: 1, fontFamily: F, fontSize: 13 }}
+              disabled={sending}
+            />
+            <Btn small onClick={send} disabled={sending || !input.trim()}>→</Btn>
+          </div>
+        </>
       )}
     </>
   );
