@@ -4,7 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
-import { TrendLineChart, StatTile, StackedBarBreakdown, VerticalBarChart, Sparkline, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
+import { TrendLineChart, StatTile, StackedBarBreakdown, DonutBreakdown, VerticalBarChart, Sparkline, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { nicheLabel } from '../utils/niches.js';
@@ -201,6 +201,18 @@ function OwnerFinance() {
   // которые всегда за последние 12 мес независимо от периода).
   const [insights, setInsights] = useState(null);
   const [insightsError, setInsightsError] = useState('');
+  // Каталог услуг (24.08.2026, карточка "Активные услуги" на десктопе) — не
+  // зависит от выбранного периода (это не продажи, а сам каталог), поэтому
+  // отдельный эффект, не часть load(). Модуль "Визиты" — тот же гейт, что и
+  // у самого эндпоинта на бэкенде (requireModule('visits'), visits/index.js) —
+  // без него запрос ответит 403, не дёргаем его вовсе, если модуль выключен.
+  const { hasModule } = useAuth();
+  const [services, setServices] = useState(null);
+  useEffect(() => {
+    if (!hasModule('visits')) { setServices([]); return; }
+    api.get('/modules/visits/services').then((res) => setServices(res.data)).catch(() => setServices([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function load() {
     if (!period.ready) return Promise.resolve();
@@ -440,6 +452,7 @@ function OwnerFinance() {
           submitExpense={submitExpense}
           deleteExpense={deleteExpense}
           trends={trends}
+          services={services}
         />
       )}
       {tab === 'masters' && (
@@ -567,9 +580,10 @@ function OverviewTab({
   revenueForm, setRevenueForm, openAddRevenue, closeRevenueForm, submitRevenue, deleteRevenue,
   recurringForm, setRecurringForm, editingRecurringId, openAddRecurring, openEditRecurring, closeRecurringForm, submitRecurring, deleteRecurring,
   expenseForm, setExpenseForm, editingExpenseId, openAddExpense, openEditExpense, closeExpenseForm, submitExpense, deleteExpense,
-  trends,
+  trends, services,
 }) {
   const isDesktop = useIsDesktop();
+  const navigate = useNavigate();
   // На десктопе (23.08.2026) карточка П&Л на всю ширину читалась как один
   // растянутый тёмный блок с огромными пустыми промежутками между надписью и
   // суммой (живой скриншот владельца) — сама по себе карточка не менялась,
@@ -633,11 +647,23 @@ function OverviewTab({
             deltaGood={revenueDelta != null ? revenueDelta >= 0 : null}
             trend={hasTrends ? trends.map((t) => t.revenue) : null}
             trendColor={CHART_COLORS.blue}
+            icon={<Icon name="finance" size={13} color={CHART_COLORS.blue} sw={2} />}
+            iconBg={C.blueBg}
           />
-          <StatTile label="Расходы за период" value={money(totalExpenses)} />
+          <StatTile
+            label="Расходы за период"
+            value={money(totalExpenses)}
+            icon={<Icon name="doc" size={13} color={CHART_COLORS.orange} sw={1.8} />}
+            iconBg={C.orangeBg}
+          />
           {summary.netProfit != null && (
             <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ fontSize: 11, color: C.subtle, marginBottom: 4 }}>Чистая прибыль</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontSize: 11, color: C.subtle }}>Чистая прибыль</div>
+                <div style={{ width: 26, height: 26, borderRadius: 8, background: summary.netProfit >= 0 ? C.greenBg : C.redBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name={summary.netProfit >= 0 ? 'trendUp' : 'trendDown'} size={13} color={summary.netProfit >= 0 ? C.green : C.red} sw={2} />
+                </div>
+              </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: summary.netProfit >= 0 ? C.primary : C.red }}>{money(summary.netProfit)}</div>
@@ -649,7 +675,12 @@ function OverviewTab({
               </div>
             </div>
           )}
-          <StatTile label="Услуг за период" value={summary.visitsCount ?? 0} />
+          <StatTile
+            label="Услуг за период"
+            value={summary.visitsCount ?? 0}
+            icon={<Icon name="visit" size={13} color={CHART_COLORS.aqua} sw={1.8} />}
+            iconBg="#e6f7f1"
+          />
         </div>
       )}
 
@@ -668,9 +699,71 @@ function OverviewTab({
           {summary.netProfit != null && totalExpenses > 0 && (
             <Card style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
               <ST>Структура расходов</ST>
-              <StackedBarBreakdown segments={structureSegments} />
+              <DonutBreakdown segments={structureSegments} centerSublabel="Всего расходов" />
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Три тёмные карточки — по референсу владельца. Только реальные
+          данные: "Остаток на конец" и "Новые клиенты" из мокапа сюда
+          сознательно не попали — у нас нет ни текущего остатка на счёте
+          (только П&Л за период), ни счётчика новых клиентов на этом экране,
+          выдумывать эти цифры нельзя. "Активные услуги" — из настоящего
+          каталога (GET /modules/visits/services), не заглушка. */}
+      {isDesktop && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 12, padding: 18, color: '#FFF' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>Ключевые показатели</div>
+            {[
+              ['Услуг за период', summary.visitsCount ?? 0],
+              ['Выручка', money(summary.revenue)],
+              ['Средний чек', money(summary.visitsCount > 0 ? Math.round(summary.revenue / summary.visitsCount) : 0)],
+              ['Расходы за период', money(totalExpenses)],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+                <span style={{ color: 'rgba(255,255,255,0.6)' }}>{label}</span>
+                <span style={{ fontWeight: 700 }}>{value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 12, padding: 18, color: '#FFF' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>Движение денежных средств</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: 'rgba(255,255,255,0.6)' }}>Поступления</span>
+              <span style={{ fontWeight: 700, color: '#4ADE80' }}>+{money(summary.revenue)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+              <span style={{ color: 'rgba(255,255,255,0.6)' }}>Выплаты</span>
+              <span style={{ fontWeight: 700, color: '#FCA5A5' }}>−{money(totalExpenses)}</span>
+            </div>
+            {summary.netProfit != null && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13, borderTop: '1px solid rgba(255,255,255,0.15)', marginTop: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>Чистый поток</span>
+                <span style={{ fontWeight: 800, color: summary.netProfit >= 0 ? '#4ADE80' : '#FCA5A5' }}>{money(summary.netProfit)}</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 12, padding: 18, color: '#FFF' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>Активные услуги{services ? ` · ${services.length}` : ''}</div>
+              <button onClick={() => navigate('/services')} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6, padding: '4px 8px', color: '#FFF', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>+ Добавить</button>
+            </div>
+            {services === null ? (
+              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)' }}>Загрузка...</div>
+            ) : services.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', textAlign: 'center', padding: '14px 0' }}>Нет активных услуг</div>
+            ) : (
+              services.slice(0, 4).map((s) => (
+                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 10 }}>{s.name}</span>
+                  <span style={{ fontWeight: 700, flexShrink: 0 }}>{s.approx_price != null ? money(s.approx_price) : '—'}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 

@@ -45,11 +45,20 @@ export function Sparkline({ values, color = CHART_COLORS.blue, width = 72, heigh
 }
 
 // Плитка-показатель: label + value + дельта к прошлому периоду + спарклайн.
-// Контракт из marks-and-anatomy.md "Figures".
-export function StatTile({ label, value, delta, deltaGood, trend, trendColor }) {
+// Контракт из marks-and-anatomy.md "Figures". icon/iconBg (24.08.2026,
+// опционально) — цветной квадрат с иконкой в углу, по референсу владельца;
+// не меняет форму контракта, просто дополнительный визуальный якорь.
+export function StatTile({ label, value, delta, deltaGood, trend, trendColor, icon, iconBg, iconColor }) {
   return (
     <div style={{ flex: 1, minWidth: 120 }}>
-      <div style={{ fontSize: 11, color: C.subtle, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 11, color: C.subtle }}>{label}</div>
+        {icon && (
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: iconBg || CHART_COLORS.blue + '1a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {icon}
+          </div>
+        )}
+      </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: C.primary }}>{value}</div>
@@ -211,6 +220,65 @@ export function StackedBarBreakdown({ segments, height = 28 }) {
             <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: 'inline-block', flexShrink: 0 }} />
             <span style={{ color: C.secondary }}>{s.label}</span>
             <span style={{ color: C.subtle }}>{total > 0 ? Math.round((s.value / total) * 100) : 0}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Кольцевая диаграмма части-от-целого (24.08.2026, по референсу владельца)
+// — skill dataviz по умолчанию предпочитает StackedBarBreakdown выше для
+// part-to-whole, но явно допускает donut "at a glance" до 6 сегментов
+// (references/anti-patterns.md), это тот случай. 2px зазор между сегментами
+// — тот же спейсер, что у стек-бара, здесь как маленький угловой gap между
+// дугами вместо линейного. Легенда обязательна (правило skill для 2+ рядов).
+export function DonutBreakdown({ segments, size = 160, thickness = 20, centerLabel, centerSublabel }) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  const r = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * r;
+  const gap = total > 0 ? 2 : 0; // px по длине окружности между сегментами
+
+  if (total <= 0) {
+    return <div style={{ fontSize: 13, color: C.subtle }}>Расходов за период нет</div>;
+  }
+
+  let offset = 0;
+  const arcs = segments
+    .filter((s) => s.value > 0)
+    .map((s) => {
+      const length = (s.value / total) * circumference - gap;
+      const arc = { ...s, length: Math.max(length, 0), offset };
+      offset += (s.value / total) * circumference;
+      return arc;
+    });
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={GRID} strokeWidth={thickness} />
+          {arcs.map((a) => (
+            <circle
+              key={a.key}
+              cx={size / 2} cy={size / 2} r={r} fill="none"
+              stroke={a.color} strokeWidth={thickness} strokeLinecap="butt"
+              strokeDasharray={`${a.length} ${circumference - a.length}`}
+              strokeDashoffset={-a.offset}
+            />
+          ))}
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#0b0b0b', fontFamily: "ui-monospace,'SF Mono','Menlo','Consolas',monospace", fontVariantNumeric: 'tabular-nums' }}>{compactMoney(total)}</div>
+          {centerSublabel && <div style={{ fontSize: 10.5, color: INK_MUTED, marginTop: 2, textAlign: 'center' }}>{centerSublabel}</div>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 140 }}>
+        {segments.map((s) => (
+          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ color: C.secondary, flex: 1 }}>{s.label}</span>
+            <span style={{ color: C.subtle, flexShrink: 0 }}>{money(s.value)} ({total > 0 ? Math.round((s.value / total) * 100) : 0}%)</span>
           </div>
         ))}
       </div>

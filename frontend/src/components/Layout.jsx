@@ -29,6 +29,70 @@ function desktopContentWidth(pathname) {
   return DESKTOP_WIDE_ROUTES.includes(pathname) ? DESKTOP_WIDE_WIDTH : DESKTOP_NARROW_WIDTH;
 }
 
+// Поиск по разделам в шапке (24.08.2026, по референсу владельца — реальный
+// переход по совпадению в desktopNav, не декоративное поле: набрал часть
+// названия раздела → Enter или клик по варианту → переход. ⌘K/Ctrl+K
+// фокусирует поле откуда угодно на странице.
+function CommandPalette({ desktopNav, navigate }) {
+  const [query, setQuery] = useState('');
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const matches = query.trim()
+    ? desktopNav.filter((n) => n.label.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6)
+    : [];
+
+  function go(to) {
+    navigate(to);
+    setQuery('');
+    inputRef.current?.blur();
+  }
+
+  return (
+    <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface }}>
+        <Icon name="search" size={13} color={C.subtle} sw={2} />
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 120)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) go(matches[0].to); if (e.key === 'Escape') { setQuery(''); inputRef.current?.blur(); } }}
+          placeholder="Поиск по разделам..."
+          style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: C.primary, fontFamily: F }}
+        />
+        <span style={{ fontSize: 10.5, fontWeight: 600, color: C.subtle, border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
+      </div>
+      {focused && matches.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', zIndex: 50 }}>
+          {matches.map((n) => (
+            <div
+              key={n.to}
+              onMouseDown={() => go(n.to)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', cursor: 'pointer', fontSize: 13, color: C.primary }}
+            >
+              <Icon name={n.icon} size={15} color={C.subtle} />
+              {n.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PULL_THRESHOLD = 64;
 const PULL_MAX = 100;
 
@@ -246,13 +310,32 @@ export default function Layout() {
         {!user?.onboarding_seen_at && <OnboardingModal />}
         <div style={{ width: 232, flexShrink: 0, background: C.surface, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 12px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '4px 6px 16px' }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg, ${C.primary}, ${C.blue})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#FFF', lineHeight: 1 }}>Б</span>
+            {/* 24.08.2026: тёмный графитовый сайдбар вместо светлого — по
+                референсу владельца (тёмно-синий в макете → наш C.primary,
+                а не чужой синий). Шапка/подпись/переключатель компании и
+                пункты меню переведены на светлый текст на тёмном фоне. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 6px 14px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon name="shield" size={17} color="#FFF" sw={1.9} />
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCompany?.name}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#FFF', whiteSpace: 'nowrap' }}>Безопасный бизнес</div>
+                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)' }}>Панель управления</div>
+              </div>
             </div>
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>
+
+            <div
+              onClick={() => navigate('/settings')}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 14, borderRadius: 8, background: 'rgba(255,255,255,0.08)', cursor: 'pointer' }}
+            >
+              <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg, ${C.blue}, ${C.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#FFF', lineHeight: 1 }}>Б</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: '#FFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCompany?.name}</div>
+              <Icon name="arrow" size={11} color="rgba(255,255,255,0.4)" sw={2} />
+            </div>
+
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
               {desktopNav.map((n) => {
                 const active = n.to === '/more' ? location.pathname === '/more' || moreActive : n.end ? location.pathname === n.to : location.pathname.startsWith(n.to);
                 return (
@@ -262,33 +345,47 @@ export default function Layout() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8,
                       fontSize: 13.5, fontWeight: active ? 700 : 400, textDecoration: 'none',
-                      color: active ? C.primary : C.secondary, background: active ? C.border : 'transparent',
+                      color: active ? '#FFF' : 'rgba(255,255,255,0.6)', background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
                     }}
                   >
-                    <Icon name={n.icon} size={16} color={active ? C.primary : C.subtle} sw={active ? 2 : 1.7} />
+                    <Icon name={n.icon} size={16} color={active ? '#FFF' : 'rgba(255,255,255,0.45)'} sw={active ? 2 : 1.7} />
                     {n.label}
                   </NavLink>
                 );
               })}
             </nav>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 6 }}>
+
+          <div>
+            {/* Ведёт на реальную страницу подписки — без придуманных названий
+                тарифа/статуса (тех данных у Layout.jsx сейчас нет под рукой),
+                просто заметный вход в раздел, как в референсе. */}
             <div
-              onClick={() => navigate('/settings')}
-              style={{ width: 30, height: 30, borderRadius: 8, background: user?.avatar_url ? 'none' : C.primary, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#FFF', cursor: 'pointer' }}
+              onClick={() => navigate('/subscription')}
+              style={{ borderRadius: 10, padding: '12px 12px', marginBottom: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}
             >
-              {user?.avatar_url ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#FFF', marginBottom: 2 }}>Подписка</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>Тариф и способ оплаты →</div>
             </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.primary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name}</div>
-              <div style={{ fontSize: 11, color: C.subtle }}>{isOwner ? 'Владелец' : isManagement ? 'Администратор' : 'Мастер'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 6 }}>
+              <div
+                onClick={() => navigate('/settings')}
+                style={{ width: 30, height: 30, borderRadius: 8, background: user?.avatar_url ? 'none' : 'rgba(255,255,255,0.12)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#FFF', cursor: 'pointer' }}
+              >
+                {user?.avatar_url ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#FFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{isOwner ? 'Владелец' : isManagement ? 'Администратор' : 'Мастер'}</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 56, flexShrink: 0, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', padding: '0 28px' }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: C.primary }}>{isHome ? 'Главная' : TITLES[location.pathname] || ''}</div>
+          <div style={{ height: 56, flexShrink: 0, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', gap: 20 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: C.primary, flexShrink: 0 }}>{isHome ? 'Главная' : TITLES[location.pathname] || ''}</div>
+            <CommandPalette desktopNav={desktopNav} navigate={navigate} />
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
             <div style={{ maxWidth: desktopContentWidth(location.pathname), margin: '0 auto' }}>
