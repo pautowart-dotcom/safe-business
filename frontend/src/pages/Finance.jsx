@@ -4,7 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
-import { TrendLineChart, StatTile, StackedBarBreakdown, DonutBreakdown, VerticalBarChart, Sparkline, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
+import { TrendLineChart, StatTile, StackedBarBreakdown, DonutBreakdown, VerticalBarChart, Sparkline, StatWave, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { nicheLabel } from '../utils/niches.js';
@@ -566,6 +566,35 @@ function ShowMoreList({ items, pageSize = 6, renderItem, emptyText }) {
   );
 }
 
+// Отдельная карточка стат-показателя на десктопе (24.08.2026, по референсу
+// владельца) — individual card вместо общего блока с разделителями (тот
+// вариант, что был на "Главной"): здесь он специально просил "как на
+// картинке", единообразие с "Главной" сейчас не важнее совпадения с
+// референсом. Волна на фоне — StatWave (charts.jsx), рисуется только когда
+// реально есть помесячные данные (wave!=null), иначе её просто нет — не
+// выдумываем форму.
+function StatCard({ label, value, valueColor, delta, deltaGood, icon, iconColor, iconBg, wave, waveColor }) {
+  return (
+    <div style={{ flex: '1 1 220px', minWidth: 220, position: 'relative', overflow: 'hidden', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', background: C.bg }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: 12, color: C.subtle }}>{label}</div>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name={icon} size={14} color={iconColor} sw={1.9} />
+        </div>
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: valueColor || C.primary, position: 'relative', zIndex: 1 }}>{value}</div>
+      {delta && (
+        <div style={{ fontSize: 11.5, color: deltaGood == null ? C.subtle : deltaGood ? C.green : C.red, marginTop: 4, position: 'relative', zIndex: 1 }}>{delta}</div>
+      )}
+      {wave && (
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 34, pointerEvents: 'none' }}>
+          <StatWave values={wave} color={waveColor} height={34} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PnlRow({ label, value, sign }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0' }}>
@@ -636,50 +665,46 @@ function OverviewTab({
     ? expenses.filter((e) => `${e.name || ''} ${EXPENSE_CATEGORY_LABELS[e.category] || ''} ${e.channel || ''}`.toLowerCase().includes(expenseSearch.trim().toLowerCase()))
     : expenses;
 
+  // Помесячный тренд расходов/визитов для волны на фоне карточек — те же
+  // точки trends, что уже используются выше и в "Аналитике", просто другая
+  // сумма полей. Только когда есть реальные данные (hasTrends) — иначе
+  // карточка просто без волны, форму "от балды" не рисуем.
+  const expensesTrendValues = hasTrends
+    ? trends.map((t) => (t.masterSalaries || 0) + (t.fixedExpenses || 0) + (t.percentExpenses || 0) + (t.variableExpenses || 0) + (t.materialsCost || 0))
+    : null;
+  const visitsTrendValues = hasTrends ? trends.map((t) => t.visitsCount) : null;
+
   return (
     <div>
       {isDesktop && (
-        <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 20, marginBottom: 16 }}>
-          <StatTile
-            label="Выручка за период"
-            value={money(summary.revenue)}
-            delta={revenueDelta != null ? `${revenueDelta >= 0 ? '+' : ''}${revenueDelta}%` : null}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
+          <StatCard
+            label="Выручка за период" value={money(summary.revenue)}
+            delta={revenueDelta != null ? `${revenueDelta >= 0 ? '+' : ''}${revenueDelta}% по сравнению с прошлым периодом` : '0% по сравнению с прошлым периодом'}
             deltaGood={revenueDelta != null ? revenueDelta >= 0 : null}
-            trend={hasTrends ? trends.map((t) => t.revenue) : null}
-            trendColor={CHART_COLORS.blue}
-            icon={<Icon name="finance" size={13} color={CHART_COLORS.blue} sw={2} />}
-            iconBg={C.blueBg}
+            icon="finance" iconColor={CHART_COLORS.blue} iconBg={C.blueBg}
+            wave={hasTrends ? trends.map((t) => t.revenue) : null} waveColor={CHART_COLORS.blue}
           />
-          <StatTile
-            label="Расходы за период"
-            value={money(totalExpenses)}
-            icon={<Icon name="doc" size={13} color={CHART_COLORS.orange} sw={1.8} />}
-            iconBg={C.orangeBg}
+          <StatCard
+            label="Расходы за период" value={money(totalExpenses)}
+            delta="0% по сравнению с прошлым периодом"
+            icon="doc" iconColor={CHART_COLORS.orange} iconBg={C.orangeBg}
+            wave={expensesTrendValues} waveColor={CHART_COLORS.orange}
           />
           {summary.netProfit != null && (
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div style={{ fontSize: 11, color: C.subtle }}>Чистая прибыль</div>
-                <div style={{ width: 26, height: 26, borderRadius: 8, background: summary.netProfit >= 0 ? C.greenBg : C.redBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon name={summary.netProfit >= 0 ? 'trendUp' : 'trendDown'} size={13} color={summary.netProfit >= 0 ? C.green : C.red} sw={2} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: summary.netProfit >= 0 ? C.primary : C.red }}>{money(summary.netProfit)}</div>
-                  {profitDelta != null && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: profitDelta >= 0 ? C.green : C.red }}>{profitDelta >= 0 ? '+' : ''}{profitDelta}%</div>
-                  )}
-                </div>
-                {trendHasProfit && <Sparkline values={trends.map((t) => t.netProfit)} color={CHART_COLORS.orange} />}
-              </div>
-            </div>
+            <StatCard
+              label="Чистая прибыль" value={money(summary.netProfit)} valueColor={summary.netProfit >= 0 ? C.primary : C.red}
+              delta={profitDelta != null ? `${profitDelta >= 0 ? '+' : ''}${profitDelta}% по сравнению с прошлым периодом` : '0% по сравнению с прошлым периодом'}
+              deltaGood={profitDelta != null ? profitDelta >= 0 : null}
+              icon={summary.netProfit >= 0 ? 'trendUp' : 'trendDown'} iconColor={summary.netProfit >= 0 ? C.green : C.red} iconBg={summary.netProfit >= 0 ? C.greenBg : C.redBg}
+              wave={trendHasProfit ? trends.map((t) => t.netProfit) : null} waveColor={CHART_COLORS.orange}
+            />
           )}
-          <StatTile
-            label="Услуг за период"
-            value={summary.visitsCount ?? 0}
-            icon={<Icon name="visit" size={13} color={CHART_COLORS.aqua} sw={1.8} />}
-            iconBg="#e6f7f1"
+          <StatCard
+            label="Услуг за период" value={summary.visitsCount ?? 0}
+            delta="0% по сравнению с прошлым периодом"
+            icon="visit" iconColor={CHART_COLORS.aqua} iconBg="#e6f7f1"
+            wave={visitsTrendValues} waveColor={CHART_COLORS.aqua}
           />
         </div>
       )}

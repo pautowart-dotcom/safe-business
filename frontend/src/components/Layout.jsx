@@ -308,7 +308,7 @@ export default function Layout() {
     return (
       <div style={{ height: '100vh', display: 'flex', background: C.bg, fontFamily: F }}>
         {!user?.onboarding_seen_at && <OnboardingModal />}
-        <div style={{ width: 232, flexShrink: 0, background: C.surface, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 12px' }}>
+        <div style={{ width: 232, flexShrink: 0, background: C.primary, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 12px' }}>
           <div>
             {/* 24.08.2026: тёмный графитовый сайдбар вместо светлого — по
                 референсу владельца (тёмно-синий в макете → наш C.primary,

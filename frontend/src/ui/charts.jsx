@@ -44,6 +44,27 @@ export function Sparkline({ values, color = CHART_COLORS.blue, width = 72, heigh
   );
 }
 
+// Декоративная "волна" на фоне стат-карточки (24.08.2026, по референсу
+// владельца) — та же нормализация, что у Sparkline, но залитая область, а
+// не линия, и очень тихая (10% непрозрачности — area fill wash, marks-and-
+// anatomy.md), чтобы не спорить с цифрой поверх неё. Только реальные
+// данные тренда — если их нет, компонент просто ничего не рисует, а не
+// подставляет форму "от балды".
+export function StatWave({ values, color = CHART_COLORS.blue, width = 200, height = 60 }) {
+  if (!values || values.length < 2) return null;
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 0);
+  const range = max - min || 1;
+  const step = width / (values.length - 1);
+  const line = values.map((v, i) => `${i * step},${height - ((v - min) / range) * height}`).join(' L');
+  const path = `M0,${height} L${line} L${width},${height} Z`;
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+      <path d={path} fill={color} opacity={0.1} />
+    </svg>
+  );
+}
+
 // Плитка-показатель: label + value + дельта к прошлому периоду + спарклайн.
 // Контракт из marks-and-anatomy.md "Figures". icon/iconBg (24.08.2026,
 // опционально) — цветной квадрат с иконкой в углу, по референсу владельца;
