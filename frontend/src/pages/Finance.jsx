@@ -608,6 +608,20 @@ function OverviewTab({
   ];
   const categoryColorCycle = [CHART_COLORS.blue, CHART_COLORS.orange, CHART_COLORS.aqua, CHART_COLORS.yellow];
 
+  // Поиск по спискам — новое (24.08.2026, по референсу YooKassa: "История
+  // платежей" там ищет по имени/сумме/статусу над самой таблицей). Только
+  // десктоп — фильтрует уже загруженные за период данные на клиенте, без
+  // нового запроса к API. На телефоне списки короче (один экран прокрутки),
+  // поиск там не так нужен, оставлен как есть.
+  const [revenueSearch, setRevenueSearch] = useState('');
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const filteredRevenue = revenueSearch.trim()
+    ? revenue.filter((r) => `${r.master_name || ''} ${r.comment || ''}`.toLowerCase().includes(revenueSearch.trim().toLowerCase()))
+    : revenue;
+  const filteredExpenses = expenseSearch.trim()
+    ? expenses.filter((e) => `${e.name || ''} ${EXPENSE_CATEGORY_LABELS[e.category] || ''} ${e.channel || ''}`.toLowerCase().includes(expenseSearch.trim().toLowerCase()))
+    : expenses;
+
   return (
     <div>
       {isDesktop && (
@@ -698,9 +712,17 @@ function OverviewTab({
         {revenueForm && (
           <RevenueForm form={revenueForm} setForm={setRevenueForm} masters={masters} onSubmit={submitRevenue} onCancel={closeRevenueForm} />
         )}
+        {isDesktop && revenue.length > 5 && (
+          <input
+            value={revenueSearch}
+            onChange={(e) => setRevenueSearch(e.target.value)}
+            placeholder="Поиск по сотруднику или комментарию"
+            style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, marginBottom: 10, outline: 'none' }}
+          />
+        )}
         <ShowMoreList
-          items={revenue}
-          emptyText="Записей о выручке за период нет"
+          items={filteredRevenue}
+          emptyText={revenueSearch.trim() ? 'Ничего не найдено' : 'Записей о выручке за период нет'}
           renderItem={(r) => <RevenueRow key={r.id} entry={r} onDelete={deleteRevenue} />}
         />
         {summary.unassignedRevenue > 0 && (
@@ -836,8 +858,17 @@ function OverviewTab({
             </div>
           </form>
         )}
+        {isDesktop && expenses.length > 5 && (
+          <input
+            value={expenseSearch}
+            onChange={(e) => setExpenseSearch(e.target.value)}
+            placeholder="Поиск по названию или категории"
+            style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, marginBottom: 10, outline: 'none' }}
+          />
+        )}
         <ShowMoreList
-          items={expenses}
+          items={filteredExpenses}
+          emptyText={expenseSearch.trim() ? 'Ничего не найдено' : undefined}
           renderItem={(e) => (
             <ExpRow
               key={e.id}

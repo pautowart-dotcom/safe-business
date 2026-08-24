@@ -242,8 +242,16 @@ function OwnerDashboard() {
   // финансовая находка), рендерится только когда действие реально есть.
   const aiAdvisorAction = deadlines.find((d) => d.related_entity_type === 'ai_advisor_digest');
 
+  // 24.08.2026: владелец прислал референсы (YooKassa/Яндекс Почта) — у
+  // настоящих десктопных приложений часто есть третья, правая колонка с
+  // контекстными виджетами ("Сегодня" в Почте), не просто сетка карточек в
+  // два столбца. "Личные заметки" и новый блок быстрых действий вынесены
+  // туда же — правая колонка не скроллится вместе с основным контентом
+  // (alignItems:'flex-start' на flex-контейнере), контент слева ведёт себя
+  // как раньше. На мобильном это ветвление не участвует вообще.
   return (
-    <div>
+    <div style={isDesktop ? { display: 'flex', gap: 20, alignItems: 'flex-start' } : undefined}>
+    <div style={isDesktop ? { flex: 1, minWidth: 0 } : undefined}>
       {/* На десктопе название компании уже есть в сайдбаре (Layout.jsx) и в
           шапке раздела — третье повторение здесь (23.08.2026, живой
           скриншот) только отъедало место без смысла. Дата/приветствие
@@ -381,29 +389,11 @@ function OwnerDashboard() {
         </div>
       )}
 
-      <Card>
-        <ST>Личные заметки на сегодня</ST>
-        {tasks.map((t) => (
-          <div key={t.id} onClick={() => toggleTask(t)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' }}>
-            <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${t.done ? C.primary : C.border}`, background: t.done ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {t.done && <Icon name="check" size={11} color="#FFF" sw={2.5} />}
-            </div>
-            <span style={{ flex: 1, fontSize: 14, color: t.done ? C.subtle : C.primary, textDecoration: t.done ? 'line-through' : 'none' }}>{t.text}</span>
-            <button onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>✕</button>
-          </div>
-        ))}
-        {tasks.length === 0 && <div style={{ fontSize: 13, color: C.subtle, marginBottom: 10 }}>Список пуст</div>}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input
-            value={newTask}
-            onChange={(e) => setNewTask(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } }}
-            placeholder="Например: внести расходы"
-            style={{ flex: 1, boxSizing: 'border-box', background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none' }}
-          />
-          <button onClick={addTask} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+</button>
-        </div>
-      </Card>
+      {/* На десктопе переехало в правую колонку (см. конец функции) —
+          осталось здесь только для мобильного потока. */}
+      {!isDesktop && (
+        <TasksCard tasks={tasks} newTask={newTask} setNewTask={setNewTask} toggleTask={toggleTask} deleteTask={deleteTask} addTask={addTask} />
+      )}
 
       {security ? (
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
@@ -457,6 +447,79 @@ function OwnerDashboard() {
 
       </div>
     </div>
+
+    {isDesktop && (
+      <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <TasksCard tasks={tasks} newTask={newTask} setNewTask={setNewTask} toggleTask={toggleTask} deleteTask={deleteTask} addTask={addTask} />
+        <QuickActions navigate={navigate} />
+      </div>
+    )}
+    </div>
+  );
+}
+
+// Вынесено 24.08.2026 — переиспользуется и в мобильном потоке (на своём
+// обычном месте среди карточек), и в правой колонке на десктопе (см. выше).
+function TasksCard({ tasks, newTask, setNewTask, toggleTask, deleteTask, addTask }) {
+  return (
+    <Card>
+      <ST>Личные заметки на сегодня</ST>
+      {tasks.map((t) => (
+        <div key={t.id} onClick={() => toggleTask(t)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' }}>
+          <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${t.done ? C.primary : C.border}`, background: t.done ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {t.done && <Icon name="check" size={11} color="#FFF" sw={2.5} />}
+          </div>
+          <span style={{ flex: 1, fontSize: 14, color: t.done ? C.subtle : C.primary, textDecoration: t.done ? 'line-through' : 'none' }}>{t.text}</span>
+          <button onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>✕</button>
+        </div>
+      ))}
+      {tasks.length === 0 && <div style={{ fontSize: 13, color: C.subtle, marginBottom: 10 }}>Список пуст</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <input
+          value={newTask}
+          onChange={(e) => setNewTask(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } }}
+          placeholder="Например: внести расходы"
+          style={{ flex: 1, boxSizing: 'border-box', background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none' }}
+        />
+        <button onClick={addTask} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+</button>
+      </div>
+    </Card>
+  );
+}
+
+// Новое (24.08.2026, по референсу Яндекс.Почты — панель "Сегодня" справа с
+// быстрыми действиями создания) — раньше такого блока не было нигде, не
+// перенос мобильного контента, а действительно другое наполнение под
+// десктоп: ярлыки на самые частые переходы одним кликом из сайдбара нет
+// смысла делать (уже прямые пункты меню), а вот "быстро добавить" —
+// действие, а не раздел, третьей колонке подходит больше, чем сетке карточек.
+const QUICK_ACTIONS = [
+  { label: 'Новый визит', icon: 'visit', to: '/visits' },
+  { label: 'Внести расход', icon: 'finance', to: '/finance' },
+  { label: 'Новый клиент', icon: 'clients', to: '/clients' },
+  { label: 'Открыть смену', icon: 'shift', to: '/shift' },
+];
+
+function QuickActions({ navigate }) {
+  return (
+    <Card>
+      <ST>Быстрые действия</ST>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {QUICK_ACTIONS.map((a) => (
+          <button
+            key={a.to}
+            onClick={() => navigate(a.to)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 6px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', fontSize: 13.5, color: C.primary, fontWeight: 500 }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.surface; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <Icon name={a.icon} size={16} color={C.subtle} />
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
