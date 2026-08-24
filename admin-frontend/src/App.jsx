@@ -10,6 +10,7 @@ import ClientErrors from './pages/ClientErrors.jsx';
 import LegalDocs from './pages/LegalDocs.jsx';
 import JournalTypes from './pages/JournalTypes.jsx';
 import AiManager from './pages/AiManager.jsx';
+import Compliance from './pages/Compliance.jsx';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="companies" element={<Companies />} />
         <Route path="ai-manager" element={<AiManager />} />
+        <Route path="compliance" element={<Compliance />} />
         <Route path="support" element={<Support />} />
         <Route path="client-errors" element={<ClientErrors />} />
         <Route path="legal" element={<LegalDocs />} />

@@ -12,6 +12,7 @@ const { isAiConfigured, draftText } = require('../core/aiAssist');
 const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
 const { signFileUrl } = require('../core/fileStorage');
 const { ADDON_CATALOG } = require('../core/addons');
+const { SAAS_COMPLIANCE } = require('./content/saasCompliance');
 
 const router = express.Router();
 
@@ -811,6 +812,47 @@ router.post(
       return res.status(502).json({ error: `Push не дошёл (${detail}) — попробуйте отключить и снова включить уведомления` });
     }
     res.json({ ok: true, sent: result.sent, failed: result.failed });
+  })
+);
+
+// Комплаенс-чек-лист самой компании "Безопасный бизнес" (24.08.2026,
+// владелец: "свой Без.Бизнес внутри админки") — приватная страница, только
+// Super Admin (см. router.use выше). Контент — content/saasCompliance.js,
+// статус (отмечено/нет) — platform_compliance_checks (0103), без company_id,
+// это про саму платформу, не про клиента.
+router.get(
+  '/compliance',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query('SELECT code, checked, checked_at, note FROM platform_compliance_checks');
+    const statusByCode = Object.fromEntries(rows.map((r) => [r.code, r]));
+    const items = SAAS_COMPLIANCE.map((item) => ({
+      ...item,
+      checked: statusByCode[item.code]?.checked || false,
+      checkedAt: statusByCode[item.code]?.checked_at || null,
+      note: statusByCode[item.code]?.note || '',
+    }));
+    res.json({ items });
+  })
+);
+
+router.patch(
+  '/compliance/:code',
+  asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    if (!SAAS_COMPLIANCE.some((item) => item.code === code)) {
+      return res.status(404).json({ error: 'Неизвестный код пункта' });
+    }
+    const { checked, note } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO platform_compliance_checks (code, checked, checked_at, checked_by_user_id, note)
+       VALUES ($1, $2, CASE WHEN $2 THEN now() ELSE NULL END, $3, COALESCE($4, ''))
+       ON CONFLICT (code) DO UPDATE SET
+         checked = $2, checked_at = CASE WHEN $2 THEN now() ELSE NULL END,
+         checked_by_user_id = $3, note = COALESCE($4, platform_compliance_checks.note)
+       RETURNING code, checked, checked_at, note`,
+      [code, !!checked, req.user.id, note ?? null]
+    );
+    res.json(rows[0]);
   })
 );
 

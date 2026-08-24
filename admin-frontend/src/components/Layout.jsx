@@ -8,6 +8,7 @@ const NAV = [
   { to: '/', label: 'Обзор', icon: 'home', end: true },
   { to: '/analytics', label: 'Аналитика', icon: 'finance' },
   { to: '/companies', label: 'Компании', icon: 'team' },
+  { to: '/compliance', label: 'Комплаенс', icon: 'shield' },
   // Монограмма "Б" вместо Icon (21.08.2026) — тот же фирменный знак, что уже
   // принят для клиентского ассистента (AiAssistantWidget.jsx), а не новая
   // иконка: единообразие важнее, третий вариант "как обозначить ИИ" за один
