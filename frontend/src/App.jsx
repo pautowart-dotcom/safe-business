@@ -32,6 +32,7 @@ import Help from './pages/Help.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
 import AnonymousAudit from './pages/AnonymousAudit.jsx';
 import PublicLeadForm from './pages/PublicLeadForm.jsx';
+import YandexCardAudit from './pages/YandexCardAudit.jsx';
 
 export default function App() {
   return (
@@ -49,6 +50,9 @@ export default function App() {
       {/* Публичная форма приёма заявок (20.08.2026) — вне PrivateRoute/Layout,
           та же логика, что у /audit выше, см. PublicLeadForm.jsx. */}
       <Route path="/l/:token" element={<PublicLeadForm />} />
+      {/* Бесплатный аудит карточки Яндекс.Карт без регистрации (23.08.2026) —
+          вне PrivateRoute/Layout, без токена вовсе, см. YandexCardAudit.jsx. */}
+      <Route path="/karta-audit" element={<YandexCardAudit />} />
       <Route
         path="/"
         element={

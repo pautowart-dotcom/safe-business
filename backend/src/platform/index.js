@@ -27,6 +27,7 @@ const addonsRoutes = require('./addons.routes');
 const aiAdvisorSubscriptionRoutes = require('./ai-advisor-subscription.routes');
 const anonymousAuditRoutes = require('./anonymous-audit.routes');
 const leadsPublicRoutes = require('./leads-public.routes');
+const yandexCardAuditRoutes = require('./yandex-card-audit.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -55,5 +56,6 @@ platformRouter.use('/addons', addonsRoutes);
 platformRouter.use('/ai-advisor-subscription', aiAdvisorSubscriptionRoutes);
 platformRouter.use('/anonymous-audit', anonymousAuditRoutes);
 platformRouter.use('/leads-public', leadsPublicRoutes);
+platformRouter.use('/yandex-card-audit', yandexCardAuditRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
