@@ -70,42 +70,67 @@ function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWor
   );
 }
 
+// Кнопка отправки вынесена из Card в отдельный sticky-футер (24.08.2026 —
+// живой разбор воронки после рилса: на реальном телефоне кнопка в конце
+// длинного списка вопросов оказывалась на самом краю экрана или за ним,
+// частично перекрыта панелью браузера — 40 прошли тест, ни один не дошёл до
+// оплаты. Тот же приём, что у нижнего меню в основном приложении
+// (position:sticky/fixed + safe-area-inset-bottom), только здесь sticky, а
+// не fixed — страница сама скроллится (height:100vh;overflowY:auto на
+// корневом div), sticky относительно этого же контейнера держит кнопку
+// видимой у низа экрана в любой момент, не только в конце документа.
+function StickyFooterButton({ children, onClick, disabled }) {
+  return (
+    <div
+      style={{
+        position: 'sticky', bottom: 0, left: 0, right: 0, margin: '16px -16px 0',
+        padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
+        background: C.bg, borderTop: `1px solid ${C.border}`, boxShadow: '0 -4px 12px rgba(0,0,0,0.04)',
+      }}
+    >
+      <Btn onClick={onClick} disabled={disabled}>{children}</Btn>
+    </div>
+  );
+}
+
 function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) {
   const blocks = [...new Set(session.questions.map((q) => q.block))];
   return (
-    <Card>
-      <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Тест: {session.nicheLabel}</div>
-      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
-        Отвечено: {Object.keys(answers).length} из {session.questions.length}
-      </div>
-
-      {blocks.map((block) => (
-        <div key={block} style={{ marginBottom: 20 }}>
-          {session.questions.filter((q) => q.block === block).map((q) => (
-            <div key={q.code} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: q.hint ? 4 : 8 }}>{q.text}</div>
-              {q.hint && <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>{q.hint}</div>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {q.answers.map((label, i) => (
-                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name={q.code}
-                      checked={answers[q.code] === i}
-                      onChange={() => setAnswer(q.code, i)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
+    <>
+      <Card>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Тест: {session.nicheLabel}</div>
+        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
+          Отвечено: {Object.keys(answers).length} из {session.questions.length}
         </div>
-      ))}
 
-      {error && <div className="alert alert-error">{error}</div>}
-      <Btn onClick={onSubmit} disabled={submitting}>{submitting ? 'Считаем…' : 'Завершить тест'}</Btn>
-    </Card>
+        {blocks.map((block) => (
+          <div key={block} style={{ marginBottom: 20 }}>
+            {session.questions.filter((q) => q.block === block).map((q) => (
+              <div key={q.code} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: q.hint ? 4 : 8 }}>{q.text}</div>
+                {q.hint && <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>{q.hint}</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {q.answers.map((label, i) => (
+                    <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name={q.code}
+                        checked={answers[q.code] === i}
+                        onChange={() => setAnswer(q.code, i)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {error && <div className="alert alert-error">{error}</div>}
+      </Card>
+      <StickyFooterButton onClick={onSubmit} disabled={submitting}>{submitting ? 'Считаем…' : 'Завершить тест'}</StickyFooterButton>
+    </>
   );
 }
 
@@ -145,8 +170,8 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
         </label>
         {error && <div className="alert alert-error">{error}</div>}
-        <Btn onClick={onPay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${PRICE_RUB} ₽`}</Btn>
       </Card>
+      <StickyFooterButton onClick={onPay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${PRICE_RUB} ₽`}</StickyFooterButton>
     </div>
   );
 }
