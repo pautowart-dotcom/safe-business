@@ -134,7 +134,7 @@ function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) 
   );
 }
 
-function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent, onPay, paying, error }) {
+function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent, onPay, paying, onClaimFree, claiming, claimed, error }) {
   const zone = result.zone;
   return (
     <div>
@@ -147,13 +147,28 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
         </div>
       </Card>
 
+      {/* 24.08.2026, живой разбор воронки: раньше после теста был только
+          выбор "заплати за PDF сейчас или уходи" — ничего не говорило о
+          том, что "Безопасный бизнес" вообще не сводится к разовому тесту
+          (сроки документов, финансы, чек-листы, ИИ-ассистент). Эта карточка
+          не конкурирует с оплатой — она для тех, кто пока не готов платить,
+          но результат терять не хочет. */}
+      <Card>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>«Безопасный бизнес» — это не только тест</div>
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+          Приложение само напоминает о сроках медкнижек, огнетушителей, СОУТ и других документов, ведёт финансы
+          и чек-листы смены, отвечает на вопросы через ИИ-ассистента. Результат этого теста уже сохранён —
+          проходить заново не нужно.
+        </div>
+      </Card>
+
       <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Полный отчёт — {PRICE_RUB} ₽</div>
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
           PDF со всеми найденными нарушениями, штрафами, планом устранения и списком обязательных документов —
           пришлём на почту. Разовая оплата, без подписки.
         </div>
-        <Field label="Email — на него пришлём отчёт">
+        <Field label="Email">
           <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
@@ -170,6 +185,17 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
         </label>
         {error && <div className="alert alert-error">{error}</div>}
+        {claimed ? (
+          <div style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>✓ Письмо со ссылкой отправлено на {email}</div>
+        ) : (
+          <button
+            onClick={onClaimFree}
+            disabled={claiming}
+            style={{ background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+          >
+            {claiming ? 'Отправляем…' : 'Не готовы платить сейчас — сохранить результат бесплатно и продолжить в приложении →'}
+          </button>
+        )}
       </Card>
       <StickyFooterButton onClick={onPay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${PRICE_RUB} ₽`}</StickyFooterButton>
     </div>
@@ -219,6 +245,8 @@ export default function AnonymousAudit() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [analyticsConsent, setAnalyticsConsent] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
 
   async function start() {
     if (!niche || !legalForm || !workModel) {
@@ -306,6 +334,30 @@ export default function AnonymousAudit() {
     }
   }
 
+  // "Сохранить бесплатно" — тот же claim-механизм (ссылка "установить
+  // пароль"), что и у платного пути (fulfillGuestReport, backend), но не
+  // требует оплаты. См. комментарий у POST /platform/anonymous-audit/claim.
+  async function claimFree() {
+    if (!email || !email.includes('@')) {
+      setError('Укажите email');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Нужно принять условия оферты и политики конфиденциальности');
+      return;
+    }
+    setError('');
+    setClaiming(true);
+    try {
+      await guestApi.post('/platform/anonymous-audit/claim', { email, acceptedTerms, analyticsConsent });
+      setClaimed(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось отправить письмо');
+    } finally {
+      setClaiming(false);
+    }
+  }
+
   return (
     // height+overflowY обязательны здесь (21.08.2026, живой баг: тест из 34
     // вопросов не прокручивался ниже первого экрана) — html/body у ВСЕГО
@@ -333,7 +385,9 @@ export default function AnonymousAudit() {
           email={email} setEmail={setEmail}
           acceptedTerms={acceptedTerms} setAcceptedTerms={setAcceptedTerms}
           analyticsConsent={analyticsConsent} setAnalyticsConsent={setAnalyticsConsent}
-          onPay={pay} paying={paying} error={error}
+          onPay={pay} paying={paying}
+          onClaimFree={claimFree} claiming={claiming} claimed={claimed}
+          error={error}
         />
       )}
     </div>

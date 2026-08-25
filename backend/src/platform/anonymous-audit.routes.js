@@ -17,6 +17,8 @@ const { signCompanyToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
+const { requireAuth } = require('../core/middleware/auth');
+const { requireTenant } = require('../core/middleware/tenancy');
 
 const router = express.Router();
 
@@ -106,6 +108,64 @@ router.post(
     } finally {
       client.release();
     }
+  })
+);
+
+// "Продолжить без оплаты" (24.08.2026, живой разбор воронки: 40 прошли
+// бесплатный тест, дальше — либо оплата PDF, либо человек просто уходит,
+// ничего не связывает бесплатный тест с самой платформой). Тот же механизм
+// ссылки "установить пароль", что и у fulfillGuestReport ниже (claim через
+// password_reset_tokens), но доступен сразу после теста, не только после
+// оплаты — платить, чтобы сохранить уже пройденный тест, не нужно.
+// accepted_terms_at проставляется здесь же — момент явного согласия
+// (чекбокс на фронте), как и при обычной оплате/регистрации.
+router.post(
+  '/claim',
+  requireAuth,
+  requireTenant,
+  asyncHandler(async (req, res) => {
+    const { rows: userRows } = await pool.query('SELECT is_guest FROM users WHERE id = $1', [req.user.id]);
+    if (!userRows[0]?.is_guest) {
+      return res.status(400).json({ error: 'Этот аккаунт уже не гостевой' });
+    }
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Укажите email' });
+    }
+    if (!req.body?.acceptedTerms) {
+      return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
+    }
+    const existing = await pool.query('SELECT 1 FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({
+        error: 'Этот email уже зарегистрирован на платформе — войдите в аккаунт, там уже есть доступ ко всему',
+      });
+    }
+    await pool.query(
+      'UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3 WHERE id = $1',
+      [req.user.id, email, !!req.body?.analyticsConsent]
+    );
+
+    const claimToken = crypto.randomBytes(32).toString('hex');
+    const claimTokenHash = crypto.createHash('sha256').update(claimToken).digest('hex');
+    const expiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+      [req.user.id, claimTokenHash, expiresAt]
+    );
+    const claimUrl = `${process.env.FRONTEND_URL}/reset-password/${claimToken}`;
+
+    await sendMail({
+      to: email,
+      subject: 'Продолжите в «Безопасный бизнес» — результаты теста уже сохранены',
+      html:
+        `<p>Результаты вашего теста безопасности уже сохранены — не нужно проходить его заново.</p>` +
+        `<p>Установите пароль, чтобы зайти в личный кабинет и пользоваться платформой целиком — отслеживать сроки ` +
+        `медкнижек, огнетушителей, СОУТ, финансы и остальные документы:</p>` +
+        `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
+    });
+
+    res.json({ ok: true });
   })
 );
 
