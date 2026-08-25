@@ -39,12 +39,12 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   // Ручная активация подписки — без реального платежа (свой тестовый
   // аккаунт, партнёр, комплиментарный доступ). До подключения боевой
   // ЮKassa — единственный способ дать компании доступ без реальных денег.
-  async function setSubscription(status) {
-    if (status === 'active' && !confirm('Отметить компанию оплаченной вручную (без реального платежа) на 365 дней?')) return;
+  async function setSubscription(status, periodEndDays) {
+    if (status === 'active' && !confirm(`Отметить компанию оплаченной вручную (без реального платежа) на ${periodEndDays || 365} дней?`)) return;
     if (status === 'trial' && !confirm('Вернуть компании обычный статус пробного периода (снять ручную отметку)?')) return;
     setUpdatingSubscription(true);
     try {
-      await api.patch(`/platform/admin/companies/${id}/subscription`, { status });
+      await api.patch(`/platform/admin/companies/${id}/subscription`, { status, periodEndDays });
       load();
     } finally {
       setUpdatingSubscription(false);
@@ -120,11 +120,20 @@ function CompanyDetail({ id, onBack, onDeleted }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
         {company.subscription_status !== 'active' && (
           <button
-            onClick={() => setSubscription('active')}
+            onClick={() => setSubscription('active', 365)}
             disabled={updatingSubscription}
             style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >
-            Отметить оплаченной вручную
+            Отметить оплаченной вручную (365 дн.)
+          </button>
+        )}
+        {company.subscription_status !== 'active' && (
+          <button
+            onClick={() => setSubscription('active', 60)}
+            disabled={updatingSubscription}
+            style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Оплачено на 2 месяца
           </button>
         )}
         {company.subscription_status === 'active' && (
