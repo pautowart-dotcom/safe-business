@@ -35,6 +35,56 @@ const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая з
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
 
+// Тот же порог, что riskColor в pages/Security.jsx — не общий импорт,
+// страница гостя намеренно изолирована от остального приложения (см.
+// комментарий в начале файла), небольшое дублирование дешевле связи.
+function riskColor(risk) {
+  if (risk >= 9) return C.red;
+  if (risk >= 7) return C.orange;
+  if (risk >= 5) return '#B7950B';
+  return C.green;
+}
+
+// Превью найденного нарушения (24.08.2026, живой разбор воронки: "люди не
+// видят, что получают" — до этого коммита /modules/security/status уже
+// возвращал полный список нарушений с деталями, фронт их просто нигде не
+// показывал бесплатно). Название + уровень риска — настоящие, по ИХ тесту,
+// не обобщённый макет; штраф/норма/решение — самое ценное для владельца —
+// намеренно скрыты за блюром, это и есть граница бесплатного/платного.
+function ViolationPreview({ violations }) {
+  if (!violations || violations.length === 0) return null;
+  const shown = violations.slice(0, 2);
+  const hiddenCount = violations.length - shown.length;
+  return (
+    <Card>
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.subtle, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+        Что нашли — примеры
+      </div>
+      {shown.map((v, i) => (
+        <div key={v.code} style={{ marginBottom: i < shown.length - 1 ? 16 : 0, paddingBottom: i < shown.length - 1 ? 16 : 0, borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor(v.risk), flexShrink: 0 }} />
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{v.title}</div>
+          </div>
+          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ filter: 'blur(5px)', userSelect: 'none', pointerEvents: 'none', fontSize: 12.5, color: C.secondary, lineHeight: 1.5, padding: '8px 10px', background: C.surface, borderRadius: 8 }}>
+              Штраф: {v.fineText}. Норма: {v.normBase}. Как исправить: {v.solution}
+            </div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700, color: C.subtle }}>
+              🔒 штраф, норма закона и план решения — в полном отчёте
+            </div>
+          </div>
+        </div>
+      ))}
+      {hiddenCount > 0 && (
+        <div style={{ fontSize: 12.5, color: C.subtle, marginTop: 14, textAlign: 'center' }}>
+          + ещё {hiddenCount} {hiddenCount === 1 ? 'нарушение' : hiddenCount < 5 ? 'нарушения' : 'нарушений'} в полном отчёте
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWorkModel, onStart, starting, error }) {
   return (
     <Card>
@@ -146,6 +196,8 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 10 }}>Найдено нарушений: {result.violationsCount}</div>
         </div>
       </Card>
+
+      <ViolationPreview violations={result.violations} />
 
       {/* 24.08.2026, живой разбор воронки: раньше после теста был только
           выбор "заплати за PDF сейчас или уходи" — ничего не говорило о

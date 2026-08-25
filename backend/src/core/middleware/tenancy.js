@@ -65,4 +65,4 @@ const requireTenant = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = { requireTenant };
+module.exports = { requireTenant, HARD_TRIAL_CUTOFF };
