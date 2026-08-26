@@ -112,6 +112,16 @@ router.post(
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Заполните имя, email и пароль' });
     }
+    // Рейт-лимит на регистрацию (26.08.2026, находка security-review) — тот
+    // же checkLoginAllowed/recordFailedLogin, что уже стоит на /login,
+    // /forgot-password и гостевом /anonymous-audit/start; раньше на
+    // /register не было вообще ничего, спам-регистрация компаний ничем не
+    // ограничивалась.
+    const registerAllowed = await checkLoginAllowed(req.ip, email);
+    if (!registerAllowed) {
+      return res.status(429).json({ error: 'Слишком много попыток регистрации. Попробуйте снова через 15 минут.' });
+    }
+    await recordFailedLogin(req.ip, email);
     // Ниша (20.08.2026, владелец лично столкнулся: раньше её вообще не
     // спрашивали, хотя у продукта разное наполнение под разные направления) —
     // обязательна, чтобы онбординг и термины ("Мастер"/"Сотрудник",

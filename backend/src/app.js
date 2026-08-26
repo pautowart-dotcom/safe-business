@@ -13,6 +13,14 @@ function buildApp() {
   // rate limiting логина (core/loginRateLimit.js) бил бы по общей IP-корзине
   // для всех пользователей сразу.
   app.set('trust proxy', 1);
+  // На проде (NODE_ENV=production, задаётся deploy/ecosystem.config.js)
+  // CORS_ORIGIN обязателен — падаем при старте, а не тихо открываемся всем
+  // источникам, если переменная забыта в .env на новом сервере (находка
+  // security-review, 26.08.2026). В локальной разработке (NODE_ENV не
+  // задан) остаётся прежний запасной вариант '*', ничего не меняется.
+  if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+    throw new Error('CORS_ORIGIN не задан в окружении — на проде это обязательная переменная');
+  }
   app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
   app.use(express.json());
 

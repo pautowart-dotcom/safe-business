@@ -164,19 +164,30 @@ router.patch(
       return res.status(409).json({ error: 'Заявка уже рассмотрена' });
     }
 
-    await pool.query('BEGIN');
+    // BEGIN/COMMIT/ROLLBACK через pool.query() (как было раньше) — баг: пул
+    // выдаёт под каждый query() любое свободное соединение, BEGIN и
+    // следующие запросы совсем не гарантированно попадают на одно и то же
+    // физическое соединение — транзакция могла не быть атомарной, а при
+    // ошибке ROLLBACK ушёл бы на случайное другое соединение, оставляя
+    // где-то незакрытую транзакцию в пуле. Тот же паттерн выделенного
+    // client, что уже используется в остальном проекте (visits.routes.js,
+    // packages.routes.js и т.д.).
+    const client = await pool.connect();
     try {
-      await pool.query(`UPDATE franchise_join_requests SET status = $1, decided_at = now() WHERE id = $2`, [status, request.id]);
+      await client.query('BEGIN');
+      await client.query(`UPDATE franchise_join_requests SET status = $1, decided_at = now() WHERE id = $2`, [status, request.id]);
       if (status === 'approved') {
-        await pool.query(`UPDATE companies SET franchise_group_id = (SELECT franchise_group_id FROM franchise_join_requests WHERE id = $1) WHERE id = $2`, [
+        await client.query(`UPDATE companies SET franchise_group_id = (SELECT franchise_group_id FROM franchise_join_requests WHERE id = $1) WHERE id = $2`, [
           request.id,
           request.requesting_company_id,
         ]);
       }
-      await pool.query('COMMIT');
+      await client.query('COMMIT');
     } catch (err) {
-      await pool.query('ROLLBACK');
+      await client.query('ROLLBACK');
       throw err;
+    } finally {
+      client.release();
     }
     res.json({ ok: true });
   })
