@@ -40,6 +40,61 @@ function riskColor(risk) {
 const ZONE_COLORS = { green: '#27ae60', yellow: '#f1c40f', red: '#c0392b' };
 const ZONE_BG = { green: '#EAFAF1', yellow: '#FEF9E7', red: '#FDEDEC' };
 
+// Горизонтальный индикатор-шкала (26.08.2026, "следующий уровень" по
+// прямой просьбе владельца — раньше статус был просто цветной текст в
+// плашке, теперь визуальная метрика на обложке). Через canvas, не svg —
+// svg-to-pdfkit не установлен как зависимость, а rect с r (радиус угла)
+// в canvas хватает для скруглённой шкалы без новой зависимости.
+function progressBar(percent, color, width, height) {
+  const filled = Math.max(0, Math.min(width, (width * percent) / 100));
+  return {
+    canvas: [
+      { type: 'rect', x: 0, y: 0, w: width, h: height, r: height / 2, color: '#EBEBEB' },
+      ...(filled > 0 ? [{ type: 'rect', x: 0, y: 0, w: filled, h: height, r: height / 2, color }] : []),
+    ],
+  };
+}
+
+function pluralItems(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'пункт';
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'пункта';
+  return 'пунктов';
+}
+
+// Визуальный таймлайн дорожной карты — линия + узел на каждый срок,
+// подписи с количеством пунктов под ней. Ширина подобрана под контентную
+// область страницы (595pt A4 - 40pt поля с каждой стороны = 515, оставляем
+// запас).
+function roadmapTimeline(buckets) {
+  const width = 460;
+  const n = buckets.length;
+  const step = width / (n - 1);
+  const y = 7;
+  const elements = [{ type: 'line', x1: 0, y1: y, x2: width, y2: y, lineWidth: 2, lineColor: '#DDDDDD' }];
+  buckets.forEach((b, i) => {
+    elements.push({ type: 'ellipse', x: i * step, y, r1: 6, r2: 6, color: b.count > 0 ? '#2A2A2E' : '#CCCCCC' });
+  });
+  return {
+    margin: [0, 4, 0, 18],
+    stack: [
+      { canvas: elements },
+      {
+        margin: [0, 6, 0, 0],
+        columns: buckets.map((b) => ({
+          width: '*',
+          alignment: 'center',
+          text: [
+            { text: `${b.label}\n`, bold: true, fontSize: 9 },
+            { text: `${b.count} ${pluralItems(b.count)}`, fontSize: 8, color: '#888888' },
+          ],
+        })),
+      },
+    ],
+  };
+}
+
 function money(value) {
   if (value == null) return '—';
   return `${value.toLocaleString('ru-RU')} ₽`;
@@ -89,7 +144,13 @@ function violationBlock(v, index) {
                 margin: [0, 0, 0, 4],
               },
               { text: [{ text: 'Основание: ', color: '#888888' }, { text: v.normBase }], fontSize: 9, margin: [0, 0, 0, 4] },
-              { text: [{ text: 'Что сделать: ', color: '#888888' }, { text: v.solution }], fontSize: 10, bold: false, margin: [0, 0, 0, 4] },
+              { text: [{ text: 'Что сделать: ', color: '#888888' }, { text: v.solution }], fontSize: 10, bold: false, margin: [0, 0, 0, v.howTo && v.howTo.length > 0 ? 6 : 4] },
+              v.howTo && v.howTo.length > 0
+                ? {
+                    margin: [0, 0, 0, 6],
+                    ol: v.howTo.map((step) => ({ text: step, fontSize: 9, color: '#333333', margin: [0, 0, 0, 3] })),
+                  }
+                : null,
               { text: `${v.free ? 'Бесплатно' : money(v.costMin)} · ${v.daysMin}${v.daysMax && v.daysMax !== v.daysMin ? '–' + v.daysMax : ''} дн.`, fontSize: 9, color: '#888888' },
             ],
           }]],
@@ -140,6 +201,7 @@ const TOC_SECTIONS = [
   'Дополнительные зоны внимания',
   'Персональные рекомендации',
   'Какие органы могут проверять бизнес',
+  'Если вас уже оштрафовали',
   'Что делать дальше',
 ];
 
@@ -160,33 +222,40 @@ function tocPage() {
 }
 
 function buildDocDefinition(report) {
-  const { titlePage, summary, vulnerabilityMap, roadmap, mandatoryDocuments, attentionZones, recommendations, authorities, nextSteps, disclaimer } = report;
+  const { titlePage, summary, vulnerabilityMap, roadmap, mandatoryDocuments, attentionZones, recommendations, authorities, nextSteps, whatIfFined, platformBridge, disclaimer } = report;
 
   const content = [
     // --- Титульный лист ---
-    { text: 'БЕЗОПАСНЫЙ БИЗНЕС', style: 'brand', margin: [0, 110, 0, 0] },
-    { text: 'Полный аудит безопасности бизнеса', fontSize: 15, color: '#666666', margin: [0, 6, 0, 40] },
+    { text: 'БЕЗОПАСНЫЙ БИЗНЕС', style: 'brand', margin: [0, 90, 0, 0] },
+    { text: 'Полный аудит безопасности бизнеса', fontSize: 15, color: '#666666', margin: [0, 6, 0, 36] },
     {
-      table: {
-        widths: ['auto', '*'],
-        body: [
-          ['Ниша', titlePage.niche],
-          ['Форма работы', titlePage.legalForm],
-          ['Дата формирования', titlePage.generatedAt.toLocaleDateString('ru-RU')],
-          ['ID отчёта', titlePage.reportNumber],
-        ].map((row) => [{ text: row[0], color: '#888888', fontSize: 10 }, { text: row[1], fontSize: 10 }]),
-      },
-      layout: 'noBorders',
-      margin: [0, 0, 0, 24],
+      columns: [
+        {
+          width: 170,
+          stack: [
+            { text: `${summary.indexPercent}%`, fontSize: 40, bold: true, color: ZONE_COLORS[titlePage.zone] },
+            { text: 'Индекс безопасности', fontSize: 9, color: '#888888', margin: [0, 0, 0, 10] },
+            progressBar(summary.indexPercent, ZONE_COLORS[titlePage.zone], 150, 12),
+            { text: titlePage.zoneLabel, bold: true, fontSize: 11, color: ZONE_COLORS[titlePage.zone], margin: [0, 8, 0, 0] },
+          ],
+        },
+        {
+          width: '*',
+          table: {
+            widths: ['auto', '*'],
+            body: [
+              ['Ниша', titlePage.niche],
+              ['Форма работы', titlePage.legalForm],
+              ['Дата формирования', titlePage.generatedAt.toLocaleDateString('ru-RU')],
+              ['ID отчёта', titlePage.reportNumber],
+            ].map((row) => [{ text: row[0], color: '#888888', fontSize: 10 }, { text: row[1], fontSize: 10 }]),
+          },
+          layout: 'noBorders',
+        },
+      ],
+      margin: [0, 0, 0, 30],
     },
-    {
-      table: {
-        widths: ['*'],
-        body: [[{ text: `Статус безопасности: ${titlePage.zoneLabel}`, bold: true, fontSize: 13, color: ZONE_COLORS[titlePage.zone], border: [false, false, false, false], margin: [0, 2, 0, 2] }]],
-      },
-      layout: { fillColor: () => ZONE_BG[titlePage.zone], paddingLeft: () => 14, paddingRight: () => 14, paddingTop: () => 10, paddingBottom: () => 10 },
-    },
-    { text: 'Отчёт носит информационный характер и не является юридическим заключением.', fontSize: 9, italics: true, color: '#999999', margin: [0, 80, 0, 0] },
+    { text: 'Отчёт носит информационный характер и не является юридическим заключением.', fontSize: 9, italics: true, color: '#999999', margin: [0, 74, 0, 0] },
     { text: '', pageBreak: 'after' },
 
     tocPage(),
@@ -237,6 +306,12 @@ function buildDocDefinition(report) {
 
     // --- Дорожная карта устранения ---
     sectionHeader(3, 'Дорожная карта устранения'),
+    roadmapTimeline([
+      { label: 'Сегодня', count: roadmap.today.length },
+      { label: '7 дней', count: roadmap.week.length },
+      { label: '14 дней', count: roadmap.twoWeeks.length },
+      { label: '30 дней', count: roadmap.month.length },
+    ]),
     roadmapBucket('Сделать сегодня (до 1 дня)', roadmap.today),
     roadmapBucket('Сделать за 7 дней', roadmap.week),
     roadmapBucket('Сделать за 14 дней', roadmap.twoWeeks),
@@ -353,9 +428,35 @@ function buildDocDefinition(report) {
       ],
     })),
 
+    // --- Если вас уже оштрафовали ---
+    sectionHeader(8, 'Если вас уже оштрафовали'),
+    { text: 'Общий порядок действий, если проверка уже была и штраф уже выписан.', fontSize: 10, color: '#666666', margin: [0, 0, 0, 14] },
+    ...whatIfFined.map((step, i) => ({
+      margin: [0, 0, 0, 10],
+      stack: [
+        { text: `${i + 1}. ${step.title}`, bold: true, fontSize: 11 },
+        { text: step.text, fontSize: 10, color: '#444444', margin: [0, 3, 0, 0] },
+      ],
+    })),
+    { text: '', pageBreak: 'after' },
+
     // --- Что делать дальше ---
-    sectionHeader(8, 'Что делать дальше'),
+    sectionHeader(9, 'Что делать дальше'),
     { ol: nextSteps, fontSize: 11, margin: [0, 0, 0, 20] },
+    {
+      margin: [0, 0, 0, 14],
+      table: {
+        widths: ['*'],
+        body: [[{
+          border: [false, false, false, false],
+          stack: [
+            { text: platformBridge.intro, fontSize: 10, margin: [0, 0, 0, 8] },
+            ...platformBridge.links.map((l) => ({ text: [{ text: '→ ', color: '#888888' }, { text: `${l.label}: `, bold: true }, { text: l.url, color: '#2A2A2E' }], fontSize: 10, margin: [0, 0, 0, 4] })),
+          ],
+        }]],
+      },
+      layout: { fillColor: () => '#F7F7F7', paddingLeft: () => 12, paddingRight: () => 10, paddingTop: () => 10, paddingBottom: () => 10 },
+    },
 
     // --- Дисклеймер ---
     { text: 'Дисклеймер', bold: true, fontSize: 10, color: '#999999', margin: [0, 20, 0, 6] },

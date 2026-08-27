@@ -65,4 +65,19 @@ echo "== Cron: ежедневные напоминания об операцио
 OPS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/dailyOperationsNudges.js >> /var/log/safe-business-ops-nudges.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "dailyOperationsNudges.js" ; echo "0 6 * * * $OPS_CRON_CMD" ) | crontab -
 
+# Добавлено 27.08.2026 (Карта фронтов, P0) — скрипт deploy/backup-db.sh
+# существовал в репозитории, но никогда не был зарегистрирован в cron через
+# провижининг, в отличие от остальных 4 задач выше. Не проверено, стоял ли
+# он в crontab вручную, добавленный отдельно от этого скрипта — эта строка
+# просто гарантирует, что он есть, независимо от истории сервера.
+echo "== Cron: ежедневный бэкап БД =="
+BACKUP_CRON_CMD="bash $APP_DIR/deploy/backup-db.sh >> /var/log/safe-business-backup.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "backup-db.sh" ; echo "0 2 * * * $BACKUP_CRON_CMD" ) | crontab -
+
+# Добавлено 27.08.2026 (Карта фронтов, P0) — прямой ответ на инцидент, где
+# сбой оплаты молчал несколько дней подряд. 9:00 по Москве = 6:00 UTC.
+echo "== Cron: ежедневный дайджест платежей =="
+PAYMENTS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/paymentMonitoring.js >> /var/log/safe-business-payments.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "paymentMonitoring.js" ; echo "0 6 * * * $PAYMENTS_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."
