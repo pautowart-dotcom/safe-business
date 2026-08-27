@@ -96,7 +96,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   }
 
   if (!data) return <div className="page-loading">Загрузка...</div>;
-  const { company, memberships, modules, addons, activityByModule, recentActivity, reports } = data;
+  const { company, memberships, modules, addons, activityByModule, recentActivity, reports, payments } = data;
   const lastActivityAt = activityByModule.length > 0
     ? activityByModule.reduce((max, m) => (!max || new Date(m.lastAt) > new Date(max) ? m.lastAt : max), null)
     : null;
@@ -110,6 +110,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
         {company.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
         {company.free_addons && <Badge color={C.green} bg={C.greenBg}>ИИ-советники + надстройки бесплатно</Badge>}
+        {company.is_guest_owner && <Badge color={C.subtle} bg={C.surface}>Гость (анонимный аудит)</Badge>}
       </div>
       <div style={{ fontSize: 12, color: C.subtle, margin: '10px 0 12px' }}>
         Регистрация {new Date(company.created_at).toLocaleDateString('ru-RU')}
@@ -190,6 +191,33 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         )}
       </Card>
 
+      {/* Платежи (27.08.2026) — до этого нигде в админке не было видно ни
+          одного реального платежа: первую разовую покупку отчёта (без
+          подписки, миграция 0091) владелец узнал только из письма ЮKassa.
+          report_id сопоставляется с карточкой отчёта в "Отчёты" ниже. */}
+      {(payments || []).length > 0 && (
+        <Card>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Платежи</div>
+          {payments.map((p) => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', fontSize: 13 }}>
+              <span>
+                {p.amount_rub.toLocaleString('ru-RU')} ₽
+                <span style={{ color: C.subtle }}>
+                  {' · '}{p.report_id ? 'разовая покупка отчёта' : p.is_recurring_charge ? 'автосписание подписки' : 'подписка'}
+                  {' · '}{new Date(p.created_at).toLocaleDateString('ru-RU')}
+                </span>
+              </span>
+              <Badge
+                color={p.status === 'succeeded' ? C.green : p.status === 'canceled' ? C.red : C.orange}
+                bg={p.status === 'succeeded' ? C.greenBg : p.status === 'canceled' ? C.redBg : C.orangeBg}
+              >
+                {p.status === 'succeeded' ? 'оплачено' : p.status === 'canceled' ? 'отменено' : 'в процессе'}
+              </Badge>
+            </div>
+          ))}
+        </Card>
+      )}
+
       {/* Для решений по возвратам (21.08.2026, оферта §3.4(в)) — скачан ли
           PDF-отчёт хотя бы раз в оплаченном периоде. Не показывается вообще,
           если отчётов ещё не генерировали — обычная пустая карточка тут
@@ -199,7 +227,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Отчёты (для возвратов)</div>
           {reports.map((r) => (
             <div key={r.report_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', fontSize: 13 }}>
-              <span>{r.report_number}</span>
+              <span>{r.report_number}{r.unlocked_without_subscription && <span style={{ color: C.blue }}> · разовая покупка</span>}</span>
               {r.first_downloaded_at ? (
                 <Badge color={C.orange} bg={C.orangeBg}>
                   скачан {new Date(r.first_downloaded_at).toLocaleDateString('ru-RU')}{r.download_count > 1 ? ` (${r.download_count}×)` : ''}
@@ -300,6 +328,8 @@ export default function Companies() {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <Badge color={STATUS_COLORS[c.subscription_status]} bg={C.surface}>{STATUS_LABELS[c.subscription_status]}</Badge>
                 {c.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
+                {c.has_one_time_purchase && <Badge color={C.blue} bg={C.blueBg}>Разовая покупка</Badge>}
+                {c.is_guest_owner && <Badge color={C.subtle} bg={C.surface}>Гость</Badge>}
               </div>
             </div>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>

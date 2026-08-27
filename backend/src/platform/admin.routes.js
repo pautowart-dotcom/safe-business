@@ -141,10 +141,23 @@ router.get(
 router.get(
   '/companies',
   asyncHandler(async (req, res) => {
+    // is_guest_owner/has_one_time_purchase (27.08.2026) — до этого разовые
+    // покупки анонимного аудита (миграция 0091) были в базе, но никак не
+    // видны в списке компаний: владелец узнал о первой такой оплате только
+    // из письма ЮKassa, не из админки. Оба флага — просто EXISTS-подзапросы,
+    // ничего не меняют в логике платежей/гостевых аккаунтов.
     const { rows } = await pool.query(
       `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test,
               (SELECT COUNT(*) FROM branches b WHERE b.company_id = c.id) AS branch_count,
-              (SELECT COUNT(*) FROM memberships m WHERE m.company_id = c.id AND m.invite_status = 'active') AS member_count
+              (SELECT COUNT(*) FROM memberships m WHERE m.company_id = c.id AND m.invite_status = 'active') AS member_count,
+              EXISTS (
+                SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
+                WHERE m.company_id = c.id AND m.role = 'owner' AND u.is_guest = true
+              ) AS is_guest_owner,
+              EXISTS (
+                SELECT 1 FROM subscription_payments sp
+                WHERE sp.company_id = c.id AND sp.report_id IS NOT NULL AND sp.status = 'succeeded'
+              ) AS has_one_time_purchase
        FROM companies c
        ORDER BY c.created_at DESC`
     );
@@ -204,14 +217,19 @@ router.get(
   '/companies/:id',
   asyncHandler(async (req, res) => {
     const companyResult = await pool.query(
-      'SELECT id, name, industry_segment, subscription_status, trial_ends_at, created_at, is_test, free_addons FROM companies WHERE id = $1',
+      `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test, c.free_addons,
+              EXISTS (
+                SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
+                WHERE m.company_id = c.id AND m.role = 'owner' AND u.is_guest = true
+              ) AS is_guest_owner
+       FROM companies c WHERE c.id = $1`,
       [req.params.id]
     );
     if (companyResult.rows.length === 0) {
       return res.status(404).json({ error: 'Компания не найдена' });
     }
 
-    const [branches, memberships, modules, addonPurchases, activityByModule, recentActivity, reports] = await Promise.all([
+    const [branches, memberships, modules, addonPurchases, activityByModule, recentActivity, reports, payments] = await Promise.all([
       pool.query('SELECT id, name, address, created_at FROM branches WHERE company_id = $1 ORDER BY name', [
         req.params.id,
       ]),
@@ -251,8 +269,18 @@ router.get(
       // Скачивания PDF-отчётов (21.08.2026) — для решений по возвратам, см.
       // оферту §3.4(в) и комментарий у report.routes.js:/reports/:id/download.
       pool.query(
-        `SELECT report_number, generated_at, first_downloaded_at, download_count
+        `SELECT id, report_number, generated_at, first_downloaded_at, download_count, unlocked_without_subscription
          FROM security_reports WHERE company_id = $1 ORDER BY generated_at DESC`,
+        [req.params.id]
+      ),
+      // Платежи компании (27.08.2026) — до этого нигде в админке не было
+      // видно ни одного реального платежа, включая разовые покупки отчёта
+      // без подписки (миграция 0091) — владелец узнавал об оплате только из
+      // письма ЮKassa. report_id связывает разовый платёж с конкретным
+      // отчётом из reports выше (сопоставляется на фронте).
+      pool.query(
+        `SELECT id, amount_rub, status, is_recurring_charge, report_id, created_at, confirmed_at
+         FROM subscription_payments WHERE company_id = $1 ORDER BY created_at DESC`,
         [req.params.id]
       ),
     ]);
@@ -278,6 +306,7 @@ router.get(
       })),
       recentActivity: recentActivity.rows,
       reports: reports.rows,
+      payments: payments.rows,
     });
   })
 );
