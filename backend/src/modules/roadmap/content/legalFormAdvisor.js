@@ -11,6 +11,15 @@
 //   один собственник-физлицо.
 const SELF_EMPLOYED_INCOME_LIMIT_RUB = 2_400_000;
 
+// Статичный, неперсонализированный крючок на подписку (Фаза 2 движка
+// бизнес-статуса, §7 плана) — показывается в анонимном интейке рядом с
+// рекомендацией "самозанятость", когда сама форма подходит для старта.
+// НЕ живой триггер (для этого нет ни выручки, ни статуса компании — это
+// анонимный лид, не платящий клиент) — просто честное предупреждение, что
+// ситуация может измениться. Живой персонализированный движок —
+// modules/business-status, доступен только платным компаниям.
+const FUTURE_GROWTH_HINT = `Если доход вырастет выше ${SELF_EMPLOYED_INCOME_LIMIT_RUB.toLocaleString('ru-RU')} ₽/год или понадобятся сотрудники — придётся перейти на ИП. Мы не считаем это за вас сейчас (это не персональный прогноз, просто общее правило), но в платной части сервиса есть движок, который сам подскажет момент перехода по вашим реальным данным.`;
+
 function recommend({ hasEmployees, hasCoOwners, expectedAnnualIncomeRub }) {
   if (hasCoOwners) {
     return {
@@ -36,4 +45,4 @@ function recommend({ hasEmployees, hasCoOwners, expectedAnnualIncomeRub }) {
   };
 }
 
-module.exports = { recommend, SELF_EMPLOYED_INCOME_LIMIT_RUB };
+module.exports = { recommend, SELF_EMPLOYED_INCOME_LIMIT_RUB, FUTURE_GROWTH_HINT };

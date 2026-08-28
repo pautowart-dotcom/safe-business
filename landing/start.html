@@ -215,7 +215,8 @@
       if (!payload.legalForm && data.legalFormRecommended) {
         recommendationBox.hidden = false;
         var labels = { self_employed: 'Самозанятый', ip: 'ИП', ooo: 'ООО' };
-        recommendationBox.innerHTML = '<b>Рекомендуем: ' + labels[data.legalFormRecommended] + '</b>' + data.explanation;
+        recommendationBox.innerHTML = '<b>Рекомендуем: ' + labels[data.legalFormRecommended] + '</b>' + data.explanation
+          + (data.futureGrowthHint ? '<p style="margin-top:10px;font-size:13px;color:#6B6B6B">' + data.futureGrowthHint + '</p>' : '');
         submitBtn.textContent = 'Продолжить к оплате — 1490 ₽';
         submitBtn.disabled = false;
         submitBtn.onclick = function (ev) { ev.preventDefault(); goToCheckout(); };

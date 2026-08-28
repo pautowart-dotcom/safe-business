@@ -16,6 +16,7 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { registerDeadline, clearAction } = require('../core/deadlines');
 const { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule } = require('../core/taxDeadlines');
+const { getPatentRate } = require('../core/patentRates');
 
 const RESERVE_REGIMES = ['usn_income', 'usn_income_expense'];
 const RESERVE_SLOT_KEYS = ['usn_q1', 'usn_q2', 'usn_q3'];
@@ -105,6 +106,21 @@ router.get(
       }
     }
 
+    // Автоподстановка суммы патента (Фаза 2 движка бизнес-статуса) — только
+    // подсказка в редактируемое поле, не блокирует ручной ввод (§4 плана).
+    // Ниша нужна однозначно — при нескольких нишах у компании не гадаем,
+    // какую использовать, просто не показываем подсказку.
+    let patentRateSuggestion = null;
+    if (company.tax_regime === 'patent' && company.region_code) {
+      const { rows: nicheRows } = await pool.query('SELECT niche FROM security_profile_niches WHERE company_id = $1', [companyId]);
+      if (nicheRows.length === 1) {
+        const rate = await getPatentRate({ regionCode: company.region_code, niche: nicheRows[0].niche, year: new Date().getFullYear() });
+        if (rate.status === 'found') {
+          patentRateSuggestion = { amount: rate.amount, reviewed: rate.reviewed, sourceUrl: rate.sourceUrl };
+        }
+      }
+    }
+
     let reserves = [];
     if (RESERVE_REGIMES.includes(company.tax_regime)) {
       const year = new Date().getFullYear();
@@ -141,6 +157,7 @@ router.get(
         patentStartAt: company.patent_start_at || null,
         patentAmount: company.patent_amount ?? null,
         patent,
+        patentRateSuggestion,
       },
       legalForm: company.legal_form || null,
       regionCode: company.region_code || null,

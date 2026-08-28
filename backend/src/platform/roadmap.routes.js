@@ -9,7 +9,7 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { createPayment, getPayment } = require('../core/yookassa');
 const { sendMail } = require('../core/mailer');
-const { recommend } = require('../modules/roadmap/content/legalFormAdvisor');
+const { recommend, FUTURE_GROWTH_HINT } = require('../modules/roadmap/content/legalFormAdvisor');
 const { buildRoadmap, NICHE_LABELS, LEGAL_FORM_LABELS } = require('../modules/roadmap/content/buildRoadmap');
 const { renderRoadmapPdf } = require('./roadmapPdf');
 
@@ -81,10 +81,13 @@ router.post(
       [email.trim().toLowerCase(), phone || null, niche, legalForm || null, legalFormRecommended, JSON.stringify(intakeAnswers)]
     );
 
+    const resolvedLegalForm = legalForm || legalFormRecommended;
+
     res.status(201).json({
       leadId: rows[0].id,
       legalFormRecommended,
       explanation,
+      futureGrowthHint: resolvedLegalForm === 'self_employed' ? FUTURE_GROWTH_HINT : null,
     });
   })
 );

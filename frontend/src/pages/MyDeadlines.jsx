@@ -320,6 +320,21 @@ export default function MyDeadlinesTab() {
           <Field label="Стоимость патента, ₽">
             <TextInput type="number" value={patentForm.amount} onChange={(e) => setPatentForm({ ...patentForm, amount: e.target.value })} />
           </Field>
+          {data.tax.patentRateSuggestion && !patentForm.amount && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: -6, marginBottom: 14, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: C.subtle }}>
+                Нашли ставку для вашего региона: {fmtMoney(data.tax.patentRateSuggestion.amount)}
+                {!data.tax.patentRateSuggestion.reviewed && ' (не проверено юристом, сверьте перед подачей)'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPatentForm({ ...patentForm, amount: String(data.tax.patentRateSuggestion.amount) })}
+                style={{ padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.secondary, fontSize: 12, cursor: 'pointer' }}
+              >
+                Подставить
+              </button>
+            </div>
+          )}
           <Btn small disabled={savingPatent} onClick={savePatent}>{savingPatent ? 'Сохраняем...' : 'Сохранить'}</Btn>
 
           {patentForm.startAt && patentForm.amount && !data.tax.patent && (

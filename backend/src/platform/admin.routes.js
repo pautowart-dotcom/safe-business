@@ -885,4 +885,93 @@ router.patch(
   })
 );
 
+// Плоский список ниш (region/niche/patent-rates dropdown) — переиспользует
+// каталог segments.js (тот же источник, что у клиентского выбора ниши на
+// онбординге), не дублирует список меток здесь.
+router.get(
+  '/niches',
+  asyncHandler(async (req, res) => {
+    const segments = await securityRepository.getSegments();
+    const niches = segments.flatMap((s) => s.niches || []).map((n) => ({ key: n.key, label: n.label }));
+    res.json(niches);
+  })
+);
+
+// Ставки регионального патента (Фаза 2 движка бизнес-статуса, 28.08.2026) —
+// таблица patent_rates (миграция 0105), заполняется РЕАКТИВНО: строка
+// добавляется, когда конкретный регион+ниша+год реально понадобились
+// платящей компании, не заранее на все 89 регионов (см. решение владельца —
+// полное покрытие строится постепенно, по факту спроса). status='draft' по
+// умолчанию — тот же принцип, что у контент-файлов (document-templates/
+// security): пока не отмечено 'reviewed', UI показывает предупреждение.
+router.get(
+  '/patent-rates',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT pr.id, pr.region_code AS "regionCode", r.name AS "regionName", pr.niche, pr.okved_code AS "okvedCode",
+              pr.year, pr.employee_tier AS "employeeTier", pr.area_tier AS "areaTier", pr.amount,
+              pr.status, pr.reviewed_by AS "reviewedBy", to_char(pr.reviewed_at, 'YYYY-MM-DD') AS "reviewedAt",
+              pr.law_reference AS "lawReference", pr.source_url AS "sourceUrl"
+       FROM patent_rates pr JOIN regions r ON r.region_code = pr.region_code
+       ORDER BY r.name, pr.niche, pr.year DESC`
+    );
+    res.json(rows);
+  })
+);
+
+router.post(
+  '/patent-rates',
+  asyncHandler(async (req, res) => {
+    const { regionCode, niche, okvedCode, year, employeeTier, areaTier, amount, lawReference, sourceUrl } = req.body;
+    if (!regionCode || !niche || !year || amount === undefined || amount === null || amount === '') {
+      return res.status(400).json({ error: 'Регион, ниша, год и сумма обязательны' });
+    }
+    const { rows: regionRows } = await pool.query('SELECT 1 FROM regions WHERE region_code = $1', [regionCode]);
+    if (regionRows.length === 0) {
+      return res.status(400).json({ error: 'Неизвестный код региона' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO patent_rates (region_code, niche, okved_code, year, employee_tier, area_tier, amount, law_reference, source_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (region_code, niche, year, employee_tier, area_tier) DO UPDATE SET
+         amount = $7, okved_code = $3, law_reference = $8, source_url = $9,
+         status = 'draft', reviewed_by = NULL, reviewed_at = NULL, updated_at = now()
+       RETURNING id`,
+      [regionCode, niche, okvedCode || null, Number(year), employeeTier || '', areaTier || '', Number(amount), lawReference || null, sourceUrl || null]
+    );
+    res.status(201).json({ id: rows[0].id });
+  })
+);
+
+router.patch(
+  '/patent-rates/:id',
+  asyncHandler(async (req, res) => {
+    const { amount, lawReference, sourceUrl, reviewed } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE patent_rates SET
+         amount = COALESCE($2, amount),
+         law_reference = COALESCE($3, law_reference),
+         source_url = COALESCE($4, source_url),
+         status = CASE WHEN $5 THEN 'reviewed' ELSE status END,
+         reviewed_by = CASE WHEN $5 THEN $6 ELSE reviewed_by END,
+         reviewed_at = CASE WHEN $5 THEN now() ELSE reviewed_at END,
+         updated_at = now()
+       WHERE id = $1
+       RETURNING id, status, reviewed_by AS "reviewedBy", to_char(reviewed_at, 'YYYY-MM-DD') AS "reviewedAt"`,
+      [req.params.id, amount === undefined || amount === null || amount === '' ? null : Number(amount), lawReference ?? null, sourceUrl ?? null, !!reviewed, req.user.name]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Строка не найдена' });
+    res.json(rows[0]);
+  })
+);
+
+router.delete(
+  '/patent-rates/:id',
+  asyncHandler(async (req, res) => {
+    await pool.query('DELETE FROM patent_rates WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  })
+);
+
 module.exports = router;
