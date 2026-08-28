@@ -80,4 +80,11 @@ echo "== Cron: ежедневный дайджест платежей =="
 PAYMENTS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/paymentMonitoring.js >> /var/log/safe-business-payments.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "paymentMonitoring.js" ; echo "0 6 * * * $PAYMENTS_CRON_CMD" ) | crontab -
 
+# Добавлено 28.08.2026 — Фаза 1 движка бизнес-статуса и налогов (переход
+# самозанятый→ИП). Тот же час, что и dailyOperationsNudges (6:00 МСК) —
+# независимый скрипт, порядок относительно других cron-задач не важен.
+echo "== Cron: ежедневный триггер перехода статуса бизнеса (самозанятый→ИП) =="
+BUSINESS_STATUS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/businessStatusTriggers.js >> /var/log/safe-business-status-triggers.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "businessStatusTriggers.js" ; echo "0 6 * * * $BUSINESS_STATUS_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."

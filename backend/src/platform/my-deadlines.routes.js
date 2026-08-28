@@ -64,7 +64,8 @@ router.get(
     const { rows: companyRows } = await pool.query(
       `SELECT tax_regime, to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
               to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at,
-              to_char(patent_start_at, 'YYYY-MM-DD') AS patent_start_at, patent_amount
+              to_char(patent_start_at, 'YYYY-MM-DD') AS patent_start_at, patent_amount,
+              legal_form, region_code
        FROM companies WHERE id = $1`,
       [companyId]
     );
@@ -141,6 +142,8 @@ router.get(
         patentAmount: company.patent_amount ?? null,
         patent,
       },
+      legalForm: company.legal_form || null,
+      regionCode: company.region_code || null,
     });
   })
 );

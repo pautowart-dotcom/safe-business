@@ -27,6 +27,7 @@ import More from './pages/More.jsx';
 import Subscription from './pages/Subscription.jsx';
 import Support from './pages/Support.jsx';
 import Deadlines from './pages/Deadlines.jsx';
+import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
@@ -140,6 +141,14 @@ export default function App() {
         <Route path="subscription" element={<Subscription />} />
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
+        <Route
+          path="business-status/:transitionKey"
+          element={
+            <PrivateRoute ownerOnly>
+              <BusinessStatusTransition />
+            </PrivateRoute>
+          }
+        />
         {/* Раздел заморожен 05.08.2026 (владелец: до легализации электронных
             журналов) — Journals.jsx больше никуда не подключён, но не удалён
             на случай, если понадобится включить обратно. */}

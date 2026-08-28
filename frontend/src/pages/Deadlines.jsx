@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Badge, Btn, C } from '../ui/components.jsx';
 import { downloadPdf } from '../utils/downloadPdf.js';
+
+// Фаза 1 движка бизнес-статуса: карточка триггера ведёт на универсальную
+// страницу перехода (business-status/content), а не отмечается "Готово" —
+// решение (взять в работу/отклонить/выполнено) принимается там же, где
+// показаны шаги, не одним кликом со списка. legal_form_unknown — тот же
+// формат related_entity_type, но без конкретного transitionKey: там просто
+// экран "Мои сроки", где это поле редактируется.
+const BUSINESS_STATUS_PREFIX = 'business_status:';
 
 // Пакет 4, Этап 4: карточка допечатки журнала (related_entity_type ===
 // 'generated_journal_reprint') получает "Сгенерировать новый" вместо
@@ -29,6 +38,7 @@ function daysLeft(dueDate) {
 }
 
 export default function Deadlines() {
+  const navigate = useNavigate();
   const { isManagement, isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
@@ -112,6 +122,11 @@ export default function Deadlines() {
         items.map((item) => {
           const cat = CATEGORY_BY_KEY[item.category];
           const isReprint = item.related_entity_type === REPRINT_RELATED_TYPE;
+          const businessStatusKey = item.related_entity_type?.startsWith(BUSINESS_STATUS_PREFIX)
+            ? item.related_entity_type.slice(BUSINESS_STATUS_PREFIX.length)
+            : null;
+          const isBusinessStatusUnknown = businessStatusKey === 'legal_form_unknown';
+          const isBusinessStatusTransition = businessStatusKey && !isBusinessStatusUnknown;
           // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
           // точной даты нет ("не пройден тест", "кончаются расходники") —
           // без due_date, поэтому считать дни/показывать дату для них нельзя.
@@ -170,7 +185,17 @@ export default function Deadlines() {
                   {reprinting === item.id ? 'Создаём...' : 'Сгенерировать новый'}
                 </Btn>
               )}
-              {isManagement && !isReprint && (
+              {isManagement && isBusinessStatusTransition && (
+                <Btn small variant="secondary" onClick={() => navigate(`/business-status/${businessStatusKey}`)}>
+                  Подробнее
+                </Btn>
+              )}
+              {isManagement && isBusinessStatusUnknown && (
+                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })}>
+                  Уточнить
+                </Btn>
+              )}
+              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && (
                 <button
                   onClick={() => markDone(item.id)}
                   style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.secondary }}

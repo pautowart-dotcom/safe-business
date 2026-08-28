@@ -11,6 +11,10 @@ const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
 
 const router = express.Router();
 
+// Юрформа компании (Фаза 0 движка бизнес-статуса, миграция 0105) — та же
+// проверка значений, что в CHECK на companies.legal_form.
+const LEGAL_FORMS = ['self_employed', 'ip', 'ooo'];
+
 // Владелец может завести дополнительную компанию под тем же аккаунтом
 // (например вторую студию) — не только при регистрации.
 router.post(
@@ -115,7 +119,8 @@ router.get(
                 ai_advisor_subscription_status, ai_advisor_subscription_current_period_end,
                 ai_advisor_subscription_price_rub, free_addons,
                 to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test, default_daily_hours
+                to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test, default_daily_hours,
+                legal_form, region_code
          FROM companies WHERE id = $1`,
         [req.tenant.companyId]
       ),
@@ -134,20 +139,43 @@ router.get(
 
 router.get('/tax-regimes', requireAuth, (req, res) => res.json(TAX_REGIMES));
 
+// Справочник регионов (Фаза 0, миграция 0105) — сид всех 89 субъектов РФ,
+// для выпадающего списка при выборе региона компании (нужен движку
+// регионального патента, Фаза 2). Сортировка по названию — по коду читать
+// неудобно, это не таблица кодов, а список для человека.
+router.get(
+  '/regions',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query('SELECT region_code AS code, name FROM regions ORDER BY name');
+    res.json(rows);
+  })
+);
+
 router.patch(
   '/current',
   requireAuth,
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { name, industrySegment, taxRegime, ipRegisteredAt, hasEmployees, defaultDailyHours } = req.body;
+    const { name, industrySegment, taxRegime, ipRegisteredAt, hasEmployees, defaultDailyHours, legalForm, regionCode } = req.body;
     // taxRegime может прийти '' (сброс режима на "не указан" из фронта) —
-    // это валидный случай, отличный от неизвестного ключа.
+    // это валидный случай, отличный от неизвестного ключа. legalForm/
+    // regionCode — та же логика (Фаза 0/1 движка бизнес-статуса).
     if (taxRegime && !TAX_REGIMES.some((r) => r.key === taxRegime)) {
       return res.status(400).json({ error: 'Неизвестный налоговый режим' });
     }
+    if (legalForm && !LEGAL_FORMS.includes(legalForm)) {
+      return res.status(400).json({ error: 'Неизвестная форма бизнеса' });
+    }
     if (defaultDailyHours !== undefined && defaultDailyHours !== null && defaultDailyHours !== '' && Number(defaultDailyHours) <= 0) {
       return res.status(400).json({ error: 'Рабочих часов в день должно быть больше нуля' });
+    }
+    if (regionCode) {
+      const { rows: regionRows } = await pool.query('SELECT 1 FROM regions WHERE region_code = $1', [regionCode]);
+      if (regionRows.length === 0) {
+        return res.status(400).json({ error: 'Неизвестный код региона' });
+      }
     }
 
     const { rows } = await pool.query(
@@ -157,11 +185,14 @@ router.patch(
          tax_regime = CASE WHEN $3 THEN $4 ELSE tax_regime END,
          ip_registered_at = CASE WHEN $5 THEN $6 ELSE ip_registered_at END,
          has_employees = CASE WHEN $7 THEN $8 ELSE has_employees END,
-         default_daily_hours = COALESCE($10, default_daily_hours)
+         default_daily_hours = COALESCE($10, default_daily_hours),
+         legal_form = CASE WHEN $11 THEN $12 ELSE legal_form END,
+         region_code = CASE WHEN $13 THEN $14 ELSE region_code END
        WHERE id = $9
        RETURNING id, name, industry_segment, subscription_status, trial_ends_at, tax_regime,
                  to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
-                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, default_daily_hours`,
+                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, default_daily_hours,
+                 legal_form, region_code`,
       [
         name || null, industrySegment || null,
         taxRegime !== undefined, taxRegime || null,
@@ -169,6 +200,8 @@ router.patch(
         hasEmployees !== undefined, hasEmployees === undefined ? null : !!hasEmployees,
         req.tenant.companyId,
         defaultDailyHours || null,
+        legalForm !== undefined, legalForm || null,
+        regionCode !== undefined, regionCode || null,
       ]
     );
 

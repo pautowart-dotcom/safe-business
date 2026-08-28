@@ -10,6 +10,13 @@ import { localDateStr } from '../utils/localDate.js';
 // опционально: не заполнено поле — просто нет напоминания, без блокировок
 // (см. docs/task-batch-4.txt, принцип 2).
 
+const LEGAL_FORM_OPTIONS = [
+  { value: '', label: 'Не указана' },
+  { value: 'self_employed', label: 'Самозанятый (НПД)' },
+  { value: 'ip', label: 'ИП' },
+  { value: 'ooo', label: 'ООО' },
+];
+
 const RECURRENCE_OPTIONS = [
   { value: '', label: 'Без периодичности' },
   { value: 'monthly', label: 'Раз в месяц' },
@@ -115,8 +122,9 @@ export default function MyDeadlinesTab() {
   const [savingKey, setSavingKey] = useState(null);
   const [soutLastAt, setSoutLastAt] = useState('');
   const [savingSout, setSavingSout] = useState(false);
-  const [taxForm, setTaxForm] = useState({ regime: '', ipRegisteredAt: '', hasEmployees: false });
+  const [taxForm, setTaxForm] = useState({ regime: '', ipRegisteredAt: '', hasEmployees: false, legalForm: '', regionCode: '' });
   const [savingTax, setSavingTax] = useState(false);
+  const [regions, setRegions] = useState([]);
   const [patentForm, setPatentForm] = useState({ startAt: '', amount: '' });
   const [savingPatent, setSavingPatent] = useState(false);
 
@@ -128,6 +136,8 @@ export default function MyDeadlinesTab() {
         regime: res.data.tax.regime || '',
         ipRegisteredAt: res.data.tax.ipRegisteredAt || '',
         hasEmployees: !!res.data.tax.hasEmployees,
+        legalForm: res.data.legalForm || '',
+        regionCode: res.data.regionCode || '',
       });
       setPatentForm({
         startAt: res.data.tax.patentStartAt || '',
@@ -139,6 +149,7 @@ export default function MyDeadlinesTab() {
   useEffect(() => {
     load();
     api.get('/platform/deadlines', { params: { category: 'tax' } }).then((res) => setTaxDeadlines(res.data));
+    api.get('/platform/companies/regions').then((res) => setRegions(res.data));
   }, []);
   usePullToRefresh(load);
 
@@ -184,8 +195,16 @@ export default function MyDeadlinesTab() {
         taxRegime: taxForm.regime || '',
         ipRegisteredAt: taxForm.ipRegisteredAt || '',
         hasEmployees: taxForm.hasEmployees,
+        legalForm: taxForm.legalForm || '',
+        regionCode: taxForm.regionCode || '',
       });
-      setTaxForm({ regime: company.tax_regime || '', ipRegisteredAt: company.ip_registered_at || '', hasEmployees: !!company.has_employees });
+      setTaxForm({
+        regime: company.tax_regime || '',
+        ipRegisteredAt: company.ip_registered_at || '',
+        hasEmployees: !!company.has_employees,
+        legalForm: company.legal_form || '',
+        regionCode: company.region_code || '',
+      });
       const res = await api.get('/platform/deadlines', { params: { category: 'tax' } });
       setTaxDeadlines(res.data);
     } catch (err) {
@@ -260,6 +279,17 @@ export default function MyDeadlinesTab() {
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
           Укажите один раз — дальше сроки взносов/отчётности посчитаются сами. Даты — общий ориентир, сверьте с бухгалтером/юристом.
         </div>
+        <Field label="Форма бизнеса">
+          <Select value={taxForm.legalForm} onChange={(e) => setTaxForm({ ...taxForm, legalForm: e.target.value })}>
+            {LEGAL_FORM_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </Field>
+        <Field label="Регион регистрации (необязательно)">
+          <Select value={taxForm.regionCode} onChange={(e) => setTaxForm({ ...taxForm, regionCode: e.target.value })}>
+            <option value="">Не указан</option>
+            {regions.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
+          </Select>
+        </Field>
         <Field label="Налоговый режим">
           <Select value={taxForm.regime} onChange={(e) => setTaxForm({ ...taxForm, regime: e.target.value })}>
             <option value="">Не указан</option>

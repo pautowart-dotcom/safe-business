@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, Select, Icon, C } from '../ui/components.jsx';
@@ -133,6 +133,7 @@ function PdfPaywallNotice({ onSubscribe }) {
 export default function Security() {
   const { isManagement } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState(null);
@@ -163,7 +164,11 @@ export default function Security() {
   // (существующая панель ниже) и новая "Мои сроки". Таб переключается только
   // в устойчивом состоянии панели — во время прохождения теста/результата/
   // формы сегментации верхних табов нет, это отдельные полноэкранные шаги.
-  const [topTab, setTopTab] = useState('test');
+  // Переход из "Дедлайнов" (карточка "уточните форму бизнеса") — сразу
+  // открываем вкладку "Мои сроки", а не общий тест (location.state, не URL
+  // query — тут не нужна постоянная ссылка, только разовая передача при
+  // навигации).
+  const [topTab, setTopTab] = useState(location.state?.tab || 'test');
 
   async function loadDashboardData() {
     const [statusRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
