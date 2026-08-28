@@ -63,10 +63,14 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
   if (regime) {
     // Фиксированные страховые взносы ИП "за себя" — единый срок для всех
     // режимов, кроме ОСН для юрлиц (для простоты считаем ИП-контекст,
-    // отмечено в дисклеймере выше).
+    // отмечено в дисклеймере выше). Дата исправлена 28.08.2026 (сверено
+    // WebSearch при разработке taxRegimeRecommender.js) — было 31 декабря
+    // по старым правилам, после реформы ЕНП 2023 года срок сдвинут на
+    // 28 декабря (п. 2 ст. 432 НК РФ), как и авансы УСН ниже (те уже были
+    // поправлены 04.08.2026, этот слот тогда пропустили).
     slots.insurance_fixed = {
       title: `Фиксированные страховые взносы ИП за ${year} год — сверьте сумму с ФНС`,
-      dueDate: `${year}-12-31`,
+      dueDate: `${year}-12-28`,
     };
     // 1% с дохода свыше 300 000 ₽ за прошедший год — срок в следующем году.
     slots.insurance_extra = {
@@ -213,6 +217,22 @@ function addDaysUTC(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Отнять N рабочих дней от даты — упрощённо, только выходные (суббота/
+// воскресенье), без учёта официальных праздников/переносов производственного
+// календаря РФ (владелец подтвердил упрощение для v1, 28.08.2026) — как и
+// остальные даты в этом модуле, с дисклеймером "сверьте точную дату" в UI,
+// не как источник истины.
+function subtractWorkingDaysUTC(dateStr, workingDays) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  let remaining = workingDays;
+  while (remaining > 0) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    const day = d.getUTCDay(); // 0 = воскресенье, 6 = суббота
+    if (day !== 0 && day !== 6) remaining--;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 function monthsBetweenInclusive(startAt, endAt) {
   const s = new Date(`${startAt}T00:00:00Z`);
   const e = new Date(`${endAt}T00:00:00Z`);
@@ -231,4 +251,4 @@ function computePatentSchedule(startAt, endAt, amount) {
   ];
 }
 
-module.exports = { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule };
+module.exports = { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };

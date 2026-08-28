@@ -127,6 +127,10 @@ export default function MyDeadlinesTab() {
   const [regions, setRegions] = useState([]);
   const [patentForm, setPatentForm] = useState({ startAt: '', amount: '' });
   const [savingPatent, setSavingPatent] = useState(false);
+  const [recommendation, setRecommendation] = useState(null);
+  const [switchingRegime, setSwitchingRegime] = useState(null);
+  const [patentSwitchDate, setPatentSwitchDate] = useState('');
+  const [switchMessage, setSwitchMessage] = useState('');
 
   function load() {
     return api.get('/platform/my-deadlines').then((res) => {
@@ -150,7 +154,23 @@ export default function MyDeadlinesTab() {
     load();
     api.get('/platform/deadlines', { params: { category: 'tax' } }).then((res) => setTaxDeadlines(res.data));
     api.get('/platform/companies/regions').then((res) => setRegions(res.data));
+    api.get('/platform/my-deadlines/tax-regime-recommendation').then((res) => setRecommendation(res.data)).catch(() => {});
   }, []);
+
+  async function createSwitchDeadline(targetRegime, startAt) {
+    setSwitchingRegime(targetRegime);
+    setSwitchMessage('');
+    try {
+      await api.post('/platform/my-deadlines/tax-regime-recommendation/switch-deadline', { targetRegime, startAt });
+      setSwitchMessage('Дедлайн добавлен — смотрите в «Дедлайнах».');
+      const res = await api.get('/platform/deadlines', { params: { category: 'tax' } });
+      setTaxDeadlines(res.data);
+    } catch (err) {
+      setSwitchMessage(err.response?.data?.error || 'Не получилось создать дедлайн');
+    } finally {
+      setSwitchingRegime(null);
+    }
+  }
   usePullToRefresh(load);
 
   async function saveSlot(key, { file, ...fields }) {
@@ -305,6 +325,53 @@ export default function MyDeadlinesTab() {
         </label>
         <Btn small disabled={savingTax} onClick={saveTax}>{savingTax ? 'Сохраняем...' : 'Сохранить'}</Btn>
       </Card>
+
+      {recommendation && (
+        <Card>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Что выгоднее (по факту с начала {recommendation.year} года)</div>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
+            Выручка: {fmtMoney(recommendation.revenue)}, расходы: {fmtMoney(recommendation.expenses)}, страховые взносы ИП: {fmtMoney(recommendation.insuranceContribution)}.
+            Это не прогноз на весь год, а сравнение вариантов по уже реальным цифрам — сверьте с бухгалтером перед решением.
+          </div>
+          {switchMessage && <div style={{ fontSize: 12, color: C.primary, marginBottom: 10 }}>{switchMessage}</div>}
+          {recommendation.options.map((o) => (
+            <div key={o.regime} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: o.regime === recommendation.cheapestRegime ? 800 : 600 }}>
+                  {o.label}{o.regime === recommendation.cheapestRegime ? ' — выгоднее всего' : ''}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.primary, whiteSpace: 'nowrap' }}>
+                  {o.estimatedTaxRub != null ? `~${fmtMoney(o.estimatedTaxRub)}` : '—'}
+                </div>
+              </div>
+              {o.note && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{o.note}</div>}
+              {(o.regime === 'usn_income' || o.regime === 'usn_income_expense') && (
+                <button
+                  type="button"
+                  disabled={switchingRegime === o.regime}
+                  onClick={() => createSwitchDeadline(o.regime)}
+                  style={{ marginTop: 6, padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.secondary, fontSize: 12, cursor: 'pointer' }}
+                >
+                  {switchingRegime === o.regime ? 'Создаём...' : 'Дедлайн перехода (до 31 декабря)'}
+                </button>
+              )}
+              {o.regime === 'patent' && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <TextInput type="date" value={patentSwitchDate} onChange={(e) => setPatentSwitchDate(e.target.value)} style={{ width: 160 }} />
+                  <button
+                    type="button"
+                    disabled={!patentSwitchDate || switchingRegime === 'patent'}
+                    onClick={() => createSwitchDeadline('patent', patentSwitchDate)}
+                    style={{ padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.secondary, fontSize: 12, cursor: 'pointer' }}
+                  >
+                    {switchingRegime === 'patent' ? 'Создаём...' : 'Дедлайн заявления (за 10 раб. дней до старта)'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
 
       {taxForm.regime === 'patent' && (
         <Card>

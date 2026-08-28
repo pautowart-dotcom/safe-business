@@ -15,8 +15,9 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { registerDeadline, clearAction } = require('../core/deadlines');
-const { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule } = require('../core/taxDeadlines');
+const { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule, subtractWorkingDaysUTC } = require('../core/taxDeadlines');
 const { getPatentRate } = require('../core/patentRates');
+const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
 
 const RESERVE_REGIMES = ['usn_income', 'usn_income_expense'];
 const RESERVE_SLOT_KEYS = ['usn_q1', 'usn_q2', 'usn_q3'];
@@ -273,6 +274,79 @@ router.patch(
     }
 
     res.json({ startAt: startAt || null, amount: numAmount, patent });
+  })
+);
+
+// Рекомендатель системы налогообложения (Фаза 3, 28.08.2026) — сравнение по
+// реальным данным компании, ниша нужна однозначно (как и для автоподстановки
+// патента выше — при нескольких нишах не гадаем, какую использовать).
+router.get(
+  '/tax-regime-recommendation',
+  asyncHandler(async (req, res) => {
+    const companyId = req.tenant.companyId;
+    const [{ rows: companyRows }, { rows: nicheRows }] = await Promise.all([
+      pool.query('SELECT region_code, has_employees FROM companies WHERE id = $1', [companyId]),
+      pool.query('SELECT niche FROM security_profile_niches WHERE company_id = $1', [companyId]),
+    ]);
+    const company = companyRows[0] || {};
+
+    const result = await recommendTaxRegime({
+      companyId,
+      regionCode: company.region_code,
+      niche: nicheRows.length === 1 ? nicheRows[0].niche : null,
+      hasEmployees: company.has_employees,
+    });
+    res.json(result);
+  })
+);
+
+const SWITCHABLE_REGIMES = ['usn_income', 'usn_income_expense', 'patent'];
+
+// Дедлайн перехода на выбранный режим — не сам переход (это делает
+// владелец через ФНС), а напоминание успеть подать уведомление/заявление
+// вовремя. УСН — уведомление до 31 декабря текущего года (переход
+// действует со следующего, ст. 346.13 НК РФ); патент — за 10 рабочих дней
+// до даты начала (см. subtractWorkingDaysUTC — упрощённо, только выходные,
+// без праздничного календаря, подтверждено владельцем для v1).
+router.post(
+  '/tax-regime-recommendation/switch-deadline',
+  asyncHandler(async (req, res) => {
+    const { targetRegime, startAt } = req.body;
+    if (!SWITCHABLE_REGIMES.includes(targetRegime)) {
+      return res.status(400).json({ error: 'Для этого режима переход не оформляется здесь' });
+    }
+
+    const companyId = req.tenant.companyId;
+    const year = new Date().getFullYear();
+
+    if (targetRegime === 'patent') {
+      if (!startAt) {
+        return res.status(400).json({ error: 'Укажите планируемую дату начала действия патента' });
+      }
+      const dueDate = subtractWorkingDaysUTC(startAt, 10);
+      const deadlineId = await registerDeadline({
+        companyId,
+        category: 'tax',
+        title: `Заявление на патент — подать не позднее (старт патента ${startAt})`,
+        dueDate,
+        relatedEntityType: 'tax_regime_switch:patent_notice',
+        relatedEntityId: companyId,
+        note: 'Срок — упрощённый расчёт по рабочим дням (без праздников), сверьте точную дату в ЛК ФНС.',
+      });
+      return res.json({ id: deadlineId, dueDate });
+    }
+
+    const regimeLabel = TAX_REGIMES.find((r) => r.key === targetRegime)?.label || targetRegime;
+    const dueDate = `${year}-12-31`;
+    const deadlineId = await registerDeadline({
+      companyId,
+      category: 'tax',
+      title: `Уведомление о переходе на «${regimeLabel}» с ${year + 1} года`,
+      dueDate,
+      relatedEntityType: 'tax_regime_switch:usn_notice',
+      relatedEntityId: companyId,
+    });
+    res.json({ id: deadlineId, dueDate });
   })
 );
 
