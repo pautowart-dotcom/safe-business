@@ -7,6 +7,7 @@ const { registerDeadline } = require('./deadlines');
 // законодательства). Перед реальным использованием обязательно сверить
 // список с бухгалтером/юристом — это ориентир, не источник истины.
 const TAX_REGIMES = [
+  { key: 'self_employed', label: 'Самозанятость (НПД)' },
   { key: 'patent', label: 'Патент (ПСН)' },
   { key: 'usn_income', label: 'УСН «Доходы» (6%)' },
   { key: 'usn_income_expense', label: 'УСН «Доходы минус расходы» (15%)' },
@@ -47,6 +48,14 @@ const QUARTER_START = {
 // момент регистрации кварталы, hasEmployees добавляет отчётность за
 // сотрудников (РСВ/6-НДФЛ), независимую от налогового режима.
 function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = false } = {}) {
+  // Самозанятость (НПД) — отдельный режим без фиксированных страховых
+  // взносов ИП и без квартальных авансов: налог считается и удерживается
+  // автоматически по каждой операции в приложении "Мой налог" ФНС, этот
+  // движок им не управляет. По 422-ФЗ самозанятому нельзя иметь сотрудников
+  // (это один из триггеров перехода на ИП, см. businessStatusTriggers.js),
+  // поэтому и слоты по сотрудникам здесь не создаются.
+  if (regime === 'self_employed') return {};
+
   const slots = {};
 
   // Взносы/налог по режиму — только если режим известен (как и раньше:
@@ -174,6 +183,23 @@ async function computeReserve(companyId, regime, quarterStart, quarterEnd) {
   return { revenue, expenses, amount };
 }
 
+// Скользящее окно 12 месяцев — для триггера самозанятый→ИП: лимит НПД
+// (2 400 000 ₽) годовой, а не квартальный, как "Резерв на налоги" выше,
+// поэтому не переиспользуем quarterStart/quarterEnd, хотя SQL-форма та же.
+// ВАЖНО (для формулировки в интерфейсе, не для сокрытия): finance_entries —
+// это то, что компания сама внесла (auto_from_visit/manual), не сверено с
+// банком. Если самозанятый не ведёт выручку в приложении, число ниже
+// ЗАНИЖАЕТ реальный доход — UI, который это использует, обязан честно об
+// этом говорить, а не подразумевать точность, которой нет.
+async function computeTrailingRevenue(companyId) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM finance_entries
+     WHERE company_id = $1 AND occurred_at >= (CURRENT_DATE - INTERVAL '12 months') AND occurred_at <= CURRENT_DATE`,
+    [companyId]
+  );
+  return Number(rows[0].total);
+}
+
 // График оплаты патента (ПСН) по уже известной владельцу сумме (сумму мы
 // не считаем — она зависит от региона/ниши/года, см. комментарий в
 // my-deadlines.routes.js). Правила фиксированы федерально (ст. 346.51 НК
@@ -205,4 +231,4 @@ function computePatentSchedule(startAt, endAt, amount) {
   ];
 }
 
-module.exports = { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule };
+module.exports = { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule };
