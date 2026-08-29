@@ -52,7 +52,12 @@ const SEGMENTS = [
     ],
   },
   { key: 'retail', label: 'Розничная торговля', niches: [] },
-  { key: 'food', label: 'Общепит', niches: [] },
+  {
+    key: 'food', label: 'Общепит',
+    niches: [
+      { key: 'cafe_basic', label: 'Кафе, кофейня, столовая (без алкоголя)' },
+    ],
+  },
   { key: 'other', label: 'Другое', niches: [] },
 ];
 
