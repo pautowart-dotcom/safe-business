@@ -73,6 +73,15 @@ const DOCUMENT_CATEGORIES = [
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
 const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая зона', red: 'Красная зона' };
+// 29.08.2026 (аудит "ведения от и до"): раньше бейдж зоны нигде не объяснял,
+// что она значит на практике — просто цвет. Тон — как в CLAUDE.md: не
+// "защитим от штрафов" и не запугивание, а честно и по-деловому, что
+// реально стоит за цветом.
+const ZONE_EXPLANATIONS = {
+  green: 'Серьёзных нарушений не найдено. Стоит время от времени перепроходить тест — требования и обстоятельства бизнеса меняются.',
+  yellow: 'Есть недочёты. Не критично прямо сейчас, но лучше устранить в ближайшее время, не откладывая надолго.',
+  red: 'Есть нарушения, за которые при проверке возможен штраф. Стоит заняться в первую очередь — начните с самых серьёзных в списке ниже.',
+};
 
 function riskColor(risk) {
   if (risk >= 9) return C.red;
@@ -150,6 +159,14 @@ export default function Security() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [activeAudit, setActiveAudit] = useState(null);
   const [auditResult, setAuditResult] = useState(null);
+  // 29.08.2026 (аудит "ведения от и до"): раньше "Аудит завершён" вёл ровно
+  // на вкладку "Обзор" панели (SecurityDashboard сама решает, туда попадёт
+  // пользователь или нет — по умолчанию 'overview'), даже если найдены
+  // нарушения — приходилось самому искать вкладку "Нарушения". initialTab
+  // передаётся в SecurityDashboard ниже; читается только в момент нового
+  // монтирования (после закрытия AuditResult SecurityDashboard размонтирована
+  // и монтируется заново), поэтому обычный useState там это подхватывает.
+  const [dashboardTab, setDashboardTab] = useState('overview');
   // Тест и его результат бесплатны всем, платный барьер только на скачивании
   // PDF (requirePaidPlan — см. downloadPdf выше). Статус подписки нужен
   // здесь только для честной подписи на кнопке/тексте карточки — сама
@@ -331,6 +348,7 @@ export default function Security() {
         hasPaidPlan={hasPaidPlan}
         pdfPaywall={pdfPaywall}
         onClose={() => { setAuditResult(null); setPdfPaywall(false); }}
+        onViewViolations={() => { setDashboardTab('violations'); setAuditResult(null); setPdfPaywall(false); }}
         onDownload={() => downloadPdf(auditResult.session.id, setError, setPdfPaywall)}
         onGoSubscribe={() => navigate('/subscription')}
       />
@@ -377,6 +395,7 @@ export default function Security() {
         <MyDeadlinesTab />
       ) : (
         <SecurityDashboard
+          initialTab={dashboardTab}
           profile={profile}
           status={status}
           violations={violations}
@@ -592,18 +611,32 @@ function IndexHero({ percent, zone, subtitle, note }) {
   );
 }
 
-function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onDownload, onGoSubscribe }) {
+function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolations, onDownload, onGoSubscribe }) {
   const { status, warnings } = result;
   const zone = status.zone;
+  const violationsCount = status.violations.length;
   return (
     <div>
       <BackBtn onClick={onClose} label="К панели безопасности" />
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Аудит завершён</div>
-      <IndexHero percent={status.indexPercent} zone={zone} subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${status.violations.length}`} />
+      <IndexHero
+        percent={status.indexPercent}
+        zone={zone}
+        subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${violationsCount}`}
+        note={ZONE_EXPLANATIONS[zone]}
+      />
       {warnings?.map((w, i) => (
         <div key={i} className="alert alert-error" style={{ marginBottom: 12 }}>{w}</div>
       ))}
       {pdfPaywall && <PdfPaywallNotice onSubscribe={onGoSubscribe} />}
+      {/* 29.08.2026: раньше единственный путь дальше был "Скачать PDF" —
+          нарушения найдены, но само их содержание видно только если зайти
+          во вкладку "Нарушения" самому, никто туда не вёл. */}
+      {violationsCount > 0 && (
+        <Btn variant="secondary" onClick={onViewViolations} style={{ marginBottom: 10 }}>
+          Что именно нашли — посмотреть нарушения
+        </Btn>
+      )}
       <Btn onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт 🔒 по подписке'}</Btn>
     </div>
   );
@@ -613,9 +646,9 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onDownload, onG
 
 function SecurityDashboard({
   profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
-  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onGoSubscribe, onDocumentsChange, hideTitle,
+  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onGoSubscribe, onDocumentsChange, hideTitle, initialTab,
 }) {
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState(initialTab || 'overview');
 
   const nicheLabels = (profile.niches || []).map(nicheLabel);
   const hasResult = status?.indexPercent != null;
@@ -668,7 +701,7 @@ function SecurityDashboard({
         <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onGoSubscribe={onGoSubscribe} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
-      {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} />}
+      {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'inspection' && <InspectionGuidesTab />}
     </div>
   );
@@ -1557,7 +1590,7 @@ function DocumentTemplatesCard({ isManagement }) {
           </div>
           {t.status === 'draft' && (
             <div style={{ fontSize: 12, color: '#B7950B', marginBottom: 6 }}>
-              Бета-версия шаблона — дорабатывается и уточняется. Не является юридической консультацией и не гарантирует прохождение проверки или суда.
+              Бета-версия — составлен по типовой практике, но пока не проверен профессиональным юристом. Подойдёт как основа для повседневной работы; если ситуация нестандартная или важен результат в суде — стоит показать юристу перед использованием.
             </div>
           )}
           {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}
@@ -1711,7 +1744,7 @@ function ViolationCard({ violation, isManagement, onResolve }) {
 // произвольный список. Если для ниши ещё нет контента отчёта (sections
 // пустой), используем общий фолбэк-список категорий, чтобы загрузка
 // документов всё равно работала.
-function DocumentsTab({ documents, sections, isManagement, onChange }) {
+function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTemplates }) {
   const categories = sections.length > 0 ? sections.map((s) => s.title) : DOCUMENT_CATEGORIES;
   const itemsByCategory = {};
   for (const s of sections) itemsByCategory[s.title] = s.items;
@@ -1827,7 +1860,20 @@ function DocumentsTab({ documents, sections, isManagement, onChange }) {
       </div>
       {missingCategories.length > 0 && (
         <div className="alert alert-error" style={{ marginBottom: 12 }}>
-          Не хватает документов в {missingCategories.length} из {categories.length} категорий: {missingCategories.join(', ')}.
+          <div>Не хватает документов в {missingCategories.length} из {categories.length} категорий: {missingCategories.join(', ')}.</div>
+          {/* 29.08.2026 (аудит "ведения от и до"): раньше единственный путь
+              отсюда — форма ручной загрузки уже готового файла, даже для
+              категорий, которые можно сгенерировать шаблоном (согласия на
+              ПДн и т.п., живут во вкладке "Обзор" — см. DocumentTemplatesCard).
+              Не для всех категорий есть шаблон (санитарные журналы,
+              например, — нет), поэтому формулировка не обещает закрыть всё. */}
+          <button
+            type="button"
+            onClick={onGoToTemplates}
+            style={{ display: 'block', background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', fontWeight: 600, cursor: 'pointer', padding: '6px 0 0', fontSize: 13 }}
+          >
+            Часть документов можно сгенерировать из готовых шаблонов — открыть →
+          </button>
         </div>
       )}
       {isManagement && <div style={{ marginBottom: 16 }}><Btn small onClick={openForm}>+ Добавить документ</Btn></div>}
