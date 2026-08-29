@@ -10,7 +10,27 @@ const HARD_TRIAL_CUTOFF = new Date('2026-07-27T00:00:00Z');
 
 // Пути, которые обязаны оставаться доступны даже закрытой компании — иначе
 // не из чего будет оформить подписку и не откуда узнать её статус.
-const EXEMPT_PATH_PREFIXES = ['/api/platform/companies/current', '/api/platform/subscription'];
+//
+// 29.08.2026 — найдено и исправлено реальное расхождение: FAQ
+// (миграция 0039/0047) и текст страницы подписки (frontend/src/pages/
+// Subscription.jsx) прямо обещают «тест безопасности, его результат и
+// индекс остаются бесплатными независимо от подписки», но этот блок до сих
+// пор закрывал ВЕСЬ модуль security плоским 402 — включая сам тест. Ниже
+// освобождены только пути, которые реально обещаны бесплатными (профиль
+// сегментации, статус, сессии теста, отчёты/просмотр результата — сама
+// выгрузка PDF остаётся платной через собственную проверку внутри
+// report.routes.js, эта проверка не зависит от requireTenant и продолжает
+// работать). НЕ освобождены: /documents, /violations, /document-risk-checks
+// и другие — это платное текущее ведение комплаенса, а не разовая
+// диагностика, FAQ их бесплатными не называет.
+const EXEMPT_PATH_PREFIXES = [
+  '/api/platform/companies/current',
+  '/api/platform/subscription',
+  '/api/modules/security/profile',
+  '/api/modules/security/status',
+  '/api/modules/security/sessions',
+  '/api/modules/security/reports',
+];
 
 function isExempt(req) {
   return EXEMPT_PATH_PREFIXES.some((p) => req.originalUrl.startsWith(p));
