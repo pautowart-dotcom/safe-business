@@ -29,7 +29,13 @@ const CATEGORIES = [
   { key: 'documents', label: 'Юридические', color: C.primary, bg: C.surface },
   { key: 'tax', label: 'Налоговые', color: C.orange, bg: C.orangeBg },
   { key: 'financial', label: 'Финансовые', color: C.green, bg: C.greenBg },
+  { key: 'operations', label: 'Операционные', color: C.subtle, bg: C.surface },
 ];
+// Категория с бэкенда, для которой здесь нет описания (например, добавлена
+// новой миграцией, а этот список забыли обновить, как случилось с
+// 'operations' — deadlines.routes.js её уже отдавал, а тут её не было и
+// cat.color падал с TypeError) — нейтральный бейдж вместо падения страницы.
+const UNKNOWN_CATEGORY = { label: 'Другое', color: C.subtle, bg: C.surface };
 const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
 
 function daysLeft(dueDate) {
@@ -120,8 +126,16 @@ export default function Deadlines() {
         <div className="empty-hint">Предстоящих сроков нет</div>
       ) : (
         items.map((item) => {
-          const cat = CATEGORY_BY_KEY[item.category];
+          const cat = CATEGORY_BY_KEY[item.category] || UNKNOWN_CATEGORY;
           const isReprint = item.related_entity_type === REPRINT_RELATED_TYPE;
+          // Нарушение из теста безопасности (29.08.2026) — "Готово" здесь
+          // раньше просто прятало бы запись из Дедлайнов (PATCH .../deadlines/:id),
+          // не трогая security_violations.status. Разошлось бы с вкладкой
+          // "Нарушения" (там всё ещё "открыто") и, для администратора, тихо
+          // обходило бы owner-only ограничение на резолюцию нарушений
+          // (политика конфиденциальности §8.4 — Безопасность видна только
+          // владельцу). Вместо "Готово" — ссылка туда, где реально решается.
+          const isSecurityViolation = item.related_entity_type === 'security_violation';
           const businessStatusKey = item.related_entity_type?.startsWith(BUSINESS_STATUS_PREFIX)
             ? item.related_entity_type.slice(BUSINESS_STATUS_PREFIX.length)
             : null;
@@ -195,7 +209,12 @@ export default function Deadlines() {
                   Уточнить
                 </Btn>
               )}
-              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && (
+              {isManagement && isSecurityViolation && (
+                <Btn small variant="secondary" onClick={() => navigate('/security')}>
+                  Открыть
+                </Btn>
+              )}
+              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && (
                 <button
                   onClick={() => markDone(item.id)}
                   style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.secondary }}

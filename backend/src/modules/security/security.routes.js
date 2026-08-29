@@ -429,20 +429,29 @@ router.post(
 
     // 29.08.2026 (аудит "ведения от и до"): найденные нарушения раньше жили
     // только во вкладке "Нарушения" — владелец должен был сам туда зайти,
-    // чтобы узнать, что вообще нашлось. Теперь каждое ОТКРЫТОЕ нарушение
-    // регистрируется как "действие" (та же category='documents', что и
-    // "Пройти тест безопасности" ниже) — попадает в общую систему дедлайнов
-    // и, как следствие, в карточку "Критических действий" на главном экране
-    // владельца, без каких-либо изменений в Dashboard.jsx. Уже resolved
-    // нарушения не трогаем — не должны внезапно всплывать заново.
+    // чтобы узнать, что вообще нашлось. Теперь ОТКРЫТОЕ нарушение с высоким
+    // risk (см. content/violations/*.js, шкала 3-10 — 8+ значит реальный
+    // штраф/серьёзная опасность, не формальность) регистрируется как
+    // "действие" и попадает в карточку "Критических действий" на главном
+    // экране, без изменений в Dashboard.jsx. Владелец прямо сказал: клиент
+    // продукта — нетехнический человек, который не терпит постоянной
+    // тревоги (CLAUDE.md, тон "не запугивать проверками") — если выводить
+    // туда вообще все нарушения, карточка была бы красной практически
+    // всегда (ни один бизнес не бывает на 100% чист) и превратилась бы в
+    // фоновый шум, теряя саму суть "критического". Менее серьёзные
+    // нарушения по-прежнему видны во вкладке "Нарушения", просто не жгут
+    // тревогой на входе. Уже resolved нарушения не трогаем — не должны
+    // внезапно всплывать заново.
+    const CRITICAL_RISK_THRESHOLD = 8;
     const violationMatrix = await repository.getViolationMatrix(session.niche);
     for (const violation of violationsPersisted) {
       if (violation.status !== 'open') continue;
       const details = violationMatrix?.find((v) => v.code === violation.violation_code);
+      if (!details || details.risk < CRITICAL_RISK_THRESHOLD) continue;
       await registerAction({
         companyId: req.tenant.companyId,
         category: 'documents',
-        title: details?.title || violation.violation_code,
+        title: details.title,
         relatedEntityType: 'security_violation',
         relatedEntityId: violation.id,
       });

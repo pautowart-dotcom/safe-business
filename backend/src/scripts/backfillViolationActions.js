@@ -16,6 +16,11 @@ const repository = require('../modules/security/content/repository');
 // выглядело бы как спам/баг для реального пользователя. Тот же INSERT/ON
 // CONFLICT, что и внутри registerAction, но без побочного эффекта пуша.
 // Идемпотентно, безопасно запускать повторно.
+// Тот же порог, что и в security.routes.js (/sessions/:id/complete) — только
+// risk >= 8 попадает в "Критические действия", иначе карточка на главном
+// экране была бы красной практически всегда (см. комментарий там).
+const CRITICAL_RISK_THRESHOLD = 8;
+
 async function run() {
   const { rows } = await pool.query(
     `SELECT id, company_id, violation_code, niche FROM security_violations WHERE status = 'open'`
@@ -23,20 +28,25 @@ async function run() {
 
   const matrixCache = {};
   let registered = 0;
+  let skippedLowRisk = 0;
   for (const row of rows) {
     if (!(row.niche in matrixCache)) matrixCache[row.niche] = await repository.getViolationMatrix(row.niche);
     const details = matrixCache[row.niche]?.find((v) => v.code === row.violation_code);
+    if (!details || details.risk < CRITICAL_RISK_THRESHOLD) {
+      skippedLowRisk += 1;
+      continue;
+    }
     await pool.query(
       `INSERT INTO deadlines (company_id, category, title, due_date, kind, related_entity_type, related_entity_id)
        VALUES ($1, 'documents', $2, NULL, 'action', 'security_violation', $3)
        ON CONFLICT (related_entity_type, related_entity_id, category) WHERE related_entity_type IS NOT NULL AND related_entity_id IS NOT NULL
        DO UPDATE SET title = EXCLUDED.title, kind = 'action', due_date = NULL, status = 'pending'`,
-      [row.company_id, details?.title || row.violation_code, row.id]
+      [row.company_id, details.title, row.id]
     );
     registered += 1;
   }
 
-  console.log(`Действия зарегистрированы для ${registered} открытых нарушений (из ${rows.length} найденных), без пуш-уведомлений.`);
+  console.log(`Действия зарегистрированы для ${registered} открытых нарушений с risk >= ${CRITICAL_RISK_THRESHOLD} (пропущено менее серьёзных: ${skippedLowRisk}, из ${rows.length} всего), без пуш-уведомлений.`);
   await pool.end();
 }
 
