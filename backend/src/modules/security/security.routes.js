@@ -198,16 +198,44 @@ const NICHE_EXTRA_MODULES = {
   cleaning_basic: ['leads'],
 };
 
+// Каркас Фазы A (A1, план "replicated-cooking-rainbow.md") — обратная сторона
+// NICHE_EXTRA_MODULES: модуль из общего набора, который конкретной нише не
+// нужен. Решено пока только одно правило (29.08.2026): у Общепита нет модели
+// "визит к мастеру" (точки продаж, не запись на услугу). Остальные ниши/
+// модули — черновик в docs/niche-module-matrix.md, требуют отдельного
+// разбора по одной нише, сюда переносятся только после того, как решение
+// принято, не как предположение.
+const NICHE_HIDDEN_MODULES = {
+  cafe_basic: ['visits'],
+};
+
 async function ensureNicheModules(companyId, niches) {
-  const moduleKeys = new Set();
+  const addKeys = new Set();
   for (const niche of niches) {
-    for (const key of NICHE_EXTRA_MODULES[niche] || []) moduleKeys.add(key);
+    for (const key of NICHE_EXTRA_MODULES[niche] || []) addKeys.add(key);
   }
-  for (const moduleKey of moduleKeys) {
+  for (const moduleKey of addKeys) {
     await pool.query(
       `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
        ON CONFLICT (company_id, module_key) DO UPDATE SET enabled = true`,
       [companyId, moduleKey]
+    );
+  }
+
+  // Скрыть модуль только если НИ ОДНА из выбранных ниш в нём не нуждается —
+  // при мультивыборе (сегмент "Красота и здоровье") одна ниша не должна
+  // прятать то, что явно нужно другой выбранной нише той же компании.
+  // Тот же self-heal принцип, что и выше: пересчитывается заново при каждом
+  // сохранении профиля, поэтому модуль, который раньше был скрыт, сам
+  // вернётся, если владелец добавил нишу, которой он нужен.
+  const hiddenPerNiche = niches.map((n) => new Set(NICHE_HIDDEN_MODULES[n] || []));
+  const allHideCandidates = new Set(Object.values(NICHE_HIDDEN_MODULES).flat());
+  for (const moduleKey of allHideCandidates) {
+    const shouldHide = hiddenPerNiche.length > 0 && hiddenPerNiche.every((s) => s.has(moduleKey));
+    await pool.query(
+      `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, $3)
+       ON CONFLICT (company_id, module_key) DO UPDATE SET enabled = $3`,
+      [companyId, moduleKey, !shouldHide]
     );
   }
 }

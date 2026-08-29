@@ -14,7 +14,7 @@ const OWNER_ITEMS = [
   { label: 'Клиенты', sub: 'База клиентов, история визитов', icon: 'clients', to: '/clients', moduleKey: 'clients' },
   { label: 'Визиты', sub: 'Календарь визитов и услуг', icon: 'visit', to: '/visits', moduleKey: 'visits' },
   { label: 'Фотоотчёты', sub: 'Фото до/после по визитам', icon: 'photo', to: '/photo-reports', moduleKey: 'visits' },
-  { label: 'Склад расходников', sub: 'Остатки, списание, пополнение', icon: 'supply', to: '/supplies' },
+  { label: 'Склад расходников', sub: 'Остатки, списание, пополнение', icon: 'supply', to: '/supplies', moduleKey: 'supplies' },
   { label: 'Каталог услуг', sub: 'Длительность, оплата мастеру по услугам', icon: 'doc', to: '/services' },
   // 19.08.2026: продолжение marginAdvisor — семья ИИ-советников (маржа,
   // скидки, цена ушедшего мастера). Только владелец — все три советника
@@ -25,8 +25,8 @@ const OWNER_ITEMS = [
   // (Layout.jsx → AiAssistantWidget.jsx, доступен на любой странице), не
   // отдельный раздел. Гейт (owner-only + company_modules['ai-assistant'])
   // перенесён туда же, тот же принцип, что и раньше.
-  { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift' },
-  { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge' },
+  { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift', moduleKey: 'checklists' },
+  { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge', moduleKey: 'knowledge' },
   { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security' },
   // "Журналы" убраны из меню 05.08.2026 — раздел заморожен целиком
   // (владелец: до легализации электронных журналов). Роут /journals
@@ -135,19 +135,21 @@ function MasterMore() {
           </ChevronRow>
         </Card>
       )}
-      <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/knowledge')}>
-        <ChevronRow>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="book" size={20} color={C.primary} />
+      {hasModule('knowledge') && (
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/knowledge')}>
+          <ChevronRow>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="book" size={20} color={C.primary} />
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>База знаний</div>
+                <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Стандарты, правила, инструкции</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>База знаний</div>
-              <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Стандарты, правила, инструкции</div>
-            </div>
-          </div>
-        </ChevronRow>
-      </Card>
+          </ChevronRow>
+        </Card>
+      )}
       {/* "Журналы" убраны 05.08.2026 — раздел заморожен целиком, см. More.jsx OWNER_ITEMS. */}
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>

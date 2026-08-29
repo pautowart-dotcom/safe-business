@@ -116,8 +116,8 @@ const OWNER_NAV = [
 const ADMIN_NAV = [
   { to: '/', label: 'Главная', icon: 'home', end: true },
   { to: '/clients', label: 'Клиенты', icon: 'clients', moduleKey: 'clients' },
-  { to: '/shift', label: 'Смена', icon: 'shift' },
-  { to: '/supplies', label: 'Склад', icon: 'supply' },
+  { to: '/shift', label: 'Смена', icon: 'shift', moduleKey: 'checklists' },
+  { to: '/supplies', label: 'Склад', icon: 'supply', moduleKey: 'supplies' },
   { to: '/finance', label: 'Финансы', icon: 'finance' },
   { to: '/more', label: 'Ещё', icon: 'more' },
 ];
@@ -125,8 +125,8 @@ const ADMIN_NAV = [
 const MASTER_NAV = [
   { to: '/', label: 'Главная', icon: 'home', end: true },
   { to: '/clients', label: 'Клиенты', icon: 'clients', moduleKey: 'clients' },
-  { to: '/shift', label: 'Смена', icon: 'shift' },
-  { to: '/supplies', label: 'Склад', icon: 'supply' },
+  { to: '/shift', label: 'Смена', icon: 'shift', moduleKey: 'checklists' },
+  { to: '/supplies', label: 'Склад', icon: 'supply', moduleKey: 'supplies' },
   { to: '/finance', label: 'Финансы', icon: 'finance' },
   { to: '/more', label: 'Ещё', icon: 'more' },
 ];
@@ -173,7 +173,14 @@ const HUB_ICONS = {
 // десктопе пункты идут прямыми ссылками в сайдбаре, но видимость должна
 // остаться той же, иначе компания без модуля "Заявки"/"Визиты" увидит
 // ссылку на выключенный для неё раздел.
-const HUB_MODULE_KEYS = { '/leads': 'leads', '/visits': 'visits', '/photo-reports': 'visits' };
+const HUB_MODULE_KEYS = {
+  '/leads': 'leads',
+  '/visits': 'visits',
+  '/photo-reports': 'visits',
+  '/supplies': 'supplies',
+  '/shift': 'checklists',
+  '/knowledge': 'knowledge',
+};
 
 const TITLES = {
   '/leads': 'Заявки',
