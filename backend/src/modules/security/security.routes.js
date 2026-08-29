@@ -427,6 +427,27 @@ router.post(
       violationsPersisted.push(rows[0]);
     }
 
+    // 29.08.2026 (аудит "ведения от и до"): найденные нарушения раньше жили
+    // только во вкладке "Нарушения" — владелец должен был сам туда зайти,
+    // чтобы узнать, что вообще нашлось. Теперь каждое ОТКРЫТОЕ нарушение
+    // регистрируется как "действие" (та же category='documents', что и
+    // "Пройти тест безопасности" ниже) — попадает в общую систему дедлайнов
+    // и, как следствие, в карточку "Критических действий" на главном экране
+    // владельца, без каких-либо изменений в Dashboard.jsx. Уже resolved
+    // нарушения не трогаем — не должны внезапно всплывать заново.
+    const violationMatrix = await repository.getViolationMatrix(session.niche);
+    for (const violation of violationsPersisted) {
+      if (violation.status !== 'open') continue;
+      const details = violationMatrix?.find((v) => v.code === violation.violation_code);
+      await registerAction({
+        companyId: req.tenant.companyId,
+        category: 'documents',
+        title: details?.title || violation.violation_code,
+        relatedEntityType: 'security_violation',
+        relatedEntityId: violation.id,
+      });
+    }
+
     await logEvent({
       companyId: req.tenant.companyId,
       moduleKey: 'security',
@@ -534,6 +555,11 @@ router.patch(
       [req.tenant.membershipId, req.params.id, req.tenant.companyId]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Нарушение не найдено' });
+
+    // Снимаем "действие", зарегистрированное при завершении теста (см.
+    // /sessions/:id/complete) — иначе устранённое нарушение продолжало бы
+    // висеть в "Критических действиях" бессрочно.
+    await clearAction({ relatedEntityType: 'security_violation', relatedEntityId: rows[0].id, category: 'documents' });
 
     await logEvent({
       companyId: req.tenant.companyId,

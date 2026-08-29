@@ -230,6 +230,14 @@ function OwnerDashboard() {
 
   const subscriptionProblem = company?.subscription_status === 'past_due' || company?.subscription_status === 'cancelled';
   const criticalCount = overdueOrNoDate.length + (subscriptionProblem ? 1 : 0);
+  // 29.08.2026: нарушения теста безопасности теперь тоже попадают сюда
+  // (security.routes.js регистрирует их через registerAction) — у компании
+  // в красной зоне их может быть много, а раньше список ничем не
+  // ограничивался. Тот же лимит-с-разворачиванием, что уже использует
+  // ActionsCenterCard выше в этом файле — чтобы карточка не разрослась и не
+  // стала новым источником шума с другой стороны.
+  const visibleOverdue = overdueOrNoDate.slice(0, ACTIONS_CENTER_VISIBLE);
+  const hiddenOverdueCount = overdueOrNoDate.length - visibleOverdue.length;
 
   const recommendations = buildRecommendations({ deadlines: complianceDeadlines, subscription: company, today });
 
@@ -285,19 +293,24 @@ function OwnerDashboard() {
             Критических действий: {criticalCount}
           </div>
           {subscriptionProblem && (
-            <div onClick={() => navigate('/subscription')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: overdueOrNoDate.length > 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+            <div onClick={() => navigate('/subscription')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: visibleOverdue.length > 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
               <span style={{ fontSize: 14, color: C.primary }}>Проблема с оплатой подписки</span>
               <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>Открыть →</span>
             </div>
           )}
-          {overdueOrNoDate.map((d, i) => (
-            <div key={d.id} onClick={() => navigate('/deadlines')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < overdueOrNoDate.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+          {visibleOverdue.map((d, i) => (
+            <div key={d.id} onClick={() => navigate('/deadlines')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < visibleOverdue.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
               <span style={{ fontSize: 14, color: C.primary, minWidth: 0, flex: 1 }}>{d.title}</span>
               <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>
                 {d.due_date ? 'Просрочено' : 'Требует внимания'}
               </span>
             </div>
           ))}
+          {hiddenOverdueCount > 0 && (
+            <div onClick={() => navigate('/deadlines')} style={{ fontSize: 12, color: C.red, fontWeight: 700, marginTop: 8, cursor: 'pointer' }}>
+              Показать все ({overdueOrNoDate.length}) →
+            </div>
+          )}
         </Card>
       )}
 
