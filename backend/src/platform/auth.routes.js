@@ -14,6 +14,7 @@ const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit
 const { sendMail } = require('../core/mailer');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { SEGMENTS } = require('../modules/security/content/segments');
+const { ensureNicheModules } = require('../modules/security/nicheModules');
 
 const router = express.Router();
 
@@ -194,6 +195,16 @@ router.post(
       }
 
       await client.query('COMMIT');
+
+      // Каркас Фазы A (A2, план "replicated-cooking-rainbow.md") — та же
+      // логика "ниша → скрыть нерелевантный модуль", что и при сохранении
+      // полного профиля теста безопасности (security.routes.js), но
+      // применяется сразу на регистрации: ниша уже выбрана на этом же
+      // экране (signup_niche выше), незачем ждать отдельного прохождения
+      // теста, чтобы ЛК выглядел подстроенным под нишу. Вне транзакции
+      // выше (own pool.query) и после COMMIT — иначе строки company_modules
+      // из цикла studioOsBundleKeys() ещё не видны за пределами транзакции.
+      await ensureNicheModules(company.id, [niche]);
 
       await logEvent({
         companyId: company.id,
