@@ -120,7 +120,7 @@ export default function Subscription() {
             за что платишь, была одной из причин, почему до оплаты доходили
             единицы. Список конкретный, без придуманных цифр. */}
         <ul style={{ fontSize: 13, color: C.secondary, lineHeight: 1.7, margin: '0 0 10px', paddingLeft: 18 }}>
-          <li>Скачивание PDF-отчёта теста безопасности (без подписки — можно купить отдельно один отчёт, см. кнопку на экране результата)</li>
+          <li>Скачивание PDF-отчёта теста безопасности</li>
           <li>«Мои сроки» — персональные напоминания о датах документов</li>
           <li>Движок статуса бизнеса и налогов (самозанятый → ИП, патент, режим налогообложения)</li>
           <li>ИИ-ассистент</li>
@@ -132,11 +132,6 @@ export default function Subscription() {
 
       <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_price_rub || 1990} ₽/мес</div>
-        {company?.subscription_status === 'trial' && (
-          <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginBottom: 10 }}>
-            Первая оплата — сразу 2 месяца доступа вместо одного.
-          </div>
-        )}
         {company?.subscription_status === 'active' ? (
           <>
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>

@@ -259,28 +259,14 @@ router.post(
           console.error('fulfillGuestReport failed:', err)
         );
       } else {
-        // Бонусный месяц (30.08.2026) — данные показали: из 49 попыток
-        // скачать PDF только 1 дошла до оплаты, месячная подписка ради
-        // разового файла отпугивает. Первый платёж по подписке даёт 2
-        // месяца доступа вместо 1 — но только один раз за всю историю
-        // компании (проверяем, были ли раньше успешные платежи БЕЗ report_id,
-        // не считая текущий), иначе можно отменять и оформлять заново ради
-        // бесконечных бесплатных месяцев. Автосписания
-        // (is_recurring_charge=true, chargeRecurringSubscriptions.js) бонус
-        // не получают — он для тех, кто пришёл через интерактивный чек-аут,
-        // и только один раз.
-        let bonusMonth = false;
-        if (!isRecurringCharge) {
-          const { rows: priorRows } = await pool.query(
-            `SELECT 1 FROM subscription_payments
-             WHERE company_id = $1 AND report_id IS NULL AND status = 'succeeded' AND yookassa_payment_id != $2
-             LIMIT 1`,
-            [companyId, paymentId]
-          );
-          bonusMonth = priorRows.length === 0;
-        }
+        // 30.08.2026: пробовали отдельный бонус в 2 месяца на первый платёж —
+        // владелец поправил, лишнее усложнение. Простая модель: бесплатный
+        // месяц уже даёт триал при регистрации (companies.trial_ends_at,
+        // auth.routes.js), а оплата — что с этой кнопки в PdfPaywallNotice,
+        // что со страницы /subscription — всегда обычный один оплаченный
+        // месяц, без специальных случаев.
         const nextPeriodEnd = new Date();
-        nextPeriodEnd.setMonth(nextPeriodEnd.getMonth() + (bonusMonth ? 2 : 1));
+        nextPeriodEnd.setMonth(nextPeriodEnd.getMonth() + 1);
         if (payment.payment_method?.saved && payment.payment_method?.id) {
           await pool.query(
             `UPDATE companies SET subscription_status = 'active', subscription_current_period_end = $2,
