@@ -16,24 +16,31 @@
 // — Vision OCR может требовать отдельной роли IAM на том же сервисном
 // аккаунте, не проверено вживую, владелец должен сверить при подключении.
 //
-// НЕ ПРОВЕРЕНО ПРОТИВ ЖИВОЙ ДОКУМЕНТАЦИИ (30.08.2026) — при попытке свериться
-// с https://aistudio.yandex.ru/docs/ru/vision/concepts/ocr/ получена капча
-// (тот же класс проблемы, что "Yandex card audit frozen" — сайт блокирует
-// автоматические запросы). Ниже — классический, годами стабильный REST-
-// контракт Yandex Cloud Vision (batchAnalyze), который скорее всего всё ещё
-// работает под капотом нового бренда "AI Studio", но это предположение, не
-// факт. Перед реальным использованием открыть страницу доков вручную в
-// браузере (капча блокирует только автоматические запросы, не человека) и
-// свериться: URL эндпоинта, точную форму тела запроса и ответа.
+// Контракт сверен 30.08.2026 вручную по живой документации
+// (https://aistudio.yandex.ru/ru/docs/vision/ocr/api-ref/TextRecognition/recognize)
+// — владелец открыл страницу в браузере (автоматические запросы к сайту
+// блокируются капчей, живому человеку — нет) и прислал скриншоты реального
+// HTTP-запроса/ответа. Осталось непроверенным вживую только одно: сам факт
+// успешной авторизации тем же ключом/аккаунтом, что уже использует
+// core/yandexAssist.js (Vision OCR — отдельный сервис Yandex Cloud, может
+// требовать своей роли IAM на сервисном аккаунте) — и точный формат
+// значения mimeType (MIME-строка вида "image/jpeg" — самая естественная
+// трактовка поля "mimeType": "string" из документации, но перечень
+// допустимых значений в увиденных скриншотах не был явно перечислен).
 const { isAiConfigured, draftText } = require('./yandexAssist');
 
-const VISION_OCR_URL = 'https://vision.api.cloud.yandex.net/vision/v1/batchAnalyze';
+const VISION_OCR_URL = 'https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// PDF: classический Vision batchAnalyze исторически работает с изображениями,
-// не с сырым PDF (для PDF обычно нужен отдельный режим/рендер страниц в
-// картинки) — не проверено, поэтому сознательно не поддерживаем PDF в этой
-// версии, честно возвращаем "не получилось", а не гадаем.
+// PDF: в документации написано, что Vision OCR умеет распознавать и PDF, но
+// это может относиться к отдельному асинхронному сервису (в API рядом с
+// TextRecognition.Recognize есть отдельный TextRecognitionAsync — вероятно,
+// именно для многостраничных PDF, раз обычный Recognize возвращает
+// потоковый ответ на одно изображение) — не проверено, что синхронный
+// recognizeText принимает mimeType: "application/pdf" напрямую. Сознательно
+// не поддерживаем PDF в этой версии, честно возвращаем "не получилось", а
+// не гадаем — расширить на PDF/асинхронный вызов отдельным заходом, когда
+// будет время свериться с документацией TextRecognitionAsync.
 async function ocrExtractText(imageBuffer, mimeType) {
   const res = await fetch(VISION_OCR_URL, {
     method: 'POST',
@@ -42,13 +49,10 @@ async function ocrExtractText(imageBuffer, mimeType) {
       Authorization: `Api-Key ${process.env.YANDEX_GPT_API_KEY}`,
     },
     body: JSON.stringify({
-      folderId: process.env.YANDEX_FOLDER_ID,
-      analyze_specs: [
-        {
-          content: imageBuffer.toString('base64'),
-          features: [{ type: 'TEXT_DETECTION', text_detection_config: { language_codes: ['ru', 'en'] } }],
-        },
-      ],
+      content: imageBuffer.toString('base64'),
+      mimeType,
+      languageCodes: ['ru', 'en'],
+      model: 'page',
     }),
   });
   if (!res.ok) {
@@ -56,17 +60,9 @@ async function ocrExtractText(imageBuffer, mimeType) {
     throw new Error(`Yandex Vision OCR error ${res.status}: ${body}`);
   }
   const data = await res.json();
-  const pages = data?.results?.[0]?.results?.[0]?.textDetection?.pages || [];
-  const lines = [];
-  for (const page of pages) {
-    for (const block of page.blocks || []) {
-      for (const line of block.lines || []) {
-        const text = (line.words || []).map((w) => w.text).join(' ');
-        if (text) lines.push(text);
-      }
-    }
-  }
-  return lines.join('\n');
+  // Документация показывает готовое поле textAnnotation.fullText — не нужно
+  // самостоятельно собирать текст из blocks/lines/words.
+  return data?.textAnnotation?.fullText || '';
 }
 
 function parseJsonResponse(raw) {
