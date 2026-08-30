@@ -85,7 +85,7 @@ router.get(
 router.post(
   '/profile',
   asyncHandler(async (req, res) => {
-    const { legalForm, workModel, segment, niches, hairChemicalTreatments } = req.body;
+    const { legalForm, workModel, segment, niches, hairChemicalTreatments, hasPremises } = req.body;
     if (!legalForm || !workModel || !segment) {
       return res.status(400).json({ error: 'Заполните форму работы, модель и сферу деятельности' });
     }
@@ -123,6 +123,7 @@ router.post(
       segment,
       niches: nicheList,
       hairChemicalTreatments: !!hairChemicalTreatments,
+      hasPremises: !!hasPremises,
     });
     await ensureNicheModules(req.tenant.companyId, nicheList);
 
@@ -145,7 +146,7 @@ router.post(
 // между security_profiles и security_profile_niches. История сессий/
 // нарушений не затрагивается (обе таблицы ссылаются на company_id, не на
 // список ниш профиля) — убрать нишу из профиля не удаляет её прошлые данные.
-async function upsertProfile({ companyId, legalForm, workModel, segment, niches, hairChemicalTreatments }) {
+async function upsertProfile({ companyId, legalForm, workModel, segment, niches, hairChemicalTreatments, hasPremises }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -159,13 +160,14 @@ async function upsertProfile({ companyId, legalForm, workModel, segment, niches,
     );
     await client.query('DELETE FROM security_profile_niches WHERE company_id = $1', [companyId]);
     for (const niche of niches) {
-      // chemical_treatments сейчас осмыслен только для niche='hair' (see
-      // visibility.js has_hair_chemical_treatments) — для остальных ниш
-      // всегда NULL, отдельного поля-предиката под них ещё нет.
+      // chemical_treatments осмыслен только для niche='hair', has_premises —
+      // только для niche='universal' (see visibility.js) — для остальных
+      // ниш оба поля всегда NULL, у них свои нишевые вопросы про помещение.
       const chemicalTreatments = niche === 'hair' ? !!hairChemicalTreatments : null;
+      const premises = niche === 'universal' ? !!hasPremises : null;
       await client.query(
-        'INSERT INTO security_profile_niches (company_id, niche, chemical_treatments) VALUES ($1, $2, $3)',
-        [companyId, niche, chemicalTreatments]
+        'INSERT INTO security_profile_niches (company_id, niche, chemical_treatments, has_premises) VALUES ($1, $2, $3, $4)',
+        [companyId, niche, chemicalTreatments, premises]
       );
     }
     await client.query('COMMIT');

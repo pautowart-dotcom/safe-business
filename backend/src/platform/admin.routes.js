@@ -669,7 +669,7 @@ router.get(
     // cleaning_basic сюда не попал при своём добавлении (пропуск, не
     // осознанное решение), нарушения этой ниши не подписывались деталями
     // в этом дашборде почти неделю.
-    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'cleaning_basic', 'barbershop', 'cafe_basic'];
+    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'cleaning_basic', 'barbershop', 'cafe_basic', 'universal'];
     const matricesByNiche = {};
     for (const niche of NICHES_WITH_CONTENT) {
       matricesByNiche[niche] = await securityRepository.getViolationMatrix(niche);

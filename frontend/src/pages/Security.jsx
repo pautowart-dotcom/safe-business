@@ -482,18 +482,23 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
   const [segment, setSegment] = useState(initial?.segment || '');
   const [niches, setNiches] = useState(initial?.niches || []);
   const [hairChemicalTreatments, setHairChemicalTreatments] = useState(initial?.hairChemicalTreatments || false);
+  const [hasPremises, setHasPremises] = useState(initial?.hasPremises || false);
   const [stubMessage, setStubMessage] = useState('');
   const [error, setError] = useState('');
 
   const segmentContent = SEGMENTS.find((s) => s.key === segment);
   const multiNiche = !!segmentContent?.multiNiche;
   const showHairChemicalQuestion = niches.includes('hair');
+  // Универсальный слой (Фаза C, 30.08.2026) — единственный новый вопрос,
+  // которого ещё нет в остальном профиле: остальные блоки условия (кадровый
+  // — has_employees, уже есть) читаются из уже собранных полей.
+  const showPremisesQuestion = niches.includes('universal');
 
   async function submit() {
     setError('');
     try {
       const { data } = await api.post('/modules/security/profile', {
-        legalForm, workModel, segment, niches, hairChemicalTreatments,
+        legalForm, workModel, segment, niches, hairChemicalTreatments, hasPremises,
       });
       // Термин "Мастер"/"Сотрудник" (ui/roleLabels.js) зависит от ниши, а
       // выбор ниши "Клининг" сам включает модуль "Заявки" на бэкенде
@@ -550,6 +555,16 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
             options={[{ key: 'yes', label: 'Да' }, { key: 'no', label: 'Нет' }]}
             value={hairChemicalTreatments ? 'yes' : 'no'}
             onChange={(v) => setHairChemicalTreatments(v === 'yes')}
+            valueKey="key"
+          />
+        </Field>
+      )}
+      {showPremisesQuestion && (
+        <Field label="У вас есть отдельное нежилое помещение (офис, магазин, мастерская), или вы работаете на территории клиента / из дома?">
+          <Chips
+            options={[{ key: 'yes', label: 'Есть отдельное помещение' }, { key: 'no', label: 'Нет — территория клиента / из дома' }]}
+            value={hasPremises ? 'yes' : 'no'}
+            onChange={(v) => setHasPremises(v === 'yes')}
             valueKey="key"
           />
         </Field>

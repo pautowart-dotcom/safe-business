@@ -55,7 +55,23 @@ const SEGMENTS = [
       { key: 'cleaning_basic', label: 'Уборка помещений (жильё и офисы)', paidAudit: true },
     ],
   },
-  { key: 'retail', label: 'Розничная торговля', hasNicheStep: false, niches: [] },
+  {
+    key: 'retail',
+    label: 'Розничная торговля',
+    // Фаза C плана (30.08.2026): раньше hasNicheStep=false вёл сразу в лист
+    // ожидания без вопросов — теперь ниша 'universal' (общий тест: 152-ФЗ,
+    // кассы, пожарная безопасность при наличии помещения, кадровый блок при
+    // сотрудниках — то, что одинаково для любого бизнеса, не только
+    // отраслевые нарушения розницы, которых здесь пока нет). Тот же ключ
+    // 'universal', что и у сегмента 'other' ниже — контент один на двоих,
+    // сегмент влияет только на подпись/сообщения, не на содержание теста.
+    // paidAudit: false — контент универсального слоя ещё пишется (research
+    // в процессе на момент этого коммита), переключить на true, когда файлы
+    // content/{paid-questions,violations,pdf/*}/universal.js будут готовы и
+    // подключены в repository.js.
+    hasNicheStep: true,
+    niches: [{ key: 'universal', label: 'Общие требования (без отраслевой специфики)', paidAudit: false }],
+  },
   {
     key: 'food',
     label: 'Общепит',
@@ -75,7 +91,14 @@ const SEGMENTS = [
       { key: 'cafe_basic', label: 'Кафе, кофейня, столовая (без алкоголя)', paidAudit: false },
     ],
   },
-  { key: 'other', label: 'Другое', hasNicheStep: false, niches: [] },
+  {
+    key: 'other',
+    label: 'Другое',
+    // См. комментарий у 'retail' выше — тот же универсальный слой, тот же
+    // ключ ниши 'universal', тот же контент, просто под другой подписью.
+    hasNicheStep: true,
+    niches: [{ key: 'universal', label: 'Общие требования (без отраслевой специфики)', paidAudit: false }],
+  },
 ];
 
 function findSegment(segmentKey) {

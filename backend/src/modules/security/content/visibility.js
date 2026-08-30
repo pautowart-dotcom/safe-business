@@ -26,6 +26,13 @@ const PREDICATES = {
   // выборе ниши (security_profile_niches.chemical_treatments). По умолчанию
   // скрыт — обычная парикмахерская без этих составов блок не видит.
   has_hair_chemical_treatments: (profile) => profile.hairChemicalTreatments === true,
+
+  // Универсальный слой (Фаза C, 30.08.2026, ниша 'universal' для бизнеса без
+  // готовой нишевой матрицы) — блок "пожарная безопасность и эксплуатация
+  // помещения" показывается только тем, у кого есть отдельное нежилое
+  // помещение (security_profile_niches.has_premises), не работающим только
+  // на территории клиента/из дома.
+  has_premises: (profile) => profile.hasPremises === true,
 };
 
 function isVisible(showIf, profile) {
