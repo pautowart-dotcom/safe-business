@@ -10,6 +10,7 @@ import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 const NICHE_GROUPS = [
   ['beauty', 'Красота и здоровье'],
   ['cleaning', 'Клининг'],
+  ['other', 'Другое'],
 ].map(([segmentKey, segmentLabel]) => [
   segmentLabel,
   NICHE_OPTIONS.filter(([, , seg]) => seg === segmentKey),

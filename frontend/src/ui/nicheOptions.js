@@ -16,6 +16,12 @@ export const NICHE_OPTIONS = [
   ['solarium', 'Солярий', 'beauty'],
   ['barbershop', 'Барбершоп', 'beauty'],
   ['cleaning_basic', 'Уборка помещений (жильё и офисы)', 'cleaning'],
+  // Фаза C (30.08.2026) — общий слой для бизнеса без отраслевой ниши
+  // (сегменты 'retail'/'other' в backend/.../segments.js используют один и
+  // тот же ключ 'universal'). Сегмент здесь — 'other', просто дефолт для
+  // предзаполнения формы (segmentForNiche) — сам тест не отличается для
+  // 'retail' vs 'other', значение только для текста/подписи.
+  ['universal', 'Общие требования (без отраслевой специфики)', 'other'],
 ];
 
 export function segmentForNiche(nicheKey) {
