@@ -23,6 +23,7 @@ const RESERVE_REGIMES = ['usn_income', 'usn_income_expense'];
 const RESERVE_SLOT_KEYS = ['usn_q1', 'usn_q2', 'usn_q3'];
 const { uploadDocument } = require('../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
+const { isAiConfigured, extractDocumentDate } = require('../core/documentDateExtract');
 
 const CATALOG = [
   // Кадровые
@@ -145,6 +146,10 @@ router.get(
 
     res.json({
       slots,
+      // Автоизвлечение дат (30.08.2026) — фронт показывает кнопку
+      // "Распознать дату" только если ключ реально настроен, иначе кнопка
+      // вела бы в гарантированную ошибку 503.
+      aiDateDetectionAvailable: isAiConfigured(),
       sout: {
         lastAt: company.sout_last_at || null,
         nextDueDate: company.sout_last_at ? addYears(company.sout_last_at, 5) : null,
@@ -212,6 +217,45 @@ router.patch(
       dueDate: dueDate || null, recurrence: recurrence || null, note: note || null,
       fileUrl: fileUrl ? signFileUrl(fileUrl) : null,
     });
+  })
+);
+
+// Распознавание даты из документа (30.08.2026, см.
+// .claude/plans/document-date-extraction.md) — НЕ сохраняет ничего, только
+// предлагает дату. Сохранение — отдельный, обычный PATCH /slots/:key,
+// пользователь должен явно подтвердить/поправить предложенную дату,
+// прежде чем она станет фактом в "Дедлайнах". Файл здесь не сохраняется в
+// company storage — только держится в памяти на время запроса к ИИ
+// (multer memoryStorage), если пользователь захочет прикрепить файл
+// по-настоящему — это отдельный клик "Сохранить" с тем же файлом заново.
+router.post(
+  '/slots/:key/detect-date',
+  uploadDocument,
+  asyncHandler(async (req, res) => {
+    const catalogItem = CATALOG_BY_KEY[req.params.key];
+    if (!catalogItem) {
+      return res.status(404).json({ error: 'Неизвестный пункт' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Загрузите файл для распознавания' });
+    }
+    if (!isAiConfigured()) {
+      return res.status(503).json({ error: 'Распознавание дат сейчас недоступно' });
+    }
+
+    try {
+      const result = await extractDocumentDate({
+        imageBuffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        expectedLabel: catalogItem.label,
+      });
+      res.json(result);
+    } catch (err) {
+      if (err.code === 'AI_NOT_CONFIGURED') {
+        return res.status(503).json({ error: 'Распознавание дат сейчас недоступно' });
+      }
+      throw err;
+    }
   })
 );
 

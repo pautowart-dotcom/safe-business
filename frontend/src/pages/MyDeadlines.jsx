@@ -54,11 +54,39 @@ const LEASE_TERM_PRESETS = [
 // Карточка одного пункта — дата/периодичность/заметка, все поля опциональны.
 // Сохраняем только по клику "Сохранить", чтобы не слать запрос на каждое
 // нажатие клавиши в заметке.
-function SlotCard({ slot, onSave, saving }) {
+function SlotCard({ slot, onSave, saving, aiDateDetectionAvailable }) {
   const [dueDate, setDueDate] = useState(slot.dueDate || '');
   const [recurrence, setRecurrence] = useState(slot.recurrence || '');
   const [note, setNote] = useState(slot.note || '');
   const [file, setFile] = useState(null);
+  // Автоизвлечение даты (30.08.2026, .claude/plans/document-date-extraction.md)
+  // — только предлагает значение в поле "Дата", ничего не сохраняет само;
+  // пользователь по-прежнему нажимает "Сохранить" отдельно, как раньше.
+  const [detecting, setDetecting] = useState(false);
+  const [detectNote, setDetectNote] = useState('');
+
+  async function detectDate() {
+    if (!file) return;
+    setDetecting(true);
+    setDetectNote('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const { data } = await api.post(`/platform/my-deadlines/slots/${slot.key}/detect-date`, body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (data.found) {
+        setDueDate(data.date);
+        setDetectNote(`Похоже, это ${fmtDate(data.date)} — проверьте и нажмите «Сохранить».`);
+      } else {
+        setDetectNote(data.reason || 'Не удалось распознать дату — впишите вручную.');
+      }
+    } catch (err) {
+      setDetectNote(err.response?.data?.error || 'Не удалось распознать дату — впишите вручную.');
+    } finally {
+      setDetecting(false);
+    }
+  }
 
   const dirty = dueDate !== (slot.dueDate || '') || recurrence !== (slot.recurrence || '') || note !== (slot.note || '') || !!file;
 
@@ -100,8 +128,21 @@ function SlotCard({ slot, onSave, saving }) {
         <TextInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Например, телефон обслуживающей организации" />
       </Field>
       <Field label="Файл-подтверждение (фото, скан или PDF, необязательно)">
-        <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <input type="file" accept="image/*,application/pdf" onChange={(e) => { setFile(e.target.files?.[0] || null); setDetectNote(''); }} />
       </Field>
+      {aiDateDetectionAvailable && file && (
+        <div style={{ marginTop: -6, marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={detectDate}
+            disabled={detecting}
+            style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 12.5 }}
+          >
+            {detecting ? 'Читаем документ…' : 'Распознать дату из документа'}
+          </button>
+          {detectNote && <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>{detectNote}</div>}
+        </div>
+      )}
       {slot.fileUrl && !file && (
         <a href={slot.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 12, color: C.primary, marginTop: -6, marginBottom: 14 }}>
           Открыть прикреплённый файл
@@ -281,17 +322,17 @@ export default function MyDeadlinesTab() {
         </Btn>
       </Card>
       {byCategory.staff.map((slot) => (
-        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} />
+        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
       ))}
 
       <div style={{ marginTop: 20 }}><ST>Помещение и оборудование</ST></div>
       {byCategory.premises.map((slot) => (
-        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} />
+        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
       ))}
 
       <div style={{ marginTop: 20 }}><ST>Юридические документы</ST></div>
       {documentsSlots.map((slot) => (
-        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} />
+        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
       ))}
 
       <div style={{ marginTop: 20 }}><ST>Налоги и финансы</ST></div>
