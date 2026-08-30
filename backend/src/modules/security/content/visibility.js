@@ -33,6 +33,10 @@ const PREDICATES = {
   // помещение (security_profile_niches.has_premises), не работающим только
   // на территории клиента/из дома.
   has_premises: (profile) => profile.hasPremises === true,
+
+  // Вопрос про онлайн-кассу (УНИ-102) неприменим к самозанятым — чек
+  // формируется в приложении "Мой налог", обязанности по 54-ФЗ нет.
+  not_self_employed: (profile) => profile.legalForm !== 'self_employed',
 };
 
 function isVisible(showIf, profile) {
