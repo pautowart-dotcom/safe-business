@@ -16,6 +16,8 @@ const { loadProfile } = require('./profile');
 const { computeSecurityStatus, visiblePaidQuestions } = require('./status');
 const { registerAction, clearAction } = require('../../core/deadlines');
 const { ensureNicheModules } = require('./nicheModules');
+const { isAiConfigured, matchDocumentToDeadlineSlot } = require('../../core/documentDateExtract');
+const { CATALOG: DEADLINE_CATALOG } = require('../../core/deadlineSlotsCatalog');
 
 // Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
 // точной даты нет) из docs/task-batch-4.txt. category='documents' — тест
@@ -678,7 +680,33 @@ router.post(
       action: 'security_document.created',
     });
 
-    res.status(201).json({ ...rows[0], file_url: signFileUrl(rows[0].file_url) });
+    // 30.08.2026 (.claude/plans/document-date-extraction.md) — владелец
+    // попросил не заставлять специально прикладывать файл ещё раз в "Мои
+    // сроки", если он уже загружен сюда. Лучшая попытка: только для
+    // реально загруженного файла-изображения (не ссылки, не PDF — то же
+    // ограничение, что и у detect-date в "Моих сроках"), и только если
+    // распознавание вообще настроено. Ошибка здесь не должна ронять
+    // ответ на сохранение документа — оно уже успешно прошло.
+    let deadlineSuggestion = null;
+    if (req.file && req.file.mimetype.startsWith('image/') && isAiConfigured()) {
+      try {
+        const match = await matchDocumentToDeadlineSlot({
+          imageBuffer: req.file.buffer,
+          mimeType: req.file.mimetype,
+          categoryHint: category,
+          nameHint: name,
+          catalog: DEADLINE_CATALOG,
+        });
+        if (match.matched) {
+          const slot = DEADLINE_CATALOG.find((c) => c.key === match.slotKey);
+          deadlineSuggestion = { slotKey: match.slotKey, slotLabel: slot.label, date: match.date };
+        }
+      } catch {
+        // Молча игнорируем — документ уже сохранён, подсказка необязательна.
+      }
+    }
+
+    res.status(201).json({ ...rows[0], file_url: signFileUrl(rows[0].file_url), deadlineSuggestion });
   })
 );
 

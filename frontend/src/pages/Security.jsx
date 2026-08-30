@@ -1796,6 +1796,13 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
   const [form, setForm] = useState({ category: '', name: '', fileUrl: '', file: null });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  // 30.08.2026 (.claude/plans/document-date-extraction.md) — не заставляем
+  // специально прикладывать файл ещё раз в "Мои сроки": если загруженный
+  // сюда документ похож на один из известных типов срока, бэкенд уже
+  // прислал предположение вместе с ответом на сохранение. Показываем и
+  // спрашиваем — никогда не сохраняем догадку молча.
+  const [suggestion, setSuggestion] = useState(null);
+  const [savingSuggestion, setSavingSuggestion] = useState(false);
 
   const byCategory = {};
   for (const doc of documents) (byCategory[doc.category] ||= []).push(doc);
@@ -1835,7 +1842,8 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
       if (editingId) {
         await api.patch(`/modules/security/documents/${editingId}`, payload, { headers });
       } else {
-        await api.post('/modules/security/documents', payload, { headers });
+        const { data } = await api.post('/modules/security/documents', payload, { headers });
+        if (data.deadlineSuggestion) setSuggestion(data.deadlineSuggestion);
       }
       setShowForm(false);
       onChange();
@@ -1850,6 +1858,21 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
     if (!confirm('Удалить документ?')) return;
     await api.delete(`/modules/security/documents/${id}`);
     onChange();
+  }
+
+  async function confirmSuggestion() {
+    if (!suggestion) return;
+    setSavingSuggestion(true);
+    try {
+      await api.patch(`/platform/my-deadlines/slots/${suggestion.slotKey}`, { dueDate: suggestion.date });
+      setSuggestion(null);
+    } catch {
+      // Тихо не получилось — документ и так уже сохранён во вкладке
+      // "Документы", можно всегда занести дату вручную в "Мои сроки" позже.
+      setSuggestion(null);
+    } finally {
+      setSavingSuggestion(false);
+    }
   }
 
   if (showForm) {
@@ -1897,6 +1920,30 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
 
   return (
     <div>
+      {suggestion && (
+        <div className="alert" style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span>
+            Похоже, это «{suggestion.slotLabel}», дата — {new Date(suggestion.date).toLocaleDateString('ru-RU')}. Сохранить в «Мои сроки»?
+          </span>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              type="button"
+              onClick={confirmSuggestion}
+              disabled={savingSuggestion}
+              style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}
+            >
+              {savingSuggestion ? 'Сохраняем…' : 'Да, сохранить'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSuggestion(null)}
+              style={{ background: 'none', border: 'none', color: C.subtle, cursor: 'pointer', padding: 0, fontSize: 13 }}
+            >
+              Нет
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 12 }}>
         Разделы соответствуют структуре отчёта — так видно, какие документы относятся к каждой категории требований.
       </div>

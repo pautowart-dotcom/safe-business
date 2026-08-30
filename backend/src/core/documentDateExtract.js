@@ -1,7 +1,11 @@
-// Автоизвлечение даты из документа, загружаемого в "Мои сроки" (см.
-// .claude/plans/document-date-extraction.md). Тип документа уже известен из
-// того, в какой слот его загрузили (CATALOG в my-deadlines.routes.js) —
-// задача ИИ сужена до одного вопроса: "какая дата на этом документе".
+// Автоизвлечение даты из документа (см.
+// .claude/plans/document-date-extraction.md). Два сценария, две функции:
+// extractDocumentDate() — тип документа уже известен (загружен прямо в
+// конкретный слот "Моих сроков"), задача сужена до "какая тут дата".
+// matchDocumentToDeadlineSlot() — тип ЕЩЁ неизвестен (документ загружен во
+// вкладке "Документы", CATALOG в core/deadlineSlotsCatalog.js) — сначала
+// нужно понять, относится ли документ хоть к какому-то известному типу
+// срока, и только потом искать дату.
 //
 // РОССИЙСКИЙ КОНТУР ОБЯЗАТЕЛЕН (30.08.2026, владелец поправил первую
 // версию на Anthropic) — фото документов вроде медкнижки содержат
@@ -121,4 +125,66 @@ async function extractDocumentDate({ imageBuffer, mimeType, expectedLabel }) {
   return { found: true, date: parsed.date, reason: null };
 }
 
-module.exports = { isAiConfigured, extractDocumentDate };
+// 30.08.2026 — владелец попросил не заставлять специально прикладывать файл
+// ещё раз в "Мои сроки", если он уже загружен во вкладке "Документы"
+// (security_documents). В отличие от extractDocumentDate() выше (тип
+// документа уже известен из слота), здесь тип ЕЩЁ НЕИЗВЕСТЕН — сначала
+// нужно понять, к какому из пунктов CATALOG (если вообще к какому-то) этот
+// документ относится, и только потом искать дату. Один вызов YandexGPT на
+// оба вопроса сразу (не два отдельных) — дешевле и не теряет контекст между
+// шагами. categoryHint/nameHint — то, что пользователь уже указал при
+// загрузке во вкладке "Документы" (категория отчёта + название), не
+// официальный источник истины, но подсказка, сужающая выбор.
+async function matchDocumentToDeadlineSlot({ imageBuffer, mimeType, categoryHint, nameHint, catalog }) {
+  if (!isAiConfigured()) {
+    const err = new Error('ИИ не настроен: заполните YANDEX_GPT_API_KEY и YANDEX_FOLDER_ID в .env');
+    err.code = 'AI_NOT_CONFIGURED';
+    throw err;
+  }
+  if (mimeType === 'application/pdf') {
+    return { matched: false, slotKey: null, date: null, reason: null };
+  }
+
+  let text;
+  try {
+    text = await ocrExtractText(imageBuffer, mimeType);
+  } catch {
+    return { matched: false, slotKey: null, date: null, reason: null };
+  }
+  if (!text.trim()) {
+    return { matched: false, slotKey: null, date: null, reason: null };
+  }
+
+  const catalogList = catalog.map((c) => `${c.key}: ${c.label}`).join('\n');
+  const system =
+    'Тебе дан список известных типов сроков (ключ: описание), распознанный (OCR) текст загруженного документа и ' +
+    'то, как пользователь сам подписал документ при загрузке (категория и название — не всегда точны). ' +
+    'Определи: (1) относится ли документ к ОДНОМУ из типов из списка — не притягивай за уши, если явного ' +
+    'совпадения нет, лучше matched: false; (2) если относится — найди в тексте документа ОДНУ дату (срок ' +
+    'действия/следующей поверки/окончания), соответствующую этому типу. Отвечай СТРОГО в формате JSON без ' +
+    'пояснений снаружи: {"matched": true|false, "slotKey": string|null, "date": "YYYY-MM-DD"|null}. Если тип не ' +
+    'определён, или тип определён, но дата в тексте не видна чётко — matched: false. Никогда не угадывай.';
+  const prompt =
+    `Список известных типов сроков:\n${catalogList}\n\n` +
+    `Категория, указанная пользователем: "${categoryHint || 'не указана'}". ` +
+    `Название, указанное пользователем: "${nameHint || 'не указано'}".\n\n` +
+    `Распознанный текст документа:\n${text}`;
+
+  let raw;
+  try {
+    raw = await draftText({ system, prompt, maxTokens: 200, temperature: 0.1 });
+  } catch {
+    return { matched: false, slotKey: null, date: null, reason: null };
+  }
+
+  const parsed = parseJsonResponse(raw);
+  const slotKey = parsed?.matched && typeof parsed.slotKey === 'string' ? parsed.slotKey : null;
+  const validSlot = slotKey && catalog.some((c) => c.key === slotKey);
+  const validDate = typeof parsed?.date === 'string' && DATE_RE.test(parsed.date);
+  if (!validSlot || !validDate) {
+    return { matched: false, slotKey: null, date: null, reason: null };
+  }
+  return { matched: true, slotKey, date: parsed.date, reason: null };
+}
+
+module.exports = { isAiConfigured, extractDocumentDate, matchDocumentToDeadlineSlot };
