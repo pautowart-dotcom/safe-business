@@ -101,9 +101,13 @@ function money(value) {
 // на /subscription — экран результата пропадал без объяснения. Теперь
 // остаёмся на месте и показываем причину + кнопку перехода — сам переход
 // делает пользователь, а не код за него.
-async function downloadPdf(sessionId, setError, setPdfPaywall) {
+// setReportId (30.08.2026) — при 402 нужен id уже созданного отчёта (шаг 1
+// ниже не платный, создаётся всегда) для кнопки "Купить разово" в
+// PdfPaywallNotice — раньше id нигде не сохранялся после неудачной попытки.
+async function downloadPdf(sessionId, setError, setPdfPaywall, setReportId) {
   try {
     const created = await api.post(`/modules/security/sessions/${sessionId}/report`);
+    setReportId?.(created.data.id);
     const pdfRes = await api.get(`/modules/security/reports/${created.data.id}/download`, { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([pdfRes.data], { type: 'application/pdf' }));
     const link = document.createElement('a');
@@ -122,24 +126,52 @@ async function downloadPdf(sessionId, setError, setPdfPaywall) {
   }
 }
 
-// Кнопка "купить один раз" убрана отсюда 19.08.2026 (решение владельца) —
-// для уже зарегистрированного владельца разовая покупка не нужна: если он
-// готов регистрироваться, он либо подписывается, либо нет, отдельного
-// промежуточного варианта тут не требуется. Сам механизм разовой покупки
-// (checkout-one-time, миграция 0091) не удалён — им пользуется публичный
-// анонимный аудит без регистрации (AnonymousAudit.jsx, /lk/audit), для
-// которого он и был на самом деле задуман.
-function PdfPaywallNotice({ onSubscribe }) {
+// Кнопка "купить один раз" была убрана отсюда 19.08.2026 (решение владельца:
+// "либо подписывается, либо нет") — вернул 30.08.2026 по данным: из 49
+// попыток скачать PDF только 1 дошла до оплаты. Механизм (checkout-one-time,
+// миграция 0091) всё это время оставался в бэкенде рабочим — им пользовался
+// только анонимный аудит без регистрации, теперь снова доступен и здесь.
+// reportId — опционален: у "Открытие ещё одной точки" (OpeningRoadmapCard
+// ниже) своего id отчёта нет, там показывается только подписка.
+function PdfPaywallNotice({ onSubscribe, reportId }) {
+  const [buying, setBuying] = useState(false);
+  const [buyError, setBuyError] = useState('');
+
+  async function buyOnce() {
+    setBuying(true);
+    setBuyError('');
+    try {
+      const { data } = await api.post('/platform/subscription/checkout-one-time', { reportId });
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setBuyError(err.response?.data?.error || 'Не удалось начать оплату');
+      setBuying(false);
+    }
+  }
+
   return (
     <div className="alert alert-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <span>Скачивание PDF доступно по подписке — сам тест и результат остаются бесплатными.</span>
-      <button
-        type="button"
-        onClick={onSubscribe}
-        style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}
-      >
-        Оформить подписку →
-      </button>
+      <span>Скачивание PDF доступно после оплаты — сам тест и результат остаются бесплатными.</span>
+      {buyError && <span style={{ color: C.red, fontSize: 12 }}>{buyError}</span>}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {reportId && (
+          <button
+            type="button"
+            onClick={buyOnce}
+            disabled={buying}
+            style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}
+          >
+            {buying ? 'Переходим к оплате…' : 'Купить этот отчёт разово — 1990 ₽ →'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onSubscribe}
+          style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}
+        >
+          Оформить подписку (1-й месяц + 1 бесплатно) →
+        </button>
+      </div>
     </div>
   );
 }
@@ -182,6 +214,7 @@ export default function Security() {
   // предзаполняет форму сегментации ниже, чтобы не спрашивать нишу дважды.
   const [signupNiche, setSignupNiche] = useState(null);
   const [pdfPaywall, setPdfPaywall] = useState(false);
+  const [pdfReportId, setPdfReportId] = useState(null);
   // Пакет 4, Этап 2: два таба верхнего уровня внутри "Безопасности" — "Тест"
   // (существующая панель ниже) и новая "Мои сроки". Таб переключается только
   // в устойчивом состоянии панели — во время прохождения теста/результата/
@@ -347,9 +380,10 @@ export default function Security() {
         result={auditResult}
         hasPaidPlan={hasPaidPlan}
         pdfPaywall={pdfPaywall}
+        pdfReportId={pdfReportId}
         onClose={() => { setAuditResult(null); setPdfPaywall(false); }}
         onViewViolations={() => { setDashboardTab('violations'); setAuditResult(null); setPdfPaywall(false); }}
-        onDownload={() => downloadPdf(auditResult.session.id, setError, setPdfPaywall)}
+        onDownload={() => downloadPdf(auditResult.session.id, setError, setPdfPaywall, setPdfReportId)}
         onGoSubscribe={() => navigate('/subscription')}
       />
     );
@@ -406,12 +440,13 @@ export default function Security() {
           hasPaidPlan={hasPaidPlan}
           isTestCompany={isTestCompany}
           pdfPaywall={pdfPaywall}
+          pdfReportId={pdfReportId}
           error={error}
           onEditProfile={() => setEditingProfile(true)}
           onStartAudit={startAudit}
           onResolveViolation={resolveViolation}
           onJoinWaitlist={joinWaitlist}
-          onDownloadReport={(sessionId) => downloadPdf(sessionId, setError, setPdfPaywall)}
+          onDownloadReport={(sessionId) => downloadPdf(sessionId, setError, setPdfPaywall, setPdfReportId)}
           onGoSubscribe={() => navigate('/subscription')}
           onDocumentsChange={loadDashboardData}
           hideTitle
@@ -611,7 +646,7 @@ function IndexHero({ percent, zone, subtitle, note }) {
   );
 }
 
-function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolations, onDownload, onGoSubscribe }) {
+function AuditResult({ result, hasPaidPlan, pdfPaywall, pdfReportId, onClose, onViewViolations, onDownload, onGoSubscribe }) {
   const { status, warnings } = result;
   const zone = status.zone;
   const violationsCount = status.violations.length;
@@ -628,7 +663,7 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolation
       {warnings?.map((w, i) => (
         <div key={i} className="alert alert-error" style={{ marginBottom: 12 }}>{w}</div>
       ))}
-      {pdfPaywall && <PdfPaywallNotice onSubscribe={onGoSubscribe} />}
+      {pdfPaywall && <PdfPaywallNotice onSubscribe={onGoSubscribe} reportId={pdfReportId} />}
       {/* 29.08.2026: раньше единственный путь дальше был "Скачать PDF" —
           нарушения найдены, но само их содержание видно только если зайти
           во вкладку "Нарушения" самому, никто туда не вёл. */}
@@ -645,7 +680,7 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolation
 // ---------- Главная панель ----------
 
 function SecurityDashboard({
-  profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
+  profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, pdfReportId, error,
   onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onGoSubscribe, onDocumentsChange, hideTitle, initialTab,
 }) {
   const [tab, setTab] = useState(initialTab || 'overview');
@@ -698,7 +733,7 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onGoSubscribe={onGoSubscribe} />
+        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} pdfReportId={pdfReportId} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onGoSubscribe={onGoSubscribe} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
@@ -783,7 +818,7 @@ function InspectionGuidesTab() {
   );
 }
 
-function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport, onGoSubscribe }) {
+function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, pdfReportId, onStartAudit, onJoinWaitlist, onDownloadReport, onGoSubscribe }) {
   const hasResult = status?.indexPercent != null;
   const outstanding = status?.outstandingNiches || [];
 
@@ -818,7 +853,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
                 </Btn>
               )}
             </div>
-            {pdfPaywall && <div style={{ marginTop: 10 }}><PdfPaywallNotice onSubscribe={onGoSubscribe} /></div>}
+            {pdfPaywall && <div style={{ marginTop: 10 }}><PdfPaywallNotice onSubscribe={onGoSubscribe} reportId={pdfReportId} /></div>}
           </div>
         ) : products?.audit.available ? (
           <div>
