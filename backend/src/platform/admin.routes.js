@@ -974,4 +974,49 @@ router.delete(
   })
 );
 
+// Очередь кандидатов на изменение закона (карта фронтов 03б, 31.08.2026) —
+// первый внутренний шаг клиентского платного мониторинга закона, наполняется
+// кроном lawChangeMonitor.js (таблица law_change_candidates, миграция 0107).
+// Только просмотр и подтверждение/отклонение человеком — никакой публикации
+// клиенту отсюда пока нет, это сознательно отдельный, более поздний шаг.
+router.get(
+  '/law-change-candidates',
+  asyncHandler(async (req, res) => {
+    const { status } = req.query;
+    const { rows } = await pool.query(
+      `SELECT id, source, source_block AS "sourceBlock", title, doc_url AS "docUrl",
+              to_char(published_at, 'YYYY-MM-DD') AS "publishedAt", matched_keywords AS "matchedKeywords",
+              status, reviewed_by AS "reviewedBy", to_char(reviewed_at, 'YYYY-MM-DD HH24:MI') AS "reviewedAt",
+              note, created_at AS "createdAt"
+       FROM law_change_candidates
+       WHERE $1::varchar IS NULL OR status = $1
+       ORDER BY published_at DESC NULLS LAST, id DESC`,
+      [status || null]
+    );
+    res.json(rows);
+  })
+);
+
+router.patch(
+  '/law-change-candidates/:id',
+  asyncHandler(async (req, res) => {
+    const { status, note } = req.body;
+    if (status && !['pending', 'approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Недопустимый статус' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE law_change_candidates SET
+         status = COALESCE($2, status),
+         note = COALESCE($3, note),
+         reviewed_by = CASE WHEN $2 IS NOT NULL THEN $4 ELSE reviewed_by END,
+         reviewed_at = CASE WHEN $2 IS NOT NULL THEN now() ELSE reviewed_at END
+       WHERE id = $1
+       RETURNING id, status, reviewed_by AS "reviewedBy", to_char(reviewed_at, 'YYYY-MM-DD HH24:MI') AS "reviewedAt"`,
+      [req.params.id, status || null, note ?? null, req.user.name]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Кандидат не найден' });
+    res.json(rows[0]);
+  })
+);
+
 module.exports = router;

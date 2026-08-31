@@ -12,6 +12,7 @@ import JournalTypes from './pages/JournalTypes.jsx';
 import AiManager from './pages/AiManager.jsx';
 import Compliance from './pages/Compliance.jsx';
 import PatentRates from './pages/PatentRates.jsx';
+import LawChangeCandidates from './pages/LawChangeCandidates.jsx';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="ai-manager" element={<AiManager />} />
         <Route path="compliance" element={<Compliance />} />
         <Route path="patent-rates" element={<PatentRates />} />
+        <Route path="law-change-candidates" element={<LawChangeCandidates />} />
         <Route path="support" element={<Support />} />
         <Route path="client-errors" element={<ClientErrors />} />
         <Route path="legal" element={<LegalDocs />} />

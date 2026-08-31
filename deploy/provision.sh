@@ -87,4 +87,11 @@ echo "== Cron: ежедневный триггер перехода статус
 BUSINESS_STATUS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/businessStatusTriggers.js >> /var/log/safe-business-status-triggers.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "businessStatusTriggers.js" ; echo "0 6 * * * $BUSINESS_STATUS_CRON_CMD" ) | crontab -
 
+# Добавлено 31.08.2026 — первый внутренний шаг клиентского платного
+# мониторинга закона (карта фронтов, 03б). Только сбор кандидатов в очередь
+# на подтверждение человеком — ни клиентского UI, ни оплаты пока нет.
+echo "== Cron: ежедневный сбор кандидатов на изменение закона =="
+LAW_MONITOR_CRON_CMD="cd $APP_DIR/backend && node src/scripts/lawChangeMonitor.js >> /var/log/safe-business-law-monitor.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "lawChangeMonitor.js" ; echo "0 7 * * * $LAW_MONITOR_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."
