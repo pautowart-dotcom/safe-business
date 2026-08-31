@@ -888,7 +888,9 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
       <DocumentTemplatesCard isManagement={isManagement} />
-      <DocumentRiskCheckCard isManagement={isManagement} />
+      {/* DocumentRiskCheckCard переехала во вкладку "Документы" (31.08.2026,
+          владелец: лишнее действие — идти в другую вкладку и заново
+          выбирать тот же файл, который только что загрузили сюда). */}
 
       {/* "Подписка «Спокойствие»" убрана как отдельный продукт (12.08.2026,
           решение владельца) — избыточна поверх уже существующей базовой
@@ -1337,6 +1339,10 @@ const RISK_CHECK_DOCUMENT_TYPES = [
   ['supplier_contract', 'Договор с поставщиком/подрядчиком'],
   ['other', 'Другой документ'],
 ];
+// "Проверка на риски" читает текстовый слой (pdf-parse/mammoth), не
+// сканы/фото — только эти два MIME подходят для автоподстановки файла,
+// только что загруженного во вкладке "Документы" (см. DocumentsTab).
+const RISK_CHECK_MIME_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
 // "Проверка документа на риски" (19.08.2026, п.6 плана, часть B) — в
 // отличие от "Объяснить простыми словами" у шаблонов документов (которая
@@ -1345,7 +1351,13 @@ const RISK_CHECK_DOCUMENT_TYPES = [
 // ИИ ищет только отсутствующие ОБЯЗАТЕЛЬНЫЕ ПО ЗАКОНУ пункты, не оценивает
 // выгодность условий (см. system-промпт в document-risk-check.routes.js).
 // Бесплатно — тот же принцип, что у остального ИИ-контента в этом разделе.
-function DocumentRiskCheckCard({ isManagement }) {
+// prefillFile (31.08.2026) — файл, только что загруженный во вкладке
+// "Документы" (DocumentsTab), если это PDF/DOCX (проверка на риски не умеет
+// читать сканы/фото, ей нужен текстовый слой) — избавляет от повторного
+// выбора того же файла. Не подставляем автоматически documentType — угадать
+// "это трудовой договор или договор с поставщиком" по одной категории
+// ненадёжно, пусть человек выберет сам, это один клик.
+function DocumentRiskCheckCard({ isManagement, prefillFile }) {
   const [checks, setChecks] = useState(null);
   const [documentType, setDocumentType] = useState('other');
   const [file, setFile] = useState(null);
@@ -1353,6 +1365,10 @@ function DocumentRiskCheckCard({ isManagement }) {
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
   const [openDetail, setOpenDetail] = useState(null);
+
+  useEffect(() => {
+    if (prefillFile) setFile(prefillFile);
+  }, [prefillFile]);
 
   function load() {
     api.get('/modules/security/document-risk-checks').then((res) => setChecks(res.data));
@@ -1429,6 +1445,11 @@ function DocumentRiskCheckCard({ isManagement }) {
         </Select>
       </Field>
       <Field label="Файл (PDF или DOCX)">
+        {/* file.name не отражается в самом <input> при программной
+            подстановке (prefillFile) — браузер не позволяет менять
+            отображение файлового поля из кода, поэтому показываем имя
+            отдельной строкой, иначе выглядело бы, будто файл не выбран. */}
+        {file && <div style={{ fontSize: 12.5, color: C.secondary, marginBottom: 6 }}>Выбран файл: {file.name}</div>}
         <input
           type="file"
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -1803,6 +1824,10 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
   // спрашиваем — никогда не сохраняем догадку молча.
   const [suggestion, setSuggestion] = useState(null);
   const [savingSuggestion, setSavingSuggestion] = useState(false);
+  // 31.08.2026 — файл, только что загруженный сюда, если это PDF/DOCX (не
+  // фото — "Проверка на риски" не читает сканы, ей нужен текстовый слой),
+  // передаётся в DocumentRiskCheckCard, чтобы не выбирать его там заново.
+  const [riskCheckFile, setRiskCheckFile] = useState(null);
 
   const byCategory = {};
   for (const doc of documents) (byCategory[doc.category] ||= []).push(doc);
@@ -1844,6 +1869,7 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
       } else {
         const { data } = await api.post('/modules/security/documents', payload, { headers });
         if (data.deadlineSuggestion) setSuggestion(data.deadlineSuggestion);
+        if (form.file && RISK_CHECK_MIME_TYPES.includes(form.file.type)) setRiskCheckFile(form.file);
       }
       setShowForm(false);
       onChange();
@@ -1994,6 +2020,11 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
           )}
         </div>
       ))}
+
+      {/* Переехала сюда из "Обзора" (31.08.2026) — с prefillFile из только
+          что загруженного PDF/DOCX выше, чтобы не выбирать тот же файл
+          заново. */}
+      <DocumentRiskCheckCard isManagement={isManagement} prefillFile={riskCheckFile} />
     </div>
   );
 }
