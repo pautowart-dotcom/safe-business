@@ -1351,24 +1351,18 @@ const RISK_CHECK_MIME_TYPES = ['application/pdf', 'application/vnd.openxmlformat
 // ИИ ищет только отсутствующие ОБЯЗАТЕЛЬНЫЕ ПО ЗАКОНУ пункты, не оценивает
 // выгодность условий (см. system-промпт в document-risk-check.routes.js).
 // Бесплатно — тот же принцип, что у остального ИИ-контента в этом разделе.
-// prefillFile (31.08.2026) — файл, только что загруженный во вкладке
-// "Документы" (DocumentsTab), если это PDF/DOCX (проверка на риски не умеет
-// читать сканы/фото, ей нужен текстовый слой) — избавляет от повторного
-// выбора того же файла. Не подставляем автоматически documentType — угадать
-// "это трудовой договор или договор с поставщиком" по одной категории
-// ненадёжно, пусть человек выберет сам, это один клик.
-function DocumentRiskCheckCard({ isManagement, prefillFile }) {
+// 31.08.2026: раньше отдельная карточка со своей загрузкой файла — владелец
+// дважды поправил ("лишнее действие", "почему не сразу там где прикрепляется
+// документ") — теперь запуск проверки живёт прямо в форме "Добавить
+// документ" (DocumentsTab, чекбокс "Также проверить..."), а это —
+// только история уже сделанных проверок + автообновление, пока
+// какая-то "обрабатывается". refreshSignal — любое меняющееся значение,
+// по которому нужно перезагрузить список (новая проверка запущена из формы
+// выше).
+function RiskCheckHistoryCard({ isManagement, refreshSignal }) {
   const [checks, setChecks] = useState(null);
-  const [documentType, setDocumentType] = useState('other');
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
   const [openDetail, setOpenDetail] = useState(null);
-
-  useEffect(() => {
-    if (prefillFile) setFile(prefillFile);
-  }, [prefillFile]);
 
   function load() {
     api.get('/modules/security/document-risk-checks').then((res) => setChecks(res.data));
@@ -1378,7 +1372,7 @@ function DocumentRiskCheckCard({ isManagement, prefillFile }) {
     if (!isManagement) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManagement]);
+  }, [isManagement, refreshSignal]);
 
   // Пока есть проверки в статусе "обрабатывается" — досчитываем в фоне
   // (POST отвечает сразу с id, сам вызов ИИ идёт после ответа, см. backend).
@@ -1388,25 +1382,7 @@ function DocumentRiskCheckCard({ isManagement, prefillFile }) {
     return () => clearTimeout(t);
   }, [checks]);
 
-  if (!isManagement) return null;
-
-  async function upload() {
-    if (!file) return;
-    setUploading(true);
-    setError('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('documentType', documentType);
-      await api.post('/modules/security/document-risk-checks', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setFile(null);
-      load();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось загрузить документ');
-    } finally {
-      setUploading(false);
-    }
-  }
+  if (!isManagement || !checks || checks.length === 0) return null;
 
   async function openCheck(id) {
     if (openId === id) {
@@ -1432,36 +1408,13 @@ function DocumentRiskCheckCard({ isManagement, prefillFile }) {
 
   return (
     <Card>
-      <ST>Проверка документа на риски</ST>
+      <ST>Проверки документов на риски</ST>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
-        Загрузите договор (PDF или DOCX с текстовым слоем, не скан/фото) — ИИ проверит, каких обязательных
-        по закону пунктов не хватает. Это не юридическая консультация, только сигнал, на что обратить
-        внимание перед подписанием.
+        Не юридическая консультация, только сигнал, каких обязательных по закону пунктов не хватает.
       </div>
 
-      <Field label="Тип документа">
-        <Select value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
-          {RISK_CHECK_DOCUMENT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-      </Field>
-      <Field label="Файл (PDF или DOCX)">
-        {/* file.name не отражается в самом <input> при программной
-            подстановке (prefillFile) — браузер не позволяет менять
-            отображение файлового поля из кода, поэтому показываем имя
-            отдельной строкой, иначе выглядело бы, будто файл не выбран. */}
-        {file && <div style={{ fontSize: 12.5, color: C.secondary, marginBottom: 6 }}>Выбран файл: {file.name}</div>}
-        <input
-          type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-        />
-      </Field>
-      {error && <div className="alert alert-error">{error}</div>}
-      <Btn small onClick={upload} disabled={!file || uploading}>{uploading ? 'Загружаем…' : 'Загрузить и проверить'}</Btn>
-
-      {checks && checks.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          {checks.map((c) => (
+      <div>
+        {checks.map((c) => (
             <div key={c.id} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0 }}>
@@ -1493,8 +1446,7 @@ function DocumentRiskCheckCard({ isManagement, prefillFile }) {
               )}
             </div>
           ))}
-        </div>
-      )}
+      </div>
     </Card>
   );
 }
@@ -1824,10 +1776,16 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
   // спрашиваем — никогда не сохраняем догадку молча.
   const [suggestion, setSuggestion] = useState(null);
   const [savingSuggestion, setSavingSuggestion] = useState(false);
-  // 31.08.2026 — файл, только что загруженный сюда, если это PDF/DOCX (не
-  // фото — "Проверка на риски" не читает сканы, ей нужен текстовый слой),
-  // передаётся в DocumentRiskCheckCard, чтобы не выбирать его там заново.
-  const [riskCheckFile, setRiskCheckFile] = useState(null);
+  // 31.08.2026: не отдельный шаг после загрузки (был prefillFile-вариант,
+  // владелец поправил — "почему не сразу там, где прикрепляется документ")
+  // — чекбокс и тип документа прямо в форме "Добавить документ", запуск
+  // проверки происходит тем же кликом "Сохранить", тем же файлом.
+  // riskCheckRefresh — меняющееся значение, по нему RiskCheckHistoryCard
+  // ниже перезагружает список после того, как отсюда запущена новая
+  // проверка (сама история/результат живут там, форма их не показывает).
+  const [alsoCheckRisk, setAlsoCheckRisk] = useState(false);
+  const [riskDocType, setRiskDocType] = useState('other');
+  const [riskCheckRefresh, setRiskCheckRefresh] = useState(0);
 
   const byCategory = {};
   for (const doc of documents) (byCategory[doc.category] ||= []).push(doc);
@@ -1836,6 +1794,8 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
     setForm({ category: categories[0] || '', name: '', fileUrl: '', file: null });
     setEditingId(null);
     setFormError('');
+    setAlsoCheckRisk(false);
+    setRiskDocType('other');
     setShowForm(true);
   }
 
@@ -1869,7 +1829,20 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
       } else {
         const { data } = await api.post('/modules/security/documents', payload, { headers });
         if (data.deadlineSuggestion) setSuggestion(data.deadlineSuggestion);
-        if (form.file && RISK_CHECK_MIME_TYPES.includes(form.file.type)) setRiskCheckFile(form.file);
+        // Тем же файлом, тем же кликом — не второй отдельный шаг. Ошибка
+        // здесь не должна мешать основному сохранению документа, оно уже
+        // прошло; RiskCheckHistoryCard ниже покажет результат сама.
+        if (alsoCheckRisk && form.file) {
+          try {
+            const riskFormData = new FormData();
+            riskFormData.append('file', form.file);
+            riskFormData.append('documentType', riskDocType);
+            await api.post('/modules/security/document-risk-checks', riskFormData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setRiskCheckRefresh((n) => n + 1);
+          } catch {
+            // Молча игнорируем — сам документ уже сохранён успешно.
+          }
+        }
       }
       setShowForm(false);
       onChange();
@@ -1928,6 +1901,23 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
             placeholder="https://..."
           />
         </Field>
+        {form.file && RISK_CHECK_MIME_TYPES.includes(form.file.type) && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={alsoCheckRisk} onChange={(e) => setAlsoCheckRisk(e.target.checked)} />
+              Также проверить на обязательные пункты закона
+            </label>
+            {alsoCheckRisk && (
+              <div style={{ marginTop: 8 }}>
+                <Field label="Тип документа">
+                  <Select value={riskDocType} onChange={(e) => setRiskDocType(e.target.value)}>
+                    {RISK_CHECK_DOCUMENT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </Select>
+                </Field>
+              </div>
+            )}
+          </div>
+        )}
         {formError && <div className="alert alert-error">{formError}</div>}
         <Btn onClick={submit} disabled={saving}>{saving ? 'Сохраняем...' : editingId ? 'Сохранить изменения' : 'Сохранить'}</Btn>
       </div>
@@ -2021,10 +2011,11 @@ function DocumentsTab({ documents, sections, isManagement, onChange, onGoToTempl
         </div>
       ))}
 
-      {/* Переехала сюда из "Обзора" (31.08.2026) — с prefillFile из только
-          что загруженного PDF/DOCX выше, чтобы не выбирать тот же файл
-          заново. */}
-      <DocumentRiskCheckCard isManagement={isManagement} prefillFile={riskCheckFile} />
+      {/* Переехала сюда из "Обзора" (31.08.2026), затем 31.08.2026 ещё раз
+          по правке владельца — сама проверка теперь запускается прямо из
+          формы "Добавить документ" (см. submit()), здесь только история
+          уже пройденных проверок. */}
+      <RiskCheckHistoryCard isManagement={isManagement} refreshSignal={riskCheckRefresh} />
     </div>
   );
 }
