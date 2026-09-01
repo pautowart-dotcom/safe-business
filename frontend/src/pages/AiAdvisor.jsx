@@ -201,9 +201,14 @@ function MasterDepartureSection({ data, error }) {
 // (AiAssistantWidget.jsx, modules/ai-assistant/index.js) — раньше он был
 // бесплатным весь триал, владелец явно попросил не отделять его от
 // остальных ИИ-фич по деньгам.
-function SubscribeCard({ company, starting, error, onStart, justPaid }) {
+function SubscribeCard({ company, starting, error, onStart, justPaid, onReactivate, reactivating }) {
   const price = company?.ai_advisor_subscription_price_rub || 990;
   const status = company?.ai_advisor_subscription_status;
+  // status === 'cancelled' — отмена уже закрывает доступ немедленно
+  // (requireAiAdvisorSubscription в core/middleware/subscription.js, см.
+  // комментарий там же), поэтому здесь предлагаем восстановить уже
+  // оформленную подписку, а не заново её "оформить" — тот же сохранённый
+  // способ оплаты подхватится следующим автосписанием.
   return (
     <Card>
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>ИИ-управляющий — платная подписка</div>
@@ -223,11 +228,44 @@ function SubscribeCard({ company, starting, error, onStart, justPaid }) {
       )}
       {error && <div className="alert alert-error">{error}</div>}
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{price} ₽/мес</div>
-      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
-        Оплата через ЮKassa, дальше списывается автоматически раз в месяц — оформить нужно один раз, независимо от статуса основной подписки на платформу.
-      </div>
-      <Btn onClick={onStart} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
+      {status === 'cancelled' ? (
+        <>
+          <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
+            Подписка отменена, доступ закрыт. Возобновить — без повторного ввода карты, спишется по уже сохранённому способу оплаты.
+          </div>
+          <Btn onClick={onReactivate} disabled={reactivating}>{reactivating ? 'Возобновляем...' : 'Возобновить подписку'}</Btn>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
+            Оплата через ЮKassa, дальше списывается автоматически раз в месяц — оформить нужно один раз, независимо от статуса основной подписки на платформу.
+          </div>
+          <Btn onClick={onStart} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
+        </>
+      )}
     </Card>
+  );
+}
+
+// Управление уже активной подпиской (01.09.2026 — до сегодняшнего дня
+// эндпоинта и кнопки не было вообще, хотя оферта §3.4(а) обещает отмену
+// "в любой момент через интерфейс"). Показывается прямо над советниками,
+// не отдельным экраном — страница и так посвящена только этой подписке,
+// заводить для одной кнопки отдельный роут избыточно.
+function ManageSubscriptionCard({ company, onCancel, cancelling }) {
+  const status = company?.ai_advisor_subscription_status;
+  if (status !== 'active' && status !== 'past_due') return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, color: C.subtle }}>
+      <span>ИИ-управляющий — {company?.ai_advisor_subscription_price_rub || 990} ₽/мес, активна</span>
+      <button
+        onClick={onCancel}
+        disabled={cancelling}
+        style={{ background: 'none', border: 'none', color: C.red, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, flexShrink: 0 }}
+      >
+        {cancelling ? 'Отменяем...' : 'Отменить подписку'}
+      </button>
+    </div>
   );
 }
 
@@ -243,6 +281,8 @@ export default function AiAdvisor() {
   const [starting, setStarting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [paywalled, setPaywalled] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
 
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState('');
@@ -322,6 +362,37 @@ export default function AiAdvisor() {
     }
   }
 
+  // Без window.confirm — то же решение, что и в Subscription.jsx: доступ
+  // закрывается сразу же (см. комментарий у гейта), это и так видно на
+  // экране, дублировать нативным confirm() избыточно.
+  async function cancelSubscription() {
+    setCancelling(true);
+    setCheckoutError('');
+    try {
+      await api.post('/platform/ai-advisor-subscription/cancel');
+      await loadCompany();
+      await load();
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error || 'Не удалось отменить подписку');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function reactivateSubscription() {
+    setReactivating(true);
+    setCheckoutError('');
+    try {
+      await api.post('/platform/ai-advisor-subscription/reactivate');
+      await loadCompany();
+      await load();
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error || 'Не удалось восстановить подписку');
+    } finally {
+      setReactivating(false);
+    }
+  }
+
   return (
     <div>
       <BackBtn onClick={() => navigate(-1)} />
@@ -337,9 +408,13 @@ export default function AiAdvisor() {
           error={checkoutError}
           onStart={startCheckout}
           justPaid={searchParams.get('payment') === 'done'}
+          onReactivate={reactivateSubscription}
+          reactivating={reactivating}
         />
       ) : (
         <>
+          <ManageSubscriptionCard company={company} onCancel={cancelSubscription} cancelling={cancelling} />
+          {checkoutError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{checkoutError}</div>}
           <PeriodBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 
           {digestError && <div className="alert alert-error">{digestError}</div>}

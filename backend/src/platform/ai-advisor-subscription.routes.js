@@ -56,6 +56,60 @@ router.post(
   })
 );
 
+// Отмена (01.09.2026 — юридический аудит перед передачей оферты юристу:
+// оферта §3.4(а) обещает "отменить в любой момент через интерфейс Сервиса",
+// а этого эндпоинта и кнопки физически не было ни разу с 19.08.2026, когда
+// эта подписка стала настоящей рекуррентной). Сразу переводит в 'cancelled'
+// без grace-периода до конца оплаченного месяца — в отличие от
+// requirePaidPlan (базовая подписка, миграция 0044/PAST_DUE_GRACE_DAYS),
+// requireAiAdvisorSubscription (core/middleware/subscription.js) уже
+// намеренно не даёт grace для 'cancelled': это "продолжающаяся услуга"
+// (советники считают по актуальным данным при каждом обращении), не
+// разово выданный PDF — комментарий у гейта объясняет это явно, это не
+// баг, который здесь надо чинить, а уже принятое решение, которому этот
+// эндпоинт просто следует.
+router.post(
+  '/cancel',
+  requireAuth,
+  requireTenant,
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `UPDATE companies SET ai_advisor_subscription_status = 'cancelled'
+       WHERE id = $1 AND ai_advisor_subscription_status IN ('active', 'past_due')
+       RETURNING id`,
+      [req.tenant.companyId]
+    );
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Активной подписки для отмены нет' });
+    }
+    res.json({ ok: true });
+  })
+);
+
+// Отменить отмену — тот же принцип, что /platform/subscription/reactivate,
+// но без проверки period_end (её тут нет, см. комментарий у /cancel выше):
+// просто возвращает доступ и рекуррентные списания с ближайшего
+// chargeRecurringSubscriptions.js по уже сохранённому способу оплаты.
+router.post(
+  '/reactivate',
+  requireAuth,
+  requireTenant,
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `UPDATE companies SET ai_advisor_subscription_status = 'active'
+       WHERE id = $1 AND ai_advisor_subscription_status = 'cancelled'
+       RETURNING id`,
+      [req.tenant.companyId]
+    );
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Восстановить эту подписку уже нельзя — оформите новую' });
+    }
+    res.json({ ok: true });
+  })
+);
+
 // Вебхук ЮKassa на эти платежи обрабатывается ВНУТРИ существующего
 // POST /platform/subscription/webhook (см. комментарий там и в
 // addons.routes.js) — один URL в личном кабинете ЮKassa на все продукты,
