@@ -15,6 +15,15 @@ const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая з
 const LEGAL_FORM_LABELS = { self_employed: 'Самозанятый', ip: 'ИП', ooo: 'ООО' };
 
 // Файл 08 §3 — порядок и подписи блоков сводной таблицы.
+// Блок 9 (Финансовая безопасность, 01.09.2026) — новый, не из Файла 08,
+// добавлен для риска блокировки счёта по 115-ФЗ (см. docs/vision.md.txt).
+// Общий для всех ниш (не привязан к отраслевой специфике), в отличие от
+// остальных блоков 1-7. Именно 9, не 8 — в 6 из 11 ниш (hair, tattoo,
+// depilation, solarium, cleaning-basic, cafe-basic) блок 8 уже занят
+// другим нишевым содержанием (например, химия у hair.js); единая
+// глобальная подпись SUMMARY_BLOCKS не может значить разное в разных
+// нишах под одним номером — поэтому финансовый блок унифицирован на 9
+// во всех 11 нишах, даже там, где 8 был свободен.
 const SUMMARY_BLOCKS = [
   { block: 1, label: 'Юридическая база' },
   { block: 2, label: 'Санитарная безопасность' },
@@ -23,6 +32,7 @@ const SUMMARY_BLOCKS = [
   { block: 4, label: 'Персонал', employerOnly: true },
   { block: 6, label: 'Помещение' },
   { block: 7, label: 'Дополнительные зоны' },
+  { block: 9, label: 'Финансовая безопасность' },
 ];
 
 // Файл 08, стр. 12 — общедоступные сведения о профиле контролирующих
@@ -88,12 +98,21 @@ const DISCLAIMER =
   'Сервис «Безопасный Бизнес» не несёт ответственности за решения, принятые пользователем на основании данного документа, а также за штрафы, санкции или иные последствия проверок контролирующих органов. ' +
   'Для принятия юридически значимых решений рекомендуется обратиться к профильному специалисту.';
 
+// .filter(maxScore > 0) в конце (01.09.2026, добавлен вместе с блоком 8) —
+// раньше блок без единого вопроса у ниши физически не встречался (все 7
+// блоков 1-7, кроме employerOnly, были в каждой нише полностью), поэтому
+// фильтра не требовалось. Блок 8 сначала есть не у всех ниш сразу (только
+// там, где реально добавлены вопросы) — без этого фильтра ниши без блока 8
+// показывали бы в отчёте пустую строку "0/0, Красная зона", хотя вопрос
+// вообще не задавался.
 function summaryByBlock(answersWithBlocks, hasEmployees) {
-  return SUMMARY_BLOCKS.filter((b) => !b.employerOnly || hasEmployees).map(({ block, label }) => {
-    const rows = answersWithBlocks.filter((a) => a.block === block);
-    const score = rows.reduce((sum, r) => sum + Number(r.points), 0);
-    return { label, score, maxScore: rows.length, zone: scoring.zoneForPercent(scoring.indexPercent(score, rows.length || 1)).key };
-  });
+  return SUMMARY_BLOCKS.filter((b) => !b.employerOnly || hasEmployees)
+    .map(({ block, label }) => {
+      const rows = answersWithBlocks.filter((a) => a.block === block);
+      const score = rows.reduce((sum, r) => sum + Number(r.points), 0);
+      return { label, score, maxScore: rows.length, zone: scoring.zoneForPercent(scoring.indexPercent(score, rows.length || 1)).key };
+    })
+    .filter((b) => b.maxScore > 0);
 }
 
 // violations — результат JOIN security_violations x матрица(ы) актуальных
