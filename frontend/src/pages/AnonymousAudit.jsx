@@ -220,6 +220,24 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
           PDF со всеми найденными нарушениями, штрафами, планом устранения и списком обязательных документов —
           пришлём на почту. Разовая оплата, без подписки.
         </div>
+        {/* Ссылка на уже существующий пример (backend/src/scripts/
+            generateSampleReport.js, 13.08.2026) — 2 нарушения из 8 раскрыты
+            полностью (штраф/статья/решение), остальные 6 честно заблокированы
+            с той же формулировкой, что и ViolationPreview выше по этой же
+            странице (не отдаёт всю диагностическую ценность бесплатно).
+            Добавлено 01.09.2026 — живой разбор воронки: 47 дошли до
+            результата, заплатили 2-3, гипотеза — человек не понимает, ЗА ЧТО
+            платит, видя только 2 размытых превью прямо на этом экране.
+            Статика из landing/ (nginx root для "/"), не через API — файл
+            один и тот же для всех, не персонализирован. */}
+        <a
+          href="/primer-otcheta-bezopasnosti.pdf"
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'block', fontSize: 13, color: C.primary, fontWeight: 600, marginBottom: 14 }}
+        >
+          Посмотреть пример отчёта (PDF, как выглядит результат) →
+        </a>
         <Field label="Email">
           <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
