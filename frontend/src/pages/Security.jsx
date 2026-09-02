@@ -1455,6 +1455,7 @@ function RiskCheckHistoryCard({ isManagement, refreshSignal }) {
 // компаниям, вместе с backend-гейтом в document-templates.routes.js.
 function DocumentTemplatesCard({ isManagement }) {
   const [templates, setTemplates] = useState(null);
+  const [savedDetails, setSavedDetails] = useState({});
   const [generated, setGenerated] = useState([]);
   const [addon, setAddon] = useState(null);
   const [payingAddon, setPayingAddon] = useState(false);
@@ -1491,7 +1492,8 @@ function DocumentTemplatesCard({ isManagement }) {
       api.get('/platform/addons'),
     ])
       .then(([t, g, a]) => {
-        setTemplates(t.data);
+        setTemplates(t.data.templates);
+        setSavedDetails(t.data.savedDetails || {});
         setGenerated(g.data);
         setAddon(a.data.find((x) => x.addonKey === 'document_templates') || null);
         setError('');
@@ -1632,9 +1634,27 @@ function DocumentTemplatesCard({ isManagement }) {
           {!addon || !addon.purchased ? (
             <Btn small variant="secondary" disabled>Заполнить и сгенерировать 🔒</Btn>
           ) : openKey !== t.key ? (
-            <Btn small variant="secondary" onClick={() => { setOpenKey(t.key); setFormData({}); setError(''); }}>Заполнить и сгенерировать</Btn>
+            <Btn
+              small
+              variant="secondary"
+              onClick={() => {
+                setOpenKey(t.key);
+                // Реквизиты (ИНН/адрес и т.п.) — те же самые в каждом
+                // документе, подставляем то, что уже вводили в прошлый раз
+                // (savedDetails), чтобы не набирать заново на каждый шаблон.
+                const prefilled = {};
+                t.fields.forEach((f) => { if (savedDetails[f.key]) prefilled[f.key] = savedDetails[f.key]; });
+                setFormData(prefilled);
+                setError('');
+              }}
+            >
+              Заполнить и сгенерировать
+            </Btn>
           ) : (
             <div style={{ marginTop: 8 }}>
+              {Object.keys(savedDetails).length > 0 && t.fields.some((f) => savedDetails[f.key]) && (
+                <div style={{ fontSize: 11, color: C.subtle, marginBottom: 8 }}>Реквизиты подставлены из прошлого документа — проверьте и поправьте при необходимости.</div>
+              )}
               {t.fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
                   <TextInput

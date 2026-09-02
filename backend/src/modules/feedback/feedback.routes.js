@@ -3,17 +3,20 @@ const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
 const { requireRole } = require('../../core/middleware/role');
 const { logEvent } = require('../../core/eventLog');
+const yandexAgent = require('../../core/yandexAgent');
+const { SYSTEM_PROMPT } = require('./systemPrompt');
 
 const router = express.Router();
 
-// Читает входящие сообщения только владелец — обратная связь односторонняя
-// (мастер -> владелец), README: "Обратная связь передаётся владельцу".
+// Читает входящие сообщения владелец — теперь видит и ai_response/escalated,
+// чтобы знать, что ИИ уже ответил сам, а что реально ждёт его (см.
+// docs/vision.md.txt, "Единый поток вопросов и решений").
 router.get(
   '/',
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT f.id, f.message, f.read, f.created_at, u.name AS from_name
+      `SELECT f.id, f.message, f.read, f.ai_response, f.escalated, f.created_at, u.name AS from_name
        FROM feedback_messages f
        JOIN memberships m ON m.id = f.from_membership_id
        LEFT JOIN users u ON u.id = m.user_id
@@ -24,6 +27,39 @@ router.get(
   })
 );
 
+// ИИ пробует ответить сотруднику сразу же — молча эскалирует (ai_response
+// остаётся NULL, escalated = true), если не настроен, упал с ошибкой, или
+// сам решил, что не может ответить (см. systemPrompt.js: ответ 'ESCALATE').
+// Это не должно мешать сохранению самого сообщения — ошибка ИИ не должна
+// стать ошибкой отправки обратной связи.
+//
+// Таймаут (02.09.2026, найдено ревью перед деплоем) — yandexAgent.chat()
+// внутри дёргает fetch() без AbortController/таймаута (core/yandexAgent.js),
+// значит зависший ответ от Yandex AI Studio завис бы и здесь, вместе со
+// всем INSERT INTO feedback_messages ниже — обратная связь сотрудника
+// вообще перестала бы сохраняться, а не просто осталась без ответа ИИ.
+const AI_RESPONSE_TIMEOUT_MS = 10000;
+
+async function getAiResponse(message) {
+  if (!yandexAgent.isAiConfigured()) return { aiResponse: null, escalated: true };
+  try {
+    const result = await Promise.race([
+      yandexAgent.chat({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: message },
+        ],
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('AI_RESPONSE_TIMEOUT')), AI_RESPONSE_TIMEOUT_MS)),
+    ]);
+    const text = result.type === 'text' ? result.text.trim() : '';
+    if (!text || text.toUpperCase() === 'ESCALATE') return { aiResponse: null, escalated: true };
+    return { aiResponse: text, escalated: false };
+  } catch {
+    return { aiResponse: null, escalated: true };
+  }
+}
+
 router.post(
   '/',
   asyncHandler(async (req, res) => {
@@ -31,10 +67,13 @@ router.post(
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Напишите сообщение' });
     }
+
+    const { aiResponse, escalated } = await getAiResponse(message.trim());
+
     const { rows } = await pool.query(
-      `INSERT INTO feedback_messages (company_id, from_membership_id, message)
-       VALUES ($1, $2, $3) RETURNING id, message, read, created_at`,
-      [req.tenant.companyId, req.tenant.membershipId, message.trim()]
+      `INSERT INTO feedback_messages (company_id, from_membership_id, message, ai_response, escalated)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, message, read, ai_response, escalated, created_at`,
+      [req.tenant.companyId, req.tenant.membershipId, message.trim(), aiResponse, escalated]
     );
 
     await logEvent({

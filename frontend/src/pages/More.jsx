@@ -88,13 +88,15 @@ function MasterMore() {
   const { hasModule } = useAuth();
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const [aiResponse, setAiResponse] = useState(null);
   const [error, setError] = useState('');
 
   async function send() {
     if (!message.trim()) return;
     setError('');
     try {
-      await api.post('/modules/feedback', { message });
+      const res = await api.post('/modules/feedback', { message });
+      setAiResponse(res.data.ai_response || null);
       setSent(true);
       setMessage('');
     } catch (err) {
@@ -168,9 +170,16 @@ function MasterMore() {
             <Btn onClick={send}>Отправить</Btn>
           </>
         ) : (
-          <div style={{ background: C.greenBg, borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.green }}>✓ Отправлено владельцу</div>
-            <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 12, marginTop: 6, cursor: 'pointer' }}>Написать ещё</button>
+          <div style={{ background: C.greenBg, borderRadius: 10, padding: '12px 14px' }}>
+            {aiResponse ? (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 4 }}>ОТВЕТ (ИИ-черновик)</div>
+                <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5 }}>{aiResponse}</div>
+              </>
+            ) : (
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.green, textAlign: 'center' }}>✓ Отправлено владельцу</div>
+            )}
+            <button onClick={() => { setSent(false); setAiResponse(null); }} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 12, marginTop: 6, cursor: 'pointer', display: 'block', textAlign: aiResponse ? 'left' : 'center', width: '100%' }}>Написать ещё</button>
           </div>
         )}
       </Card>

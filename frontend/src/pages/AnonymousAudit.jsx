@@ -255,19 +255,26 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
         </label>
         {error && <div className="alert alert-error">{error}</div>}
-        {claimed ? (
-          <div style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>✓ Письмо со ссылкой отправлено на {email}</div>
-        ) : (
-          <button
-            onClick={onClaimFree}
-            disabled={claiming}
-            style={{ background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}
-          >
-            {claiming ? 'Отправляем…' : 'Не готовы платить сейчас — сохранить результат бесплатно и продолжить в приложении →'}
-          </button>
-        )}
       </Card>
       <StickyFooterButton onClick={onPay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${PRICE_RUB} ₽`}</StickyFooterButton>
+      {/* 02.09.2026, живой разбор воронки: раньше эта ссылка стояла прямо
+          над платной кнопкой, тем же цветом и весом (C.primary, стрелка →),
+          что делало её визуально равноценной альтернативой оплате — из 47
+          дошедших до этого экрана заплатили 2-3. Перенесена под sticky-кнопку
+          оплаты, приглушённым цветом, без стрелки — доступна тому, кто
+          специально её ищет, не конкурирует с оплатой за внимание того, кто
+          ещё не решил. */}
+      {claimed ? (
+        <div style={{ fontSize: 12, color: C.green, fontWeight: 600, textAlign: 'center', marginTop: 12 }}>✓ Письмо со ссылкой отправлено на {email}</div>
+      ) : (
+        <button
+          onClick={onClaimFree}
+          disabled={claiming}
+          style={{ display: 'block', width: '100%', background: 'none', border: 'none', color: C.subtle, fontSize: 12, cursor: 'pointer', padding: 0, marginTop: 12, textAlign: 'center' }}
+        >
+          {claiming ? 'Отправляем…' : 'Не готовы платить сейчас — сохранить результат бесплатно'}
+        </button>
+      )}
     </div>
   );
 }

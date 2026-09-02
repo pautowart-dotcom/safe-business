@@ -1,0 +1,14 @@
+-- "Пересобрать воронку" 02.09.2026, задача владельца: "не должно занимать
+-- часы ввода данных". Разбор кода document-templates показал причину:
+-- legalName/inn/ogrnip/legalAddress/serviceAddress/phone/email — ОДНИ И ТЕ
+-- ЖЕ реквизиты компании, повторяющиеся во всех 5 шаблонах каждой ниши
+-- (40 файлов, backend/src/modules/document-templates/content/templates/),
+-- но фронт (Security.jsx, DocumentTemplatesCard) сбрасывал formData в {}
+-- при каждом открытии шаблона — владелец студии вводил один и тот же ИНН
+-- и адрес заново на каждый из 5+ документов.
+--
+-- Одно зашифрованное поле (не отдельные *_enc колонки, как у
+-- security_answers) — тот же принцип, что уже применён в этом же модуле
+-- к generated_documents.data_enc (миграция 0074): небольшой, растущий по
+-- составу набор строковых полей, шифруется и расшифровывается целиком.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS document_details_enc BYTEA;

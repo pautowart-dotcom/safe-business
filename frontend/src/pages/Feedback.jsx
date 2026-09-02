@@ -38,6 +38,14 @@ export default function Feedback() {
               <div style={{ fontSize: 11, color: C.subtle }}>{new Date(m.created_at).toLocaleString('ru-RU')}</div>
             </div>
             <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}><Linkify text={m.message} /></div>
+            {m.ai_response ? (
+              <div style={{ background: C.surface, borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.subtle, marginBottom: 3 }}>ОТВЕТ ИИ (черновик, не проверено человеком)</div>
+                <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.4 }}>{m.ai_response}</div>
+              </div>
+            ) : m.escalated && !m.read ? (
+              <div style={{ fontSize: 11, color: C.primary, fontWeight: 600, marginBottom: 10 }}>Требует вашего ответа — ИИ не смог</div>
+            ) : null}
             {!m.read && (
               <button
                 onClick={() => markRead(m.id)}

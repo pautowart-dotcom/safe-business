@@ -6,7 +6,7 @@ const { requireAddon } = require('../../core/middleware/addon');
 const { ADDON_KEY } = require('./addonKey');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
-const { encrypt } = require('../../core/crypto');
+const { encrypt, decrypt } = require('../../core/crypto');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../../core/fileStorage');
 const { loadProfile } = require('../security/profile');
 const repository = require('./content/repository');
@@ -23,6 +23,51 @@ const router = express.Router();
 // пустой кэш, это осознанно ("не срочно", см. handoff 19.08.2026), не то же
 // самое, что кэш ИИ-советников (те персональные, per-company).
 const explanationCache = new Map();
+
+// Реквизиты компании (02.09.2026, разбор воронки владельцем) — эти ключи
+// буквально повторяются в fields каждого из 5 шаблонов на нишу (40 файлов
+// content/templates/*.js): раньше DocumentTemplatesCard на фронте сбрасывал
+// форму в {} при каждом открытии нового шаблона, то есть один и тот же
+// ИНН/адрес владелец вводил заново на каждый документ. Сохраняем сюда то,
+// что реально пришло в data при генерации — не отдельная форма настроек,
+// просто "запомнили с прошлого раза" — фронт присылает то же значение
+// снова, только уже предзаполненным.
+const SAVED_DETAIL_KEYS = ['legalName', 'inn', 'ogrnip', 'legalAddress', 'serviceAddress', 'phone', 'email'];
+
+async function loadSavedDetails(companyId) {
+  const { rows } = await pool.query('SELECT document_details_enc FROM companies WHERE id = $1', [companyId]);
+  const enc = rows[0]?.document_details_enc;
+  if (!enc) return {};
+  try {
+    return JSON.parse(decrypt(enc)) || {};
+  } catch {
+    return {};
+  }
+}
+
+// fieldKeys — ключи полей ИМЕННО этого шаблона (t.fields.map(f => f.key)),
+// не все SAVED_DETAIL_KEYS сразу. Различаем "поле не показано в этой форме"
+// (values[key] === undefined, трогать нельзя — не значит, что владелец его
+// стёр) от "поле показано и очищено" (values[key] === '', раз уж владелец
+// его видел и осознанно оставил пустым — значит реально хочет сохранить
+// пустым, не подставлять в следующий раз старое, возможно неверное значение).
+async function saveDetails(companyId, existing, values, fieldKeys) {
+  const next = { ...existing };
+  let changed = false;
+  for (const key of SAVED_DETAIL_KEYS) {
+    if (!fieldKeys.includes(key)) continue;
+    const v = typeof values[key] === 'string' ? values[key].trim() : '';
+    if (v && v !== existing[key]) {
+      next[key] = v;
+      changed = true;
+    } else if (!v && existing[key] !== undefined) {
+      delete next[key];
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  await pool.query('UPDATE companies SET document_details_enc = $1 WHERE id = $2', [encrypt(JSON.stringify(next)), companyId]);
+}
 
 // Тихая обкатка снята (13.08.2026, решение владельца) — доступно всем
 // компаниям. Шаблоны со статусом draft показываются с пометкой "бета" в
@@ -43,7 +88,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const profile = await loadProfile(req.tenant.companyId);
     if (!profile || profile.niches.length === 0) {
-      return res.json([]);
+      return res.json({ templates: [], savedDetails: {} });
     }
     const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
 
@@ -63,7 +108,12 @@ router.get(
         fields: t.fields,
       }));
 
-    res.json(templates);
+    // savedDetails — реквизиты, введённые при любой предыдущей генерации
+    // (см. SAVED_DETAIL_KEYS выше) — фронт сам решает, каким полям текущего
+    // шаблона это пригодится, здесь просто отдаём всё, что накоплено.
+    const savedDetails = await loadSavedDetails(req.tenant.companyId);
+
+    res.json({ templates, savedDetails });
   })
 );
 
@@ -140,6 +190,12 @@ router.post(
     if (missing.length > 0) {
       return res.status(400).json({ error: `Заполните обязательные поля: ${missing.map((f) => f.label).join(', ')}` });
     }
+
+    // Запоминаем реквизиты для следующей генерации (см. SAVED_DETAIL_KEYS) —
+    // до самого рендера, чтобы сбой PDF не мешал хотя бы сохранить то, что
+    // владелец уже один раз набрал руками.
+    const existingDetails = await loadSavedDetails(req.tenant.companyId);
+    await saveDetails(req.tenant.companyId, existingDetails, values, template.fields.map((f) => f.key));
 
     const generatedAt = new Date();
     const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt });
