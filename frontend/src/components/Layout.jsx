@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
 import Icon from '../ui/Icon.jsx';
@@ -7,6 +8,7 @@ import OnboardingModal from './OnboardingModal.jsx';
 import AiAssistantWidget from './AiAssistantWidget.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { C, F, MAX_WIDTH } from '../ui/theme.js';
+import { isNewCohort } from '../utils/cohort.js';
 
 // 23.08.2026: первая версия просто сажала весь контент на 1200px — на
 // "лёгких" экранах (одна карточка-сводка, форма, список из пары строк) это
@@ -145,6 +147,13 @@ const MASTER_NAV = [
 // пункта меню больше нет (More.jsx), роут остался только как заглушка
 // "временно недоступно" для старых ссылок/закладок.
 const OWNER_HUB_PATHS = ['/leads', '/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
+// Новая когорта (03.09.2026, лента наблюдения) — сайдбар на первом плане
+// показывает только то, что прямо про риск/защиту (Чек-листы — санитарные
+// требования, не запись клиентов), плюс Настройки (владелец прямо попросил
+// не прятать). Остальное (Клиенты/Визиты/Склад/Финансы и т.д.) никуда не
+// делось, просто доступно через "Ещё", не создаёт впечатление CRM с первого
+// взгляда. Не трогает мобильную раскладку и хаб "Ещё" — там всё как было.
+const NEW_COHORT_OWNER_HUB_PATHS = ['/shift', '/knowledge', '/settings'];
 // У администратора теперь свои прямые вкладки на /clients, /shift, /supplies
 // (ADMIN_NAV) — не дублируем их здесь, иначе "Ещё" подсвечивалась бы
 // активной одновременно со своей прямой вкладкой.
@@ -214,16 +223,26 @@ export default function Layout() {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const isDesktop = useIsDesktop();
+  // Только чтобы узнать когорту (created_at) — сама навигация не зависит от
+  // остальных полей компании, поэтому не переиспользует стейт со страниц.
+  const [company, setCompany] = useState(null);
+  useEffect(() => {
+    api.get('/platform/companies/current').then((res) => setCompany(res.data)).catch(() => {});
+  }, []);
+  const newCohortOwner = isOwner && isNewCohort(company);
 
   const nav = (isOwner ? OWNER_NAV : isManagement ? ADMIN_NAV : MASTER_NAV).filter((n) => !n.moduleKey || hasModule(n.moduleKey));
-  const hubPaths = isOwner ? OWNER_HUB_PATHS : isManagement ? ADMIN_HUB_PATHS : MASTER_HUB_PATHS;
+  const hubPaths = newCohortOwner ? NEW_COHORT_OWNER_HUB_PATHS : (isOwner ? OWNER_HUB_PATHS : isManagement ? ADMIN_HUB_PATHS : MASTER_HUB_PATHS);
+  // Новая когорта, владелец: Финансы убираем и из прямых пунктов (не только
+  // из хаба) — у OWNER_NAV она идёт отдельной вкладкой, не через hubPaths.
+  const directNav = newCohortOwner ? nav.filter((n) => n.to !== '/finance') : nav;
   // Только для сайдбара на десктопе — прямые пункты + хаб-разделы одним
   // списком, вместо того чтобы часть прятать за "Ещё" (там места мало
   // осмысленно, здесь — нет, см. HUB_ICONS выше).
   const desktopNav = [
-    ...nav.filter((n) => n.to !== '/more'),
+    ...directNav.filter((n) => n.to !== '/more'),
     ...hubPaths.filter((p) => !HUB_MODULE_KEYS[p] || hasModule(HUB_MODULE_KEYS[p])).map((p) => ({ to: p, label: TITLES[p], icon: HUB_ICONS[p] || 'doc' })),
-    nav.find((n) => n.to === '/more'),
+    directNav.find((n) => n.to === '/more'),
   ].filter(Boolean);
   const isHome = location.pathname === '/';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));

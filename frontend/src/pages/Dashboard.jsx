@@ -10,6 +10,7 @@ import InstallAppBanner from '../components/InstallAppBanner.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
+import { isNewCohort } from '../utils/cohort.js';
 
 const ZONE_LABEL = { green: 'Зелёная зона', yellow: 'Жёлтая зона · Есть нарушения', red: 'Красная зона · Есть нарушения' };
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
@@ -99,17 +100,9 @@ function ActionsCenterCard({ items, navigate }) {
   );
 }
 
-// Лента наблюдения (03.09.2026) — только для компаний, зарегистрированных
-// после сегодняшнего запуска. Решение владельца: обе его реальные студии и
-// любые уже существующие компании должны продолжать видеть прежний
-// Обзор без изменений — сравнение по created_at, а не отдельный флаг в БД
-// (company.created_at неизменен и уже приходит с /platform/companies/current,
-// нечему рассинхронизироваться).
-const NEW_COHORT_CUTOFF = new Date('2026-09-03T00:00:00Z');
-function isNewCohort(company) {
-  return !!company?.created_at && new Date(company.created_at) >= NEW_COHORT_CUTOFF;
-}
-
+// Лента наблюдения (03.09.2026) — только для компаний из новой когорты
+// (utils/cohort.js). Решение владельца: обе его реальные студии и любые уже
+// существующие компании должны продолжать видеть прежний Обзор без изменений.
 const WATCH_FEED_KIND_LABELS = {
   deadline: { tag: 'Сроки', color: C.orange, bg: C.orangeBg },
   law_check: { tag: 'Фоновая проверка', color: C.subtle, bg: C.surface },
