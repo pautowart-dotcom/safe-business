@@ -64,12 +64,31 @@ router.post(
     const company = rows[0];
     const returnUrl = `${process.env.FRONTEND_URL}/security?addonPayment=done`;
 
+    const metadata = { companyId: String(req.tenant.companyId), addonKey: req.params.addonKey };
+
+    // website_check — единственный addon, которому нужен вход-параметр
+    // (адрес сайта) уже на чек-ауте: строку заводим сейчас, статус
+    // 'awaiting_payment', id прокидываем через metadata (тот же приём, что
+    // и subscription_payments.report_id, миграция 0091) — вебхук
+    // (subscription.routes.js) найдёт её по этому id и запустит скан.
+    if (req.params.addonKey === 'website_check') {
+      const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+      if (!url) return res.status(400).json({ error: 'Укажите адрес сайта' });
+      const source = req.body?.source === 'test' ? 'test' : 'standalone';
+      const checkRows = await pool.query(
+        `INSERT INTO website_checks (company_id, url, source, status)
+         VALUES ($1, $2, $3, 'awaiting_payment') RETURNING id`,
+        [req.tenant.companyId, url, source]
+      );
+      metadata.websiteCheckId = String(checkRows.rows[0].id);
+    }
+
     const payment = await createPayment({
       amountRub: addon.priceRub,
       description: `${addon.label} — ${company.name}`,
       returnUrl,
       savePaymentMethod: false,
-      metadata: { companyId: String(req.tenant.companyId), addonKey: req.params.addonKey },
+      metadata,
       receiptEmail: req.user.email,
     });
 

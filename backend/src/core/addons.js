@@ -14,10 +14,17 @@
 // ai-advisor-subscription.routes.js, requireAiAdvisorSubscription
 // (core/middleware/subscription.js) — по образцу повторных списаний базовой
 // подписки (subscription.routes.js), а не addon_purchases.
+// Проверка сайта (03.09.2026) — риск-сканер по 152-ФЗ (см.
+// modules/website-check/scan.js). Цена — заглушка, как и у
+// document_templates выше, подтвердить перед реальными продажами.
 const ADDON_CATALOG = {
   document_templates: {
     label: 'Шаблоны документов',
     priceRub: 2990,
+  },
+  website_check: {
+    label: 'Проверка сайта',
+    priceRub: 990,
   },
 };
 

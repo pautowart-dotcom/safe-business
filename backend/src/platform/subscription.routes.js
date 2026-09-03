@@ -9,6 +9,7 @@ const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { notifyAddonPurchase } = require('./addons.routes');
 const { handleAiAdvisorSubscriptionWebhook } = require('./ai-advisor-subscription.routes');
 const { fulfillGuestReport } = require('./anonymous-audit.routes');
+const { runScanForPurchase } = require('./website-check.routes');
 
 const SUBSCRIPTION_PRICE_RUB = 1990;
 
@@ -315,6 +316,17 @@ async function handleAddonWebhook(paymentId, payment, res) {
       [paymentId]
     );
     await notifyAddonPurchase({ companyId, addonKey });
+
+    if (addonKey === 'website_check' && payment.metadata?.websiteCheckId) {
+      const { rows: checkRows } = await pool.query('SELECT url FROM website_checks WHERE id = $1', [
+        payment.metadata.websiteCheckId,
+      ]);
+      if (checkRows[0]) {
+        runScanForPurchase(payment.metadata.websiteCheckId, checkRows[0].url).catch((err) =>
+          console.error('runScanForPurchase failed:', err)
+        );
+      }
+    }
   } else if (payment.status === 'canceled') {
     await pool.query(`UPDATE addon_purchases SET status = 'canceled' WHERE yookassa_payment_id = $1`, [paymentId]);
   }

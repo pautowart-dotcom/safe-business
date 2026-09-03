@@ -888,6 +888,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
       <DocumentTemplatesCard isManagement={isManagement} />
+      <WebsiteCheckCard isManagement={isManagement} />
       {/* DocumentRiskCheckCard переехала во вкладку "Документы" (31.08.2026,
           владелец: лишнее действие — идти в другую вкладку и заново
           выбирать тот же файл, который только что загрузили сюда). */}
@@ -1447,6 +1448,169 @@ function RiskCheckHistoryCard({ isManagement, refreshSignal }) {
             </div>
           ))}
       </div>
+    </Card>
+  );
+}
+
+// Проверка сайта на риски 152-ФЗ (03.09.2026) — бесплатный бонус
+// подписчикам (раз в 30 дней, лимит на backend, core/middleware/
+// websiteCheck.js — без него подписка давала бы неограниченные бесплатные
+// проверки чужих сайтов), либо разовая оплата 990₽ через тот же
+// addons-чекаут, что и "Шаблоны документов" выше.
+function WebsiteCheckCard({ isManagement }) {
+  const [url, setUrl] = useState('');
+  const [checkId, setCheckId] = useState(null);
+  const [result, setResult] = useState(null);
+  const [status, setStatus] = useState('idle'); // idle | pending | completed | failed
+  const [payInfo, setPayInfo] = useState(null); // { priceRub, source } — показать кнопку разовой оплаты
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [templatesAddon, setTemplatesAddon] = useState(null);
+
+  useEffect(() => {
+    if (!isManagement) return;
+    api
+      .get('/platform/website-check/latest')
+      .then(({ data }) => {
+        setCheckId(data.id);
+        setUrl(data.url);
+        setStatus(data.status === 'completed' || data.status === 'failed' ? data.status : 'pending');
+        if (data.status === 'completed') setResult(data);
+      })
+      .catch(() => {}); // 404 — ещё не проверяли ни разу, это нормально
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManagement]);
+
+  useEffect(() => {
+    if (status !== 'pending' || !checkId) return undefined;
+    const timer = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/platform/website-check/${checkId}`);
+        if (data.status === 'completed') {
+          setResult(data);
+          setStatus('completed');
+        } else if (data.status === 'failed') {
+          setStatus('failed');
+          setError('Не удалось проверить сайт — проверьте адрес и попробуйте снова.');
+        }
+      } catch (err) {
+        // сеть моргнула — попробуем на следующем тике, не роняем поллинг
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [status, checkId]);
+
+  async function startScan() {
+    if (!url.trim()) return;
+    setSubmitting(true);
+    setError('');
+    setPayInfo(null);
+    try {
+      const { data } = await api.post('/platform/website-check/scan', { url: url.trim() });
+      setCheckId(data.id);
+      setResult(null);
+      setStatus('pending');
+    } catch (err) {
+      if (err.response?.status === 402 || err.response?.status === 429) {
+        setError(err.response.data?.error || 'Проверка недоступна');
+        try {
+          const { data: addons } = await api.get('/platform/addons');
+          setPayInfo(addons.find((a) => a.addonKey === 'website_check') || null);
+        } catch (e2) {
+          // не критично — просто не покажем кнопку разовой оплаты с ценой
+        }
+      } else {
+        setError(err.response?.data?.error || 'Не удалось запустить проверку');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function payOnceForCheck() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const { data } = await api.post('/platform/addons/website_check/checkout', { url: url.trim() });
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось начать оплату');
+      setSubmitting(false);
+    }
+  }
+
+  // Допродажа шаблонов документов сразу после результата проверки сайта
+  // (03.09.2026, идея владельца: один и тот же посетитель уже платит за
+  // порядок на сайте — логично предложить порядок в документах бизнеса).
+  useEffect(() => {
+    if (!result) return;
+    api
+      .get('/platform/addons')
+      .then(({ data }) => setTemplatesAddon(data.find((a) => a.addonKey === 'document_templates' && !a.purchased) || null))
+      .catch(() => {});
+  }, [result]);
+
+  if (!isManagement) return null;
+
+  return (
+    <Card>
+      <ST>Проверка сайта</ST>
+      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+        Проверяем сайт на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта, согласие на обработку персональных данных в формах, уведомление о cookie.
+        Это не юридическое заключение — только предварительная проверка.
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="example.ru"
+          style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13 }}
+        />
+        <Btn small onClick={startScan} disabled={submitting || status === 'pending' || !url.trim()}>
+          {status === 'pending' ? 'Проверяем…' : 'Проверить'}
+        </Btn>
+      </div>
+
+      {error && <div style={{ fontSize: 13, color: C.red, marginBottom: 8 }}>{error}</div>}
+
+      {payInfo && (
+        <div style={{ padding: '10px 12px', marginBottom: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
+            Разовая проверка без ожидания подписки — {payInfo.priceRub.toLocaleString('ru-RU')} ₽.
+          </div>
+          <Btn small onClick={payOnceForCheck} disabled={submitting || !url.trim()}>
+            {`Оплатить разовую проверку — ${payInfo.priceRub.toLocaleString('ru-RU')} ₽`}
+          </Btn>
+        </div>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
+            Индекс: <b>{result.score}</b> ({ZONE_EXPLANATIONS[result.zone] ? result.zone : result.zone})
+          </div>
+          {(result.findings || []).length === 0 ? (
+            <div style={{ fontSize: 13, color: C.green }}>Рисков не найдено.</div>
+          ) : (
+            (result.findings || []).map((f) => (
+              <div key={f.code} style={{ padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: riskColor(f.risk) }}>{f.title}</div>
+                <div style={{ fontSize: 12, color: C.secondary }}>{f.description}</div>
+                <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{f.solution}</div>
+              </div>
+            ))
+          )}
+
+          {templatesAddon && (
+            <div style={{ padding: '10px 12px', marginTop: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13 }}>
+                Раз навели порядок на сайте — стоит проверить и документы бизнеса: шаблоны по вашей нише, разовая оплата {templatesAddon.priceRub.toLocaleString('ru-RU')} ₽.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
