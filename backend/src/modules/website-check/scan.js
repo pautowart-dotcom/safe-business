@@ -50,6 +50,34 @@ const FINDINGS_CATALOG = {
     solution: 'Добавить баннер с уведомлением об использовании cookie и получением согласия посетителя.',
     howTo: ['Добавить баннер cookie-согласия (готовые скрипты есть у большинства CMS/конструкторов сайтов)'],
   },
+  // 03.09.2026 — по итогам исследования (law-compliance-monitor): формулировки
+  // вида "продолжая пользоваться сайтом, вы соглашаетесь" без реального клика
+  // по кнопке не считаются согласием — 152-ФЗ (ст. 9) требует осознанного
+  // действия, а не молчаливого продолжения просмотра. Отдельная находка от
+  // WC-05 (баннер есть, но не даёт согласия) — риск не ниже отсутствия
+  // баннера вообще, скорее выше (создаёт ложное чувство защищённости).
+  cookie_passive_consent: {
+    code: 'WC-06',
+    title: 'Cookie-согласие "по умолчанию", без реального действия посетителя',
+    description: 'Формулировка вида «продолжая пользоваться сайтом, вы соглашаетесь» не считается согласием — рядом нет кнопки, по которой посетитель реально даёт согласие.',
+    risk: 5,
+    solution: 'Заменить текст на баннер с явной кнопкой согласия («Принять»/«Хорошо»), без которой cookie не должны загружаться.',
+    howTo: ['Добавить кликабельную кнопку согласия в баннер', 'Убрать формулировку про "продолжая пользоваться"'],
+  },
+  // 03.09.2026 — то же исследование: наличие ссылки на политику (WC-02) не
+  // гарантирует, что сама страница соответствует ст. 18.1 152-ФЗ — там
+  // обязательны цели обработки, категории данных, срок хранения, порядок
+  // уничтожения. Ключевые слова — эвристика, не юридическая проверка текста
+  // целиком, формулировка находки ниже сознательно мягче ("похоже, не
+  // хватает"), не "нарушение".
+  privacy_policy_incomplete: {
+    code: 'WC-07',
+    title: 'В политике конфиденциальности, похоже, не хватает обязательных пунктов',
+    description: 'По 152-ФЗ (ст. 18.1) политика должна раскрывать цели обработки, категории персональных данных, сроки хранения и порядок уничтожения. В тексте страницы не нашлось большинства этих формулировок.',
+    risk: 4,
+    solution: 'Дополнить политику конфиденциальности: цели обработки, категории обрабатываемых данных, сроки хранения, порядок уничтожения данных.',
+    howTo: ['Свериться со ст. 18.1 152-ФЗ или готовым шаблоном политики', 'Дополнить недостающие разделы'],
+  },
 };
 
 function normalizeUrl(input) {
@@ -88,6 +116,9 @@ async function scanWebsite(inputUrl) {
 
       const hasPrivacyPolicy = /конфиденциальност/.test(linkText);
       const hasOferta = /оферт|пользовательск.{0,3}соглашен/.test(linkText);
+      // .href (не getAttribute) — браузер сам резолвит в абсолютный URL,
+      // даже если на странице ссылка относительная.
+      const privacyPolicyHref = (links.find((a) => /конфиденциальност/.test(`${a.textContent} ${a.getAttribute('href') || ''}`.toLowerCase())) || {}).href || null;
 
       const forms = Array.from(document.querySelectorAll('form'));
       const personalDataInputs = ['tel', 'email', 'text'];
@@ -108,15 +139,58 @@ async function scanWebsite(inputUrl) {
         if (!hasCheckbox || !mentionsConsent) formsMissingConsent = true;
       }
 
-      const hasCookieBanner = /cookie|куки/.test(bodyText) && /согласи|принима|allow|accept/.test(bodyText);
+      // 03.09.2026: различаем "cookie вообще не упомянуты" (WC-05) от
+      // "упомянуты, но согласие пассивное — без кнопки" (WC-06, см.
+      // FINDINGS_CATALOG). hasConsentButton — грубая проверка наличия хоть
+      // одного кликабельного элемента с текстом согласия ГДЕ УГОДНО на
+      // странице, не обязательно внутри самого баннера — эвристика, не
+      // привязка к конкретной cookie-библиотеке.
+      const cookieMentioned = /cookie|куки/.test(bodyText);
+      const hasConsentButton = Array.from(document.querySelectorAll('button, a, [role="button"], input[type="button"]')).some((el) => {
+        const t = (el.textContent || el.value || '').toLowerCase();
+        return /принять|соглас|хорошо|понятно|окей|\bok\b|accept/.test(t);
+      });
+      const passiveConsentPattern = /(продолжа|оставаясь|используя)[\s\S]{0,60}сайт[\s\S]{0,80}(соглаша|согласие|согласны)/.test(bodyText);
 
-      return { hasPrivacyPolicy, hasOferta, hasPersonalDataForm, formsMissingConsent, hasCookieBanner };
+      return { hasPrivacyPolicy, hasOferta, privacyPolicyHref, hasPersonalDataForm, formsMissingConsent, cookieMentioned, hasConsentButton, passiveConsentPattern };
     });
 
     if (!pageChecks.hasPrivacyPolicy) findingCodes.push('no_privacy_policy');
     if (!pageChecks.hasOferta) findingCodes.push('no_oferta');
     if (pageChecks.hasPersonalDataForm && pageChecks.formsMissingConsent) findingCodes.push('form_without_consent');
-    if (!pageChecks.hasCookieBanner) findingCodes.push('no_cookie_banner');
+    if (!pageChecks.cookieMentioned) {
+      findingCodes.push('no_cookie_banner');
+    } else if (pageChecks.passiveConsentPattern && !pageChecks.hasConsentButton) {
+      findingCodes.push('cookie_passive_consent');
+    }
+
+    // Единственное сознательное исключение из "сканируем только главную"
+    // (см. комментарий в шапке файла) — открываем уже найденную ссылку на
+    // политику конфиденциальности ещё на один уровень вглубь, проверить не
+    // только "ссылка есть", но и что в документе есть обязательные по
+    // ст. 18.1 152-ФЗ разделы. Если переход не удался (страница не
+    // открылась/302 в никуда) — молча пропускаем эту находку, а не считаем
+    // её нарушением: не уверены, что дело не в сети.
+    if (pageChecks.hasPrivacyPolicy && pageChecks.privacyPolicyHref) {
+      try {
+        await page.goto(pageChecks.privacyPolicyHref, { waitUntil: 'networkidle2', timeout: 15000 });
+        const policyChecks = await page.evaluate(() => {
+          const text = document.body ? document.body.innerText.toLowerCase() : '';
+          return {
+            hasPurpose: /цел[ьи].{0,20}обработ/.test(text),
+            hasCategories: /категор.{0,20}(персональных данных|субъект)/.test(text),
+            hasRetention: /срок.{0,20}(хранени|обработк)/.test(text),
+            hasDestruction: /уничтожен/.test(text),
+          };
+        });
+        const presentCount = Object.values(policyChecks).filter(Boolean).length;
+        if (presentCount < 2) findingCodes.push('privacy_policy_incomplete');
+      } catch (err) {
+        // страница политики не открылась — не штрафуем за это здесь,
+        // основная находка no_privacy_policy сюда не относится (ссылка
+        // на странице есть, проблема с самой целевой страницей отдельная).
+      }
+    }
   } finally {
     await browser.close();
   }
