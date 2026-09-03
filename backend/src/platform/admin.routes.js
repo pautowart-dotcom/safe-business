@@ -146,19 +146,28 @@ router.get(
     // видны в списке компаний: владелец узнал о первой такой оплате только
     // из письма ЮKassa, не из админки. Оба флага — просто EXISTS-подзапросы,
     // ничего не меняют в логике платежей/гостевых аккаунтов.
+    // owner_name/owner_email/owner_phone (03.09.2026) — раньше найти
+    // конкретную компанию можно было только листая список и читая названия
+    // (часто повторяются — "Моя компания" у гостей анонимного аудита);
+    // добавлены для поиска на фронте (Companies.jsx) по email/телефону
+    // владельца, не только по названию/id.
     const { rows } = await pool.query(
       `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test,
               (SELECT COUNT(*) FROM branches b WHERE b.company_id = c.id) AS branch_count,
               (SELECT COUNT(*) FROM memberships m WHERE m.company_id = c.id AND m.invite_status = 'active') AS member_count,
-              EXISTS (
-                SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
-                WHERE m.company_id = c.id AND m.role = 'owner' AND u.is_guest = true
-              ) AS is_guest_owner,
+              owner.name AS owner_name, owner.email AS owner_email, owner.phone AS owner_phone,
+              COALESCE(owner.is_guest, false) AS is_guest_owner,
               EXISTS (
                 SELECT 1 FROM subscription_payments sp
                 WHERE sp.company_id = c.id AND sp.report_id IS NOT NULL AND sp.status = 'succeeded'
               ) AS has_one_time_purchase
        FROM companies c
+       LEFT JOIN LATERAL (
+         SELECT u.name, u.email, u.phone, u.is_guest
+         FROM memberships m JOIN users u ON u.id = m.user_id
+         WHERE m.company_id = c.id AND m.role = 'owner'
+         ORDER BY m.id ASC LIMIT 1
+       ) owner ON true
        ORDER BY c.created_at DESC`
     );
     res.json(rows);

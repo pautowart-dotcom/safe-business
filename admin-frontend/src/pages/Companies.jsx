@@ -290,9 +290,30 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   );
 }
 
+// Поиск (03.09.2026) — по названию, id, имени/email/телефону владельца.
+// Список компаний и так загружается целиком одним запросом (обычно
+// некритичный объём для одной платформы) — фильтруем на фронте, без
+// отдельного backend-параметра, чтобы не городить query-параметры ради
+// такого небольшого списка.
+function matchesQuery(c, query) {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    String(c.id), c.name, c.owner_name, c.owner_email, c.owner_phone,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+
 export default function Companies() {
   const [companies, setCompanies] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [query, setQuery] = useState('');
+  // Раздел (03.09.2026, владелец: "гости отдельно, кто зарегистрировался
+  // отдельно") — гость анонимного аудита/лендинга (is_guest_owner) технически
+  // та же таблица companies, но по смыслу совсем другая аудитория (ещё не
+  // решили остаться), смешанный список было тяжело просматривать.
+  const [tab, setTab] = useState('registered'); // 'registered' | 'guest'
 
   function load() {
     api.get('/platform/admin/companies').then((res) => setCompanies(res.data));
@@ -315,13 +336,49 @@ export default function Companies() {
 
   if (!companies) return <div className="page-loading">Загрузка...</div>;
 
+  const byTab = companies.filter((c) => (tab === 'guest' ? c.is_guest_owner : !c.is_guest_owner));
+  const visible = byTab.filter((c) => matchesQuery(c, query));
+  const guestCount = companies.filter((c) => c.is_guest_owner).length;
+  const registeredCount = companies.length - guestCount;
+
   return (
     <div>
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>Компании ({companies.length})</div>
-      {companies.length === 0 ? (
-        <div style={{ fontSize: 13, color: C.subtle }}>Пока нет ни одной компании</div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button
+          onClick={() => setTab('registered')}
+          style={{
+            background: tab === 'registered' ? C.primary : C.surface, color: tab === 'registered' ? '#FFF' : C.secondary,
+            border: `1px solid ${tab === 'registered' ? C.primary : C.border}`, borderRadius: 10, padding: '8px 14px',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Зарегистрированные ({registeredCount})
+        </button>
+        <button
+          onClick={() => setTab('guest')}
+          style={{
+            background: tab === 'guest' ? C.primary : C.surface, color: tab === 'guest' ? '#FFF' : C.secondary,
+            border: `1px solid ${tab === 'guest' ? C.primary : C.border}`, borderRadius: 10, padding: '8px 14px',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Гости ({guestCount})
+        </button>
+      </div>
+
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Поиск: название, ID, email, телефон..."
+        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, fontSize: 13, marginBottom: 16, boxSizing: 'border-box' }}
+      />
+
+      {visible.length === 0 ? (
+        <div style={{ fontSize: 13, color: C.subtle }}>{companies.length === 0 ? 'Пока нет ни одной компании' : 'Ничего не найдено'}</div>
       ) : (
-        companies.map((c) => (
+        visible.map((c) => (
           <Card key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(c.id)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{c.name} <span style={{ fontSize: 12, fontWeight: 400, color: C.subtle }}>#{c.id}</span></div>

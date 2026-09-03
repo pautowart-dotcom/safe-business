@@ -122,6 +122,40 @@ async function clearAction({ relatedEntityType, relatedEntityId, category }) {
   );
 }
 
+// Вынесено из deadlines.routes.js (03.09.2026) — нужно второй точке вызова
+// (лента наблюдения, watch-feed.routes.js) без дублирования тех же правил:
+// налоговые сроки скрыты от Администратора, "Журналы" заморожены целиком
+// (05.08.2026, см. комментарии в deadlines.routes.js). GET /platform/deadlines
+// теперь тоже вызывает эту функцию, а не держит копию SQL.
+async function listUpcomingDeadlines(companyId, { role, category, kind, status } = {}) {
+  if (category === 'tax' && role === 'admin') return [];
+  if (category === 'journals') return [];
+
+  const params = [companyId];
+  let where = "company_id = $1 AND category != 'journals'";
+
+  if (category) {
+    params.push(category);
+    where += ` AND category = $${params.length}`;
+  } else if (role === 'admin') {
+    where += ` AND category != 'tax'`;
+  }
+  if (kind) {
+    params.push(kind);
+    where += ` AND kind = $${params.length}`;
+  }
+  params.push(status || 'pending');
+  where += ` AND status = $${params.length}`;
+
+  const { rows } = await pool.query(
+    `SELECT id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
+            related_entity_type, related_entity_id, note, recurrence, created_at
+     FROM deadlines WHERE ${where} ORDER BY due_date ASC NULLS LAST, id ASC`,
+    params
+  );
+  return rows;
+}
+
 const RECURRENCE_MONTHS = { monthly: 1, quarterly: 3, half_year: 6, yearly: 12 };
 
 // Сдвиг даты на следующий период — используется в deadlines.routes.js при
@@ -135,4 +169,4 @@ function nextDueDate(dueDate, recurrence) {
   return d.toISOString().slice(0, 10);
 }
 
-module.exports = { registerDeadline, registerAction, clearAction, nextDueDate };
+module.exports = { registerDeadline, registerAction, clearAction, nextDueDate, listUpcomingDeadlines };

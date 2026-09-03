@@ -83,6 +83,16 @@ async function main() {
   }
 
   console.log(`lawChangeMonitor: просмотрено кандидатов ${candidates.length}, новых добавлено ${inserted}`);
+
+  // Heartbeat (03.09.2026, лента наблюдения) — пишем только при успешном
+  // завершении (после fetchCandidates и вставки, до этой строки любая
+  // ошибка ушла бы в catch у main() ниже и heartbeat не обновился бы) —
+  // "проверили закон" должно значить, что проверка реально прошла, а не
+  // просто что скрипт запустился.
+  await pool.query(
+    `INSERT INTO cron_heartbeats (job_key, last_run_at) VALUES ('law_change_monitor', now())
+     ON CONFLICT (job_key) DO UPDATE SET last_run_at = now()`
+  );
 }
 
 main()

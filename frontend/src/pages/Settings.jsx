@@ -212,6 +212,11 @@ export default function Settings() {
               <div>
                 <div style={{ fontSize: 12, color: C.subtle, marginBottom: 2 }}>Компания</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>{company.name}</div>
+                {/* Тот же ID, что видит поддержка в админке (#{id} в списке
+                    компаний) — 03.09.2026, чтобы клиент мог назвать его при
+                    обращении в поддержку вместо названия компании (названия
+                    повторяются, id уникален). */}
+                <div style={{ fontSize: 11, color: C.subtle, marginTop: 2 }}>ID: #{company.id}</div>
               </div>
               <button onClick={openEditCompany} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Изменить</button>
             </div>

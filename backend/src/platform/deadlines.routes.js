@@ -4,7 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
-const { nextDueDate } = require('../core/deadlines');
+const { nextDueDate, listUpcomingDeadlines } = require('../core/deadlines');
 
 // Пакет 4, Этап 1: 'legal' переименована в 'documents' (юр.документы),
 // добавлены 'premises' (помещение/оборудование) и 'journals' (журналы).
@@ -18,67 +18,23 @@ router.use(requireAuth, requireTenant);
 
 // Список предстоящих сроков, отсортирован по дате. По умолчанию — только
 // незакрытые (pending), фильтр по категории необязателен.
+// SQL вынесен в core/deadlines.js (listUpcomingDeadlines) — используется и
+// здесь, и в watch-feed.routes.js (лента наблюдения, 03.09.2026), чтобы
+// правила скрытия (tax от админа, journals для всех) не разошлись в двух
+// копиях.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { category, status, kind } = req.query;
 
-    // Пакет 3, Этап 4: налоговые напоминания скрыты от Администратора — по
-    // аналогии с netProfit в finance/summary.routes.js (решение по
-    // умолчанию, озвученное владельцу как предложение, можно пересмотреть).
-    // Не 400/403 на явный ?category=tax — просто пустой список, тем же
-    // способом, что и netProfit молча не попадает в ответ.
-    if (category === 'tax' && req.tenant.role === 'admin') {
-      return res.json([]);
+    if (category && !CATEGORIES.includes(category)) {
+      return res.status(400).json({ error: 'Неизвестная категория' });
     }
-    // 05.08.2026: раздел "Журналы" заморожен целиком (владелец — до
-    // легализации электронных журналов), включая напоминания о допечатке
-    // бланков — они вели бы на теперь заблокированный POST /generated-journals.
-    // Та же логика "молча пустой список", что и у tax выше, но для всех
-    // ролей, а не только админа.
-    if (category === 'journals') {
-      return res.json([]);
+    if (kind && !['deadline', 'action'].includes(kind)) {
+      return res.status(400).json({ error: 'Неизвестный тип (kind)' });
     }
 
-    const params = [req.tenant.companyId];
-    let where = "company_id = $1 AND category != 'journals'";
-
-    if (category) {
-      if (!CATEGORIES.includes(category)) {
-        return res.status(400).json({ error: 'Неизвестная категория' });
-      }
-      params.push(category);
-      where += ` AND category = $${params.length}`;
-    } else if (req.tenant.role === 'admin') {
-      where += ` AND category != 'tax'`;
-    }
-    // Пакет 4, Этап 1: kind различает Дедлайны (есть точная дата) и Действия
-    // (есть условие, нет даты). Без фильтра — оба типа вместе, как просит
-    // задача ("выводящихся вместе"); группировка по срочности — забота
-    // конкретного экрана (Этап 5 "Центр действий"), не этого списка.
-    if (kind) {
-      if (!['deadline', 'action'].includes(kind)) {
-        return res.status(400).json({ error: 'Неизвестный тип (kind)' });
-      }
-      params.push(kind);
-      where += ` AND kind = $${params.length}`;
-    }
-    params.push(status || 'pending');
-    where += ` AND status = $${params.length}`;
-
-    // to_char: pg парсит DATE в JS Date, а res.json сериализует его через
-    // toISOString() (с временем) — string-сравнение due_date === 'YYYY-MM-DD'
-    // на фронте иначе всегда false. Тот же обходной путь нужен всюду, где
-    // фронт сравнивает даты строками, а не форматирует через new Date().
-    // NULLS LAST: due_date может быть NULL у Действий — они попадают в конец
-    // списка, а не путаются в начало сортировки ASC (Postgres по умолчанию
-    // сортирует NULL последним при ASC, но указано явно для ясности).
-    const { rows } = await pool.query(
-      `SELECT id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
-              related_entity_type, related_entity_id, note, recurrence, created_at
-       FROM deadlines WHERE ${where} ORDER BY due_date ASC NULLS LAST, id ASC`,
-      params
-    );
+    const rows = await listUpcomingDeadlines(req.tenant.companyId, { role: req.tenant.role, category, kind, status });
     res.json(rows);
   })
 );

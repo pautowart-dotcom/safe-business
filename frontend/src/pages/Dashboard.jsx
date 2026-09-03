@@ -99,6 +99,94 @@ function ActionsCenterCard({ items, navigate }) {
   );
 }
 
+// Лента наблюдения (03.09.2026) — только для компаний, зарегистрированных
+// после сегодняшнего запуска. Решение владельца: обе его реальные студии и
+// любые уже существующие компании должны продолжать видеть прежний
+// Обзор без изменений — сравнение по created_at, а не отдельный флаг в БД
+// (company.created_at неизменен и уже приходит с /platform/companies/current,
+// нечему рассинхронизироваться).
+const NEW_COHORT_CUTOFF = new Date('2026-09-04T00:00:00Z');
+function isNewCohort(company) {
+  return !!company?.created_at && new Date(company.created_at) >= NEW_COHORT_CUTOFF;
+}
+
+const WATCH_FEED_KIND_LABELS = {
+  deadline: { tag: 'Сроки', color: C.orange, bg: C.orangeBg },
+  law_check: { tag: 'Фоновая проверка', color: C.subtle, bg: C.surface },
+  website_check: { tag: 'Проверка сайта', color: C.blue, bg: C.blueBg },
+  checklist: { tag: 'Чек-листы', color: C.green, bg: C.greenBg },
+  violation_resolved: { tag: 'Безопасность', color: C.purple, bg: C.purpleBg },
+};
+
+function WatchFeedDashboard({ company, navigate }) {
+  const [feed, setFeed] = useState(null);
+
+  function load() {
+    return api.get('/platform/watch-feed').then((res) => setFeed(res.data));
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+  usePullToRefresh(load);
+
+  if (!feed) return <div className="page-loading">Загрузка...</div>;
+
+  const attention = feed.status === 'attention';
+
+  return (
+    <div>
+      <Card style={{ background: attention ? C.orangeBg : C.greenBg, borderColor: (attention ? C.orange : C.green) + '44' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: attention ? C.orange : C.green, flexShrink: 0 }} />
+          <div style={{ fontSize: 17, fontWeight: 800 }}>
+            {attention ? `Нужно внимание: ${feed.attentionCount}` : 'Всё под контролем'}
+          </div>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6 }}>
+          {attention ? 'Остальное под наблюдением — ничего срочного, кроме отмеченного ниже.' : 'Мы продолжаем следить за сроками, законом и вашими проверками.'}
+        </div>
+      </Card>
+
+      <ST>Лента наблюдения</ST>
+      {feed.items.length === 0 ? (
+        <Card><div style={{ fontSize: 13, color: C.subtle }}>Пока нечего показать — здесь появятся сроки, проверки и изменения закона.</div></Card>
+      ) : (
+        feed.items.map((item, i) => {
+          const meta = WATCH_FEED_KIND_LABELS[item.kind] || { tag: item.kind, color: C.subtle, bg: C.surface };
+          return (
+            <Card key={i}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{item.title}</div>
+                <div style={{ fontSize: 11, color: C.subtle, flexShrink: 0, fontFamily: FM }}>
+                  {new Date(item.occurredAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                </div>
+              </div>
+              <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>{item.text}</div>
+              <div style={{ marginTop: 8 }}>
+                <Badge color={meta.color} bg={meta.bg}>{meta.tag}</Badge>
+              </div>
+            </Card>
+          );
+        })
+      )}
+
+      <ST>Остальные разделы</ST>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {[['/finance', 'Финансы'], ['/clients', 'Клиенты'], ['/visits', 'Визиты'], ['/supplies', 'Склад']].map(([path, label]) => (
+          <div
+            key={path}
+            onClick={() => navigate(path)}
+            style={{ padding: '8px 14px', borderRadius: 999, background: C.surface, border: `1px solid ${C.border}`, fontSize: 12.5, color: C.secondary, cursor: 'pointer' }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { isOwner, isManagement } = useAuth();
   return (
@@ -216,6 +304,7 @@ function OwnerDashboard() {
   }
 
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
+  if (isNewCohort(company)) return <WatchFeedDashboard company={company} navigate={navigate} />;
 
   const dayLabel = summary.isToday ? 'сегодня' : 'вчера';
   const today = todayStr();
@@ -550,6 +639,7 @@ function ManagementDashboard() {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [deadlines, setDeadlines] = useState([]);
+  const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
 
   function load() {
@@ -568,13 +658,19 @@ function ManagementDashboard() {
           isOwner ? api.get('/modules/security/status') : Promise.resolve({ data: null }),
           api.get('/platform/daily-tasks'),
           api.get('/platform/deadlines'),
+          // company.created_at — нужен только для когорты нового "Обзора"
+          // (isNewCohort, 03.09.2026), администратор эту дату и раньше мог
+          // прочитать через /platform/companies/current, ничего нового не
+          // открывается.
+          api.get('/platform/companies/current'),
         ]);
       })
-      .then(([fin, statusRes, dailyTasks, deadlinesRes]) => {
+      .then(([fin, statusRes, dailyTasks, deadlinesRes, companyRes]) => {
         setRevenue(fin.data.revenue);
         setSecurity(statusRes.data?.indexPercent != null ? statusRes.data : null);
         setTasks(dailyTasks.data);
         setDeadlines(deadlinesRes.data);
+        setCompany(companyRes.data);
       })
       .finally(() => setLoading(false));
   }
@@ -602,6 +698,7 @@ function ManagementDashboard() {
   }
 
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
+  if (isNewCohort(company)) return <WatchFeedDashboard company={company} navigate={navigate} />;
 
   const dayLabel = summary.isToday ? 'сегодня' : 'вчера';
 
