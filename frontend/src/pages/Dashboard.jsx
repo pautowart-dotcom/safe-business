@@ -105,7 +105,7 @@ function ActionsCenterCard({ items, navigate }) {
 // Обзор без изменений — сравнение по created_at, а не отдельный флаг в БД
 // (company.created_at неизменен и уже приходит с /platform/companies/current,
 // нечему рассинхронизироваться).
-const NEW_COHORT_CUTOFF = new Date('2026-09-04T00:00:00Z');
+const NEW_COHORT_CUTOFF = new Date('2026-09-03T00:00:00Z');
 function isNewCohort(company) {
   return !!company?.created_at && new Date(company.created_at) >= NEW_COHORT_CUTOFF;
 }
