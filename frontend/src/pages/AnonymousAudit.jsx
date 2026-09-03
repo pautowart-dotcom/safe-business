@@ -184,7 +184,49 @@ function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) 
   );
 }
 
-function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent, onPay, paying, onClaimFree, claiming, claimed, error }) {
+// Проверка сайта (03.09.2026, шаг 2 плана) — отдельная разовая допродажа
+// (990 ₽), не конкурирует с основной кнопкой оплаты PDF-отчёта (sticky
+// внизу) — карточка стоит выше нее, со своей обычной (не sticky) кнопкой,
+// тот же принцип, что и у "claim free" ссылки ниже: не отвлекать от
+// главного CTA. Гость не получает бесплатный скан по подписке (её нет) —
+// сразу ведёт на оплату, тот же backend, что и подписчик в ЛК
+// (POST /platform/addons/website_check/checkout), но с returnUrl на /audit,
+// а не /security (гостю некуда логиниться).
+function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcceptedTerms, onPay, paying, error }) {
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Проверить сайт — 990 ₽</div>
+      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
+        Отдельная проверка вашего сайта на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта,
+        согласие на обработку персональных данных в формах, уведомление о cookie. Результат — на почту.
+      </div>
+      <Field label="Адрес сайта">
+        <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="example.ru" />
+      </Field>
+      <Field label="Email">
+        <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      </Field>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
+        <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
+        <span>
+          Я принимаю условия{' '}
+          <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
+          {' '}и{' '}
+          <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
+        </span>
+      </label>
+      {error && <div className="alert alert-error">{error}</div>}
+      <Btn small onClick={onPay} disabled={paying || !url.trim()}>{paying ? 'Переходим к оплате…' : 'Проверить сайт — 990 ₽'}</Btn>
+    </Card>
+  );
+}
+
+function ResultStep({
+  result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
+  onPay, paying, onClaimFree, claiming, claimed, error,
+  websiteUrl, setWebsiteUrl, websiteEmail, setWebsiteEmail, websiteAcceptedTerms, setWebsiteAcceptedTerms,
+  onPayWebsiteCheck, payingWebsiteCheck, websiteCheckError,
+}) {
   const zone = result.zone;
   return (
     <div>
@@ -213,6 +255,13 @@ function ResultStep({ result, email, setEmail, acceptedTerms, setAcceptedTerms, 
           проходить заново не нужно.
         </div>
       </Card>
+
+      <WebsiteCheckOffer
+        url={websiteUrl} setUrl={setWebsiteUrl}
+        email={websiteEmail} setEmail={setWebsiteEmail}
+        acceptedTerms={websiteAcceptedTerms} setAcceptedTerms={setWebsiteAcceptedTerms}
+        onPay={onPayWebsiteCheck} paying={payingWebsiteCheck} error={websiteCheckError}
+      />
 
       <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Полный отчёт — {PRICE_RUB} ₽</div>
@@ -289,8 +338,9 @@ function DoneStep() {
     <Card>
       <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Оплата обрабатывается</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
-        Обычно это занимает не больше пары минут. Как только оплата подтвердится, отчёт (PDF) придёт на
-        указанную почту — проверьте папку "Спам", если письмо не появится в течение 10 минут.
+        Обычно это занимает не больше пары минут. Как только оплата подтвердится, результат придёт на
+        указанную почту (отчёт по тесту или проверка сайта — смотря что оплачивали) — проверьте папку "Спам",
+        если письмо не появится в течение 10 минут.
       </div>
     </Card>
   );
@@ -324,6 +374,12 @@ export default function AnonymousAudit() {
   const [paying, setPaying] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
+
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [websiteEmail, setWebsiteEmail] = useState('');
+  const [websiteAcceptedTerms, setWebsiteAcceptedTerms] = useState(false);
+  const [payingWebsiteCheck, setPayingWebsiteCheck] = useState(false);
+  const [websiteCheckError, setWebsiteCheckError] = useState('');
 
   async function start() {
     if (!niche || !legalForm || !workModel) {
@@ -435,6 +491,36 @@ export default function AnonymousAudit() {
     }
   }
 
+  // Тот же чек-аут, что и кнопка в ЛК подписчика (Security.jsx →
+  // WebsiteCheckCard), но напрямую на оплату — у гостя нет подписки, ждать
+  // 402/429 незачем. source='test' — для аналитики (website_checks.source),
+  // на доступ не влияет.
+  async function payWebsiteCheck() {
+    if (!websiteUrl.trim()) return;
+    if (!websiteEmail || !websiteEmail.includes('@')) {
+      setWebsiteCheckError('Укажите email');
+      return;
+    }
+    if (!websiteAcceptedTerms) {
+      setWebsiteCheckError('Нужно принять условия оферты и политики конфиденциальности');
+      return;
+    }
+    setWebsiteCheckError('');
+    setPayingWebsiteCheck(true);
+    try {
+      const { data } = await guestApi.post('/platform/addons/website_check/checkout', {
+        url: websiteUrl.trim(),
+        email: websiteEmail,
+        acceptedTerms: websiteAcceptedTerms,
+        source: 'test',
+      });
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setWebsiteCheckError(err.response?.data?.error || 'Не удалось начать оплату');
+      setPayingWebsiteCheck(false);
+    }
+  }
+
   return (
     // height+overflowY обязательны здесь (21.08.2026, живой баг: тест из 34
     // вопросов не прокручивался ниже первого экрана) — html/body у ВСЕГО
@@ -465,6 +551,11 @@ export default function AnonymousAudit() {
           onPay={pay} paying={paying}
           onClaimFree={claimFree} claiming={claiming} claimed={claimed}
           error={error}
+          websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl}
+          websiteEmail={websiteEmail} setWebsiteEmail={setWebsiteEmail}
+          websiteAcceptedTerms={websiteAcceptedTerms} setWebsiteAcceptedTerms={setWebsiteAcceptedTerms}
+          onPayWebsiteCheck={payWebsiteCheck} payingWebsiteCheck={payingWebsiteCheck}
+          websiteCheckError={websiteCheckError}
         />
       )}
     </div>

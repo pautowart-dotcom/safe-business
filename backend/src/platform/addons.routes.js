@@ -52,17 +52,57 @@ router.post(
     const addon = getAddon(req.params.addonKey);
     if (!addon) return res.status(400).json({ error: 'Неизвестная надстройка' });
 
-    const already = await pool.query(
-      `SELECT 1 FROM addon_purchases WHERE company_id = $1 AND addon_key = $2 AND status = 'succeeded' LIMIT 1`,
-      [req.tenant.companyId, req.params.addonKey]
-    );
-    if (already.rows.length > 0) {
-      return res.status(409).json({ error: 'Уже оплачено' });
+    // website_check — не "разблокировать навсегда" (как document_templates),
+    // а "оплатить ещё один скан" — повторная покупка должна быть возможна
+    // (сайт меняется, захотят перепроверить). Гейт "уже оплачено" остаётся
+    // только для остальных addon_key из каталога.
+    if (req.params.addonKey !== 'website_check') {
+      const already = await pool.query(
+        `SELECT 1 FROM addon_purchases WHERE company_id = $1 AND addon_key = $2 AND status = 'succeeded' LIMIT 1`,
+        [req.tenant.companyId, req.params.addonKey]
+      );
+      if (already.rows.length > 0) {
+        return res.status(409).json({ error: 'Уже оплачено' });
+      }
+    }
+
+    // Гость анонимного теста (is_guest, см. anonymous-audit.routes.js) не
+    // может попасть на /security — она за PrivateRoute, а войти ему нечем
+    // (нет пароля, email — плейсхолдер guest-*@guest.business-safe.internal).
+    // Тот же приём, что и в subscription.routes.js (checkout-one-time):
+    // возвращаем на публичную /audit, а email/согласие на оферту берём из
+    // тела запроса и сохраняем ДО оплаты — иначе чек ЮKassa и письмо с
+    // результатом ушли бы на несуществующий плейсхолдер-адрес.
+    const { rows: userRows } = await pool.query('SELECT is_guest, email FROM users WHERE id = $1', [req.user.id]);
+    const isGuest = !!userRows[0]?.is_guest;
+    let receiptEmail = req.user.email;
+    const returnUrl = isGuest
+      ? `${process.env.FRONTEND_URL}/audit?payment=done`
+      : `${process.env.FRONTEND_URL}/security?addonPayment=done`;
+
+    if (isGuest) {
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Укажите email, на который прислать результат' });
+      }
+      if (!req.body?.acceptedTerms) {
+        return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
+      }
+      const existing = await pool.query('SELECT 1 FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
+          error: 'Этот email уже зарегистрирован на платформе — войдите в аккаунт, чтобы купить там',
+        });
+      }
+      await pool.query(
+        'UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3 WHERE id = $1',
+        [req.user.id, email, !!req.body?.analyticsConsent]
+      );
+      receiptEmail = email;
     }
 
     const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.tenant.companyId]);
     const company = rows[0];
-    const returnUrl = `${process.env.FRONTEND_URL}/security?addonPayment=done`;
 
     const metadata = { companyId: String(req.tenant.companyId), addonKey: req.params.addonKey };
 
@@ -89,7 +129,7 @@ router.post(
       returnUrl,
       savePaymentMethod: false,
       metadata,
-      receiptEmail: req.user.email,
+      receiptEmail,
     });
 
     await pool.query(

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Проверка сайта на риски 152-ФЗ — Безопасный бизнес</title>
+<meta name="description" content="Проверка сайта на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта, согласие в формах, cookie. 990 ₽ разово, без регистрации." />
+<style>
+  /* Та же система переменных, что landing/start.html — отдельный разовый
+     продукт той же линейки, без регистрации (03.09.2026, шаг 3 плана
+     "Проверка сайта"). */
+  :root {
+    --bg: #ffffff; --surface: #f6f6f8; --surface-2: #eeeef2; --border: #e6e6ec;
+    --text: #0e0e14; --text-muted: #64646f; --accent: #4f46e5; --accent-contrast: #ffffff;
+    --accent-soft: #eeecfd; --danger: #d13b3b; --green: #1f9254;
+    --shadow-sm: 0 1px 2px rgba(14,14,20,.06), 0 1px 1px rgba(14,14,20,.04);
+    --shadow-lg: 0 24px 48px -20px rgba(14,14,20,.22);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0b0f; --surface: #16161c; --surface-2: #1d1d24; --border: #26262f;
+      --text: #f3f3f7; --text-muted: #96969f; --accent: #8b83f0; --accent-contrast: #0b0b0f;
+      --accent-soft: #201e3a; --danger: #e2726f; --green: #4ac287;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-lg: 0 24px 48px -18px rgba(0,0,0,.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  main { max-width: 620px; margin: 0 auto; padding: 0 24px 60px; }
+  header { padding: 26px 0; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-weight: 800; font-size: 16px; letter-spacing: -.3px; text-decoration: none; color: var(--text); }
+  h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -1px; line-height: 1.08; margin: 20px 0 12px; text-wrap: balance; }
+  .lead { font-size: 16.5px; color: var(--text-muted); margin: 0 0 20px; max-width: 52ch; }
+  .price-badge { display: inline-block; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; padding: 8px 14px; border-radius: 999px; margin-bottom: 20px; }
+  .checks-list { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 8px; }
+  .checks-list li { font-size: 14.5px; color: var(--text-muted); padding-left: 22px; position: relative; }
+  .checks-list li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+  fieldset { border: none; padding: 0; margin: 0 0 20px; }
+  legend, label.field-label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  input[type=text], input[type=email] {
+    width: 100%; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 15px; font-family: inherit;
+  }
+  .btn { display: inline-block; width: 100%; padding: 15px 24px; border-radius: 12px; font-weight: 700; font-size: 15.5px; text-align: center; border: none; cursor: pointer; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 12px 24px -10px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .error { color: var(--danger); font-size: 14px; margin-top: 10px; }
+  .hint { color: var(--text-muted); font-size: 13px; margin-top: 8px; }
+  .disclaimer { color: var(--text-muted); font-size: 12.5px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <header><a class="logo" href="/">Безопасный бизнес</a></header>
+
+  <h1>Проверка сайта на риски 152-ФЗ</h1>
+  <p class="lead">Быстрая проверка вашего сайта на базовые требования закона о персональных данных. Не юридическое заключение — предварительная проверка перед тем, как показывать сайт проверяющим или клиентам.</p>
+  <div class="price-badge">990 ₽ — разово, без подписки</div>
+
+  <ul class="checks-list">
+    <li>HTTPS</li>
+    <li>Ссылка на политику конфиденциальности</li>
+    <li>Ссылка на оферту / пользовательское соглашение</li>
+    <li>Согласие на обработку персональных данных в формах</li>
+    <li>Уведомление о cookie</li>
+  </ul>
+
+  <form id="check-form">
+    <fieldset>
+      <legend>Адрес сайта</legend>
+      <input type="text" id="url" required placeholder="example.ru">
+    </fieldset>
+    <fieldset>
+      <legend>Email — куда пришлём результат</legend>
+      <input type="email" id="email" required placeholder="you@example.com">
+    </fieldset>
+
+    <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.5; margin:16px 0; cursor:pointer;">
+      <input type="checkbox" id="accepted-terms" required style="margin-top:2px;">
+      <span>Согласен(на) с условиями <a href="/lk/legal/oferta" target="_blank" rel="noreferrer">оферты</a> и <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer">политики конфиденциальности</a></span>
+    </label>
+    <button type="submit" class="btn" id="submit-btn">Проверить за 990 ₽</button>
+    <div class="error" id="error" hidden></div>
+    <div class="hint">Оплата через ЮKassa. Результат придёт на почту обычно в течение нескольких минут.</div>
+    <div class="disclaimer">Сервис не заменяет юриста — результат не является юридическим заключением.</div>
+  </form>
+</main>
+<script>
+(function () {
+  var form = document.getElementById('check-form');
+  var submitBtn = document.getElementById('submit-btn');
+  var errorBox = document.getElementById('error');
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.hidden = false;
+  }
+
+  // Тихая обкатка теста (ANONYMOUS_AUDIT_ENABLED) прикрывает и /start — тот
+  // же самый флаг, тот же понятный текст, что и в landing/start.html.
+  function errorMessage(data, fallback) {
+    return data.error === 'not_launched' ? 'Этот продукт ещё не запущен — загляните позже.' : (data.error || fallback);
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    errorBox.hidden = true;
+    var url = document.getElementById('url').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var acceptedTerms = document.getElementById('accepted-terms').checked;
+    if (!url) return showError('Укажите адрес сайта');
+    if (!email) return showError('Укажите email');
+    if (!acceptedTerms) return showError('Нужно принять условия оферты и политики конфиденциальности');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Секунду…';
+    try {
+      // Тихо заводит гостевую компанию/пользователя (anonymous-audit.routes.js,
+      // тот же механизм, что у бесплатного теста /audit) — токен нужен только
+      // на один следующий запрос, дальше результат уходит на email, хранить
+      // токен в браузере не нужно.
+      var startRes = await fetch('/api/platform/anonymous-audit/start', { method: 'POST' });
+      var startData = await startRes.json();
+      if (!startRes.ok) throw new Error(errorMessage(startData, 'Не получилось начать проверку'));
+
+      var checkoutRes = await fetch('/api/platform/addons/website_check/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + startData.token },
+        body: JSON.stringify({ url: url, email: email, acceptedTerms: acceptedTerms, source: 'standalone' }),
+      });
+      var checkoutData = await checkoutRes.json();
+      if (!checkoutRes.ok) throw new Error(errorMessage(checkoutData, 'Не получилось создать оплату'));
+      window.location.href = checkoutData.confirmationUrl;
+    } catch (e) {
+      showError(e.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Проверить за 990 ₽';
+    }
+  });
+})();
+</script>
+</body>
+</html>
