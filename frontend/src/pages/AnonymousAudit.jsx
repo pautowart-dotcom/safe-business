@@ -195,7 +195,7 @@ function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) 
 function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcceptedTerms, onPay, paying, error }) {
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Проверить сайт — 990 ₽</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Проверить сайт — 490 ₽</div>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
         Отдельная проверка вашего сайта на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта,
         согласие на обработку персональных данных в формах, уведомление о cookie. Результат — на почту.
@@ -216,7 +216,7 @@ function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcc
         </span>
       </label>
       {error && <div className="alert alert-error">{error}</div>}
-      <Btn small onClick={onPay} disabled={paying || !url.trim()}>{paying ? 'Переходим к оплате…' : 'Проверить сайт — 990 ₽'}</Btn>
+      <Btn small onClick={onPay} disabled={paying || !url.trim()}>{paying ? 'Переходим к оплате…' : 'Проверить сайт — 490 ₽'}</Btn>
     </Card>
   );
 }
