@@ -111,7 +111,7 @@ const WATCH_FEED_KIND_LABELS = {
   violation_resolved: { tag: 'Безопасность', color: C.purple, bg: C.purpleBg },
 };
 
-function WatchFeedDashboard({ company, navigate }) {
+function WatchFeedDashboard() {
   const [feed, setFeed] = useState(null);
 
   function load() {
@@ -164,18 +164,6 @@ function WatchFeedDashboard({ company, navigate }) {
         })
       )}
 
-      <ST>Остальные разделы</ST>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {[['/finance', 'Финансы'], ['/clients', 'Клиенты'], ['/visits', 'Визиты'], ['/supplies', 'Склад']].map(([path, label]) => (
-          <div
-            key={path}
-            onClick={() => navigate(path)}
-            style={{ padding: '8px 14px', borderRadius: 999, background: C.surface, border: `1px solid ${C.border}`, fontSize: 12.5, color: C.secondary, cursor: 'pointer' }}
-          >
-            {label}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -297,7 +285,7 @@ function OwnerDashboard() {
   }
 
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
-  if (isNewCohort(company)) return <WatchFeedDashboard company={company} navigate={navigate} />;
+  if (isNewCohort(company)) return <WatchFeedDashboard />;
 
   const dayLabel = summary.isToday ? 'сегодня' : 'вчера';
   const today = todayStr();
@@ -691,7 +679,7 @@ function ManagementDashboard() {
   }
 
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
-  if (isNewCohort(company)) return <WatchFeedDashboard company={company} navigate={navigate} />;
+  if (isNewCohort(company)) return <WatchFeedDashboard />;
 
   const dayLabel = summary.isToday ? 'сегодня' : 'вчера';
 

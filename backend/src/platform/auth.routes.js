@@ -6,6 +6,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { signBaseToken, signCompanyToken, verifyToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
+const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { uploadPhoto } = require('../core/uploads');
@@ -186,7 +187,13 @@ router.post(
       // переключаемыми (toggleable: true) — можно выключить в любой момент
       // через POST /modules/:key/disable, поэтому здесь просто добавлены к
       // общему списку по умолчанию, а не переведены в studioOsBundleKeys().
-      for (const moduleKey of [...studioOsBundleKeys(), 'clients', 'visits']) {
+      //
+      // 04.09.2026: для новой когорты ("только безопасность", core/cohort.js)
+      // весь операционный набор (finance/supplies/clients/visits/ai-assistant)
+      // не включается вообще, а не просто прячется в меню — см. Layout.jsx/
+      // Dashboard.jsx на фронте, тот же смысл, здесь настоящее отключение.
+      const defaultModules = isNewCohortNow() ? NEW_COHORT_MODULES : [...studioOsBundleKeys(), 'clients', 'visits'];
+      for (const moduleKey of defaultModules) {
         await client.query(
           `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
            ON CONFLICT (company_id, module_key) DO NOTHING`,

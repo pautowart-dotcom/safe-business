@@ -15,6 +15,7 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { signCompanyToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
+const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
 const { requireAuth } = require('../core/middleware/auth');
@@ -86,11 +87,12 @@ router.post(
       );
       const membership = membershipResult.rows[0];
 
-      // Тот же набор модулей, что у обычной регистрации (auth.routes.js) —
-      // не только "security": если гость позже поставит пароль и продолжит
-      // пользоваться платформой как обычный владелец, остальные модули уже
-      // включены, не нужно отдельно доразбираться, чего не хватает.
-      for (const moduleKey of [...studioOsBundleKeys(), 'clients', 'visits']) {
+      // Тот же набор модулей, что у обычной регистрации (auth.routes.js,
+      // включая когорту "только безопасность" с 04.09.2026, core/cohort.js) —
+      // гость из бесплатного теста и так проверяет только "Безопасность",
+      // операционка ему тем более не нужна с первого шага.
+      const defaultModules = isNewCohortNow() ? NEW_COHORT_MODULES : [...studioOsBundleKeys(), 'clients', 'visits'];
+      for (const moduleKey of defaultModules) {
         await client.query(
           `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
            ON CONFLICT (company_id, module_key) DO NOTHING`,
