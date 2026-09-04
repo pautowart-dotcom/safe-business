@@ -7,6 +7,7 @@ const { requireRole } = require('../core/middleware/role');
 const { createPayment } = require('../core/yookassa');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { requireAiAdvisorSubscription } = require('../core/middleware/subscription');
+const { isNewCohort } = require('../core/cohort');
 
 // Цена определена 19.08.2026 (владелец делегировал решение) — единственное
 // место с этой цифрой изначально, тот же принцип, что SUBSCRIPTION_PRICE_RUB
@@ -42,16 +43,22 @@ router.post(
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT name, ai_advisor_subscription_price_rub AS "priceRub" FROM companies WHERE id = $1',
+      'SELECT name, created_at AS "createdAt", ai_advisor_subscription_price_rub AS "priceRub" FROM companies WHERE id = $1',
       [req.tenant.companyId]
     );
     const company = rows[0];
     const priceRub = company.priceRub;
     const returnUrl = `${process.env.FRONTEND_URL}/ai-advisor?payment=done`;
+    // 05.09.2026: новой когорте реально продаётся другой продукт ("ИИ по
+    // законодательству", ComplianceAiAdvisor во фронтенде) — на чеке
+    // (54-ФЗ, description уходит в receipt.items[].description, см.
+    // core/yookassa.js) должно быть написано то же, что человек оформляет,
+    // а не название старого финансового советника.
+    const productLabel = isNewCohort(company.createdAt) ? 'ИИ по законодательству' : 'ИИ-управляющий';
 
     const payment = await createPayment({
       amountRub: priceRub,
-      description: `Подписка «ИИ-управляющий» — ${company.name}`,
+      description: `Подписка «${productLabel}» — ${company.name}`,
       returnUrl,
       savePaymentMethod: true,
       metadata: { companyId: String(req.tenant.companyId), product: 'ai_advisor' },

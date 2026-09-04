@@ -1928,6 +1928,17 @@ function ViolationCard({ violation, isManagement, onResolve }) {
       </div>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 8 }}>{violation.description}</div>
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 4 }}><strong>Штраф:</strong> {violation.fineText}</div>
+      {/* 05.09.2026: normBase уже показывается в PDF-отчёте (report/pdf.js,
+          "Основание:") — там же живут оговорки вида "не сверено с
+          первоисточником, нужна проверка юристом" у части находок (например
+          MN-210/MN-211, content/violations/manicure.js). Раньше эта карточка
+          (единственное место, где клиент видит открытые нарушения ПОСЛЕ
+          скачивания PDF) не показывала normBase вообще — оговорка долетала
+          только до одноразового PDF, а не до постоянной вкладки «Нарушения»
+          в ЛК. */}
+      {violation.normBase && (
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 4 }}><strong>Основание:</strong> {violation.normBase}</div>
+      )}
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 4 }}><strong>Что сделать:</strong> {violation.solution}</div>
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
         <strong>Стоимость:</strong> {violation.free ? 'бесплатно' : money(violation.costMin)} · <strong>Срок:</strong> {violation.daysMin} дн.
