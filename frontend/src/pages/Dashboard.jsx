@@ -109,9 +109,12 @@ const WATCH_FEED_KIND_LABELS = {
   website_check: { tag: 'Проверка сайта', color: C.blue, bg: C.blueBg },
   checklist: { tag: 'Чек-листы', color: C.green, bg: C.greenBg },
   violation_resolved: { tag: 'Безопасность', color: C.purple, bg: C.purpleBg },
+  law_notice: { tag: 'ИИ по законодательству', color: C.purple, bg: C.purpleBg },
+  law_notice_locked: { tag: 'Доступно по подписке', color: C.orange, bg: C.orangeBg },
 };
 
 function WatchFeedDashboard() {
+  const navigate = useNavigate();
   const [feed, setFeed] = useState(null);
 
   function load() {
@@ -147,8 +150,9 @@ function WatchFeedDashboard() {
       ) : (
         feed.items.map((item, i) => {
           const meta = WATCH_FEED_KIND_LABELS[item.kind] || { tag: item.kind, color: C.subtle, bg: C.surface };
+          const locked = item.kind === 'law_notice_locked';
           return (
-            <Card key={i}>
+            <Card key={i} style={locked ? { cursor: 'pointer' } : undefined} onClick={locked ? () => navigate('/ai-advisor') : undefined}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{item.title}</div>
                 <div style={{ fontSize: 11, color: C.subtle, flexShrink: 0, fontFamily: FM }}>

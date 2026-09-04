@@ -6,10 +6,11 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment } = require('../core/yookassa');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
+const { requireAiAdvisorSubscription } = require('../core/middleware/subscription');
 
 // Цена определена 19.08.2026 (владелец делегировал решение) — единственное
-// место с этой цифрой, тот же принцип, что SUBSCRIPTION_PRICE_RUB в
-// subscription.routes.js и core/addons.js. Обоснование (не хардкодить
+// место с этой цифрой изначально, тот же принцип, что SUBSCRIPTION_PRICE_RUB
+// в subscription.routes.js и core/addons.js. Обоснование (не хардкодить
 // повторно нигде): три узких read-only советника (маржа/скидки/уход
 // мастера) — это дополнительная ценность поверх базовой подписки, а не
 // замена ей, и продукт ещё не проверен реальными платящими пользователями
@@ -18,7 +19,14 @@ const { sendPushToSuperAdmins } = require('../core/pushNotify');
 // ИИ-ассистента с function calling (владелец ранее называл ориентир
 // 3990 ₽+ для него самого) — советник дешевле ассистента, потому что
 // только читает данные, ничего не делает за владельца.
-const AI_ADVISOR_SUBSCRIPTION_PRICE_RUB = 990;
+//
+// 05.09.2026: цена теперь по компании — companies.ai_advisor_subscription_
+// price_rub (миграция 0090, DEFAULT 990; auth.routes.js явно ставит 490 для
+// новой когорты при регистрации, см. core/cohort.js) — тот же столбец, из
+// которого уже читает chargeRecurringSubscriptions.js для автосписаний.
+// Раньше этот роут игнорировал столбец и слал захардкоженную константу —
+// расхождение нашлось только сейчас: если бы когорта не потребовала разных
+// цен, оно бы и дальше молчало (первое списание всегда совпадало с DEFAULT).
 
 const router = express.Router();
 
@@ -33,12 +41,16 @@ router.post(
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.tenant.companyId]);
+    const { rows } = await pool.query(
+      'SELECT name, ai_advisor_subscription_price_rub AS "priceRub" FROM companies WHERE id = $1',
+      [req.tenant.companyId]
+    );
     const company = rows[0];
+    const priceRub = company.priceRub;
     const returnUrl = `${process.env.FRONTEND_URL}/ai-advisor?payment=done`;
 
     const payment = await createPayment({
-      amountRub: AI_ADVISOR_SUBSCRIPTION_PRICE_RUB,
+      amountRub: priceRub,
       description: `Подписка «ИИ-управляющий» — ${company.name}`,
       returnUrl,
       savePaymentMethod: true,
@@ -49,10 +61,27 @@ router.post(
     await pool.query(
       `INSERT INTO ai_advisor_subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge)
        VALUES ($1, $2, $3, 'pending', false)`,
-      [req.tenant.companyId, payment.id, AI_ADVISOR_SUBSCRIPTION_PRICE_RUB]
+      [req.tenant.companyId, payment.id, priceRub]
     );
 
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
+  })
+);
+
+// Расшифровки закона, уже опубликованные владельцем платформы (05.09.2026,
+// новая когорта) — общие для всех подписчиков этого тарифа (v1 без
+// таргетинга по нише/налоговому режиму, см. план "ИИ по законодательству"),
+// поэтому без company_id в запросе.
+router.get(
+  '/law-notices',
+  requireAuth,
+  requireTenant,
+  requireAiAdvisorSubscription,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT id, explanation, published_at AS "publishedAt" FROM law_change_notices ORDER BY published_at DESC LIMIT 30`
+    );
+    res.json(rows);
   })
 );
 
@@ -167,4 +196,3 @@ async function handleAiAdvisorSubscriptionWebhook(paymentId, payment, res) {
 
 module.exports = router;
 module.exports.handleAiAdvisorSubscriptionWebhook = handleAiAdvisorSubscriptionWebhook;
-module.exports.AI_ADVISOR_SUBSCRIPTION_PRICE_RUB = AI_ADVISOR_SUBSCRIPTION_PRICE_RUB;

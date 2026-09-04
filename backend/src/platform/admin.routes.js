@@ -9,6 +9,11 @@ const { requireSuperAdmin } = require('../core/middleware/role');
 const securityRepository = require('../modules/security/content/repository');
 const { sendMail } = require('../core/mailer');
 const { isAiConfigured, draftText } = require('../core/aiAssist');
+// Отдельно от draftText выше (Anthropic, черновики поддержки) — расшифровка
+// закона использует YandexGPT (core/yandexAssist.js), тот же провайдер, что
+// уже реально подключён и оплачен (см. ai-advisor-digest), а не Anthropic,
+// который на этом сервере не настроен намеренно.
+const { isAiConfigured: isYandexAiConfigured, draftText: draftLawExplanation } = require('../core/yandexAssist');
 const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
 const { signFileUrl } = require('../core/fileStorage');
 const { ADDON_CATALOG } = require('../core/addons');
@@ -1025,6 +1030,68 @@ router.patch(
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Кандидат не найден' });
     res.json(rows[0]);
+  })
+);
+
+// Расшифровка для подписчиков ИИ-тарифа (05.09.2026) — ИИ только предлагает
+// текст, ничего не публикует сам (тот же принцип, что весь остальной ИИ в
+// проекте: предложил → человек проверил/поправил → отдельным шагом
+// подтвердил). Ничего не сохраняет — черновик живёт только в ответе,
+// админ видит его в UI и либо публикует как есть, либо правит перед /publish.
+router.post(
+  '/law-change-candidates/:id/draft-explanation',
+  asyncHandler(async (req, res) => {
+    if (!isYandexAiConfigured()) {
+      return res.status(503).json({ error: 'ИИ не настроен на сервере (YANDEX_GPT_API_KEY/YANDEX_FOLDER_ID)' });
+    }
+    const { rows } = await pool.query(
+      `SELECT title, matched_keywords AS "matchedKeywords" FROM law_change_candidates WHERE id = $1`,
+      [req.params.id]
+    );
+    const candidate = rows[0];
+    if (!candidate) return res.status(404).json({ error: 'Кандидат не найден' });
+
+    const explanation = await draftLawExplanation({
+      system:
+        'Ты объясняешь владельцу небольшого бизнеса (самозанятый/ИП/ООО), что означает для него изменение в ' +
+        'законодательстве. Пиши просто и честно, без канцелярита, 3-5 предложений. Никогда не обещай гарантированный ' +
+        'результат и не давай юридических советов как готовое решение — вместо этого прямо укажи, что при сомнениях ' +
+        'стоит свериться с бухгалтером/юристом. Если из заголовка и ключевых слов не очевидно, как именно это влияет ' +
+        'на бизнес — честно скажи, что не хватает конкретики, не придумывай последствия.',
+      prompt: `Заголовок опубликованного документа: «${candidate.title}»\nКлючевые слова, по которым он найден: ${(candidate.matchedKeywords || []).join(', ') || 'нет'}`,
+    });
+
+    res.json({ explanation });
+  })
+);
+
+router.post(
+  '/law-change-candidates/:id/publish',
+  asyncHandler(async (req, res) => {
+    const explanation = typeof req.body?.explanation === 'string' ? req.body.explanation.trim() : '';
+    if (!explanation) return res.status(400).json({ error: 'Текст расшифровки пуст' });
+
+    const { rows: candidateRows } = await pool.query(
+      'SELECT id, status FROM law_change_candidates WHERE id = $1',
+      [req.params.id]
+    );
+    if (candidateRows.length === 0) return res.status(404).json({ error: 'Кандидат не найден' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO law_change_notices (candidate_id, explanation) VALUES ($1, $2)
+       ON CONFLICT (candidate_id) DO UPDATE SET explanation = $2, published_at = now()
+       RETURNING id, candidate_id AS "candidateId", explanation, published_at AS "publishedAt"`,
+      [req.params.id, explanation]
+    );
+
+    if (candidateRows[0].status !== 'approved') {
+      await pool.query(
+        `UPDATE law_change_candidates SET status = 'approved', reviewed_by = $2, reviewed_at = now() WHERE id = $1`,
+        [req.params.id, req.user.name]
+      );
+    }
+
+    res.status(201).json(rows[0]);
   })
 );
 

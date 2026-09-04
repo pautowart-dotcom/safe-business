@@ -167,11 +167,16 @@ router.post(
       );
       user = userResult.rows[0];
 
+      // ai_advisor_subscription_price_rub — DEFAULT 990 в схеме (миграция
+      // 0090), новой когорте ставим 490 явно здесь же, при создании: тоньше
+      // функционал (расшифровка закона вместо трёх финансовых советников,
+      // core/cohort.js) — дешевле, тот же принцип, что и цена проверки
+      // сайта (990→490₽ для тонкого v1).
       const companyResult = await client.query(
-        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at)
-         VALUES ($1, $2, $3, $4, now() + interval '30 days')
+        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at, ai_advisor_subscription_price_rub)
+         VALUES ($1, $2, $3, $4, now() + interval '30 days', $5)
          RETURNING id, name`,
-        [companyName, industrySegment || null, niche, user.id]
+        [companyName, industrySegment || null, niche, user.id, isNewCohortNow() ? 490 : 990]
       );
       company = companyResult.rows[0];
 

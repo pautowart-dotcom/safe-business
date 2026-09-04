@@ -20,4 +20,11 @@ function isNewCohortNow() {
   return new Date() >= NEW_COHORT_CUTOFF;
 }
 
-module.exports = { NEW_COHORT_CUTOFF, NEW_COHORT_MODULES, isNewCohortNow };
+// Компаньон isNewCohortNow() (05.09.2026) — для решений по УЖЕ существующей
+// компании (цена/контент ИИ-подписки), не по моменту регистрации: берёт её
+// реальный created_at, а не "сейчас".
+function isNewCohort(createdAt) {
+  return !!createdAt && new Date(createdAt) >= NEW_COHORT_CUTOFF;
+}
+
+module.exports = { NEW_COHORT_CUTOFF, NEW_COHORT_MODULES, isNewCohortNow, isNewCohort };

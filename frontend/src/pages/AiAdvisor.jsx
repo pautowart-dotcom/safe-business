@@ -5,6 +5,7 @@ import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Btn, TextInput, C, F } from '../ui/components.jsx';
 import { money } from '../ui/charts.jsx';
 import { localDateStr } from '../utils/localDate.js';
+import { isNewCohort } from '../utils/cohort.js';
 
 // Экран "ИИ-советник" — семья узких советников на главном экране (не
 // спрятаны в меню, см. Задачу владельца 19.08.2026, продолжение
@@ -201,7 +202,7 @@ function MasterDepartureSection({ data, error }) {
 // (AiAssistantWidget.jsx, modules/ai-assistant/index.js) — раньше он был
 // бесплатным весь триал, владелец явно попросил не отделять его от
 // остальных ИИ-фич по деньгам.
-function SubscribeCard({ company, starting, error, onStart, justPaid, onReactivate, reactivating }) {
+function SubscribeCard({ company, starting, error, onStart, justPaid, onReactivate, reactivating, title, description }) {
   const price = company?.ai_advisor_subscription_price_rub || 990;
   const status = company?.ai_advisor_subscription_status;
   // status === 'cancelled' — отмена уже закрывает доступ немедленно
@@ -211,10 +212,9 @@ function SubscribeCard({ company, starting, error, onStart, justPaid, onReactiva
   // способ оплаты подхватится следующим автосписанием.
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>ИИ-управляющий — платная подписка</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title || 'ИИ-управляющий — платная подписка'}</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
-        Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и
-        ИИ-ассистент в чате — по вашим данным, без гарантий и без давления.
+        {description || 'Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и ИИ-ассистент в чате — по вашим данным, без гарантий и без давления.'}
       </div>
       {justPaid && (
         <div className="alert" style={{ marginBottom: 12 }}>
@@ -252,12 +252,12 @@ function SubscribeCard({ company, starting, error, onStart, justPaid, onReactiva
 // "в любой момент через интерфейс"). Показывается прямо над советниками,
 // не отдельным экраном — страница и так посвящена только этой подписке,
 // заводить для одной кнопки отдельный роут избыточно.
-function ManageSubscriptionCard({ company, onCancel, cancelling }) {
+function ManageSubscriptionCard({ company, onCancel, cancelling, label }) {
   const status = company?.ai_advisor_subscription_status;
   if (status !== 'active' && status !== 'past_due') return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, color: C.subtle }}>
-      <span>ИИ-управляющий — {company?.ai_advisor_subscription_price_rub || 990} ₽/мес, активна</span>
+      <span>{label || 'ИИ-управляющий'} — {company?.ai_advisor_subscription_price_rub || 990} ₽/мес, активна</span>
       <button
         onClick={onCancel}
         disabled={cancelling}
@@ -265,6 +265,127 @@ function ManageSubscriptionCard({ company, onCancel, cancelling }) {
       >
         {cancelling ? 'Отменяем...' : 'Отменить подписку'}
       </button>
+    </div>
+  );
+}
+
+// Расшифровки закона, уже полученные компанией (05.09.2026) — доступно
+// только реально подписанным (роут за requireAiAdvisorSubscription), но сама
+// карточка не мешает показать пустое состояние тому, кто ещё не оформил —
+// он просто не видит эту карточку вовсе (см. ComplianceAiAdvisor ниже).
+function LawNoticesList({ notices, error }) {
+  if (error) return <div className="alert alert-error">{error}</div>;
+  if (!notices) return <div style={{ fontSize: 13, color: C.subtle }}>Загрузка...</div>;
+  if (notices.length === 0) {
+    return (
+      <Card>
+        <div style={{ fontSize: 13, color: C.subtle }}>
+          Пока ничего не публиковали — здесь появится разбор, как только в законе найдётся что-то важное для вас.
+        </div>
+      </Card>
+    );
+  }
+  return notices.map((n) => (
+    <Card key={n.id}>
+      <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>{new Date(n.publishedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+      <div style={{ fontSize: 13.5, color: C.primary, lineHeight: 1.6 }}>{n.explanation}</div>
+    </Card>
+  ));
+}
+
+// Новая когорта ("только безопасность", core/cohort.js) — тот же тариф и
+// биллинг, что и у финансового ИИ-советника выше (checkout/cancel/reactivate
+// не меняются), но содержание другое: расшифровка изменений закона вместо
+// советов по марже/скидкам — у этой когорты просто нет finance/visits,
+// советовать не по чему.
+function ComplianceAiAdvisor({ company, searchParams }) {
+  const [starting, setStarting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
+  const [notices, setNotices] = useState(null);
+  const [noticesError, setNoticesError] = useState('');
+
+  const subscribed = company?.ai_advisor_subscription_status === 'active' || company?.ai_advisor_subscription_status === 'past_due';
+
+  function loadNotices() {
+    if (!subscribed) return;
+    api
+      .get('/platform/ai-advisor-subscription/law-notices')
+      .then((res) => setNotices(res.data))
+      .catch((err) => setNoticesError(err.response?.data?.error || 'Не удалось загрузить расшифровки'));
+  }
+
+  useEffect(() => {
+    loadNotices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company?.ai_advisor_subscription_status]);
+  usePullToRefresh(() => Promise.resolve(loadNotices()));
+
+  async function startCheckout() {
+    setStarting(true);
+    setCheckoutError('');
+    try {
+      const { data } = await api.post('/platform/ai-advisor-subscription/checkout');
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error || 'Не удалось начать оплату');
+      setStarting(false);
+    }
+  }
+
+  async function cancelSubscription() {
+    setCancelling(true);
+    setCheckoutError('');
+    try {
+      await api.post('/platform/ai-advisor-subscription/cancel');
+      window.location.reload();
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error || 'Не удалось отменить подписку');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function reactivateSubscription() {
+    setReactivating(true);
+    setCheckoutError('');
+    try {
+      await api.post('/platform/ai-advisor-subscription/reactivate');
+      window.location.reload();
+    } catch (err) {
+      setCheckoutError(err.response?.data?.error || 'Не удалось восстановить подписку');
+    } finally {
+      setReactivating(false);
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>ИИ по законодательству</div>
+      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
+        Когда в законе меняется что-то важное для небольшого бизнеса — разбираем простыми словами, без гарантий и без давления.
+      </div>
+
+      {subscribed ? (
+        <>
+          <ManageSubscriptionCard company={company} onCancel={cancelSubscription} cancelling={cancelling} label="ИИ по законодательству" />
+          {checkoutError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{checkoutError}</div>}
+          <LawNoticesList notices={notices} error={noticesError} />
+        </>
+      ) : (
+        <SubscribeCard
+          company={company}
+          starting={starting}
+          error={checkoutError}
+          onStart={startCheckout}
+          justPaid={searchParams.get('payment') === 'done'}
+          onReactivate={reactivateSubscription}
+          reactivating={reactivating}
+          title="ИИ по законодательству — платная подписка"
+          description="Когда в законе появляется что-то важное для вашего бизнеса, ИИ разбирает это простыми словами. Пока законы не меняются — подписка просто не присылает лишнего."
+        />
+      )}
     </div>
   );
 }
@@ -298,7 +419,9 @@ export default function AiAdvisor() {
   }
 
   function load() {
-    if (!ready) return Promise.resolve();
+    // Новая когорта не имеет finance/visits вообще — эти четыре запроса
+    // всегда вернули бы 402/403 впустую, см. ComplianceAiAdvisor ниже.
+    if (!ready || isNewCohort(company)) return Promise.resolve();
     const params = preset === 'custom' ? { dateFrom: customFrom, dateTo: customTo } : { period: preset };
 
     setDigestError('');
@@ -391,6 +514,18 @@ export default function AiAdvisor() {
     } finally {
       setReactivating(false);
     }
+  }
+
+  // Новая когорта ("только безопасность") — у компании нет finance/visits,
+  // финансовые советники ниже не имеют смысла вообще; показываем отдельный,
+  // куда более лёгкий экран поверх того же биллинга (ComplianceAiAdvisor).
+  if (isNewCohort(company)) {
+    return (
+      <div>
+        <BackBtn onClick={() => navigate(-1)} />
+        <ComplianceAiAdvisor company={company} searchParams={searchParams} />
+      </div>
+    );
   }
 
   return (

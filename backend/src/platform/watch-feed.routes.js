@@ -128,6 +128,48 @@ async function loadLawCheckItem() {
   };
 }
 
+const LAW_NOTICE_WINDOW_DAYS = 30;
+
+// 05.09.2026 — платная расшифровка (доп. ИИ-подписка, ai-advisor-
+// subscription.routes.js): подписчик видит текст, остальные — честный
+// teaser (реальный найденный повод, не абстрактная реклама). Проверка
+// доступа инлайн, не через requireAiAdvisorSubscription (core/middleware/
+// subscription.js) — та миддлварь для гейта целого роута с 402-ответом,
+// здесь нужен просто булев флаг внутри уже собираемой ленты.
+async function loadLawChangeNoticeItem(companyId) {
+  const { rows } = await pool.query(
+    `SELECT candidate_id AS "candidateId", explanation, published_at AS "publishedAt"
+     FROM law_change_notices
+     WHERE published_at >= now() - $1::int * interval '1 day'
+     ORDER BY published_at DESC LIMIT 1`,
+    [LAW_NOTICE_WINDOW_DAYS]
+  );
+  const notice = rows[0];
+  if (!notice) return null;
+
+  const { rows: companyRows } = await pool.query(
+    `SELECT ai_advisor_subscription_status AS status, free_addons AS "freeAddons" FROM companies WHERE id = $1`,
+    [companyId]
+  );
+  const company = companyRows[0];
+  const subscribed = !!company && (company.freeAddons || company.status === 'active' || company.status === 'past_due');
+
+  if (subscribed) {
+    return {
+      kind: 'law_notice',
+      title: 'Изменение в законодательстве',
+      text: notice.explanation,
+      occurredAt: notice.publishedAt,
+    };
+  }
+  return {
+    kind: 'law_notice_locked',
+    title: 'Есть изменение в законодательстве, которое может вас касаться',
+    text: 'Расшифровка доступна по подписке «ИИ по законодательству».',
+    occurredAt: notice.publishedAt,
+  };
+}
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -138,14 +180,20 @@ router.get(
     );
     const openViolations = openViolationsRows[0].n;
 
-    const [{ items: deadlineItems, attentionCount: deadlineAttention }, checklistItem, websiteItem, resolvedItem, lawItem] =
+    const [{ items: deadlineItems, attentionCount: deadlineAttention }, checklistItem, websiteItem, resolvedItem, lawCheckItem, lawNoticeItem] =
       await Promise.all([
         loadDeadlineItems(companyId, req.tenant.role),
         loadChecklistItem(companyId),
         loadWebsiteCheckItem(companyId),
         loadResolvedViolationsItem(companyId),
         loadLawCheckItem(),
+        loadLawChangeNoticeItem(companyId),
       ]);
+
+    // Если есть настоящая находка (или teaser на неё) — не показываем рядом
+    // общее "проверили, ничего срочного" за тот же контур, это выглядело бы
+    // как противоречие само себе.
+    const lawItem = lawNoticeItem || lawCheckItem;
 
     const items = [...deadlineItems, checklistItem, websiteItem, resolvedItem, lawItem]
       .filter(Boolean)

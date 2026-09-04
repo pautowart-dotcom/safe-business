@@ -73,10 +73,13 @@ router.post(
       );
       const userId = userResult.rows[0].id;
 
+      // ai_advisor_subscription_price_rub — та же логика когорты, что в
+      // auth.routes.js: гость может позже поставить пароль и остаться
+      // обычным клиентом, цена должна быть верной с самого начала.
       const companyResult = await client.query(
-        `INSERT INTO companies (name, created_by_user_id, trial_ends_at)
-         VALUES ('Моя компания', $1, now() + interval '30 days') RETURNING id`,
-        [userId]
+        `INSERT INTO companies (name, created_by_user_id, trial_ends_at, ai_advisor_subscription_price_rub)
+         VALUES ('Моя компания', $1, now() + interval '30 days', $2) RETURNING id`,
+        [userId, isNewCohortNow() ? 490 : 990]
       );
       const companyId = companyResult.rows[0].id;
 
