@@ -8,7 +8,12 @@ APP_DIR=/var/www/safe-business
 
 echo "== Установка зависимостей backend =="
 cd "$APP_DIR/backend"
-npm install --omit=dev
+# PUPPETEER_SKIP_DOWNLOAD (04.09.2026) — сервер уже настроен использовать
+# системный chromium через PUPPETEER_EXECUTABLE_PATH (см. provision.sh,
+# backend/.env.example) — собственный бинарник Puppeteer (сотни МБ, тянется
+# с серверов Google при каждом npm install) не нужен вообще, а его загрузка
+# зависала на этом сервере, останавливая весь деплой на этом шаге.
+PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev
 
 echo "== Применение миграций БД =="
 node src/db/migrate.js
