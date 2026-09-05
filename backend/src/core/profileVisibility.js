@@ -44,6 +44,14 @@ const PREDICATES = {
   // Вопрос про онлайн-кассу (УНИ-102) неприменим к самозанятым — чек
   // формируется в приложении "Мой налог", обязанности по 54-ФЗ нет.
   not_self_employed: (profile) => profile.legalForm !== 'self_employed',
+
+  // Приём клиентов в жилом помещении (05.09.2026, реальный вопрос клиентки +
+  // MN-101-доп в violations/manicure.js) — не берётся из security_profiles
+  // (там нет такого поля сегментации), а вычисляется на лету по ответу на
+  // конкретный вопрос теста (см. modules/document-templates/homePremisesSignal.js).
+  // profile.worksFromHome — не колонка БД, а посчитанное значение, которое
+  // вызывающий код обязан положить в объект profile сам перед проверкой.
+  works_from_home: (profile) => profile.worksFromHome === true,
 };
 
 function isVisible(showIf, profile) {

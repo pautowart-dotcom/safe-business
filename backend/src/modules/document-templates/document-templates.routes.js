@@ -11,6 +11,7 @@ const { saveDocumentFile, getFileUrl, signFileUrl } = require('../../core/fileSt
 const { loadProfile } = require('../security/profile');
 const repository = require('./content/repository');
 const { renderDocumentPdf } = require('./render');
+const { worksFromHome } = require('./homePremisesSignal');
 const yandexAssist = require('../../core/yandexAssist');
 
 const router = express.Router();
@@ -201,7 +202,11 @@ router.post(
     // profile — уже загружен выше (проверка ниши); прокидываем его же в
     // рендер для сборки составных документов (assembleBody, render.js) —
     // без него clause-документы не смогут решить, какие пункты показывать.
-    const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt, profile });
+    // worksFromHome — не поле самого profile (там такого нет для этой ниши,
+    // см. homePremisesSignal.js), довычисляем и кладём в копию профиля
+    // только для рендера этого документа.
+    const profileForRender = { ...profile, worksFromHome: await worksFromHome(req.tenant.companyId, template.niche) };
+    const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt, profile: profileForRender });
     const filename = await saveDocumentFile(pdfBuffer, 'application/pdf');
 
     const { rows } = await pool.query(
