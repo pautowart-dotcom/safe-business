@@ -337,6 +337,19 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+  {
+    // Добавлено 05.09.2026 вместе с DP-405 (violations/depilation.js).
+    code: 'DP-405',
+    block: 5,
+    text: 'Оформлена ли у вас публичная оферта или другой письменный документ с условиями услуги для клиентов?',
+    hint: null,
+    showIf: null,
+    answers: [
+      { label: 'Да', points: 1 },
+      { label: 'Не уверен', points: 0.5 },
+      { label: 'Нет', points: 0 },
+    ],
+  },
 
   // --- Блок 6. Эксплуатация помещения (всегда) ---
   {

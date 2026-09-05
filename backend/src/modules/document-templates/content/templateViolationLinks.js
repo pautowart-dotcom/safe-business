@@ -56,21 +56,29 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
   }));
 }
 
-// MN-405 (оферта, 05.09.2026) — единственная запись, которую нельзя было
-// сгенерировать циклом: под неё нет готового проверенного нарушения в
-// других нишах, только у маникюра (см. комментарий у MN-405 в
-// violations/manicure.js — основание проверено law-compliance-monitor,
-// статья КоАП и сумма штрафа не подтверждены однозначно, честный хедж, как
-// и у MN-101-доп). Остальные 8 ниш получат свою версию этой связки
-// отдельно, когда/если для них будет так же проверено основание — не
-// копируем не глядя.
-LINKS.manicure.push({
-  violationCode: 'MN-405',
-  templateKey: 'manicure_oferta',
-  templateTitle: 'Публичная оферта',
-  questionCode: 'MN-405',
-  hasAnswerIndex: 0,
-});
+// …-405 (оферта, 05.09.2026) — основание (ПП РФ №1514 «Правила бытового
+// обслуживания населения») прямо перечисляет услуги парикмахерских и
+// салонов красоты — распространяется одинаково на все 8 бьюти-ниш (услуга
+// клиенту физлицу, парикмахерская/салон красоты по смыслу постановления),
+// проверено один раз law-compliance-monitor для MN-405 (см. комментарий в
+// violations/manicure.js), для остальных 7 отдельной проверки не
+// потребовалось — норма та же самая, не по конкретной нише. Статья КоАП и
+// точная сумма штрафа НЕ подтверждены однозначно нигде — честный хедж
+// одинаков во всех 8 текстах нарушений.
+// cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
+// названа в перечне постановления явно, применимость менее очевидна,
+// требует отдельной проверки, не копируем не глядя.
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop'];
+for (const niche of OFERTA_NICHES) {
+  const prefix = NICHE_PREFIX[niche];
+  LINKS[niche].push({
+    violationCode: `${prefix}-405`,
+    templateKey: `${niche}_oferta`,
+    templateTitle: 'Публичная оферта',
+    questionCode: `${prefix}-405`,
+    hasAnswerIndex: 0,
+  });
+}
 
 function forTemplate(niche, templateKey) {
   return (LINKS[niche] || []).find((l) => l.templateKey === templateKey) || null;
