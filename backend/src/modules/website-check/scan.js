@@ -1,4 +1,76 @@
 const puppeteer = require('puppeteer');
+const dns = require('dns').promises;
+const net = require('net');
+
+// SSRF-защита (05.09.2026, найдено security-review) — до этой правки
+// normalizeUrl только добавлял "https://", если схемы не было, и Puppeteer
+// шёл по адресу БЕЗ КАКОЙ-ЛИБО проверки. Платящий клиент (доступ только по
+// оплаченной подписке, не триал, раз в 30 дней — не открытый эндпоинт, но
+// это не делает риск нулевым) мог указать внутренний адрес (127.0.0.1,
+// 169.254.169.254 — метаданные облачных провайдеров, внутреннюю сеть
+// хостинга) и использовать сервер как прокси для сканирования того, что
+// снаружи недоступно.
+//
+// isForbiddenIp проверяет РЕЗОЛВЛЕННЫЙ IP, не только текст введённого URL —
+// иначе достаточно завести домен, который резолвится в 127.0.0.1. Проверка
+// вызывается перед КАЖДОЙ навигацией ниже — и для введённого клиентом
+// адреса, и для ссылки на политику конфиденциальности, найденной уже НА
+// странице (её содержимое не контролируется нами).
+//
+// Честная граница: это НЕ защита от DNS rebinding (адрес меняется между
+// проверкой здесь и реальным TCP-подключением Chromium) и не перехватывает
+// редиректы после первого запроса — для этого нужен перехват на уровне
+// сетевых запросов самого браузера (page.setRequestInterception с проверкой
+// каждого запроса), отдельная, более сложная задача. Сознательно не
+// выдаём частичную защиту за полную.
+function isForbiddenIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 127) return true; // loopback
+    if (a === 10) return true; // private
+    if (a === 172 && b >= 16 && b <= 31) return true; // private
+    if (a === 192 && b === 168) return true; // private
+    if (a === 169 && b === 254) return true; // link-local, включая метаданные облака
+    if (a === 0) return true; // "этот сегмент"
+    if (a >= 224) return true; // multicast/зарезервировано
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    if (lower === '::1' || lower === '::') return true; // loopback / unspecified
+    if (/^fe[89ab]/.test(lower)) return true; // link-local (fe80::/10)
+    if (/^f[cd]/.test(lower)) return true; // unique local (fc00::/7)
+    const v4mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (v4mapped) return isForbiddenIp(v4mapped[1]);
+    return false;
+  }
+  return true; // формат не распознан — блокируем на всякий случай
+}
+
+async function assertSafeUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error('Не удалось открыть сайт: некорректный адрес');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Не удалось открыть сайт: поддерживаются только http/https адреса');
+  }
+  if (parsed.hostname.toLowerCase() === 'localhost') {
+    throw new Error('Не удалось открыть сайт: адрес указывает на локальный сервер');
+  }
+
+  let addresses;
+  try {
+    addresses = await dns.lookup(parsed.hostname, { all: true });
+  } catch {
+    throw new Error('Не удалось открыть сайт: не удалось определить IP-адрес');
+  }
+  if (addresses.length === 0 || addresses.some((a) => isForbiddenIp(a.address))) {
+    throw new Error('Не удалось открыть сайт: адрес указывает на внутреннюю/служебную сеть');
+  }
+}
 
 // Риск-сканер сайта, v1 — только 152-ФЗ/риск (решение владельца 03.09.2026,
 // см. план "Проверка сайта"). Осознанно НЕ делает: SEO, 168-ФЗ (русский
@@ -88,6 +160,7 @@ function normalizeUrl(input) {
 
 async function scanWebsite(inputUrl) {
   const url = normalizeUrl(inputUrl);
+  await assertSafeUrl(url);
   const findingCodes = [];
 
   const browser = await puppeteer.launch({
@@ -173,6 +246,9 @@ async function scanWebsite(inputUrl) {
     // её нарушением: не уверены, что дело не в сети.
     if (pageChecks.hasPrivacyPolicy && pageChecks.privacyPolicyHref) {
       try {
+        // Ссылку на политику даёт содержимое чужой (не нашей) страницы —
+        // тот же SSRF-риск, что и у исходного адреса, проверяем отдельно.
+        await assertSafeUrl(pageChecks.privacyPolicyHref);
         await page.goto(pageChecks.privacyPolicyHref, { waitUntil: 'networkidle2', timeout: 15000 });
         const policyChecks = await page.evaluate(() => {
           const text = document.body ? document.body.innerText.toLowerCase() : '';
