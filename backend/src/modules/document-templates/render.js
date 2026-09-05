@@ -13,6 +13,7 @@
 // приложения, а не как документ (замечание владельца 12.08.2026).
 const path = require('path');
 const PdfPrinter = require('pdfmake/src/printer');
+const { isVisible } = require('../../core/profileVisibility');
 
 const FONT_DIR = path.dirname(require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans.ttf'));
 const FONTS = {
@@ -55,6 +56,21 @@ const FIRST_LINE_INDENT = '        ';
 // никогда не создавала новый блок — сам шаблон (body) при этом не трогаем.
 function sanitizeFieldValue(value) {
   return String(value).replace(/\r\n|\r|\n/g, ' ').trim();
+}
+
+// 05.09.2026 — вместо переписывания целого документа под каждое сочетание
+// юрформы/модели работы (владелец: "сотни, а может и тысячи вариантов
+// шаблонов"), документ собирается из пунктов (clauses) с тем же условием
+// показа, что уже используется в тесте безопасности (core/profileVisibility.js,
+// PREDICATES). Юрист проверяет пункты (их десятки), не готовые комбинации.
+// template.body (старый формат — один сплошной текст) продолжает работать
+// без изменений: ничего не мигрируем принудительно, оба формата сосуществуют.
+function assembleBody(template, profile) {
+  if (!template.clauses) return template.body;
+  return template.clauses
+    .filter((c) => isVisible(c.showIf, profile))
+    .map((c) => c.text)
+    .join('\n\n');
 }
 
 function fillTemplate(body, data) {
@@ -129,8 +145,8 @@ function titleBlock(template, generatedAt) {
   };
 }
 
-function renderDocumentPdf({ template, data, generatedAt }) {
-  const filledBody = fillTemplate(template.body, data);
+function renderDocumentPdf({ template, data, generatedAt, profile }) {
+  const filledBody = fillTemplate(assembleBody(template, profile || {}), data);
   const content = [
     titleBlock(template, generatedAt),
     draftNotice(template),
@@ -175,4 +191,4 @@ function renderDocumentPdf({ template, data, generatedAt }) {
   });
 }
 
-module.exports = { fillTemplate, renderDocumentPdf };
+module.exports = { fillTemplate, renderDocumentPdf, assembleBody };

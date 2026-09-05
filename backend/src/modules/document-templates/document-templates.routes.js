@@ -198,7 +198,10 @@ router.post(
     await saveDetails(req.tenant.companyId, existingDetails, values, template.fields.map((f) => f.key));
 
     const generatedAt = new Date();
-    const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt });
+    // profile — уже загружен выше (проверка ниши); прокидываем его же в
+    // рендер для сборки составных документов (assembleBody, render.js) —
+    // без него clause-документы не смогут решить, какие пункты показывать.
+    const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt, profile });
     const filename = await saveDocumentFile(pdfBuffer, 'application/pdf');
 
     const { rows } = await pool.query(
