@@ -94,4 +94,12 @@ echo "== Cron: ежедневный сбор кандидатов на изме�
 LAW_MONITOR_CRON_CMD="cd $APP_DIR/backend && node src/scripts/lawChangeMonitor.js >> /var/log/safe-business-law-monitor.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "lawChangeMonitor.js" ; echo "0 7 * * * $LAW_MONITOR_CRON_CMD" ) | crontab -
 
+# Добавлено 05.09.2026 — реальный разрыв в продукте: core/deadlines.js шлёт
+# push по сроку ОДИН раз, в момент, когда владелец сам его внёс, и больше
+# никогда не напоминает по мере приближения даты (см. миграцию 0115). Этот
+# крон — единственное место, которое повторно напоминает за 30/14/7/1/0 дней.
+echo "== Cron: повторные напоминания о приближающихся сроках =="
+DEADLINE_REMINDERS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/deadlineReminders.js >> /var/log/safe-business-deadline-reminders.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "deadlineReminders.js" ; echo "5 7 * * * $DEADLINE_REMINDERS_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."
