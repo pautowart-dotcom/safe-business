@@ -21,6 +21,11 @@ export default function LawChangeCandidates() {
   const [drafting, setDrafting] = useState(null);
   const [publishing, setPublishing] = useState(null);
   const [published, setPublished] = useState({});
+  // sourceTextFetched (05.09.2026) — сервер честно сообщает, удалось ли
+  // подтянуть реальный текст закона со страницы источника или черновик
+  // составлен только по заголовку (тогда конкретики в нём будет мало —
+  // стоит вычитать текст по ссылке самому перед публикацией).
+  const [sourceFetched, setSourceFetched] = useState({});
 
   function load(status) {
     api.get('/platform/admin/law-change-candidates', { params: status ? { status } : {} }).then((res) => setRows(res.data));
@@ -38,6 +43,7 @@ export default function LawChangeCandidates() {
     try {
       const { data } = await api.post(`/platform/admin/law-change-candidates/${id}/draft-explanation`);
       setDrafts((prev) => ({ ...prev, [id]: data.explanation }));
+      setSourceFetched((prev) => ({ ...prev, [id]: data.sourceTextFetched }));
     } catch (err) {
       alert(err.response?.data?.error || 'Не удалось получить черновик от ИИ');
     } finally {
@@ -123,6 +129,11 @@ export default function LawChangeCandidates() {
                   </Btn>
                   {drafts[row.id] !== undefined && (
                     <div style={{ marginTop: 8 }}>
+                      {sourceFetched[row.id] === false && (
+                        <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, marginBottom: 6 }}>
+                          ⚠ Не удалось получить текст документа по ссылке — черновик составлен только по заголовку и ключевым словам, конкретики в нём может не хватать. Вычитайте текст по ссылке выше сами перед публикацией.
+                        </div>
+                      )}
                       <textarea
                         value={drafts[row.id]}
                         onChange={(e) => setDrafts({ ...drafts, [row.id]: e.target.value })}
