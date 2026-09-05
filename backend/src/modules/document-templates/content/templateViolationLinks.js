@@ -18,44 +18,59 @@
 // scoring.js createsViolation). Переиспользуем то, что тест и так уже
 // спросил, вместо отдельного вопроса "уже есть ли у вас документ X" — тот
 // же принцип, что и в document-templates/homePremisesSignal.js.
-const LINKS = {
-  manicure: [
-    {
-      violationCode: 'MN-402',
-      templateKey: 'manicure_privacy_policy',
-      templateTitle: 'Политика конфиденциальности',
-      questionCode: 'MN-402',
-      hasAnswerIndex: 0,
-    },
-    {
-      violationCode: 'MN-403',
-      templateKey: 'manicure_pd_consent',
-      templateTitle: 'Согласие на обработку персональных данных',
-      questionCode: 'MN-403',
-      hasAnswerIndex: 0,
-    },
-    {
-      violationCode: 'MN-404',
-      templateKey: 'manicure_pd_photo_consent',
-      templateTitle: 'Согласие на фото/видео клиентов',
-      questionCode: 'MN-404',
-      hasAnswerIndex: 0,
-    },
-    {
-      // MN-405 (05.09.2026) — единственная новая запись в этом заходе,
-      // основание проверено law-compliance-monitor: отдельного штрафа "за
-      // отсутствие оферты" в законе нет, реальное требование — письменный
-      // документ на услугу по ПП РФ №1514, статья КоАП и сумма штрафа не
-      // подтверждены однозначно (см. комментарий у MN-405 в
-      // violations/manicure.js) — честный хедж, как и у MN-101-доп.
-      violationCode: 'MN-405',
-      templateKey: 'manicure_oferta',
-      templateTitle: 'Публичная оферта',
-      questionCode: 'MN-405',
-      hasAnswerIndex: 0,
-    },
-  ],
+// Тройка "политика конфиденциальности / согласие на ПДн / согласие на фото"
+// (05.09.2026) — не только у маникюра: проверено, что тот же код
+// нарушения (…-402/403/404), тот же вопрос ("Да" = индекс 0, баллы 1, см.
+// scoring.js) и тот же ключ шаблона (`{niche}_privacy_policy` /
+// `{niche}_pd_consent` / `{niche}_pd_photo_consent`) существуют для ВСЕХ 9
+// ниш с шаблонами документов — это уже проверенный ранее (04.08.2026,
+// law-compliance-monitor) 152-ФЗ-контент, один и тот же паттерн скопирован
+// при наполнении контента по нишам. Генерируем связки циклом, а не 27
+// руками — меньше риск опечатки в коде, который итак идентичен построчно.
+const NICHE_PREFIX = {
+  manicure: 'MN',
+  lashes_brows: 'LB',
+  hair: 'HR',
+  massage: 'MS',
+  tattoo: 'TT',
+  depilation: 'DP',
+  solarium: 'SL',
+  cleaning_basic: 'CL',
+  barbershop: 'BB',
 };
+
+const PD_DOCS = [
+  { suffix: '402', templateSuffix: 'privacy_policy', templateTitle: 'Политика конфиденциальности' },
+  { suffix: '403', templateSuffix: 'pd_consent', templateTitle: 'Согласие на обработку персональных данных' },
+  { suffix: '404', templateSuffix: 'pd_photo_consent', templateTitle: 'Согласие на фото/видео клиентов' },
+];
+
+const LINKS = {};
+for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
+  LINKS[niche] = PD_DOCS.map((doc) => ({
+    violationCode: `${prefix}-${doc.suffix}`,
+    templateKey: `${niche}_${doc.templateSuffix}`,
+    templateTitle: doc.templateTitle,
+    questionCode: `${prefix}-${doc.suffix}`,
+    hasAnswerIndex: 0,
+  }));
+}
+
+// MN-405 (оферта, 05.09.2026) — единственная запись, которую нельзя было
+// сгенерировать циклом: под неё нет готового проверенного нарушения в
+// других нишах, только у маникюра (см. комментарий у MN-405 в
+// violations/manicure.js — основание проверено law-compliance-monitor,
+// статья КоАП и сумма штрафа не подтверждены однозначно, честный хедж, как
+// и у MN-101-доп). Остальные 8 ниш получат свою версию этой связки
+// отдельно, когда/если для них будет так же проверено основание — не
+// копируем не глядя.
+LINKS.manicure.push({
+  violationCode: 'MN-405',
+  templateKey: 'manicure_oferta',
+  templateTitle: 'Публичная оферта',
+  questionCode: 'MN-405',
+  hasAnswerIndex: 0,
+});
 
 function forTemplate(niche, templateKey) {
   return (LINKS[niche] || []).find((l) => l.templateKey === templateKey) || null;
