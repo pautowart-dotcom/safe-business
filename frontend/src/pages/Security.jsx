@@ -746,7 +746,7 @@ function SecurityDashboard({
       {tab === 'overview' && (
         <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
       )}
-      {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} />}
+      {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'inspection' && <InspectionGuidesTab />}
     </div>
@@ -1338,6 +1338,11 @@ const RISK_CHECK_DOCUMENT_TYPES = [
   ['labor_contract', 'Трудовой договор'],
   ['lease', 'Договор аренды'],
   ['supplier_contract', 'Договор с поставщиком/подрядчиком'],
+  ['oferta', 'Публичная оферта / договор с клиентом'],
+  ['pd_consent', 'Согласие на обработку персональных данных'],
+  ['pd_photo_consent', 'Согласие на фото/видео клиентов'],
+  ['marketing_consent', 'Согласие на рекламную рассылку'],
+  ['privacy_policy', 'Политика конфиденциальности'],
   ['other', 'Другой документ'],
 ];
 // "Проверка на риски" читает текстовый слой (pdf-parse/mammoth), не
@@ -1776,6 +1781,21 @@ function DocumentTemplatesCard({ isManagement }) {
           )}
           {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}
 
+          {/* closesViolationCode/alreadyHasDocument (05.09.2026) — см.
+              templateViolationLinks.js на бэкенде. Показываем только когда
+              есть проверенная связка; alreadyHasDocument переключает
+              подсказку с "создать" на "проверить, что уже есть". */}
+          {t.closesViolationCode && !t.alreadyHasDocument && (
+            <div style={{ fontSize: 12, color: C.green, marginBottom: 6 }}>
+              Закрывает нарушение {t.closesViolationCode} из вашего теста безопасности.
+            </div>
+          )}
+          {t.closesViolationCode && t.alreadyHasDocument && (
+            <div style={{ fontSize: 12, color: C.subtle, marginBottom: 6, background: C.surface, borderRadius: 8, padding: '6px 10px' }}>
+              В тесте безопасности вы отметили, что этот документ уже есть. Возможно, стоит не создавать новый, а проверить действующий — во вкладке «Документы» есть «Проверка документа на риски».
+            </div>
+          )}
+
           {!explanations[t.key]?.text && (
             <button
               type="button"
@@ -1892,7 +1912,7 @@ function DocumentTemplatesCard({ isManagement }) {
   );
 }
 
-function ViolationsTab({ violations, isManagement, onResolve }) {
+function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates }) {
   const open = violations.filter((v) => v.status === 'open');
   const resolved = violations.filter((v) => v.status === 'resolved');
 
@@ -1903,20 +1923,20 @@ function ViolationsTab({ violations, isManagement, onResolve }) {
   return (
     <div>
       <ST>Открытые ({open.length})</ST>
-      {open.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} />)}
+      {open.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} onGoToTemplates={onGoToTemplates} />)}
       {open.length === 0 && <div className="empty-hint">Открытых нарушений нет.</div>}
 
       {resolved.length > 0 && (
         <>
           <div style={{ marginTop: 20 }}><ST>Устранено ({resolved.length})</ST></div>
-          {resolved.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} />)}
+          {resolved.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} onGoToTemplates={onGoToTemplates} />)}
         </>
       )}
     </div>
   );
 }
 
-function ViolationCard({ violation, isManagement, onResolve }) {
+function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) {
   const color = riskColor(violation.risk);
   return (
     <Card style={{ borderLeft: `3px solid ${violation.status === 'resolved' ? C.green : color}`, opacity: violation.status === 'resolved' ? 0.7 : 1 }}>
@@ -1943,6 +1963,22 @@ function ViolationCard({ violation, isManagement, onResolve }) {
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
         <strong>Стоимость:</strong> {violation.free ? 'бесплатно' : money(violation.costMin)} · <strong>Срок:</strong> {violation.daysMin} дн.
       </div>
+      {/* closesWithTemplate (05.09.2026) — см. security.routes.js /violations
+          и templateViolationLinks.js. Только для проверенных пар. */}
+      {violation.closesWithTemplate && violation.status === 'open' && (
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10, background: C.surface, borderRadius: 8, padding: '6px 10px' }}>
+          Закрывается документом «{violation.closesWithTemplate.templateTitle}» — доступен во вкладке «Обзор», раздел «Шаблоны документов».
+          {onGoToTemplates && (
+            <button
+              type="button"
+              onClick={onGoToTemplates}
+              style={{ display: 'block', marginTop: 4, background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 12 }}
+            >
+              Перейти к шаблонам →
+            </button>
+          )}
+        </div>
+      )}
       {isManagement && violation.status === 'open' && <Btn small variant="green" onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>}
     </Card>
   );

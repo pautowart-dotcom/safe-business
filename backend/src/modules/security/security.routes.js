@@ -18,6 +18,7 @@ const { registerAction, clearAction } = require('../../core/deadlines');
 const { ensureNicheModules } = require('./nicheModules');
 const { isAiConfigured, matchDocumentToDeadlineSlot } = require('../../core/documentDateExtract');
 const { CATALOG: DEADLINE_CATALOG } = require('../../core/deadlineSlotsCatalog');
+const templateViolationLinks = require('../document-templates/content/templateViolationLinks');
 
 // Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
 // точной даты нет) из docs/task-batch-4.txt. category='documents' — тест
@@ -552,7 +553,21 @@ router.get(
     for (const row of rows) {
       if (!(row.niche in matrixCache)) matrixCache[row.niche] = await repository.getViolationMatrix(row.niche);
       const details = matrixCache[row.niche]?.find((v) => v.code === row.violation_code);
-      if (details) withDetails.push({ id: row.id, status: row.status, resolvedAt: row.resolved_at, ...details });
+      if (details) {
+        // closesWithTemplate (05.09.2026) — межмодульное чтение в сторону
+        // document-templates, тот же осознанный принцип, что и обратное
+        // чтение в homePremisesSignal.js (там document-templates читает
+        // security). Файл-связка — чистые данные без зависимостей, циклов
+        // импорта не создаёт.
+        const link = templateViolationLinks.forViolation(row.niche, row.violation_code);
+        withDetails.push({
+          id: row.id,
+          status: row.status,
+          resolvedAt: row.resolved_at,
+          ...details,
+          closesWithTemplate: link ? { templateKey: link.templateKey, templateTitle: link.templateTitle } : null,
+        });
+      }
     }
 
     res.json(scoring.sortByRisk(withDetails));

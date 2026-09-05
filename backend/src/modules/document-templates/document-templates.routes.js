@@ -12,6 +12,8 @@ const { loadProfile } = require('../security/profile');
 const repository = require('./content/repository');
 const { renderDocumentPdf } = require('./render');
 const { worksFromHome } = require('./homePremisesSignal');
+const templateViolationLinks = require('./content/templateViolationLinks');
+const { alreadyHasDocument } = require('./documentSignal');
 const yandexAssist = require('../../core/yandexAssist');
 
 const router = express.Router();
@@ -94,20 +96,33 @@ router.get(
     const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
 
     const perNiche = await Promise.all(profile.niches.map((n) => repository.getTemplatesForNiche(n)));
-    const templates = perNiche
-      .flat()
-      .filter((t) => !t.employerOnly || hasEmployees)
-      .map((t) => ({
-        key: t.key,
-        niche: t.niche,
-        title: t.title,
-        version: t.version,
-        status: t.status,
-        reviewedBy: t.reviewedBy,
-        reviewedAt: t.reviewedAt,
-        lawReference: t.lawReference,
-        fields: t.fields,
-      }));
+    const filtered = perNiche.flat().filter((t) => !t.employerOnly || hasEmployees);
+
+    // closesViolationCode/alreadyHasDocument (05.09.2026, схема владельца:
+    // "тест уже знает нарушения, платформа предлагает решение шаблоном") —
+    // только для пар, где есть проверенная связка (templateViolationLinks.js).
+    // alreadyHasDocument = true не скрывает шаблон совсем (документ мог
+    // потеряться/устареть) — фронт вместо "создать" покажет "у вас уже
+    // отмечено, что он есть — стоит проверить, а не создавать заново".
+    const templates = await Promise.all(
+      filtered.map(async (t) => {
+        const link = templateViolationLinks.forTemplate(t.niche, t.key);
+        const hasIt = link ? await alreadyHasDocument(req.tenant.companyId, link) : false;
+        return {
+          key: t.key,
+          niche: t.niche,
+          title: t.title,
+          version: t.version,
+          status: t.status,
+          reviewedBy: t.reviewedBy,
+          reviewedAt: t.reviewedAt,
+          lawReference: t.lawReference,
+          fields: t.fields,
+          closesViolationCode: link ? link.violationCode : null,
+          alreadyHasDocument: hasIt,
+        };
+      })
+    );
 
     // savedDetails — реквизиты, введённые при любой предыдущей генерации
     // (см. SAVED_DETAIL_KEYS выше) — фронт сам решает, каким полям текущего
