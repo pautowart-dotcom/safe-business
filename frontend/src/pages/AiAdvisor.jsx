@@ -202,6 +202,16 @@ function MasterDepartureSection({ data, error }) {
 // (AiAssistantWidget.jsx, modules/ai-assistant/index.js) — раньше он был
 // бесплатным весь триал, владелец явно попросил не отделять его от
 // остальных ИИ-фич по деньгам.
+//
+// 05.09.2026, юрпроверка: оферта описывает доп.-подписки только как разовые
+// ("без периодического продления и повторного списания", миграция 0077) —
+// а обе ИИ-подписки (эта и "ИИ по законодательству") списывают деньги
+// каждый месяц, прямо противоречие. Платящих подписчиков пока 0 — временно
+// приостанавливаем именно НОВОЕ оформление (не трогаем тех, кто уже
+// оформил — отмена/возобновление работают как раньше), пока оферта не
+// поправлена. Один флаг, снять его — вернуть кнопку обратно.
+const AI_SUBSCRIPTION_SIGNUPS_PAUSED = true;
+
 function SubscribeCard({ company, starting, error, onStart, justPaid, onReactivate, reactivating, title, description }) {
   const price = company?.ai_advisor_subscription_price_rub || 990;
   const status = company?.ai_advisor_subscription_status;
@@ -235,6 +245,10 @@ function SubscribeCard({ company, starting, error, onStart, justPaid, onReactiva
           </div>
           <Btn onClick={onReactivate} disabled={reactivating}>{reactivating ? 'Возобновляем...' : 'Возобновить подписку'}</Btn>
         </>
+      ) : AI_SUBSCRIPTION_SIGNUPS_PAUSED ? (
+        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 4 }}>
+          Оформление временно приостановлено — дорабатываем условия подписки. Загляните чуть позже.
+        </div>
       ) : (
         <>
           <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>

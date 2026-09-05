@@ -36,12 +36,23 @@ const router = express.Router();
 // быть ещё в пробном периоде базовой и уже оплатить ИИ отдельно. Тот же
 // принцип разделения, что у addons.routes.js — отдельный чек-аут, своя
 // сохранённая карта, не объединяем с базовой автоматически.
+// 05.09.2026, юрпроверка: оферта описывает доп.-опции как разовые, без
+// повторных списаний (миграция 0077) — обе ИИ-подписки списывают каждый
+// месяц, прямое противоречие. 0 подписчиков на этот тариф сейчас — временно
+// блокируем именно НОВОЕ оформление на бэкенде (не только скрываем кнопку
+// во фронтенде, см. AiAdvisor.jsx), пока оферта не поправлена. Отмена/
+// возобновление уже оформленных подписок этим флагом не гейтятся.
+const SIGNUPS_PAUSED = true;
+
 router.post(
   '/checkout',
   requireAuth,
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
+    if (SIGNUPS_PAUSED) {
+      return res.status(503).json({ error: 'Оформление временно приостановлено — дорабатываем условия подписки' });
+    }
     const { rows } = await pool.query(
       'SELECT name, created_at AS "createdAt", ai_advisor_subscription_price_rub AS "priceRub" FROM companies WHERE id = $1',
       [req.tenant.companyId]
