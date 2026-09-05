@@ -15,8 +15,19 @@ const FIXED_INSURANCE_CONTRIBUTION_RUB = 57_390;
 // несколько лет, в отличие от фиксированной суммы выше.
 const EXTRA_CONTRIBUTION_THRESHOLD_RUB = 300_000;
 
+// Верхний предел допвзноса 1% (05.09.2026, найдено при аудите
+// law-compliance-monitor: до этой правки доплата считалась БЕЗ потолка,
+// завышая расчёт для высокой выручки) — по ст. 430 НК РФ ограничен
+// восьмикратным размером фиксированной части взносов на ОПС. Сумма ниже
+// сверена тремя независимыми вторичными источниками (regberry.ru,
+// astral.ru, moedelo.org) на 2026 год, но не первоисточником НК РФ —
+// требует проверки юристом, как и FIXED_INSURANCE_CONTRIBUTION_RUB выше,
+// и так же меняется ежегодно.
+const MAX_EXTRA_CONTRIBUTION_RUB = 321_818;
+
 function computeInsuranceContribution(revenue) {
-  const extra = revenue > EXTRA_CONTRIBUTION_THRESHOLD_RUB ? Math.round((revenue - EXTRA_CONTRIBUTION_THRESHOLD_RUB) * 0.01) : 0;
+  const rawExtra = revenue > EXTRA_CONTRIBUTION_THRESHOLD_RUB ? Math.round((revenue - EXTRA_CONTRIBUTION_THRESHOLD_RUB) * 0.01) : 0;
+  const extra = Math.min(rawExtra, MAX_EXTRA_CONTRIBUTION_RUB);
   return FIXED_INSURANCE_CONTRIBUTION_RUB + extra;
 }
 
