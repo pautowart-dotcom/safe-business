@@ -49,6 +49,11 @@ async function chargeDueCompanies() {
         description: `Продление подписки «Безопасный бизнес» — ${company.name}`,
         paymentMethodId: company.yookassa_payment_method_id,
         receiptEmail: company.owner_email,
+        // Детерминированный ключ (не crypto.randomUUID() по умолчанию,
+        // см. core/yookassa.js) — повторный запуск скрипта за тот же
+        // company_id + тот же period_end получит от ЮKassa тот же самый
+        // результат вместо второго реального списания.
+        idempotenceKey: `sub-renewal:${company.id}:${new Date(company.subscription_current_period_end).toISOString().slice(0, 10)}`,
       });
 
       await pool.query(
@@ -167,6 +172,9 @@ async function chargeDueAiAdvisorCompanies() {
         description: `Продление подписки «ИИ-управляющий» — ${company.name}`,
         paymentMethodId: company.payment_method_id,
         receiptEmail: company.owner_email,
+        // См. комментарий у идентичного вызова выше (chargeDueCompanies) —
+        // та же защита от двойного списания при повторном запуске скрипта.
+        idempotenceKey: `ai-advisor-renewal:${company.id}:${new Date(company.period_end).toISOString().slice(0, 10)}`,
       });
 
       await pool.query(

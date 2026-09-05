@@ -44,7 +44,15 @@ async function request(path, { method = 'GET', body, idempotenceKey } = {}) {
 // vat_code:1 ("без НДС") — стандартное значение для ИП/самозанятых на
 // упрощёнке; если налоговый режим другой — эту цифру нужно будет уточнить
 // отдельно, я не знаю точный режим владельца.
-async function createPayment({ amountRub, description, returnUrl, savePaymentMethod, paymentMethodId, metadata, receiptEmail }) {
+// idempotenceKey — опционален, по умолчанию случайный (обычный ручной чек-аут,
+// где двойной вызов должен быть двумя разными платежами). Автосписания
+// (chargeRecurringSubscriptions.js) передают СВОЙ, детерминированный ключ
+// (company_id + период) — иначе повторный запуск скрипта (например, ручной
+// перезапуск после сбоя между успешным платежом и записью в БД) списал бы
+// реальные деньги дважды за один и тот же период: комментарий ниже у cron-
+// скрипта обещал именно такую защиту, а сама функция её не давала (найдено
+// security-review 05.09.2026).
+async function createPayment({ amountRub, description, returnUrl, savePaymentMethod, paymentMethodId, metadata, receiptEmail, idempotenceKey }) {
   if (!receiptEmail) {
     throw new Error('Не указан email для чека — ЮKassa требует фискальный чек на каждый платёж');
   }
@@ -73,7 +81,7 @@ async function createPayment({ amountRub, description, returnUrl, savePaymentMet
     body.confirmation = { type: 'redirect', return_url: returnUrl };
     body.save_payment_method = !!savePaymentMethod;
   }
-  return request('/payments', { method: 'POST', body, idempotenceKey: crypto.randomUUID() });
+  return request('/payments', { method: 'POST', body, idempotenceKey: idempotenceKey || crypto.randomUUID() });
 }
 
 // Вебхуки ЮKassa не подписаны — по рекомендации самой ЮKassa перепроверяем
