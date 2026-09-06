@@ -5,6 +5,7 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { studioOsBundleKeys } = require('../core/modules-registry');
+const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
@@ -66,7 +67,15 @@ router.post(
 
       // См. комментарий в auth.routes.js (register) — то же решение
       // владельца (31.07.2026), тот же список по умолчанию.
-      for (const moduleKey of [...studioOsBundleKeys(), 'clients', 'visits']) {
+      //
+      // 06.09.2026: этот маршрут ("+ Добавить студию" / создание компании
+      // не через /auth/register) не получил апдейт от 03.09 (core/cohort.js,
+      // см. auth.routes.js) вместе с ним — новая когорта заводила здесь
+      // студию через этот путь и всё равно получала полный операционный
+      // набор в обход решения "новым компаниям её вообще не включаем".
+      // Тот же isNewCohortNow()-переключатель, что и в auth.routes.js.
+      const defaultModules = isNewCohortNow() ? NEW_COHORT_MODULES : [...studioOsBundleKeys(), 'clients', 'visits'];
+      for (const moduleKey of defaultModules) {
         await client.query(
           `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true)
            ON CONFLICT (company_id, module_key) DO NOTHING`,
