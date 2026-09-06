@@ -65,26 +65,25 @@ const requirePaidPlanOrFreeAddons = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Настоящая допподписка на ИИ-управляющего (миграция 0090, 19.08.2026) —
-// в отличие от requirePaidPlanOrFreeAddons здесь не важен статус базовой
-// подписки платформы вообще, только собственный статус этой конкретной
-// подписки. 'active'/'past_due' пропускаем (past_due — грейс-период на
-// случай, если автосписание не прошло из-за карты, доступ не отключаем
-// молча, см. chargeRecurringSubscriptions.js); 'cancelled'/'inactive'
-// блокируют — в отличие от requirePaidPlan для базовой подписки, здесь
-// отмена подписки должна реально останавливать доступ к продолжающейся
-// ежемесячной услуге, а не только к разово выданному контенту (PDF).
+// Единая подписка (06.09.2026) — раньше это была отдельная допподписка со
+// своим собственным биллинг-циклом (миграция 0090, 19.08.2026), не зависящая
+// от статуса базовой. Теперь ИИ-советник — это просто НАДБАВКА к одной
+// подписке (companies.subscription_price_rub уже включает её, если
+// ai_advisor_subscription_status='active', см. subscription.routes.js
+// /checkout и /toggle-ai): своей карты/периода у надбавки больше нет,
+// поэтому проверяем ОБА условия — базовая подписка реально оплачена И
+// надбавка включена. free_addons (ручной бесплатный доступ из админки)
+// по-прежнему обходит обе проверки.
 const requireAiAdvisorSubscription = asyncHandler(async (req, res, next) => {
   const { rows } = await pool.query(
     `SELECT ai_advisor_subscription_status AS status, free_addons AS "freeAddons" FROM companies WHERE id = $1`,
     [req.tenant.companyId]
   );
   const row = rows[0];
-  if (row && (row.freeAddons || row.status === 'active' || row.status === 'past_due')) {
-    return next();
-  }
+  if (row?.freeAddons) return next();
+  if (row?.status === 'active' && (await isSubscriptionActive(req.tenant.companyId))) return next();
   return res.status(402).json({
-    error: 'ИИ-управляющий доступен по отдельной ежемесячной подписке',
+    error: 'ИИ-советник включается в разделе «Подписка»',
     requiresAiAdvisorSubscription: true,
   });
 });

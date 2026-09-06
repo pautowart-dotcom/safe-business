@@ -61,21 +61,19 @@ const GREETING = {
   content: 'Здравствуйте. Сейчас умею: записывать визит клиента, вносить расход, вносить доход, отвечать про выручку/расходы за период и про открытые нарушения безопасности. Ничего не выдумываю и не подтверждаю запись без вас.',
 };
 
-// Оформить подписку прямо здесь (20.08.2026, владелец: кружок "спокойно
-// открывался" сразу после регистрации, до всякой оплаты) — компактная
-// версия SubscribeCard из AiAdvisor.jsx, не импортируется оттуда (та
-// рассчитана на полноэкранную страницу, не на узкую всплывающую панель) —
-// кнопка ведёт на /ai-advisor, где уже есть настоящий чек-аут, не дублирует
-// его здесь.
-function PaywallCard({ price }) {
+// Компактный пейвол прямо здесь (20.08.2026, владелец: кружок "спокойно
+// открывался" сразу после регистрации, до всякой оплаты) — сама надбавка
+// включается только на экране "Подписка" (06.09.2026, единая подписка),
+// кнопка просто ведёт туда, не дублирует чек-аут здесь.
+function PaywallCard() {
   const navigate = useNavigate();
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Доступно по подписке «ИИ-управляющий»</div>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Доступно с ИИ-советником</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 12 }}>
-        Ассистент — часть той же подписки, что и советники по марже, скидкам и уходу мастеров, {price} ₽/мес.
+        Ассистент — часть той же надбавки, что и советники по марже, скидкам и уходу мастеров. Включается в разделе «Подписка».
       </div>
-      <Btn small onClick={() => navigate('/ai-advisor')}>Оформить подписку</Btn>
+      <Btn small onClick={() => navigate('/subscription')}>Перейти к подписке</Btn>
     </div>
   );
 }
@@ -88,7 +86,6 @@ export default function AiAssistantWidget() {
   // Пока не знаем — просто не показываем ни чат, ни пейвол, чтобы не
   // мигать одним, потом другим.
   const [subscribed, setSubscribed] = useState(null);
-  const [aiPrice, setAiPrice] = useState(990);
   const [messages, setMessages] = useState([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -98,16 +95,13 @@ export default function AiAssistantWidget() {
   const [confirmError, setConfirmError] = useState('');
   const listEndRef = useRef(null);
 
-  // Статус подписки — тот же company-эндпоинт, что уже использует
-  // AiAdvisor.jsx (companies.routes.js /current, отдаёт
-  // ai_advisor_subscription_status и free_addons), та же логика, что
-  // requireAiAdvisorSubscription на бэкенде (core/middleware/subscription.js)
-  // — active/past_due или ручная лазейка free_addons.
+  // Статус доступа — тот же company-эндпоинт, что уже использует
+  // AiAdvisor.jsx (companies.routes.js /current, отдаёт готовый hasAiAccess
+  // — единая подписка, 06.09.2026, та же формула, что и на бэкенде в
+  // requireAiAdvisorSubscription, core/middleware/subscription.js).
   useEffect(() => {
     api.get('/platform/companies/current').then((res) => {
-      const c = res.data;
-      setAiPrice(c.ai_advisor_subscription_price_rub || 990);
-      setSubscribed(!!(c.free_addons || c.ai_advisor_subscription_status === 'active' || c.ai_advisor_subscription_status === 'past_due'));
+      setSubscribed(!!res.data.hasAiAccess);
     }).catch(() => setSubscribed(false));
   }, []);
 
@@ -294,7 +288,7 @@ export default function AiAssistantWidget() {
         // iOS-специфичная подстройка выше).
         <div style={{ position: 'fixed', right: 28, bottom: 28, width: 380, height: 520, maxHeight: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', pointerEvents: 'auto', background: C.bg, borderRadius: 16, border: `1px solid ${C.border}`, boxShadow: '0 8px 30px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: F, zIndex: 200 }}>
           <AiAssistantPanelBody
-            subscribed={subscribed} aiPrice={aiPrice} messages={messages} sending={sending} pending={pending}
+            subscribed={subscribed} messages={messages} sending={sending} pending={pending}
             error={error} confirmBusy={confirmBusy} confirmError={confirmError} listEndRef={listEndRef}
             input={input} setInput={setInput} onKeyDown={onKeyDown} send={send}
             onConfirm={confirmPending} onCancel={cancelPending} onClose={() => setOpen(false)} onNewDialog={newDialog}
@@ -313,7 +307,7 @@ export default function AiAssistantWidget() {
           }}
         >
           <AiAssistantPanelBody
-            subscribed={subscribed} aiPrice={aiPrice} messages={messages} sending={sending} pending={pending}
+            subscribed={subscribed} messages={messages} sending={sending} pending={pending}
             error={error} confirmBusy={confirmBusy} confirmError={confirmError} listEndRef={listEndRef}
             input={input} setInput={setInput} onKeyDown={onKeyDown} send={send}
             onConfirm={confirmPending} onCancel={cancelPending} onClose={() => setOpen(false)} onNewDialog={newDialog}
@@ -328,7 +322,7 @@ export default function AiAssistantWidget() {
 // Тело панели — общее для десктопной (снизу справа) и мобильной (над нижним
 // меню) обвязки выше, различается только внешний fixed-контейнер.
 function AiAssistantPanelBody({
-  subscribed, aiPrice, messages, sending, pending, error, confirmBusy, confirmError, listEndRef,
+  subscribed, messages, sending, pending, error, confirmBusy, confirmError, listEndRef,
   input, setInput, onKeyDown, send, onConfirm, onCancel, onClose, onNewDialog,
 }) {
   return (
@@ -355,7 +349,7 @@ function AiAssistantPanelBody({
       </div>
 
       {!subscribed ? (
-        <PaywallCard price={aiPrice} />
+        <PaywallCard />
       ) : (
         <>
           {/* minHeight:0 обязателен — тот же баг, что уже чинили на

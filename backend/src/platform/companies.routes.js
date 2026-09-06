@@ -9,6 +9,7 @@ const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
+const { isSubscriptionActive } = require('../core/middleware/subscription');
 
 const router = express.Router();
 
@@ -142,7 +143,16 @@ router.get(
     if (companyRes.rows.length === 0) {
       return res.status(404).json({ error: 'Компания не найдена' });
     }
-    res.json({ ...companyRes.rows[0], niches: nichesRes.rows.map((r) => r.niche) });
+    const company = companyRes.rows[0];
+    // hasAiAccess (06.09.2026, единая подписка) — вычисляется здесь один раз,
+    // чтобы фронт не дублировал логику "база активна И надбавка включена" в
+    // каждом месте, где раньше читали ai_advisor_subscription_status напрямую
+    // (см. requireAiAdvisorSubscription, core/middleware/subscription.js —
+    // та же формула).
+    const hasAiAccess =
+      company.free_addons ||
+      (company.ai_advisor_subscription_status === 'active' && (await isSubscriptionActive(req.tenant.companyId)));
+    res.json({ ...company, hasAiAccess, niches: nichesRes.rows.map((r) => r.niche) });
   })
 );
 

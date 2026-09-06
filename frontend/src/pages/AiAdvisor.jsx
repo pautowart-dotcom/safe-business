@@ -193,91 +193,39 @@ function MasterDepartureSection({ data, error }) {
   );
 }
 
-// Единая подписка на ИИ-управляющего (19.08.2026, миграция 0090) — четыре
-// эндпоинта ниже гейтятся одним и тем же requireAiAdvisorSubscription, так
-// что 402 у любого из них означает "нет подписки" у всех сразу. Раньше
-// (до этой подписки) 402 обрабатывал только margin-advisor — остальные три
-// просто показывали текст ошибки, что было несогласованно.
-// 20.08.2026: та же подписка теперь гейтит и плавающий ИИ-ассистент
-// (AiAssistantWidget.jsx, modules/ai-assistant/index.js) — раньше он был
-// бесплатным весь триал, владелец явно попросил не отделять его от
-// остальных ИИ-фич по деньгам.
-//
-// 05.09.2026, юрпроверка: оферта описывает доп.-подписки только как разовые
-// ("без периодического продления и повторного списания", миграция 0077) —
-// а обе ИИ-подписки (эта и "ИИ по законодательству") списывают деньги
-// каждый месяц, прямо противоречие. Платящих подписчиков пока 0 — временно
-// приостанавливаем именно НОВОЕ оформление (не трогаем тех, кто уже
-// оформил — отмена/возобновление работают как раньше), пока оферта не
-// поправлена. Один флаг, снять его — вернуть кнопку обратно.
-const AI_SUBSCRIPTION_SIGNUPS_PAUSED = true;
-
-function SubscribeCard({ company, starting, error, onStart, justPaid, onReactivate, reactivating, title, description }) {
-  const price = company?.ai_advisor_subscription_price_rub || 990;
-  const status = company?.ai_advisor_subscription_status;
-  // status === 'cancelled' — отмена уже закрывает доступ немедленно
-  // (requireAiAdvisorSubscription в core/middleware/subscription.js, см.
-  // комментарий там же), поэтому здесь предлагаем восстановить уже
-  // оформленную подписку, а не заново её "оформить" — тот же сохранённый
-  // способ оплаты подхватится следующим автосписанием.
+// Единая подписка (06.09.2026) — ИИ-советник больше не отдельный биллинг-
+// цикл, а надбавка (+990₽/мес) внутри одной подписки платформы, включается
+// и отключается на экране "Подписка" (Subscription.jsx, /toggle-ai).
+// Экраны с советниками больше не проводят оплату/отмену сами — только
+// показывают, включена ли надбавка (company.hasAiAccess, посчитано на
+// бэкенде, companies.routes.js /current), и ведут на /subscription, если
+// нет. Раньше здесь были SubscribeCard/ManageSubscriptionCard с
+// собственным чек-аутом — удалены вместе со старым отдельным биллинг-циклом
+// (см. git-историю: ai-advisor-subscription.routes.js /checkout,/cancel,
+// /reactivate).
+function EnableAiCard({ title, description }) {
+  const navigate = useNavigate();
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title || 'ИИ-управляющий — платная подписка'}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title || 'ИИ-советник — доступен как надбавка к подписке'}</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
-        {description || 'Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и ИИ-ассистент в чате — по вашим данным, без гарантий и без давления.'}
+        {description || 'Включается в разделе «Подписка» — без отдельной оплаты и отдельной карты, одной галочкой.'}
       </div>
-      {justPaid && (
-        <div className="alert" style={{ marginBottom: 12 }}>
-          Оплата обрабатывается — обычно это занимает несколько секунд. Обновите страницу, если доступ ещё не открылся.
-        </div>
-      )}
-      {status === 'past_due' && (
-        <div className="alert alert-error" style={{ marginBottom: 12 }}>
-          Не удалось списать оплату за продление — проверьте способ оплаты, доступ отключится, если списание не пройдёт.
-        </div>
-      )}
-      {error && <div className="alert alert-error">{error}</div>}
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{price} ₽/мес</div>
-      {status === 'cancelled' ? (
-        <>
-          <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
-            Подписка отменена, доступ закрыт. Возобновить — без повторного ввода карты, спишется по уже сохранённому способу оплаты.
-          </div>
-          <Btn onClick={onReactivate} disabled={reactivating}>{reactivating ? 'Возобновляем...' : 'Возобновить подписку'}</Btn>
-        </>
-      ) : AI_SUBSCRIPTION_SIGNUPS_PAUSED ? (
-        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 4 }}>
-          Оформление временно приостановлено — дорабатываем условия подписки. Загляните чуть позже.
-        </div>
-      ) : (
-        <>
-          <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
-            Оплата через ЮKassa, дальше списывается автоматически раз в месяц — оформить нужно один раз, независимо от статуса основной подписки на платформу.
-          </div>
-          <Btn onClick={onStart} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
-        </>
-      )}
+      <Btn onClick={() => navigate('/subscription')}>Перейти к подписке</Btn>
     </Card>
   );
 }
 
-// Управление уже активной подпиской (01.09.2026 — до сегодняшнего дня
-// эндпоинта и кнопки не было вообще, хотя оферта §3.4(а) обещает отмену
-// "в любой момент через интерфейс"). Показывается прямо над советниками,
-// не отдельным экраном — страница и так посвящена только этой подписке,
-// заводить для одной кнопки отдельный роут избыточно.
-function ManageSubscriptionCard({ company, onCancel, cancelling, label }) {
-  const status = company?.ai_advisor_subscription_status;
-  if (status !== 'active' && status !== 'past_due') return null;
+function ManageSubscriptionCard({ label }) {
+  const navigate = useNavigate();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, color: C.subtle }}>
-      <span>{label || 'ИИ-управляющий'} — {company?.ai_advisor_subscription_price_rub || 990} ₽/мес, активна</span>
+      <span>{label || 'ИИ-советник'} — включён</span>
       <button
-        onClick={onCancel}
-        disabled={cancelling}
-        style={{ background: 'none', border: 'none', color: C.red, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, flexShrink: 0 }}
+        onClick={() => navigate('/subscription')}
+        style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, flexShrink: 0 }}
       >
-        {cancelling ? 'Отменяем...' : 'Отменить подписку'}
+        Управлять
       </button>
     </div>
   );
@@ -428,23 +376,17 @@ function TaxAgentCard({ company }) {
   );
 }
 
-// Новая когорта ("только безопасность", core/cohort.js) — тот же тариф и
-// биллинг, что и у финансового ИИ-советника выше (checkout/cancel/reactivate
-// не меняются), но содержание другое: расшифровка изменений закона вместо
-// советов по марже/скидкам — у этой когорты просто нет finance/visits,
-// советовать не по чему.
-function ComplianceAiAdvisor({ company, searchParams }) {
-  const [starting, setStarting] = useState(false);
-  const [checkoutError, setCheckoutError] = useState('');
-  const [cancelling, setCancelling] = useState(false);
-  const [reactivating, setReactivating] = useState(false);
+// Новая когорта ("только безопасность", core/cohort.js) — та же надбавка
+// (hasAiAccess), что и у финансового ИИ-советника ниже, но содержание
+// другое: расшифровка изменений закона и налоговый агент вместо советов по
+// марже/скидкам — у этой когорты просто нет finance/visits, советовать не
+// по чему.
+function ComplianceAiAdvisor({ company }) {
   const [notices, setNotices] = useState(null);
   const [noticesError, setNoticesError] = useState('');
 
-  const subscribed = company?.ai_advisor_subscription_status === 'active' || company?.ai_advisor_subscription_status === 'past_due';
-
   function loadNotices() {
-    if (!subscribed) return;
+    if (!company?.hasAiAccess) return;
     api
       .get('/platform/ai-advisor-subscription/law-notices')
       .then((res) => setNotices(res.data))
@@ -454,46 +396,8 @@ function ComplianceAiAdvisor({ company, searchParams }) {
   useEffect(() => {
     loadNotices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company?.ai_advisor_subscription_status]);
+  }, [company?.hasAiAccess]);
   usePullToRefresh(() => Promise.resolve(loadNotices()));
-
-  async function startCheckout() {
-    setStarting(true);
-    setCheckoutError('');
-    try {
-      const { data } = await api.post('/platform/ai-advisor-subscription/checkout');
-      window.location.href = data.confirmationUrl;
-    } catch (err) {
-      setCheckoutError(err.response?.data?.error || 'Не удалось начать оплату');
-      setStarting(false);
-    }
-  }
-
-  async function cancelSubscription() {
-    setCancelling(true);
-    setCheckoutError('');
-    try {
-      await api.post('/platform/ai-advisor-subscription/cancel');
-      window.location.reload();
-    } catch (err) {
-      setCheckoutError(err.response?.data?.error || 'Не удалось отменить подписку');
-    } finally {
-      setCancelling(false);
-    }
-  }
-
-  async function reactivateSubscription() {
-    setReactivating(true);
-    setCheckoutError('');
-    try {
-      await api.post('/platform/ai-advisor-subscription/reactivate');
-      window.location.reload();
-    } catch (err) {
-      setCheckoutError(err.response?.data?.error || 'Не удалось восстановить подписку');
-    } finally {
-      setReactivating(false);
-    }
-  }
 
   return (
     <div>
@@ -502,24 +406,16 @@ function ComplianceAiAdvisor({ company, searchParams }) {
         Когда в законе меняется что-то важное для небольшого бизнеса — разбираем простыми словами, без гарантий и без давления.
       </div>
 
-      {subscribed ? (
+      {company?.hasAiAccess ? (
         <>
-          <ManageSubscriptionCard company={company} onCancel={cancelSubscription} cancelling={cancelling} label="ИИ по законодательству" />
-          {checkoutError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{checkoutError}</div>}
+          <ManageSubscriptionCard label="ИИ по законодательству" />
           <TaxAgentCard company={company} />
           <LawNoticesList notices={notices} error={noticesError} />
         </>
       ) : (
-        <SubscribeCard
-          company={company}
-          starting={starting}
-          error={checkoutError}
-          onStart={startCheckout}
-          justPaid={searchParams.get('payment') === 'done'}
-          onReactivate={reactivateSubscription}
-          reactivating={reactivating}
-          title="ИИ по законодательству — платная подписка"
-          description="Когда в законе появляется что-то важное для вашего бизнеса, ИИ разбирает это простыми словами. Пока законы не меняются — подписка просто не присылает лишнего."
+        <EnableAiCard
+          title="ИИ по законодательству — надбавка к подписке"
+          description="Когда в законе появляется что-то важное для вашего бизнеса, ИИ разбирает это простыми словами, плюс налоговый агент. Включается в разделе «Подписка»."
         />
       )}
     </div>
@@ -535,11 +431,7 @@ export default function AiAdvisor() {
   const ready = preset !== 'custom' || (customFrom && customTo);
 
   const [company, setCompany] = useState(null);
-  const [starting, setStarting] = useState(false);
-  const [checkoutError, setCheckoutError] = useState('');
   const [paywalled, setPaywalled] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [reactivating, setReactivating] = useState(false);
 
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState('');
@@ -609,48 +501,6 @@ export default function AiAdvisor() {
   }, [preset, customFrom, customTo]);
   usePullToRefresh(() => Promise.all([loadCompany(), load()]));
 
-  async function startCheckout() {
-    setStarting(true);
-    setCheckoutError('');
-    try {
-      const { data } = await api.post('/platform/ai-advisor-subscription/checkout');
-      window.location.href = data.confirmationUrl;
-    } catch (err) {
-      setCheckoutError(err.response?.data?.error || 'Не удалось начать оплату');
-      setStarting(false);
-    }
-  }
-
-  // Без window.confirm — то же решение, что и в Subscription.jsx: доступ
-  // закрывается сразу же (см. комментарий у гейта), это и так видно на
-  // экране, дублировать нативным confirm() избыточно.
-  async function cancelSubscription() {
-    setCancelling(true);
-    setCheckoutError('');
-    try {
-      await api.post('/platform/ai-advisor-subscription/cancel');
-      await loadCompany();
-      await load();
-    } catch (err) {
-      setCheckoutError(err.response?.data?.error || 'Не удалось отменить подписку');
-    } finally {
-      setCancelling(false);
-    }
-  }
-
-  async function reactivateSubscription() {
-    setReactivating(true);
-    setCheckoutError('');
-    try {
-      await api.post('/platform/ai-advisor-subscription/reactivate');
-      await loadCompany();
-      await load();
-    } catch (err) {
-      setCheckoutError(err.response?.data?.error || 'Не удалось восстановить подписку');
-    } finally {
-      setReactivating(false);
-    }
-  }
 
   // Новая когорта ("только безопасность") — у компании нет finance/visits,
   // финансовые советники ниже не имеют смысла вообще; показываем отдельный,
@@ -659,7 +509,7 @@ export default function AiAdvisor() {
     return (
       <div>
         <BackBtn onClick={() => navigate(-1)} />
-        <ComplianceAiAdvisor company={company} searchParams={searchParams} />
+        <ComplianceAiAdvisor company={company} />
       </div>
     );
   }
@@ -673,19 +523,13 @@ export default function AiAdvisor() {
       </div>
 
       {paywalled ? (
-        <SubscribeCard
-          company={company}
-          starting={starting}
-          error={checkoutError}
-          onStart={startCheckout}
-          justPaid={searchParams.get('payment') === 'done'}
-          onReactivate={reactivateSubscription}
-          reactivating={reactivating}
+        <EnableAiCard
+          title="ИИ-советник — надбавка к подписке"
+          description="Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и ИИ-ассистент в чате — по вашим данным. Включается в разделе «Подписка»."
         />
       ) : (
         <>
-          <ManageSubscriptionCard company={company} onCancel={cancelSubscription} cancelling={cancelling} />
-          {checkoutError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{checkoutError}</div>}
+          <ManageSubscriptionCard />
           <PeriodBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 
           {digestError && <div className="alert alert-error">{digestError}</div>}

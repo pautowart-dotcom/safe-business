@@ -3,90 +3,22 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
-const { requireRole } = require('../core/middleware/role');
-const { createPayment } = require('../core/yookassa');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { requireAiAdvisorSubscription } = require('../core/middleware/subscription');
-const { isNewCohort } = require('../core/cohort');
 const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
 const yandexAssist = require('../core/yandexAssist');
 
-// Цена определена 19.08.2026 (владелец делегировал решение) — единственное
-// место с этой цифрой изначально, тот же принцип, что SUBSCRIPTION_PRICE_RUB
-// в subscription.routes.js и core/addons.js. Обоснование (не хардкодить
-// повторно нигде): три узких read-only советника (маржа/скидки/уход
-// мастера) — это дополнительная ценность поверх базовой подписки, а не
-// замена ей, и продукт ещё не проверен реальными платящими пользователями
-// (см. docs/status-2026-08-19-handoff.md) — поэтому цена ниже базовой
-// (1990 ₽), а не равна ей, и заметно ниже цены будущего полного
-// ИИ-ассистента с function calling (владелец ранее называл ориентир
-// 3990 ₽+ для него самого) — советник дешевле ассистента, потому что
-// только читает данные, ничего не делает за владельца.
-//
-// 05.09.2026: цена теперь по компании — companies.ai_advisor_subscription_
-// price_rub (миграция 0090, DEFAULT 990; auth.routes.js явно ставит 490 для
-// новой когорты при регистрации, см. core/cohort.js) — тот же столбец, из
-// которого уже читает chargeRecurringSubscriptions.js для автосписаний.
-// Раньше этот роут игнорировал столбец и слал захардкоженную константу —
-// расхождение нашлось только сейчас: если бы когорта не потребовала разных
-// цен, оно бы и дальше молчало (первое списание всегда совпадало с DEFAULT).
+// Единая подписка (06.09.2026) — /checkout, /cancel, /reactivate ИИ-советника
+// как отдельного продукта УДАЛЕНЫ (см. git-историю): теперь это часть одной
+// подписки, оформление/включение/выключение — только через
+// subscription.routes.js (/checkout с includeAi, /toggle-ai). Этот файл
+// оставлен для контента, доступного по надбавке (расшифровки закона,
+// налоговый агент) — requireAiAdvisorSubscription теперь проверяет флаг
+// внутри единой подписки, а не отдельный биллинг-цикл. handleAiAdvisorSub
+// scriptionWebhook внизу файла оставлен ради платежей, созданных ДО этой
+// правки (архив), новых через него больше не проводится.
 
 const router = express.Router();
-
-// Оформление подписки на ИИ-управляющего — независимо от статуса базовой
-// подписки платформы (владелец явно подтвердил 19.08.2026): компания может
-// быть ещё в пробном периоде базовой и уже оплатить ИИ отдельно. Тот же
-// принцип разделения, что у addons.routes.js — отдельный чек-аут, своя
-// сохранённая карта, не объединяем с базовой автоматически.
-// 05.09.2026, юрпроверка: оферта описывает доп.-опции как разовые, без
-// повторных списаний (миграция 0077) — обе ИИ-подписки списывают каждый
-// месяц, прямое противоречие. 0 подписчиков на этот тариф сейчас — временно
-// блокируем именно НОВОЕ оформление на бэкенде (не только скрываем кнопку
-// во фронтенде, см. AiAdvisor.jsx), пока оферта не поправлена. Отмена/
-// возобновление уже оформленных подписок этим флагом не гейтятся.
-const SIGNUPS_PAUSED = true;
-
-router.post(
-  '/checkout',
-  requireAuth,
-  requireTenant,
-  requireRole('owner', 'admin'),
-  asyncHandler(async (req, res) => {
-    if (SIGNUPS_PAUSED) {
-      return res.status(503).json({ error: 'Оформление временно приостановлено — дорабатываем условия подписки' });
-    }
-    const { rows } = await pool.query(
-      'SELECT name, created_at AS "createdAt", ai_advisor_subscription_price_rub AS "priceRub" FROM companies WHERE id = $1',
-      [req.tenant.companyId]
-    );
-    const company = rows[0];
-    const priceRub = company.priceRub;
-    const returnUrl = `${process.env.FRONTEND_URL}/ai-advisor?payment=done`;
-    // 05.09.2026: новой когорте реально продаётся другой продукт ("ИИ по
-    // законодательству", ComplianceAiAdvisor во фронтенде) — на чеке
-    // (54-ФЗ, description уходит в receipt.items[].description, см.
-    // core/yookassa.js) должно быть написано то же, что человек оформляет,
-    // а не название старого финансового советника.
-    const productLabel = isNewCohort(company.createdAt) ? 'ИИ по законодательству' : 'ИИ-управляющий';
-
-    const payment = await createPayment({
-      amountRub: priceRub,
-      description: `Подписка «${productLabel}» — ${company.name}`,
-      returnUrl,
-      savePaymentMethod: true,
-      metadata: { companyId: String(req.tenant.companyId), product: 'ai_advisor' },
-      receiptEmail: req.user.email,
-    });
-
-    await pool.query(
-      `INSERT INTO ai_advisor_subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge)
-       VALUES ($1, $2, $3, 'pending', false)`,
-      [req.tenant.companyId, payment.id, priceRub]
-    );
-
-    res.json({ confirmationUrl: payment.confirmation.confirmation_url });
-  })
-);
 
 // Расшифровки закона, уже опубликованные владельцем платформы (05.09.2026,
 // новая когорта) — общие для всех подписчиков этого тарифа (v1 без
@@ -175,60 +107,6 @@ router.post(
     }
 
     res.json(response);
-  })
-);
-
-// Отмена (01.09.2026 — юридический аудит перед передачей оферты юристу:
-// оферта §3.4(а) обещает "отменить в любой момент через интерфейс Сервиса",
-// а этого эндпоинта и кнопки физически не было ни разу с 19.08.2026, когда
-// эта подписка стала настоящей рекуррентной). Сразу переводит в 'cancelled'
-// без grace-периода до конца оплаченного месяца — в отличие от
-// requirePaidPlan (базовая подписка, миграция 0044/PAST_DUE_GRACE_DAYS),
-// requireAiAdvisorSubscription (core/middleware/subscription.js) уже
-// намеренно не даёт grace для 'cancelled': это "продолжающаяся услуга"
-// (советники считают по актуальным данным при каждом обращении), не
-// разово выданный PDF — комментарий у гейта объясняет это явно, это не
-// баг, который здесь надо чинить, а уже принятое решение, которому этот
-// эндпоинт просто следует.
-router.post(
-  '/cancel',
-  requireAuth,
-  requireTenant,
-  requireRole('owner', 'admin'),
-  asyncHandler(async (req, res) => {
-    const { rows } = await pool.query(
-      `UPDATE companies SET ai_advisor_subscription_status = 'cancelled'
-       WHERE id = $1 AND ai_advisor_subscription_status IN ('active', 'past_due')
-       RETURNING id`,
-      [req.tenant.companyId]
-    );
-    if (rows.length === 0) {
-      return res.status(400).json({ error: 'Активной подписки для отмены нет' });
-    }
-    res.json({ ok: true });
-  })
-);
-
-// Отменить отмену — тот же принцип, что /platform/subscription/reactivate,
-// но без проверки period_end (её тут нет, см. комментарий у /cancel выше):
-// просто возвращает доступ и рекуррентные списания с ближайшего
-// chargeRecurringSubscriptions.js по уже сохранённому способу оплаты.
-router.post(
-  '/reactivate',
-  requireAuth,
-  requireTenant,
-  requireRole('owner', 'admin'),
-  asyncHandler(async (req, res) => {
-    const { rows } = await pool.query(
-      `UPDATE companies SET ai_advisor_subscription_status = 'active'
-       WHERE id = $1 AND ai_advisor_subscription_status = 'cancelled'
-       RETURNING id`,
-      [req.tenant.companyId]
-    );
-    if (rows.length === 0) {
-      return res.status(400).json({ error: 'Восстановить эту подписку уже нельзя — оформите новую' });
-    }
-    res.json({ ok: true });
   })
 );
 

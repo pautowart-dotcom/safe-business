@@ -3,7 +3,6 @@ const pool = require('../db/pool');
 const { createPayment } = require('../core/yookassa');
 const { sendMail } = require('../core/mailer');
 const { PAST_DUE_GRACE_DAYS } = require('../core/subscriptionGrace');
-const { HARD_TRIAL_CUTOFF } = require('../core/middleware/tenancy');
 
 // Запускается раз в сутки по cron (см. deploy/provision.sh) — списывает
 // подписку с компаний, у которых закончился оплаченный период и есть
@@ -103,107 +102,18 @@ async function chargeDueCompanies() {
   }
 }
 
-// То же самое для отдельной допподписки на ИИ-управляющего (миграция 0090,
-// 19.08.2026) — свой набор колонок на companies (ai_advisor_*), своя
-// таблица платежей, но идентичная логика продления/грейс-периода. Отдельная
-// функция, а не переиспользование chargeDueCompanies с параметром — цена и
-// назначение платежа (`description`) отличаются, а дублирование тут дешевле
-// параметризации ради одного вызова раз в сутки.
-async function chargeDueAiAdvisorCompanies() {
-  // owner_email — тот же коррелированный подзапрос и та же причина, что и в
-  // chargeDueCompanies выше (без него, для чека ЮKassa, платёж падал бы
-  // "Receipt is missing", а JOIN рисковал бы задвоить списание).
-  //
-  // 24.08.2026 — реальный баг, замечен владельцем до того, как он успел
-  // произойти: requireAiAdvisorSubscription (core/middleware/subscription.js)
-  // намеренно не смотрит на статус ОСНОВНОЙ подписки — так и задумано для
-  // самого доступа. Но этот скрипт списывал деньги за ИИ-советника
-  // НЕЗАВИСИМО от основной подписки тоже — а после истечения триала без
-  // оплаты requireTenant (core/middleware/tenancy.js) блокирует ВЕСЬ доступ
-  // к платформе, включая сам виджет ИИ-ассистента. Получалось: компания
-  // теряет доступ ко всему приложению, а деньги за ИИ-советника продолжают
-  // списываться каждый месяц за услугу, которой физически нельзя
-  // воспользоваться. Дополнительные поля (c.subscription_status,
-  // c.trial_ends_at, c.created_at) — чтобы отличить именно этот случай
-  // (жёсткая блокировка по истёкшему триалу) ниже, до попытки списания.
-  const { rows: due } = await pool.query(
-    `SELECT c.id, c.name, c.ai_advisor_subscription_price_rub AS price_rub,
-            c.ai_advisor_yookassa_payment_method_id AS payment_method_id,
-            c.ai_advisor_subscription_current_period_end AS period_end,
-            c.subscription_status, c.trial_ends_at, c.created_at,
-            (SELECT u.email FROM memberships m JOIN users u ON u.id = m.user_id
-             WHERE m.company_id = c.id AND m.role = 'owner' ORDER BY m.id LIMIT 1) AS owner_email
-     FROM companies c
-     WHERE c.ai_advisor_subscription_status = 'active'
-       AND c.ai_advisor_yookassa_payment_method_id IS NOT NULL
-       AND c.ai_advisor_subscription_current_period_end <= now()`
-  );
-
-  console.log(`ИИ-подписка, к списанию: ${due.length} компани${due.length === 1 ? 'я' : 'й'}`);
-
-  for (const company of due) {
-    // Основная платформа жёстко закрыта из-за истёкшего триала (та же
-    // проверка, что requireTenant) — доступа к ИИ-советнику всё равно нет
-    // физически, списывать не за что. Отменяем подписку вместо очередной
-    // попытки оплаты — если компания вернётся и оформит основную подписку,
-    // ИИ-советника нужно будет включить заново, это честнее, чем списывать
-    // молча за недоступную услугу.
-    const trialHardBlocked =
-      company.subscription_status === 'trial' &&
-      company.trial_ends_at && new Date(company.trial_ends_at) < new Date() &&
-      new Date(company.created_at) >= HARD_TRIAL_CUTOFF;
-    if (trialHardBlocked) {
-      await pool.query(`UPDATE companies SET ai_advisor_subscription_status = 'cancelled' WHERE id = $1`, [company.id]);
-      console.log(`⏹️ ${company.name} (ИИ): подписка отменена — основной доступ закрыт (истёк триал без оплаты), списывать не за что`);
-      if (company.owner_email) {
-        sendMail({
-          to: company.owner_email,
-          subject: 'Подписка «ИИ-управляющий» отменена',
-          html: `<p>Здравствуйте!</p>
-<p>Подписка «ИИ-управляющий» для компании «${company.name}» отменена — основной доступ к «Безопасному бизнесу» закрыт, потому что бесплатный период закончился без оплаты, и мы не стали списывать деньги за услугу, которой нельзя воспользоваться.</p>
-<p>Чтобы продолжить пользоваться платформой и ИИ-советником — оформите подписку в разделе «Подписка» в приложении.</p>`,
-        }).catch((mailErr) => console.error(`Не удалось отправить уведомление ${company.name}:`, mailErr.message));
-      }
-      continue;
-    }
-    try {
-      const payment = await createPayment({
-        amountRub: company.price_rub,
-        description: `Продление подписки «ИИ-управляющий» — ${company.name}`,
-        paymentMethodId: company.payment_method_id,
-        receiptEmail: company.owner_email,
-        // См. комментарий у идентичного вызова выше (chargeDueCompanies) —
-        // та же защита от двойного списания при повторном запуске скрипта.
-        idempotenceKey: `ai-advisor-renewal:${company.id}:${new Date(company.period_end).toISOString().slice(0, 10)}`,
-      });
-
-      await pool.query(
-        `INSERT INTO ai_advisor_subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge)
-         VALUES ($1, $2, $3, $4, true)`,
-        [company.id, payment.id, company.price_rub, payment.status === 'succeeded' ? 'succeeded' : 'pending']
-      );
-
-      if (payment.status === 'succeeded') {
-        const nextPeriodEnd = new Date(company.period_end);
-        nextPeriodEnd.setMonth(nextPeriodEnd.getMonth() + 1);
-        await pool.query(
-          `UPDATE companies SET ai_advisor_subscription_current_period_end = $2 WHERE id = $1`,
-          [company.id, nextPeriodEnd]
-        );
-        console.log(`✅ ${company.name} (ИИ): списано ${company.price_rub} ₽, продлено до ${nextPeriodEnd.toISOString().slice(0, 10)}`);
-      } else {
-        console.log(`⏳ ${company.name} (ИИ): платёж в статусе ${payment.status}, ждём вебхук`);
-      }
-    } catch (err) {
-      await pool.query(`UPDATE companies SET ai_advisor_subscription_status = 'past_due' WHERE id = $1`, [company.id]);
-      console.error(`❌ ${company.name} (ИИ): списание не удалось —`, err.message);
-    }
-  }
-}
+// Отдельная функция chargeDueAiAdvisorCompanies() (списание допподписки на
+// ИИ-управляющего своим циклом, миграция 0090) УДАЛЕНА 06.09.2026 — единая
+// подписка (subscription.routes.js /checkout, /toggle-ai): надбавка за ИИ
+// теперь просто входит в companies.subscription_price_rub, который уже
+// списывает chargeDueCompanies() выше по одному циклу вместе с базовой
+// частью. Второго платежа/карты/периода для ИИ больше нет. Столбцы
+// ai_advisor_subscription_price_rub/ai_advisor_yookassa_payment_method_id/
+// ai_advisor_subscription_current_period_end остаются в схеме как архив
+// прежних платежей, но новых списаний по ним больше не создаётся.
 
 Promise.resolve()
   .then(chargeDueCompanies)
-  .then(chargeDueAiAdvisorCompanies)
   .then(() => pool.end())
   .catch((err) => {
     console.error('chargeRecurringSubscriptions упал:', err);
