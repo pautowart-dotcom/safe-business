@@ -64,11 +64,30 @@ async function ensureNicheModules(companyId, niches) {
   const allHideCandidates = new Set(Object.values(NICHE_HIDDEN_MODULES).flat());
   for (const moduleKey of allHideCandidates) {
     const shouldHide = hiddenPerNiche.length > 0 && hiddenPerNiche.every((s) => s.has(moduleKey));
-    await pool.query(
-      `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, $3)
-       ON CONFLICT (company_id, module_key) DO UPDATE SET enabled = $3`,
-      [companyId, moduleKey, !shouldHide]
-    );
+    if (shouldHide) {
+      await pool.query(
+        `INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, false)
+         ON CONFLICT (company_id, module_key) DO UPDATE SET enabled = false`,
+        [companyId, moduleKey]
+      );
+    } else {
+      // Раньше здесь тоже был INSERT ... enabled=true (написано 29.08.2026,
+      // до когорты "только безопасность" от 03.09, core/cohort.js) — в
+      // предположении, что 'visits' и так уже есть у всех компаний по
+      // умолчанию, и эта ветка только возвращает его после снятия cafe_basic.
+      // Из-за этого ensureNicheModules (вызывается сразу на регистрации для
+      // любой ниши) молча выдавал 'visits' заново каждой новой когорте,
+      // которой его по решению от 03.09 вообще не должны давать — найдено
+      // 06.09.2026 на реальном тесте (свежая регистрация, niche != cafe_basic,
+      // 'visits' всё равно оказался enabled=true в БД). Только UPDATE, без
+      // INSERT — self-heal остаётся для компании, у которой строка уже была
+      // (например, ушла с cafe_basic на другую нишу), но не создаёт её с нуля
+      // тем, кому модуль изначально не полагался.
+      await pool.query(
+        `UPDATE company_modules SET enabled = true WHERE company_id = $1 AND module_key = $2`,
+        [companyId, moduleKey]
+      );
+    }
   }
 }
 
