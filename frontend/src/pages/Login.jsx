@@ -28,12 +28,20 @@ export function AuthShell({ children }) {
     // Safari обрывалась после первого чекбокса, кнопка "Зарегистрироваться"
     // была физически недостижима — из ~1500 переходов из чата мастеров
     // зарегистрировалось только 3.
-    <div style={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
+    <div style={{ height: '100vh', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 40, marginTop: 16 }}>
         <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
         <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Сроки, документы и проверки под контролем — для малого бизнеса</div>
       </div>
-      <div style={{ width: '100%', maxWidth: 390, paddingBottom: 24 }}>{children}</div>
+      {/* paddingBottom с запасом (не просто 24px) — 06.09.2026, после фикса
+          прокрутки владелец сразу поймал следующий баг того же класса: на
+          iOS кнопка внизу формы сидела вплотную к границе скролл-контейнера,
+          и при долистывании до упора "резиновый" отскок (bounce-back) на
+          самой границе съедал тап по кнопке — палец убирался уже во время
+          пружинящей анимации возврата. overscrollBehaviorY:'contain' глушит
+          часть отскока, а буфер снизу отодвигает кнопку от самой границы,
+          чтобы к моменту тапа анимация уже закончилась. */}
+      <div style={{ width: '100%', maxWidth: 390, paddingBottom: 'max(64px, env(safe-area-inset-bottom, 0px) + 40px)' }}>{children}</div>
     </div>
   );
 }
