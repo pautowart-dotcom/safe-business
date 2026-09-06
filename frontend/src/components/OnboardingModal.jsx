@@ -43,6 +43,7 @@ function buildSlides(masterLabel, masterLabelGen, masterLabelGenPlural) {
   const clientsSlide = {
     icon: 'clients',
     title: 'Клиенты',
+    moduleKey: 'clients',
     text: 'База клиентов с историей визитов и контактами. Можно продать клиенту абонемент — пакет визитов со скидкой, стоимость одного визита из абонемента считается автоматически при списании.',
   };
 
@@ -52,12 +53,14 @@ function buildSlides(masterLabel, masterLabelGen, masterLabelGenPlural) {
       {
         icon: 'visit',
         title: 'Визиты',
+        moduleKey: 'visits',
         text: `Ведите визиты клиентов, привязывайте ${masterLabelGen}, сохраняйте фото "до/после" и списывайте расходники — заработок ${masterLabelGen} считается автоматически.`,
       },
       clientsSlide,
       {
         icon: 'finance',
         title: 'Финансы',
+        moduleKey: 'finance',
         text: `Выручка, расходы и чистая прибыль бизнеса в одном месте, без сведения таблиц вручную. Итоговую чистую прибыль видите только вы — администратор и ${masterLabel.toLowerCase()} видят выручку/расходы, но не маржу.`,
       },
       {
@@ -96,12 +99,14 @@ function buildSlides(masterLabel, masterLabelGen, masterLabelGenPlural) {
       {
         icon: 'visit',
         title: 'Визиты',
+        moduleKey: 'visits',
         text: `Ведите визиты клиентов, привязывайте ${masterLabelGen}, сохраняйте фото "до/после" и списывайте расходники — заработок ${masterLabelGen} считается автоматически.`,
       },
       clientsSlide,
       {
         icon: 'finance',
         title: 'Финансы',
+        moduleKey: 'finance',
         text: 'Выручка и расходы бизнеса видны вам полностью — итоговая чистая прибыль видна только владельцу.',
       },
       {
@@ -115,18 +120,34 @@ function buildSlides(masterLabel, masterLabelGen, masterLabelGenPlural) {
       {
         icon: 'visit',
         title: 'Визиты',
+        moduleKey: 'visits',
         text: 'Ведите визиты клиентов, сохраняйте фото "до/после" и списывайте расходники — ваш заработок считается автоматически.',
       },
       clientsSlide,
       {
         icon: 'finance',
         title: 'Финансы',
+        moduleKey: 'finance',
         text: 'Видите свою комиссию и корректировки, плюс общую сводку компании на просмотр (без итоговой прибыли — она видна только владельцу).',
       },
       {
         icon: 'doc',
         title: 'Склад',
-        text: 'Отмечайте использование расходников на визитах — списание идёт автоматически. Эту инструкцию можно открыть заново через "Ещё" → "Как пользоваться", а более подробная справка с примерами экранов — там же, "Подробная справка".',
+        moduleKey: 'supplies',
+        text: 'Отмечайте использование расходников на визитах — списание идёт автоматически.',
+      },
+      // Без moduleKey и без привязки к содержимому конкретного раздела
+      // (06.09.2026) — раньше текст про "открыть инструкцию заново" жил
+      // только в слайде "Склад" (последнем в списке). Для новой когорты
+      // ("только безопасность", core/cohort.js) визиты/клиенты/финансы/склад
+      // отфильтровываются целиком (см. ниже, filter по hasModule) — без
+      // отдельного безусловного слайда мастер новой когорты видел бы только
+      // самый первый общий слайд и вообще не узнавал бы, как открыть
+      // инструкцию заново.
+      {
+        icon: 'msg',
+        title: 'Обратная связь',
+        text: 'В разделе "Ещё" можно написать владельцу вопрос или предложение. Эту инструкцию можно открыть заново там же → "Как пользоваться".',
       },
     ],
   };
@@ -138,11 +159,16 @@ function buildSlides(masterLabel, masterLabelGen, masterLabelGenPlural) {
 // стоит, повторный PATCH не нужен. Без onClose — исходное поведение первого
 // показа (PATCH + закрытие через user из контекста).
 export default function OnboardingModal({ onClose }) {
-  const { markOnboardingSeen, isOwner, isManagement, masterLabel, masterLabelGenitiveSingular, masterLabelGenitivePlural } = useAuth();
+  const { markOnboardingSeen, isOwner, isManagement, hasModule, masterLabel, masterLabelGenitiveSingular, masterLabelGenitivePlural } = useAuth();
   const [step, setStep] = useState(0);
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState('');
-  const slides = buildSlides(masterLabel, masterLabelGenitiveSingular, masterLabelGenitivePlural)[isOwner ? 'owner' : isManagement ? 'admin' : 'master'];
+  // moduleKey (06.09.2026) — раньше инструкция была статичной для всех,
+  // включая слайды про Визиты/Клиентов/Финансы/Склад, которых у новой
+  // когорты ("только безопасность", core/cohort.js) вообще нет — та же
+  // фильтрация по hasModule, что уже применяется к меню "Ещё" (More.jsx).
+  const allSlides = buildSlides(masterLabel, masterLabelGenitiveSingular, masterLabelGenitivePlural)[isOwner ? 'owner' : isManagement ? 'admin' : 'master'];
+  const slides = allSlides.filter((s) => !s.moduleKey || hasModule(s.moduleKey));
   const isLast = step === slides.length - 1;
   const slide = slides[step];
 
