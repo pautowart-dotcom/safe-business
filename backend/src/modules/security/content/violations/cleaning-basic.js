@@ -58,7 +58,7 @@
 // Оставшиеся открытые вопросы для юриста зафиксированы в
 // docs/voprosy-yuristu.md — не дублируются здесь построчно.
 
-const { marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -419,6 +419,8 @@ const VIOLATIONS = [
     costMin: 0, costMax: 0, free: true,
     daysMin: 1, daysMax: 1,
   },
+
+  personnelReportingViolation('CL'),
 
   // --- Блок 5. Персональные данные ---
   {

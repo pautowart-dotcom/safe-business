@@ -71,7 +71,7 @@
 // действий там, где закон неоднозначен (см. комментарий выше и
 // solution-поле этих же пунктов).
 
-const { ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -605,6 +605,8 @@ const VIOLATIONS = [
     costMin: 0, costMax: 0, free: true,
     daysMin: 1, daysMax: 1,
   },
+
+  personnelReportingViolation('TT'),
 
   // --- Блок 5. Персональные данные ---
   {

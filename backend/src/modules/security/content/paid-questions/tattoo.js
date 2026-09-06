@@ -14,6 +14,7 @@
 // при найме юридического агента: TT-803/TT-804/TT-805.
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -288,6 +289,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('TT'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('TT'),

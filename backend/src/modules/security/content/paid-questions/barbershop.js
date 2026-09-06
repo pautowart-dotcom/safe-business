@@ -5,6 +5,7 @@
 // комментарий в violations/barbershop.js.
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -231,6 +232,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('BB'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('BB'),

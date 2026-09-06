@@ -11,6 +11,7 @@
 // эти пункты — приоритет для проверки, особенно MS-704.
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -237,6 +238,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('MS'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('MS', {

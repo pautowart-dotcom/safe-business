@@ -15,6 +15,7 @@
 // правовыми базами).
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -253,6 +254,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('SL'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('SL'),

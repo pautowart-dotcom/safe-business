@@ -12,7 +12,7 @@
 // пересчитывать нет смысла). Для LB-201/202/203 (специфика ниши) — новые
 // шаги, написаны напрямую, без агента.
 
-const { ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -472,6 +472,8 @@ const VIOLATIONS = [
     costMin: 0, costMax: 0, free: true,
     daysMin: 1, daysMax: 1,
   },
+
+  personnelReportingViolation('LB'),
 
   // --- Блок 5. Персональные данные ---
   {

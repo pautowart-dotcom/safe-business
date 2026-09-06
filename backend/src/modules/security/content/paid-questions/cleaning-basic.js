@@ -10,7 +10,7 @@
 // DP-803 в paid-questions/depilation.js: формулировка вопроса не описывает
 // требования к самим услугам, только фиксирует, что они вне охвата теста.
 
-const { marketingConsentQuestion, financialSecurityQuestions } = require('../sharedQuestionBlocks');
+const { personnelReportingQuestion, marketingConsentQuestion, financialSecurityQuestions } = require('../sharedQuestionBlocks');
 
 const QUESTIONS = [
   // --- Блок 1. Юридическая база (всегда) ---
@@ -215,6 +215,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('CL'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   {

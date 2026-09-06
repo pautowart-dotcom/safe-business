@@ -14,6 +14,7 @@
 // агента (задача владельца) эти пункты — приоритет для проверки.
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -240,6 +241,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('LB'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('LB'),

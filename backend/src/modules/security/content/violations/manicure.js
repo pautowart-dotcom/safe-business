@@ -18,7 +18,7 @@
 // оборудования и не была подтверждена единым авторитетным источником —
 // это осознанное решение не выдумывать точность, которой нет.
 
-const { ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -557,6 +557,7 @@ const VIOLATIONS = [
     costMin: 0, costMax: 0, free: true,
     daysMin: 1, daysMax: 1,
   },
+  personnelReportingViolation('MN'),
 
   // --- Блок 5. Персональные данные ---
   {

@@ -10,6 +10,7 @@
 // см. content/visibility.js.
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -273,6 +274,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('MN'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('MN'),

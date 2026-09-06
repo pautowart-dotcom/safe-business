@@ -14,7 +14,7 @@
 // юриста для спорных случаев), не как юридическая консультация — сохраняет
 // ту же осторожность, что и остальной текст этого пункта в файле.
 
-const { ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -472,6 +472,8 @@ const VIOLATIONS = [
     costMin: 0, costMax: 0, free: true,
     daysMin: 1, daysMax: 1,
   },
+
+  personnelReportingViolation('MS'),
 
   // --- Блок 5. Персональные данные ---
   {

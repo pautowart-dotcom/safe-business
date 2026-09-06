@@ -11,6 +11,24 @@
 // что и у -102/-103 (тот же файл, тот же автор нарушения) — это не новый
 // юридический факт, а недостающая проводка к уже существующему тексту.
 
+// -505 (блок 4: отчётность в СФР — ЕФС-1/бывшая СЗВ-ТД) — все 9 ниш, для
+// компаний с сотрудниками. См. комментарий у personnelReportingViolation в
+// sharedViolationBlocks.js — добавлено 06.09.2026 по предложению владельца.
+function personnelReportingQuestion(prefix) {
+  return {
+    code: `${prefix}-505`,
+    block: 4,
+    text: 'Подаёте ли вы вовремя сведения о кадровых событиях сотрудников в Социальный фонд России (форма ЕФС-1, подраздел 1.1 — бывшая СЗВ-ТД)?',
+    hint: 'Приём/увольнение — не позднее следующего рабочего дня, остальные кадровые события (перевод, заявление о трудовой книжке) — до 15 числа следующего месяца.',
+    showIf: 'has_employees',
+    answers: [
+      { label: 'Да', points: 1 },
+      { label: 'Не уверен', points: 0.5 },
+      { label: 'Нет', points: 0 },
+    ],
+  };
+}
+
 // -102/-103/-104 (блок 1) — 8 ниш, кроме cleaning-basic.
 function legalBasisCoreQuestions(prefix) {
   return [
@@ -293,6 +311,7 @@ function financialSecurityQuestions(prefix) {
 }
 
 module.exports = {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,

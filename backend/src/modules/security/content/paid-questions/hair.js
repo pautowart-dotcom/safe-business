@@ -8,6 +8,7 @@
 // адаптирована только формулировка под инструмент парикмахера.
 
 const {
+  personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
@@ -234,6 +235,8 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+
+  personnelReportingQuestion('HR'),
 
   // --- Блок 5. Персональные данные (всегда) ---
   ...personalDataCoreQuestions('HR'),
