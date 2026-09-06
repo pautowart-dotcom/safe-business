@@ -18,12 +18,22 @@ const NICHE_GROUPS = [
 
 export function AuthShell({ children }) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
-      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+    // height+overflowY+alignItems:flex-start, не minHeight+center (06.09.2026,
+    // тот же класс бага, что и в AnonymousAudit.jsx/LegalDocument.jsx/
+    // PublicLeadForm.jsx) — html/body у приложения overflow:hidden (styles.css),
+    // а вертикальное центрирование через flex вдобавок само по себе обрезает
+    // начало контента при переполнении в части браузеров, даже если прокрутку
+    // включить отдельно. Реальный эффект в проде: форма регистрации (самая
+    // длинная — ниша+имя+email+пароль+компания+2 чекбокса+кнопка) на мобильном
+    // Safari обрывалась после первого чекбокса, кнопка "Зарегистрироваться"
+    // была физически недостижима — из ~1500 переходов из чата мастеров
+    // зарегистрировалось только 3.
+    <div style={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
+      <div style={{ textAlign: 'center', marginBottom: 40, marginTop: 16 }}>
         <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
         <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Сроки, документы и проверки под контролем — для малого бизнеса</div>
       </div>
-      <div style={{ width: '100%', maxWidth: 390 }}>{children}</div>
+      <div style={{ width: '100%', maxWidth: 390, paddingBottom: 24 }}>{children}</div>
     </div>
   );
 }
