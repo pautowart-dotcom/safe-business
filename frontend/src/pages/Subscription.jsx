@@ -17,10 +17,12 @@ export default function Subscription() {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
   const [searchParams] = useSearchParams();
-  // includeAi (06.09.2026, единая подписка) — выбор ДО оплаты, для тех, кто
-  // ещё не подписан; после оформления переключается отдельной кнопкой
-  // (togglingAi) через /toggle-ai, без повторной оплаты.
-  const [includeAi, setIncludeAi] = useState(false);
+  // togglingAi (06.09.2026, единая подписка) — включение ИИ-советника
+  // сознательно убрано с ПЕРВОГО экрана оформления (владелец: не смешивать
+  // апсейл с самым чувствительным моментом — первой оплатой, где и так
+  // слабая конверсия). Первое оформление — всегда базовая цена, ИИ
+  // предлагается ПОСЛЕ, здесь же переключателем, либо с карточек самих
+  // ИИ-функций (AiAdvisor.jsx EnableAiCard → сюда).
   const [togglingAi, setTogglingAi] = useState(false);
 
   function load() {
@@ -43,7 +45,7 @@ export default function Subscription() {
     setStarting(true);
     setError('');
     try {
-      const { data } = await api.post('/platform/subscription/checkout', { includeAi });
+      const { data } = await api.post('/platform/subscription/checkout');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
@@ -193,12 +195,8 @@ export default function Subscription() {
           </>
         ) : (
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 13, cursor: 'pointer' }}>
-              <input type="checkbox" checked={includeAi} onChange={(e) => setIncludeAi(e.target.checked)} />
-              Включить ИИ-советник (+990 ₽/мес) — расшифровки закона, налоговый агент, ИИ-ассистент
-            </label>
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
-              {(1990 + (includeAi ? 990 : 0))} ₽/мес. Оплата через ЮKassa. Дальше списывается автоматически раз в месяц — оформить подписку нужно один раз.
+              Оплата через ЮKassa. Дальше списывается автоматически раз в месяц — оформить подписку нужно один раз. ИИ-советник можно будет включить отдельно после оформления, в любой момент.
             </div>
             <Btn onClick={startCheckout} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
           </>
