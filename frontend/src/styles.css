@@ -275,6 +275,15 @@ p { margin: 0 0 0.5rem; color: var(--text-muted); }
 .alert-error { background: #fef2f2; color: var(--danger); }
 .alert-success { background: #ecfdf3; color: var(--success); }
 
+/* height дублируется намеренно (06.09.2026) — 100vh как фолбэк для браузеров
+   без поддержки dvh, вторая строка перекрывает её там, где dvh понимается.
+   100vh на iOS Safari не уменьшается, когда открывается клавиатура — форма
+   входа короткая и без клавиатуры помещалась целиком без скролла, но с
+   открытой клавиатурой видимая область становится меньше "vh", и наш же
+   overflow-y:auto контейнер начинал скроллиться и "прыгать" в момент, когда
+   пытались дотянуться до кнопки внизу формы. 100dvh отражает реальную
+   видимую область, включая сжатие клавиатурой. */
+.auth-shell { height: 100vh; height: 100dvh; }
 .auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1a1330, #4c1d95); }
 .auth-card { background: var(--surface); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
 .auth-subtitle { text-align: center; margin-bottom: 1.5rem; }

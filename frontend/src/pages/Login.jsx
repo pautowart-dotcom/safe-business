@@ -28,7 +28,7 @@ export function AuthShell({ children }) {
     // Safari обрывалась после первого чекбокса, кнопка "Зарегистрироваться"
     // была физически недостижима — из ~1500 переходов из чата мастеров
     // зарегистрировалось только 3.
-    <div style={{ height: '100vh', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
+    <div className="auth-shell" style={{ overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 40, marginTop: 16 }}>
         <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
         <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Сроки, документы и проверки под контролем — для малого бизнеса</div>
