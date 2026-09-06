@@ -102,4 +102,14 @@ echo "== Cron: повторные напоминания о приближающ
 DEADLINE_REMINDERS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/deadlineReminders.js >> /var/log/safe-business-deadline-reminders.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "deadlineReminders.js" ; echo "5 7 * * * $DEADLINE_REMINDERS_CRON_CMD" ) | crontab -
 
+# Добавлено 06.09.2026 — вопрос владельца: "как быть клиенту, который уже
+# всё купил?" Раньше при добавлении нового вопроса/нарушения в матрицу
+# (например -505 в этой же сессии) уже вовлечённые компании не узнавали об
+# этом, пока сами не открывали раздел заново. Этот крон сравнивает
+# отвеченные вопросы с текущей матрицей и шлёт push один раз на каждый
+# новый пункт (миграция 0116 хранит, кому о чём уже сообщили).
+echo "== Cron: уведомления о новых пунктах теста для уже вовлечённых компаний =="
+NEW_FINDINGS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/newFindingsNotifier.js >> /var/log/safe-business-new-findings.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "newFindingsNotifier.js" ; echo "10 7 * * * $NEW_FINDINGS_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."
