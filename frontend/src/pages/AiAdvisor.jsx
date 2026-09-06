@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, BackBtn, Btn, TextInput, C, F } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Btn, TextInput, Select, C, F } from '../ui/components.jsx';
 import { money } from '../ui/charts.jsx';
 import { localDateStr } from '../utils/localDate.js';
 import { isNewCohort } from '../utils/cohort.js';
@@ -307,6 +307,127 @@ function LawNoticesList({ notices, error }) {
   ));
 }
 
+// ИИ-агент по налогам (06.09.2026) — та же подписка, что "ИИ по
+// законодательству", не отдельный тариф. Разговорный визард спрашивает
+// только то, чего не знает: у новой когорты нет finance/visits, значит нет
+// и выручки/расходов в базе — их спрашиваем всегда; регион/сотрудников
+// спрашиваем только если ещё не заполнены в профиле компании (Settings).
+// Сам расчёт — детерминированный core/taxRegimeRecommender.js на бэкенде,
+// агент только собирает ответы и объясняет готовый результат текстом.
+function TaxAgentCard({ company }) {
+  const [regions, setRegions] = useState(null);
+  const [regionCode, setRegionCode] = useState(company.region_code || '');
+  const [hasEmployees, setHasEmployees] = useState(company.has_employees);
+  const [revenue, setRevenue] = useState('');
+  const [expenses, setExpenses] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const needsRegion = !company.region_code;
+  const needsEmployees = company.has_employees === null || company.has_employees === undefined;
+
+  useEffect(() => {
+    if (needsRegion && !regions) {
+      api.get('/platform/companies/regions').then((res) => setRegions(res.data)).catch(() => setRegions([]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const canSubmit =
+    revenue !== '' && expenses !== '' && Number(revenue) >= 0 && Number(expenses) >= 0 &&
+    (!needsRegion || regionCode) && (!needsEmployees || typeof hasEmployees === 'boolean');
+
+  async function submit() {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.post('/platform/ai-advisor-subscription/tax-agent', {
+        revenue: Number(revenue),
+        expenses: Number(expenses),
+        regionCode: regionCode || undefined,
+        hasEmployees: typeof hasEmployees === 'boolean' ? hasEmployees : undefined,
+      });
+      setResult(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось посчитать варианты');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (result) {
+    const computed = result.options.filter((o) => o.estimatedTaxRub != null);
+    return (
+      <Card>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Какой налоговый режим выгоднее</div>
+        {result.aiSummary && (
+          <div style={{ fontSize: 13.5, color: C.primary, lineHeight: 1.6, marginBottom: 14, background: C.surface, borderRadius: 10, padding: 12 }}>
+            {result.aiSummary}
+          </div>
+        )}
+        {result.options.map((o) => (
+          <div key={o.regime} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: o.regime === result.cheapestRegime ? 700 : 500 }}>
+                {o.label}{o.regime === result.cheapestRegime ? ' — дешевле всего' : ''}
+              </div>
+              {o.note && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{o.note}</div>}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {o.estimatedTaxRub != null ? money(o.estimatedTaxRub) : '—'}
+            </div>
+          </div>
+        ))}
+        {computed.length === 0 && <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>Не хватило данных для расчёта ни одного варианта.</div>}
+        <button
+          onClick={() => setResult(null)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 13, marginTop: 14, padding: 0 }}
+        >
+          Посчитать заново
+        </button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>ИИ-агент по налогам</div>
+      <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 14 }}>
+        Отвечаете на несколько вопросов — покажем, какой налоговый режим выгоднее именно вам, по актуальным ставкам.
+      </div>
+      {error && <div className="alert alert-error">{error}</div>}
+      {needsRegion && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>В каком регионе зарегистрирован бизнес?</div>
+          <Select value={regionCode} onChange={(e) => setRegionCode(e.target.value)}>
+            <option value="" disabled>Выберите регион</option>
+            {(regions || []).map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
+          </Select>
+        </div>
+      )}
+      {needsEmployees && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>Есть наёмные сотрудники?</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn small variant={hasEmployees === true ? 'primary' : 'secondary'} onClick={() => setHasEmployees(true)}>Да</Btn>
+            <Btn small variant={hasEmployees === false ? 'primary' : 'secondary'} onClick={() => setHasEmployees(false)}>Нет</Btn>
+          </div>
+        </div>
+      )}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 13, marginBottom: 6 }}>Выручка с начала года, ₽</div>
+        <TextInput type="number" min="0" value={revenue} onChange={(e) => setRevenue(e.target.value)} placeholder="Например, 1200000" />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, marginBottom: 6 }}>Расходы с начала года, ₽</div>
+        <TextInput type="number" min="0" value={expenses} onChange={(e) => setExpenses(e.target.value)} placeholder="Например, 300000" />
+      </div>
+      <Btn onClick={submit} disabled={!canSubmit || loading}>{loading ? 'Считаем...' : 'Посчитать'}</Btn>
+    </Card>
+  );
+}
+
 // Новая когорта ("только безопасность", core/cohort.js) — тот же тариф и
 // биллинг, что и у финансового ИИ-советника выше (checkout/cancel/reactivate
 // не меняются), но содержание другое: расшифровка изменений закона вместо
@@ -385,6 +506,7 @@ function ComplianceAiAdvisor({ company, searchParams }) {
         <>
           <ManageSubscriptionCard company={company} onCancel={cancelSubscription} cancelling={cancelling} label="ИИ по законодательству" />
           {checkoutError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{checkoutError}</div>}
+          <TaxAgentCard company={company} />
           <LawNoticesList notices={notices} error={noticesError} />
         </>
       ) : (

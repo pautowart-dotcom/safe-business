@@ -8,6 +8,8 @@ const { createPayment } = require('../core/yookassa');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { requireAiAdvisorSubscription } = require('../core/middleware/subscription');
 const { isNewCohort } = require('../core/cohort');
+const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
+const yandexAssist = require('../core/yandexAssist');
 
 // Цена определена 19.08.2026 (владелец делегировал решение) — единственное
 // место с этой цифрой изначально, тот же принцип, что SUBSCRIPTION_PRICE_RUB
@@ -100,6 +102,79 @@ router.get(
       `SELECT id, explanation, published_at AS "publishedAt" FROM law_change_notices ORDER BY published_at DESC LIMIT 30`
     );
     res.json(rows);
+  })
+);
+
+// ИИ-агент по налогам (06.09.2026) — для новой когорты, той же подпиской,
+// что "ИИ по законодательству": не отдельный тариф. Расчёт — тот же
+// детерминированный core/taxRegimeRecommender.js, что уже используется в
+// my-deadlines.routes.js для СТАРОЙ когорты (там источник цифр —
+// finance_entries/expense_entries). У новой когорты этих таблиц нет, значит
+// эндпоинт принимает revenue/expenses явно от фронтенда (разговорный визард
+// сам их спрашивает) — ИИ здесь НЕ считает налоги сам, только помогает
+// собрать недостающие ответы на фронте и объясняет уже готовый результат
+// текстом (тот же принцип "цифры точные, не пересчитывай", что в
+// ai-advisor-digest.routes.js). region_code/has_employees/niche берём из
+// уже сохранённого профиля компании, если фронт их не передал явно — чтобы
+// не переспрашивать то, что уже известно.
+async function buildTaxAgentSummary(result) {
+  const lines = result.options
+    .filter((o) => o.estimatedTaxRub != null)
+    .map((o) => `${o.label}: ${o.estimatedTaxRub} ₽` + (o.note ? ` (${o.note})` : ''));
+  if (lines.length === 0) return null;
+
+  const system =
+    'Ты — ИИ-агент по налогам продукта "Безопасный бизнес" для владельцев малого бизнеса. Тебе дают уже посчитанные ' +
+    'варианты налогообложения с точными суммами — числа точные, не пересчитывай их и не придумывай новые, не выдумывай ' +
+    'ставки или нормы закона, которых нет в переданных данных. Задача: 3-5 предложений простым языком — какой вариант ' +
+    'дешевле и почему, на что обратить внимание (например, если патент не проверен юристом — упомяни это честно). Не ' +
+    'обещай гарантированный результат и не давай юридических гарантий, тон честный и простой, без канцелярита.';
+  const prompt = `Выручка с начала года: ${result.revenue} ₽\nРасходы с начала года: ${result.expenses} ₽\n\nВарианты:\n${lines.join('\n')}`;
+
+  return yandexAssist.draftText({ system, prompt, maxTokens: 500 });
+}
+
+router.post(
+  '/tax-agent',
+  requireAuth,
+  requireTenant,
+  requireAiAdvisorSubscription,
+  asyncHandler(async (req, res) => {
+    const revenue = Number(req.body.revenue);
+    const expenses = Number(req.body.expenses);
+    if (!Number.isFinite(revenue) || revenue < 0 || !Number.isFinite(expenses) || expenses < 0) {
+      return res.status(400).json({ error: 'Укажите выручку и расходы неотрицательными числами' });
+    }
+
+    const companyId = req.tenant.companyId;
+    const [{ rows: companyRows }, { rows: nicheRows }] = await Promise.all([
+      pool.query('SELECT region_code, has_employees FROM companies WHERE id = $1', [companyId]),
+      pool.query('SELECT niche FROM security_profile_niches WHERE company_id = $1', [companyId]),
+    ]);
+    const company = companyRows[0] || {};
+
+    const regionCode = req.body.regionCode || company.region_code || null;
+    const hasEmployees = typeof req.body.hasEmployees === 'boolean' ? req.body.hasEmployees : !!company.has_employees;
+    const niche = req.body.niche || (nicheRows.length === 1 ? nicheRows[0].niche : null);
+
+    const result = await recommendTaxRegime({
+      companyId,
+      regionCode,
+      niche,
+      hasEmployees,
+      manualFinance: { revenue, expenses },
+    });
+
+    const response = { ...result, regionCode, hasEmployees, niche, aiConfigured: yandexAssist.isAiConfigured(), aiSummary: null };
+    if (response.aiConfigured) {
+      try {
+        response.aiSummary = await buildTaxAgentSummary(result);
+      } catch (err) {
+        response.aiSummaryError = 'Не удалось получить текстовое объяснение от ИИ';
+      }
+    }
+
+    res.json(response);
   })
 );
 

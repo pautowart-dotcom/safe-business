@@ -74,9 +74,18 @@ function estimateUsnIncomeExpense(revenue, expenses) {
 // "если бы вы были на этом режиме с начала года при уже реальной выручке",
 // не прогноз будущего. ОСН сознательно не считаем (подтверждено владельцем
 // 28.08.2026) — статичное пояснение вместо расчёта.
-async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees }) {
+//
+// manualFinance (06.09.2026, ИИ-агент по налогам) — у новой когорты
+// ("только безопасность") нет модуля finance, значит нет ни одной строки в
+// finance_entries/expense_entries: computeYearToDateFinance для них всегда
+// вернул бы 0/0, что выглядело бы как "у вас нулевая выручка" вместо
+// честного "мы не знаем вашу выручку". Разговорный агент вместо этого
+// СПРАШИВАЕТ выручку/расходы напрямую и передаёт их сюда явно — расчёт
+// остаётся тем же самым детерминированным кодом, ИИ не считает налоги сам,
+// только собирает недостающие входные данные и объясняет готовый результат.
+async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, manualFinance }) {
   const year = new Date().getFullYear();
-  const { revenue, expenses } = await computeYearToDateFinance(companyId, year);
+  const { revenue, expenses } = manualFinance || (await computeYearToDateFinance(companyId, year));
   const insuranceContribution = computeInsuranceContribution(revenue);
 
   const patentRate = regionCode && niche
