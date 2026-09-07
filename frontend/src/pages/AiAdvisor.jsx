@@ -334,6 +334,11 @@ function TaxAgentCard({ company }) {
           </div>
         ))}
         {computed.length === 0 && <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>Не хватило данных для расчёта ни одного варианта.</div>}
+        {result.vatWarning && (
+          <div style={{ fontSize: 12.5, color: C.orange, background: C.orangeBg, borderRadius: 10, padding: 12, marginTop: 12, lineHeight: 1.5 }}>
+            {result.vatWarning}
+          </div>
+        )}
         <button
           onClick={() => setResult(null)}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 13, marginTop: 14, padding: 0 }}

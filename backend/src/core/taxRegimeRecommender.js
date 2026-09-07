@@ -31,6 +31,24 @@ function computeInsuranceContribution(revenue) {
   return FIXED_INSURANCE_CONTRIBUTION_RUB + extra;
 }
 
+// Порог обязанности по НДС на УСН (07.09.2026, проверено law-compliance-
+// monitor — до этой правки агент вообще не упоминал НДС ни при какой
+// выручке). Порог резко и планово снижается год за годом (ФЗ №425-ФЗ от
+// 28.11.2025): 2025 год — 60 млн ₽, С 01.01.2026 — 20 МЛН ₽ (текущее
+// значение ниже), 2027 — 15 млн, 2028 и далее — 10 млн. МЕНЯЕТСЯ ЕЖЕГОДНО
+// и уже известно на годы вперёд — не забыть про 2027 при следующей
+// проверке. Источники на 20 млн (2026): klerk.ru/user/2709974/704372,
+// its.1c.ru/db/content/newscomm/src/497596.htm, glavbukh.ru/art/391540.
+// Точный расчёт (ставка 5%/7% без вычета vs 20-22% с вычетом, момент
+// перехода нарастающим итогом) сознательно НЕ считаем — слишком зависит
+// от бухгалтерских данных, которых у агента нет; только честно
+// предупреждаем, см. VAT_WARNING_TEXT ниже.
+const VAT_THRESHOLD_RUB = 20_000_000;
+const VAT_WARNING_TEXT =
+  'При выручке от ~20 млн ₽/год на УСН обычно уже возникает обязанность платить НДС ' +
+  '(5% или 7% без вычетов, либо 20/22% с вычетами — на выбор). Мы это не считаем — ' +
+  'обязательно уточните у бухгалтера, применяется ли НДС к вам.';
+
 async function computeYearToDateFinance(companyId, year) {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
@@ -145,6 +163,10 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
     insuranceContribution,
     options,
     cheapestRegime: cheapest?.regime || null,
+    // Не привязано к конкретному regime — НДС актуален и для "Доходы", и
+    // для "Доходы минус расходы" одинаково, поэтому отдельное поле, а не
+    // note у одного из options.
+    vatWarning: revenue >= VAT_THRESHOLD_RUB ? VAT_WARNING_TEXT : null,
   };
 }
 
