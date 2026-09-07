@@ -18,7 +18,7 @@
 // (те же законы, та же практика РФ), поэтому шаги переиспользованы без
 // изменений по существу — новых пунктов в этой нише нет.
 
-const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -678,6 +678,8 @@ const VIOLATIONS = [
     costMin: 1500, costMax: null, free: false,
     daysMin: 30, daysMax: 30,
   },
+
+  ...premisesExtraViolations('BB'),
 
   // --- Блок 7. Дополнительные зоны внимания ---
   {

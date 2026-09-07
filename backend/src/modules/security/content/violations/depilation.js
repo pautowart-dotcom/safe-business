@@ -96,7 +96,7 @@
 // решение файла (см. комментарий выше) — рекомендовать консультацию юриста,
 // не выдумывать однозначный порядок действий там, где закон неоднозначен.
 
-const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -776,6 +776,8 @@ const VIOLATIONS = [
     costMin: 1500, costMax: null, free: false,
     daysMin: 30, daysMax: 30,
   },
+
+  ...premisesExtraViolations('DP'),
 
   // --- Блок 7. Дополнительные зоны внимания ---
   {

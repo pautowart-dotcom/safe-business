@@ -24,7 +24,7 @@
 // на проверку юристом: FT-201 (точные параметры СП), FT-704 (статус приказа
 // №266 от 1996), FT-204 (применимость приказа 134н к обычным клиентам).
 
-const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -561,6 +561,8 @@ const VIOLATIONS = [
     costMin: 1500, costMax: null, free: false,
     daysMin: 30, daysMax: 30,
   },
+
+  ...premisesExtraViolations('FT'),
 
   // --- Блок 7. Дополнительные зоны внимания ---
   {
