@@ -23,6 +23,7 @@ const VIOLATIONS_BY_NICHE = {
   cleaning_basic: require('../../security/content/violations/cleaning-basic'),
   barbershop: require('../../security/content/violations/barbershop'),
   cafe_basic: require('../../security/content/violations/cafe-basic'),
+  fitness_gym: require('../../security/content/violations/fitness-gym'),
 };
 
 const NICHE_LABELS = {
@@ -36,6 +37,7 @@ const NICHE_LABELS = {
   cleaning_basic: 'Уборка помещений (жильё и офисы)',
   barbershop: 'Барбершоп',
   cafe_basic: 'Кафе, кофейня, столовая (без алкоголя)',
+  fitness_gym: 'Фитнес-студия / тренажёрный зал',
 };
 
 const LEGAL_FORM_LABELS = {

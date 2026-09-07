@@ -41,16 +41,20 @@ function buildDocDefinition(roadmap) {
   const { nicheLabel, legalFormLabel, generatedAt, stages, disclaimer } = roadmap;
 
   const content = [
-    { text: 'Безопасный Бизнес', style: 'brand', margin: [0, 120, 0, 0] },
-    { text: 'Roadmap открытия бизнеса', fontSize: 16, margin: [0, 4, 0, 30] },
+    // 07.09.2026: раньше титульный блок жил на отдельной странице
+    // (pageBreak: 'after' сразу за ним) — почти пустая страница 1 (только
+    // заголовок и три строки текста) выглядела недоделанной для платного
+    // PDF. Убрали принудительный разрыв — интро теперь просто первый блок
+    // страницы 1, дальше сразу идёт сам чек-лист, без отдельной "обложки".
+    { text: 'Безопасный Бизнес', style: 'brand', margin: [0, 30, 0, 0] },
+    { text: 'Roadmap открытия бизнеса', fontSize: 16, margin: [0, 4, 0, 20] },
     { text: `Ниша: ${nicheLabel}` },
     { text: `Форма работы: ${legalFormLabel}` },
     { text: `Дата формирования: ${generatedAt.toLocaleDateString('ru-RU')}` },
-    { text: 'Не всё нужно делать одновременно — двигайтесь по неделям в указанном порядке.', bold: true, margin: [0, 10, 0, 0] },
-    { text: 'Документ носит информационный характер и не является юридической консультацией.', fontSize: 9, italics: true, margin: [0, 60, 0, 0] },
-    { text: '', pageBreak: 'after' },
+    { text: 'Не всё нужно делать одновременно — двигайтесь по стадиям в указанном порядке.', bold: true, margin: [0, 10, 0, 0] },
+    { text: 'Документ носит информационный характер и не является юридической консультацией.', fontSize: 9, italics: true, margin: [0, 10, 0, 20] },
 
-    sectionHeader('Roadmap по неделям'),
+    sectionHeader('Roadmap по стадиям'),
     ...stages.map((stage) => stageBlock(stage)),
 
     sectionHeader('Дисклеймер'),
