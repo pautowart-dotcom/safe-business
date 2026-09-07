@@ -164,7 +164,7 @@ export default function Subscription() {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 13, cursor: togglingAi ? 'default' : 'pointer' }}>
               <input
                 type="checkbox"
-                checked={company?.ai_advisor_subscription_status === 'active'}
+                checked={company?.hasAiAccess}
                 disabled={togglingAi}
                 onChange={(e) => toggleAi(e.target.checked)}
               />
