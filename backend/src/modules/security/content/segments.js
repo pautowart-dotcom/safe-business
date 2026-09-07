@@ -38,7 +38,7 @@ const SEGMENTS = [
     label: 'Фитнес и активность',
     hasNicheStep: true,
     niches: [
-      { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал', paidAudit: false },
+      { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал', paidAudit: true },
       { key: 'dance', label: 'Танцы', paidAudit: false },
       { key: 'yoga', label: 'Йога / растяжка', paidAudit: false },
     ],
