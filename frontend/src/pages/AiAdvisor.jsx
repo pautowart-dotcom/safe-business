@@ -268,6 +268,10 @@ function TaxAgentCard({ company }) {
   const [hasEmployees, setHasEmployees] = useState(company.has_employees);
   const [revenue, setRevenue] = useState('');
   const [expenses, setExpenses] = useState('');
+  // Не поле профиля компании (в отличие от региона/сотрудников выше) —
+  // спрашиваем каждый раз заново, привязано к конкретным введённым цифрам
+  // расходов, а не к компании вообще (07.09.2026, см. taxRegimeRecommender.js).
+  const [expensesDocumented, setExpensesDocumented] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -284,7 +288,8 @@ function TaxAgentCard({ company }) {
 
   const canSubmit =
     revenue !== '' && expenses !== '' && Number(revenue) >= 0 && Number(expenses) >= 0 &&
-    (!needsRegion || regionCode) && (!needsEmployees || typeof hasEmployees === 'boolean');
+    (!needsRegion || regionCode) && (!needsEmployees || typeof hasEmployees === 'boolean') &&
+    typeof expensesDocumented === 'boolean';
 
   async function submit() {
     setLoading(true);
@@ -295,6 +300,7 @@ function TaxAgentCard({ company }) {
         expenses: Number(expenses),
         regionCode: regionCode || undefined,
         hasEmployees: typeof hasEmployees === 'boolean' ? hasEmployees : undefined,
+        expensesDocumented,
       });
       setResult(data);
     } catch (err) {
@@ -367,9 +373,19 @@ function TaxAgentCard({ company }) {
         <div style={{ fontSize: 13, marginBottom: 6 }}>Выручка с начала года, ₽</div>
         <TextInput type="number" min="0" value={revenue} onChange={(e) => setRevenue(e.target.value)} placeholder="Например, 1200000" />
       </div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 13, marginBottom: 6 }}>Расходы с начала года, ₽</div>
         <TextInput type="number" min="0" value={expenses} onChange={(e) => setExpenses(e.target.value)} placeholder="Например, 300000" />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, marginBottom: 6 }}>Эти расходы подтверждены документами (чеки, договоры, ведомости)?</div>
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>
+          Например, процент мастеру наличными без оформления — это не подтверждённый расход.
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn small variant={expensesDocumented === true ? 'primary' : 'secondary'} onClick={() => setExpensesDocumented(true)}>Да</Btn>
+          <Btn small variant={expensesDocumented === false ? 'primary' : 'secondary'} onClick={() => setExpensesDocumented(false)}>Нет</Btn>
+        </div>
       </div>
       <Btn onClick={submit} disabled={!canSubmit || loading}>{loading ? 'Считаем...' : 'Посчитать'}</Btn>
     </Card>

@@ -62,7 +62,19 @@ function estimateUsnIncome(revenue, insuranceContribution, hasEmployees) {
 // УСН "Доходы минус расходы" (15%) — минимальный налог 1% от выручки, если
 // обычный расчёт вышел меньше (п. 6 ст. 346.18 НК РФ). Взносы отдельно не
 // вычитаем — они уже часть expense_entries, если компания их туда вносит.
-function estimateUsnIncomeExpense(revenue, expenses) {
+//
+// expensesDocumented === false (07.09.2026, проверено law-compliance-monitor,
+// ст. 346.16 + п.1 ст.252 НК РФ) — расход принимается налоговой только если
+// он одновременно в закрытом перечне, оплачен и документально подтверждён
+// (чек/накладная/договор). Неофициальный процент мастеру наличными без
+// оформления под это не подходит: считать такой ввод как реальный расход
+// режима "Доходы минус расходы" значит показать заниженный, недостижимый
+// налог. В этом случае режим не считаем вовсе (estimatedTaxRub: null),
+// вместо цифры — предупреждение (см. вызывающий код). undefined (старая
+// когорта, автоматический расчёт из finance_entries — my-deadlines.routes.js
+// не передаёт этот параметр) ведёт себя как раньше, без изменений.
+function estimateUsnIncomeExpense(revenue, expenses, expensesDocumented) {
+  if (expensesDocumented === false) return null;
   const regular = Math.round(Math.max(revenue - expenses, 0) * 0.15);
   const minimum = Math.round(revenue * 0.01);
   return Math.max(regular, minimum);
@@ -83,7 +95,7 @@ function estimateUsnIncomeExpense(revenue, expenses) {
 // СПРАШИВАЕТ выручку/расходы напрямую и передаёт их сюда явно — расчёт
 // остаётся тем же самым детерминированным кодом, ИИ не считает налоги сам,
 // только собирает недостающие входные данные и объясняет готовый результат.
-async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, manualFinance }) {
+async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, manualFinance, expensesDocumented }) {
   const year = new Date().getFullYear();
   const { revenue, expenses } = manualFinance || (await computeYearToDateFinance(companyId, year));
   const insuranceContribution = computeInsuranceContribution(revenue);
@@ -102,8 +114,10 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
     {
       regime: 'usn_income_expense',
       label: 'УСН «Доходы минус расходы» (15%)',
-      estimatedTaxRub: estimateUsnIncomeExpense(revenue, expenses),
-      note: 'С минимальным налогом 1% от выручки, если обычный расчёт вышел меньше.',
+      estimatedTaxRub: estimateUsnIncomeExpense(revenue, expenses, expensesDocumented),
+      note: expensesDocumented === false
+        ? 'Расходы для этого режима налоговая принимает только по документам (чеки, договоры, ведомости). Если платите мастерам процент наличными без оформления — эту сумму нельзя учесть, и расчёт по факту окажется выше показанного.'
+        : 'С минимальным налогом 1% от выручки, если обычный расчёт вышел меньше.',
     },
     {
       regime: 'patent',

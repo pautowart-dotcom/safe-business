@@ -88,6 +88,12 @@ router.post(
     const regionCode = req.body.regionCode || company.region_code || null;
     const hasEmployees = typeof req.body.hasEmployees === 'boolean' ? req.body.hasEmployees : !!company.has_employees;
     const niche = req.body.niche || (nicheRows.length === 1 ? nicheRows[0].niche : null);
+    // expensesDocumented (07.09.2026) — обязательный ответ визарда на фронте
+    // (TaxAgentCard), не профильное поле компании, поэтому без фолбэка на
+    // company.*: undefined здесь означает "фронт не спросил" (старые версии
+    // фронта, до раскатки) — taxRegimeRecommender.js трактует undefined как
+    // "не предупреждаем", тот же эффект, что и раньше этой правки.
+    const expensesDocumented = typeof req.body.expensesDocumented === 'boolean' ? req.body.expensesDocumented : undefined;
 
     const result = await recommendTaxRegime({
       companyId,
@@ -95,6 +101,7 @@ router.post(
       niche,
       hasEmployees,
       manualFinance: { revenue, expenses },
+      expensesDocumented,
     });
 
     const response = { ...result, regionCode, hasEmployees, niche, aiConfigured: yandexAssist.isAiConfigured(), aiSummary: null };
