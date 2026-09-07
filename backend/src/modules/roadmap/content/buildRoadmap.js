@@ -68,10 +68,24 @@ const TITLE_OVERRIDES = {
   'Отсутствует рециркулятор': 'Рециркулятор воздуха',
 };
 
+// 07.09.2026 (владелец: "карта плохая, продукт за 1490₽ должен быть
+// подробным, как обычный отчёт теста безопасности, а не куцым списком
+// заголовков") — раньше сюда попадали только title/solution/срок, теряя
+// то, что реально делает обычный PDF-отчёт (report/pdf.js, violationBlock)
+// содержательным: риск, штраф, норму закона и пошаговую инструкцию (howTo).
+// Ничего не придумываем заново — те же самые проверенные поля из той же
+// матрицы нарушений, просто больше не обрезаем их для этого продукта.
 function toItem(v) {
   return {
     title: TITLE_OVERRIDES[v.title] || v.title,
-    description: v.solution,
+    description: v.description,
+    risk: v.risk,
+    fineText: v.fineText,
+    normBase: v.normBase,
+    solution: v.solution,
+    howTo: v.howTo || [],
+    free: v.free,
+    costMin: v.costMin,
     durationNote: durationNoteFromDays(v.daysMin, v.daysMax),
   };
 }
