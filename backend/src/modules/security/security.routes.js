@@ -247,8 +247,19 @@ router.get(
     }
     const niches = await Promise.all(profile.niches.map((n) => repository.getNiche(profile.segment, n)));
 
+    // questionsCount (07.09.2026, живой разбор воронки маркетологом: "видят
+    // 30 вопросов и не проходят") — раньше кнопка старта теста в OverviewTab
+    // (Security.jsx) показывала захардкоженное "34 вопроса" для любой ниши.
+    // Реальное число давно разъехалось (растёт с каждым добавленным общим
+    // пунктом — от 39 у фитнеса до 53 у тату) — недооценка длины вслух
+    // подрывает доверие сильнее, чем честная цифра. Суммируем по всем
+    // выбранным нишам (как и раньше подразумевал текст "34 вопроса на
+    // каждую из N ниш").
+    const questionsPerNiche = await Promise.all(profile.niches.map((n) => repository.getPaidQuestions(n)));
+    const questionsCount = questionsPerNiche.reduce((sum, qs) => sum + (qs ? qs.length : 0), 0);
+
     res.json({
-      audit: { available: niches.some((n) => n?.paidAudit) },
+      audit: { available: niches.some((n) => n?.paidAudit), questionsCount },
       documentPackage: { available: false },
     });
   })

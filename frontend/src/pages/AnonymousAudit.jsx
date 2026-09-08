@@ -31,6 +31,20 @@ const WORK_MODEL_OPTIONS = [
   ['mixed', 'Смешанная модель'],
 ];
 const PRICE_RUB = 1990;
+// Те же подписи, что SUMMARY_BLOCKS в backend/.../report/build.js —
+// продублировано здесь по тому же принципу, что и riskColor чуть ниже: эта
+// страница намеренно изолирована от остального приложения (см. комментарий
+// в начале файла), общий импорт не заводим ради словаря подписей.
+const BLOCK_LABELS = {
+  1: 'Юридическая база',
+  2: 'Санитарная безопасность',
+  3: 'Оборудование',
+  4: 'Персонал',
+  5: 'Персональные данные',
+  6: 'Помещение',
+  7: 'Дополнительные зоны',
+  9: 'Финансовая безопасность',
+};
 const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая зона', red: 'Красная зона' };
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
@@ -94,6 +108,17 @@ function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWor
         подробный PDF-отчёт с планом устранения — {PRICE_RUB} ₽ разово, без подписки. Регистрация не нужна,
         только email в конце, если решите скачать отчёт.
       </div>
+      {/* 07.09.2026, живой разбор воронки маркетолога: "переходят из
+          Instagram, видят 30 вопросов и просто не проходят" — честно
+          предупреждаем о длине заранее, а не даём наткнуться на неё
+          неожиданно. Без конкретного числа (оно сильно разное по нишам,
+          от короткого блока до полусотни пунктов) — статичная цифра здесь
+          рисковала бы устареть так же, как устарело "34 вопроса" в личном
+          кабинете (см. Security.jsx). */}
+      <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 16, lineHeight: 1.5, background: C.surface, borderRadius: 8, padding: '10px 12px' }}>
+        Вопросов может быть много — зависит от ниши. Тест разбит на понятные этапы (юрбаза, санитария,
+        персонал и т.д.), прогресс виден по ходу. Каждый вопрос — простой выбор варианта.
+      </div>
 
       <Field label="Ниша">
         <Select value={niche} onChange={(e) => setNiche(e.target.value)}>
@@ -153,9 +178,20 @@ function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) 
           Отвечено: {Object.keys(answers).length} из {session.questions.length}
         </div>
 
-        {blocks.map((block) => (
+        {/* 07.09.2026, живой разбор воронки маркетолога: "переходят из
+            Instagram, видят 30 вопросов сплошным списком и не проходят" —
+            блоки уже были сгруппированы визуально (borderBottom между
+            группами), но без названия и счётчика это читалось как один
+            бесконечный список, а не конечные, названные этапы. */}
+        {blocks.map((block, i) => {
+          const blockQuestions = session.questions.filter((q) => q.block === block);
+          const answeredInBlock = blockQuestions.filter((q) => answers[q.code] !== undefined).length;
+          return (
           <div key={block} style={{ marginBottom: 20 }}>
-            {session.questions.filter((q) => q.block === block).map((q) => (
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+              Этап {i + 1} из {blocks.length} · {BLOCK_LABELS[block] || 'Прочее'} ({answeredInBlock}/{blockQuestions.length})
+            </div>
+            {blockQuestions.map((q) => (
               <div key={q.code} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: q.hint ? 4 : 8 }}>{q.text}</div>
                 {q.hint && <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>{q.hint}</div>}
@@ -175,7 +211,8 @@ function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) 
               </div>
             ))}
           </div>
-        ))}
+          );
+        })}
 
         {error && <div className="alert alert-error">{error}</div>}
       </Card>

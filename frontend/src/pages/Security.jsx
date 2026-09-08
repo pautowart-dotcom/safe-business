@@ -71,6 +71,36 @@ function nicheLabel(key) {
   return SEGMENTS.flatMap((s) => s.niches).find((n) => n.key === key)?.label || key;
 }
 
+// Те же подписи блоков, что SUMMARY_BLOCKS в report/build.js (бэкенд) —
+// продублировано на фронте (07.09.2026, живой разбор воронки: "тест
+// ощущается бесконечным") ради того, чтобы разбить один сплошной опросник
+// на видимые стадии с названиями, а не только "вопрос N из M". Порядок не
+// важен — используется только как словарь по номеру блока, реальный
+// порядок стадий берётся из порядка появления в questions конкретной
+// сессии (см. AuditQuestionnaire).
+const BLOCK_LABELS = {
+  1: 'Юридическая база',
+  2: 'Санитарная безопасность',
+  3: 'Оборудование',
+  4: 'Персонал',
+  5: 'Персональные данные',
+  6: 'Помещение',
+  7: 'Дополнительные зоны',
+  9: 'Финансовая безопасность',
+};
+
+// "вопрос/вопроса/вопросов" — тот же принцип, что pluralItems в
+// report/pdf.js (бэкенд), продублировано на фронте по тому же правилу, что
+// и остальные мелкие статичные помощники в этом файле (не тащить ради
+// одной функции общий модуль между фронтом и бэкендом).
+function pluralSuffix(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return '';
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'а';
+  return 'ов';
+}
+
 const DOCUMENT_CATEGORIES = [
   'Регистрационные документы', 'Документы по работе с клиентами', 'Санитарная документация',
   'Пожарная безопасность', 'Оборудование', 'Персонал', 'Документы по персональным данным', 'Дополнительно',
@@ -599,7 +629,19 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
 function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) {
   const { questions, index, nicheLabel: currentNicheLabel, plan, planIndex } = activeAudit;
   const question = questions[index];
-  const progress = Math.round(((index + 1) / questions.length) * 100);
+
+  // Стадии (07.09.2026, живой разбор воронки: "тест ощущается бесконечным
+  // квизом из Instagram") — те же вопросы, просто сгруппированные по block
+  // в порядке появления в ЭТОЙ сессии (не все возможные блоки — только те,
+  // что реально есть у этой ниши/компании, уже отфильтрованные бэкендом по
+  // showIf). Раньше был один сплошной прогресс-бар "вопрос N из M" — теперь
+  // видно, что тест состоит из конечных, названных кусков, а не бесконечен.
+  const stageBlocks = [];
+  for (const q of questions) if (!stageBlocks.includes(q.block)) stageBlocks.push(q.block);
+  const currentStageIndex = stageBlocks.indexOf(question.block);
+  const questionsInStage = questions.filter((q) => q.block === question.block);
+  const indexInStage = questionsInStage.findIndex((q) => q.code === question.code);
+  const stageProgress = Math.round(((indexInStage + 1) / questionsInStage.length) * 100);
 
   return (
     <div>
@@ -620,8 +662,25 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) 
           {plan && plan.length > 1 ? ` · ниша ${planIndex + 1} из ${plan.length}` : ''}
         </div>
       )}
-      <div style={{ height: 6, background: C.border, borderRadius: 999, overflow: 'hidden', marginBottom: 24 }}>
-        <div style={{ height: '100%', width: `${progress}%`, background: C.primary, transition: 'width 0.2s' }} />
+      {/* Сегментированная полоса — один сегмент на стадию, а не один общий
+          бар на все вопросы сразу, чтобы прогресс читался кусками. */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+        {stageBlocks.map((b, i) => (
+          <div key={b} style={{ flex: 1, height: 6, borderRadius: 999, overflow: 'hidden', background: C.border }}>
+            <div
+              style={{
+                height: '100%',
+                borderRadius: 999,
+                background: C.primary,
+                width: i < currentStageIndex ? '100%' : i === currentStageIndex ? `${stageProgress}%` : '0%',
+                transition: 'width 0.2s',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: C.subtle, marginBottom: 24 }}>
+        Этап {currentStageIndex + 1} из {stageBlocks.length} · {BLOCK_LABELS[question.block] || 'Прочее'}
       </div>
       <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 8 }}>{question.text}</div>
       {question.hint && <div style={{ fontSize: 13, color: C.subtle, marginBottom: 8 }}>{question.hint}</div>}
@@ -677,13 +736,19 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolation
       {pdfPaywall && <PdfPaywallNotice />}
       {/* 29.08.2026: раньше единственный путь дальше был "Скачать PDF" —
           нарушения найдены, но само их содержание видно только если зайти
-          во вкладку "Нарушения" самому, никто туда не вёл. */}
+          во вкладку "Нарушения" самому, никто туда не вёл.
+          07.09.2026, живой разбор воронки ("после бесплатного теста —
+          развод, тест бесплатный, а сразу оплата"): дело было не в самой
+          подписке (нарушения и так бесплатны), а в том, что первой и самой
+          заметной кнопкой на этом экране был замок — "Скачать PDF 🔒".
+          Поменял местами: бесплатная ценность (сами нарушения) теперь
+          главная кнопка, платный PDF — второстепенная, как и есть по сути. */}
       {violationsCount > 0 && (
-        <Btn variant="secondary" onClick={onViewViolations} style={{ marginBottom: 10 }}>
+        <Btn onClick={onViewViolations} style={{ marginBottom: 10 }}>
           Что именно нашли — посмотреть нарушения
         </Btn>
       )}
-      <Btn onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт 🔒 по подписке'}</Btn>
+      <Btn variant="secondary" onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт 🔒 по подписке'}</Btn>
     </div>
   );
 }
@@ -869,9 +934,16 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
         ) : products?.audit.available ? (
           <div>
             <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
-              {profile.niches.length > 1
-                ? `34 вопроса на каждую из ${profile.niches.length} ниш, бесплатно — полная карта нарушений и дорожная карта устранения. Общий PDF-отчёт для печати — по подписке.`
-                : '34 вопроса, бесплатно — полная карта нарушений и дорожная карта устранения. Персональный PDF-отчёт для печати — по подписке.'}
+              {/* 07.09.2026, живой разбор воронки: захардкоженное "34 вопроса"
+                  давно разошлось с реальностью (сейчас 39-53 в зависимости от
+                  ниши) — недооценка длины вслух подрывает доверие сильнее,
+                  чем честная цифра. questionsCount — реальная сумма по всем
+                  выбранным нишам (security.routes.js GET /products). */}
+              {products.audit.questionsCount != null
+                ? `${products.audit.questionsCount} вопрос${pluralSuffix(products.audit.questionsCount)}${profile.niches.length > 1 ? ` на ${profile.niches.length} ниш` : ''}, бесплатно — полная карта нарушений и дорожная карта устранения. ${profile.niches.length > 1 ? 'Общий' : 'Персональный'} PDF-отчёт для печати — по подписке.`
+                : (profile.niches.length > 1
+                    ? `Тест на каждую из ${profile.niches.length} ниш, бесплатно — полная карта нарушений и дорожная карта устранения. Общий PDF-отчёт для печати — по подписке.`
+                    : 'Тест бесплатно — полная карта нарушений и дорожная карта устранения. Персональный PDF-отчёт для печати — по подписке.')}
             </div>
             {isManagement && <Btn onClick={() => onStartAudit()}>Пройти тест безопасности</Btn>}
           </div>
