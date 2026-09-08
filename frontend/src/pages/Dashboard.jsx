@@ -249,7 +249,16 @@ function OwnerDashboard() {
       .then((res) => {
         setSummary(res.data);
         return Promise.all([
-          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }),
+          // 08.09.2026: у новой когорты (core/cohort.js) модуля "Финансы"
+          // физически нет — этот запрос 403-ит. Без собственного .catch он
+          // рушил ВЕСЬ Promise.all, из-за чего company ниже никогда не
+          // проставлялся, isNewCohort(null) считался false по ошибке (не
+          // потому что компания старая, а потому что данных о ней не было),
+          // и вместо урезанной WatchFeedDashboard рендерился старый полный
+          // дашборд с плашкой "Выручка сегодня" — реальный баг, найденный
+          // маркетологом на живом тесте. Свой .catch — 403 остаётся только
+          // проблемой самого показателя выручки, не блокирует остальные.
+          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }).catch(() => ({ data: { revenue: 0 } })),
           api.get('/modules/security/status'),
           api.get('/platform/daily-tasks'),
           api.get('/platform/deadlines'),
@@ -634,7 +643,12 @@ function ManagementDashboard() {
       .then((res) => {
         setSummary(res.data);
         return Promise.all([
-          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }),
+          // 08.09.2026: тот же баг, что был в OwnerDashboard.load() выше —
+          // без своего .catch 403 у новой когорты рушил весь Promise.all,
+          // company не проставлялся, isNewCohort(null) ошибочно давал
+          // false, и вместо WatchFeedDashboard рендерился полный дашборд с
+          // плашкой "Выручка сегодня".
+          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }).catch(() => ({ data: { revenue: 0 } })),
           // Данные аудита безопасности видит только владелец (политика
           // конфиденциальности §8.4) — админу этот эндпоинт отвечает 403,
           // поэтому не запрашиваем его вовсе, если isOwner=false. Объединённый
