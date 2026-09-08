@@ -9,6 +9,7 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { createPayment, getPayment } = require('../core/yookassa');
 const { sendMail } = require('../core/mailer');
+const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { recommend, FUTURE_GROWTH_HINT } = require('../modules/roadmap/content/legalFormAdvisor');
 const { buildRoadmap, NICHE_LABELS, LEGAL_FORM_LABELS } = require('../modules/roadmap/content/buildRoadmap');
 const { renderRoadmapPdf } = require('./roadmapPdf');
@@ -197,6 +198,19 @@ router.post(
         subject: 'Ваш roadmap открытия бизнеса готов — «Безопасный бизнес»',
         html: `<p>Спасибо за покупку! Ваш персональный roadmap для ниши «${NICHE_LABELS[order.niche]}» готов:</p><p><a href="${resultUrl}">${resultUrl}</a></p><p>Ссылка сохранится за вами — не нужен пароль или регистрация.</p>`,
       }).catch((err) => console.error('sendMail (roadmap ready) failed:', err));
+
+      // Push владельцу платформы (08.09.2026, найдено при разборе реального
+      // инцидента: клиент оплатил, а владелец узнал об этом только от самого
+      // клиента) — этот вебхук был единственным платёжным местом в проекте
+      // без push-уведомления (see subscription.routes.js/addons.routes.js/
+      // ai-advisor-subscription.routes.js — везде есть, здесь не было,
+      // пропуск, не осознанное решение). fire-and-forget, не должен
+      // задерживать ответ ЮKassa на вебхук.
+      sendPushToSuperAdmins({
+        title: 'Оплата roadmap',
+        body: `${order.email} — ${ROADMAP_PRICE_RUB} ₽`,
+        url: '/office/roadmap-leads',
+      }).catch((err) => console.error('sendPushToSuperAdmins (roadmap payment) failed:', err));
     } else if (payment.status === 'canceled') {
       await pool.query(`UPDATE roadmap_orders SET status = 'canceled' WHERE id = $1`, [order.id]);
     }
