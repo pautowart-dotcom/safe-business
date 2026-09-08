@@ -64,7 +64,7 @@ router.get(
 router.post(
   '/intake',
   asyncHandler(async (req, res) => {
-    const { email, phone, niche, legalForm, hasEmployees, hasCoOwners, expectedAnnualIncomeRub } = req.body || {};
+    const { email, phone, niche, legalForm, hasEmployees, hasCoOwners, expectedAnnualIncomeRub, isFranchise, franchiseRegisteredTo } = req.body || {};
 
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ error: 'Укажите email' });
@@ -88,7 +88,19 @@ router.post(
       explanation = result.explanation;
     }
 
-    const intakeAnswers = { hasEmployees: !!hasEmployees, hasCoOwners: !!hasCoOwners, expectedAnnualIncomeRub: expectedAnnualIncomeRub ?? null };
+    // isFranchise/franchiseRegisteredTo (08.09.2026) — тот же вопрос, что
+    // добавлен в основную регистрацию (companies.is_franchise), но здесь
+    // человек ещё не открылся и компании в БД нет — некуда положить, кроме
+    // intake_answers (JSONB). franchiseRegisteredTo валидируем мягко (не
+    // 400, просто игнорируем неизвестное значение) — это необязательный
+    // сигнал для будущей персонализации, не блокирующее поле формы.
+    const intakeAnswers = {
+      hasEmployees: !!hasEmployees,
+      hasCoOwners: !!hasCoOwners,
+      expectedAnnualIncomeRub: expectedAnnualIncomeRub ?? null,
+      isFranchise: !!isFranchise,
+      franchiseRegisteredTo: isFranchise && ['self', 'other'].includes(franchiseRegisteredTo) ? franchiseRegisteredTo : null,
+    };
 
     const { rows } = await pool.query(
       `INSERT INTO leads (email, phone, niche, legal_form, legal_form_recommended, intake_answers)

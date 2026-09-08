@@ -130,7 +130,7 @@ router.get(
                 ai_advisor_subscription_price_rub, free_addons,
                 to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test, default_daily_hours,
-                legal_form, region_code
+                legal_form, region_code, is_franchise, franchise_registered_to
          FROM companies WHERE id = $1`,
         [req.tenant.companyId]
       ),

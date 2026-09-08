@@ -84,6 +84,23 @@
     </fieldset>
 
     <fieldset>
+      <legend>Открываетесь по франшизе?</legend>
+      <div class="radio-row" id="franchise-row">
+        <label class="radio-pill"><input type="radio" name="isFranchise" value="no" checked><span>Нет</span></label>
+        <label class="radio-pill"><input type="radio" name="isFranchise" value="yes"><span>Да</span></label>
+      </div>
+      <div class="sub-questions" id="franchise-sub" hidden>
+        <div class="field">
+          <label class="field-label">Точка будет оформлена на</label>
+          <div class="radio-row">
+            <label class="radio-pill"><input type="radio" name="franchiseRegisteredTo" value="self" checked><span>Моё ИП/ООО</span></label>
+            <label class="radio-pill"><input type="radio" name="franchiseRegisteredTo" value="other"><span>Другое лицо</span></label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Форма работы</legend>
       <div class="radio-row" id="legal-form-row">
         <label class="radio-pill"><input type="radio" name="legalForm" value="self_employed"><span>Самозанятый</span></label>
@@ -161,6 +178,17 @@
   legalFormRow.addEventListener('change', updateSubQuestionsVisibility);
   updateSubQuestionsVisibility();
 
+  // Франшиза (08.09.2026) — тот же вопрос, что в основной регистрации ЛК
+  // (companies.is_franchise), здесь без БД-компании — ответ уходит в
+  // leads.intake_answers (см. roadmap.routes.js).
+  var franchiseRow = document.getElementById('franchise-row');
+  var franchiseSub = document.getElementById('franchise-sub');
+  function updateFranchiseVisibility() {
+    franchiseSub.hidden = form.querySelector('input[name=isFranchise]:checked').value !== 'yes';
+  }
+  franchiseRow.addEventListener('change', updateFranchiseVisibility);
+  updateFranchiseVisibility();
+
   function showError(msg) {
     errorBox.textContent = msg;
     errorBox.hidden = false;
@@ -176,6 +204,7 @@
   function currentPayload() {
     var legalForm = form.querySelector('input[name=legalForm]:checked').value || null;
     var income = document.getElementById('income').value;
+    var isFranchise = form.querySelector('input[name=isFranchise]:checked').value === 'yes';
     return {
       email: document.getElementById('email').value.trim(),
       phone: document.getElementById('phone').value.trim() || null,
@@ -184,6 +213,8 @@
       legalForm: legalForm,
       hasCoOwners: form.querySelector('input[name=hasCoOwners]:checked').value === 'yes',
       expectedAnnualIncomeRub: income ? Number(income) : null,
+      isFranchise: isFranchise,
+      franchiseRegisteredTo: isFranchise ? form.querySelector('input[name=franchiseRegisteredTo]:checked').value : null,
     };
   }
 

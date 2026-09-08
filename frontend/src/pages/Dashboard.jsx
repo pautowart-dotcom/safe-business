@@ -7,6 +7,7 @@ import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
 import { FM } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import InstallAppBanner from '../components/InstallAppBanner.jsx';
+import FranchiseNotice from '../components/FranchiseNotice.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
@@ -353,6 +354,8 @@ function OwnerDashboard() {
           {greeting()} · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
       </div>
+
+      <FranchiseNotice company={company} />
 
       {isDesktop && (
         <StatRow

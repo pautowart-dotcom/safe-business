@@ -110,9 +110,18 @@ async function activeMembershipsForUser(userId) {
 router.post(
   '/register',
   asyncHandler(async (req, res) => {
-    const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent } = req.body;
+    const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Заполните имя, email и пароль' });
+    }
+    // Франшиза (08.09.2026) — оба поля необязательные, форма их вообще не
+    // показывает, пока не отмечен чекбокс "Это точка по франшизе" (см.
+    // Login.jsx) — тот же принцип "не барьер", что уже применён к
+    // companyName выше по файлу. franchiseRegisteredTo имеет смысл только
+    // при isFranchise=true, но проверяем строго — иначе в БД мог бы попасть
+    // 'other' у нефраншизной компании.
+    if (franchiseRegisteredTo && !['self', 'other'].includes(franchiseRegisteredTo)) {
+      return res.status(400).json({ error: 'Некорректное значение "на кого оформлена точка"' });
     }
     // Рейт-лимит на регистрацию (26.08.2026, находка security-review) — тот
     // же checkLoginAllowed/recordFailedLogin, что уже стоит на /login,
@@ -173,10 +182,10 @@ router.post(
       // core/cohort.js) — дешевле, тот же принцип, что и цена проверки
       // сайта (990→490₽ для тонкого v1).
       const companyResult = await client.query(
-        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at, ai_advisor_subscription_price_rub)
-         VALUES ($1, $2, $3, $4, now() + interval '30 days', $5)
+        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at, ai_advisor_subscription_price_rub, is_franchise, franchise_registered_to)
+         VALUES ($1, $2, $3, $4, now() + interval '30 days', $5, $6, $7)
          RETURNING id, name`,
-        [companyName, industrySegment || null, niche, user.id, isNewCohortNow() ? 490 : 990]
+        [companyName, industrySegment || null, niche, user.id, isNewCohortNow() ? 490 : 990, !!isFranchise, isFranchise ? (franchiseRegisteredTo || null) : null]
       );
       company = companyResult.rows[0];
 

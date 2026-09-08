@@ -141,6 +141,12 @@ function RegisterForm({ onRegister, onBack }) {
   const [password, setPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [analyticsConsent, setAnalyticsConsent] = useState(false);
+  // Франшиза (08.09.2026, владелец: "у знакомой массаж по франшизе, и это
+  // большая часть точек") — оба поля скрыты по умолчанию, чекбокс раскрывает
+  // радио-выбор. Тот же принцип "не барьер", что уже применён к companyName
+  // выше по файлу — большинству эти поля вообще не должны быть видны.
+  const [isFranchise, setIsFranchise] = useState(false);
+  const [franchiseRegisteredTo, setFranchiseRegisteredTo] = useState('self');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -150,7 +156,7 @@ function RegisterForm({ onRegister, onBack }) {
     setError('');
     setSubmitting(true);
     try {
-      await onRegister({ name, email, password, companyName, niche, acceptedTerms, analyticsConsent });
+      await onRegister({ name, email, password, companyName, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo: isFranchise ? franchiseRegisteredTo : null });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось зарегистрироваться');
     } finally {
@@ -196,6 +202,24 @@ function RegisterForm({ onRegister, onBack }) {
         <Field label="Название компании (необязательно)">
           <TextInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Например: Студия «Ноготок»" />
         </Field>
+
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: isFranchise ? 10 : 16, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
+          <input type="checkbox" checked={isFranchise} onChange={(e) => setIsFranchise(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>Это точка по франшизе</span>
+        </label>
+        {isFranchise && (
+          <Field label="Точка оформлена на">
+            <Select value={franchiseRegisteredTo} onChange={(e) => setFranchiseRegisteredTo(e.target.value)}>
+              <option value="self">Моё ИП/ООО</option>
+              <option value="other">Другое лицо (франчайзер, инвестор, кто-то ещё)</option>
+            </Select>
+            {franchiseRegisteredTo === 'other' && (
+              <div style={{ fontSize: 12, color: C.subtle, marginTop: 6, lineHeight: 1.5 }}>
+                Тогда напоминания в приложении лучше видеть тому, на кого юридически оформлена точка — убедитесь, что этот человек тоже подключён.
+              </div>
+            )}
+          </Field>
+        )}
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
