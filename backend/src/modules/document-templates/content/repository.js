@@ -77,6 +77,47 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/cleaning-basic-marketing-consent'),
     require('./templates/cleaning-basic-privacy-policy'),
   ],
+  // fitness_gym/cafe_basic/universal/dance/yoga добавлены 08.09.2026 —
+  // раньше эти 5 ниш имели рабочий тест и roadmap, но НИ ОДНОГО шаблона
+  // документа (найдено при разборе, почему у fitness_gym, шедшего вчера
+  // "полностью готовой" нишей, ничего нет здесь). Оферта адаптирована под
+  // специфику каждой ниши, три согласия и политика — общий текст, тот же
+  // принцип, что и у остальных 9 ниш выше.
+  fitness_gym: [
+    require('./templates/fitness-gym'),
+    require('./templates/fitness-gym-pd-consent'),
+    require('./templates/fitness-gym-pd-distribution'),
+    require('./templates/fitness-gym-marketing-consent'),
+    require('./templates/fitness-gym-privacy-policy'),
+  ],
+  cafe_basic: [
+    require('./templates/cafe-basic'),
+    require('./templates/cafe-basic-pd-consent'),
+    require('./templates/cafe-basic-pd-distribution'),
+    require('./templates/cafe-basic-marketing-consent'),
+    require('./templates/cafe-basic-privacy-policy'),
+  ],
+  universal: [
+    require('./templates/universal'),
+    require('./templates/universal-pd-consent'),
+    require('./templates/universal-pd-distribution'),
+    require('./templates/universal-marketing-consent'),
+    require('./templates/universal-privacy-policy'),
+  ],
+  dance: [
+    require('./templates/dance'),
+    require('./templates/dance-pd-consent'),
+    require('./templates/dance-pd-distribution'),
+    require('./templates/dance-marketing-consent'),
+    require('./templates/dance-privacy-policy'),
+  ],
+  yoga: [
+    require('./templates/yoga'),
+    require('./templates/yoga-pd-consent'),
+    require('./templates/yoga-pd-distribution'),
+    require('./templates/yoga-marketing-consent'),
+    require('./templates/yoga-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
