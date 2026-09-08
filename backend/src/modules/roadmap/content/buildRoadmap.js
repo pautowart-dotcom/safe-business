@@ -37,6 +37,15 @@ const VIOLATIONS_BY_NICHE = {
   // segments.js, и появление новой ниши в одном месте не значило появление
   // её в другом.
   universal: require('../../security/content/violations/universal'),
+  // dance и yoga (сегмент "Фитнес и активность") добавлены 08.09.2026 —
+  // новый контент (адаптация fitness_gym.js, research law-compliance-monitor
+  // того же дня), см. шапки violations/dance.js и violations/yoga.js. Это
+  // расширяет ТОЛЬКО roadmap: paid-questions/{dance,yoga}.js (контент
+  // бесплатного теста на 34 вопроса) ещё не написан, поэтому в segments.js
+  // paidAudit у обеих ниш сознательно остаётся false — свободный тест и
+  // PDF-отчёт по ним пока недоступны, это отдельная, более крупная задача.
+  dance: require('../../security/content/violations/dance'),
+  yoga: require('../../security/content/violations/yoga'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально
