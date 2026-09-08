@@ -19,6 +19,7 @@ const { signFileUrl } = require('../core/fileStorage');
 const { ADDON_CATALOG } = require('../core/addons');
 const { SAAS_COMPLIANCE } = require('./content/saasCompliance');
 const { NICHE_LABELS: ROADMAP_NICHE_LABELS, LEGAL_FORM_LABELS: ROADMAP_LEGAL_FORM_LABELS } = require('../modules/roadmap/content/buildRoadmap');
+const { getPayment } = require('../core/yookassa');
 
 const router = express.Router();
 
@@ -869,15 +870,26 @@ router.post(
 // migrations/0070_roadmap_leads.sql), поэтому сам список leads — это и есть
 // "кто заходил"; LATERAL берёт последнюю попытку оплаты на лида (checkout
 // можно повторить, если платёж не прошёл с первого раза).
+// Совпадает по духу с publicSiteUrl() в roadmap.routes.js/memberships.routes.js
+// — этот роут отдаётся с того же домена, что и публичный сайт (nginx: /office/
+// на том же business-safe.ru, не отдельный поддомен), поэтому req.host здесь
+// даёт правильную ссылку для клиента, не адрес админки.
+function publicSiteUrl(req) {
+  if (process.env.SITE_URL) return process.env.SITE_URL;
+  const proto = req.get('x-forwarded-proto') || req.protocol;
+  return `${proto}://${req.get('host')}`;
+}
+
 router.get(
   '/roadmap-leads',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT l.id, l.email, l.phone, l.niche, l.legal_form, l.legal_form_recommended, l.created_at,
-              ro.status AS order_status, ro.amount_rub, ro.opened_status, ro.created_at AS order_created_at, ro.confirmed_at
+              ro.id AS order_id, ro.status AS order_status, ro.amount_rub, ro.opened_status,
+              ro.created_at AS order_created_at, ro.confirmed_at, ro.access_token
        FROM leads l
        LEFT JOIN LATERAL (
-         SELECT status, amount_rub, opened_status, created_at, confirmed_at
+         SELECT id, status, amount_rub, opened_status, created_at, confirmed_at, access_token
          FROM roadmap_orders WHERE lead_id = l.id
          ORDER BY created_at DESC LIMIT 1
        ) ro ON true
@@ -895,14 +907,70 @@ router.get(
           legalForm,
           legalFormLabel: legalForm ? ROADMAP_LEGAL_FORM_LABELS[legalForm] || legalForm : null,
           createdAt: r.created_at,
+          orderId: r.order_id,
           orderStatus: r.order_status,
           amountRub: r.amount_rub,
           openedStatus: r.opened_status,
           orderCreatedAt: r.order_created_at,
           confirmedAt: r.confirmed_at,
+          // Ссылка на готовый roadmap — только если заказ реально существует
+          // (access_token выдаётся на checkout, до и без зависимости от
+          // статуса оплаты, см. migrations/0070_roadmap_leads.sql). Отдаём
+          // её всегда, когда есть токен — это то же самое, что уходит в
+          // письме клиенту, просто можно переслать вручную, если письмо не
+          // дошло (25.08 — реальный случай, клиент оплатил, письмо не пришло).
+          resultUrl: r.access_token ? `${publicSiteUrl(req)}/roadmap.html?token=${r.access_token}` : null,
         };
       })
     );
+  })
+);
+
+// Ручная сверка с ЮKassa + повторная отправка письма (08.09.2026, реальный
+// случай: клиент оплатил, деньги дошли, чек прислал — а заказ в нашей базе
+// либо остался 'pending' (вебхук не дошёл/не обработался), либо 'succeeded',
+// но письмо не долетело). Один и тот же роут закрывает оба случая: сверяет
+// платёж напрямую через getPayment (не доверяем локальному статусу),
+// при необходимости помечает заказ succeeded — та же логика, что в
+// POST /webhook — и высылает письмо повторно. Без разбора в коде/SQL —
+// в админке просто одна кнопка.
+router.post(
+  '/roadmap-leads/:orderId/recheck',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT ro.id, ro.status, ro.yookassa_payment_id, ro.access_token, l.email, l.niche
+       FROM roadmap_orders ro JOIN leads l ON l.id = ro.lead_id
+       WHERE ro.id = $1`,
+      [req.params.orderId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Заказ не найден' });
+    const order = rows[0];
+
+    let payment;
+    try {
+      payment = await getPayment(order.yookassa_payment_id);
+    } catch (err) {
+      return res.status(502).json({ error: `Не удалось проверить платёж в ЮKassa: ${err.message || 'ошибка'}` });
+    }
+
+    if (payment.status !== 'succeeded') {
+      return res.status(409).json({
+        error: `ЮKassa говорит, что платёж ещё не оплачен (статус: ${payment.status}). Письмо не отправлено.`,
+      });
+    }
+
+    if (order.status !== 'succeeded') {
+      await pool.query(`UPDATE roadmap_orders SET status = 'succeeded', confirmed_at = now() WHERE id = $1`, [order.id]);
+    }
+
+    const resultUrl = `${publicSiteUrl(req)}/roadmap.html?token=${order.access_token}`;
+    await sendMail({
+      to: order.email,
+      subject: 'Ваш roadmap открытия бизнеса готов — «Безопасный бизнес»',
+      html: `<p>Спасибо за покупку! Ваш персональный roadmap для ниши «${ROADMAP_NICHE_LABELS[order.niche] || order.niche}» готов:</p><p><a href="${resultUrl}">${resultUrl}</a></p><p>Ссылка сохранится за вами — не нужен пароль или регистрация.</p>`,
+    });
+
+    res.json({ ok: true, resultUrl });
   })
 );
 

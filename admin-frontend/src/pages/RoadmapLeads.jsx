@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
-import { Card, Badge, C } from '../ui/components.jsx';
+import { Card, Badge, Btn, C } from '../ui/components.jsx';
 
 const ORDER_STATUS_LABELS = { succeeded: 'Купил', pending: 'Оплата не завершена', canceled: 'Отменил оплату' };
 const ORDER_STATUS_COLORS = { succeeded: C.green, pending: C.orange, canceled: C.subtle };
@@ -16,6 +16,89 @@ function matchesQuery(lead, query) {
   if (!q) return true;
   const haystack = [String(lead.id), lead.email, lead.phone, lead.nicheLabel].filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(q);
+}
+
+// Карточка на конкретный лид: "Проверить оплату и отправить письмо" —
+// закрывает реальный случай (08.09.2026): клиент оплатил, деньги дошли,
+// чек прислал, а письмо со ссылкой не получил (либо вебхук ЮKassa не
+// дошёл до сервера, либо само письмо потерялось). Кнопка сверяет платёж
+// напрямую в ЮKassa и высылает письмо ещё раз — без SQL и терминала.
+function RoadmapLeadCard({ lead }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null); // { ok, resultUrl } | { error }
+  const [copied, setCopied] = useState(false);
+  const status = statusOf(lead);
+  const resultUrl = result?.resultUrl || lead.resultUrl;
+
+  async function recheck() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const { data } = await api.post(`/platform/admin/roadmap-leads/${lead.orderId}/recheck`);
+      setResult({ ok: true, resultUrl: data.resultUrl });
+    } catch (err) {
+      setResult({ error: err.response?.data?.error || 'Не получилось проверить платёж' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(resultUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{lead.email}</div>
+          {lead.phone && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{lead.phone}</div>}
+        </div>
+        <Badge color={ORDER_STATUS_COLORS[status] || C.subtle} bg={ORDER_STATUS_BG[status] || C.surface}>
+          {ORDER_STATUS_LABELS[status] || 'Не начал оплату'}
+        </Badge>
+      </div>
+      <div style={{ fontSize: 12, color: C.secondary, marginTop: 8 }}>
+        {lead.nicheLabel}{lead.legalFormLabel ? ` · ${lead.legalFormLabel}` : ''}
+      </div>
+      <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>
+        Заполнил форму {new Date(lead.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+        {lead.orderStatus === 'succeeded' && lead.confirmedAt && (
+          <> · оплатил {new Date(lead.confirmedAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} ({lead.amountRub?.toLocaleString('ru-RU')} ₽)</>
+        )}
+        {lead.openedStatus === 'already_open' && <> · <span style={{ color: C.green }}>ответил в письме: уже открылся</span></>}
+        {lead.openedStatus === 'not_yet' && <> · ответил в письме: ещё не открылся</>}
+      </div>
+
+      {lead.orderId && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+          <Btn small variant="secondary" onClick={recheck} disabled={busy}>
+            {busy ? 'Проверяем в ЮKassa…' : 'Клиент говорит, что оплатил, но ничего не получил'}
+          </Btn>
+          {result?.error && (
+            <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>{result.error}</div>
+          )}
+          {result?.ok && (
+            <div style={{ fontSize: 12, color: C.green, marginTop: 8 }}>Оплата подтверждена, письмо отправлено ещё раз.</div>
+          )}
+          {resultUrl && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: C.subtle, wordBreak: 'break-all', flex: 1 }}>{resultUrl}</div>
+              <button
+                onClick={copyLink}
+                style={{ background: 'none', border: `1px solid ${C.border}`, color: C.primary, borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                {copied ? 'Скопировано' : 'Скопировать ссылку'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 export default function RoadmapLeads() {
@@ -76,33 +159,7 @@ export default function RoadmapLeads() {
       {visible.length === 0 ? (
         <div style={{ fontSize: 13, color: C.subtle }}>{leads.length === 0 ? 'Пока никто не заполнял форму' : 'Ничего не найдено'}</div>
       ) : (
-        visible.map((l) => {
-          const status = statusOf(l);
-          return (
-            <Card key={l.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{l.email}</div>
-                  {l.phone && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{l.phone}</div>}
-                </div>
-                <Badge color={ORDER_STATUS_COLORS[status] || C.subtle} bg={ORDER_STATUS_BG[status] || C.surface}>
-                  {ORDER_STATUS_LABELS[status] || 'Не начал оплату'}
-                </Badge>
-              </div>
-              <div style={{ fontSize: 12, color: C.secondary, marginTop: 8 }}>
-                {l.nicheLabel}{l.legalFormLabel ? ` · ${l.legalFormLabel}` : ''}
-              </div>
-              <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>
-                Заполнил форму {new Date(l.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                {l.orderStatus === 'succeeded' && l.confirmedAt && (
-                  <> · оплатил {new Date(l.confirmedAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} ({l.amountRub?.toLocaleString('ru-RU')} ₽)</>
-                )}
-                {l.openedStatus === 'already_open' && <> · <span style={{ color: C.green }}>ответил в письме: уже открылся</span></>}
-                {l.openedStatus === 'not_yet' && <> · ответил в письме: ещё не открылся</>}
-              </div>
-            </Card>
-          );
-        })
+        visible.map((l) => <RoadmapLeadCard key={l.id} lead={l} />)
       )}
     </div>
   );
