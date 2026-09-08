@@ -13,6 +13,7 @@ import AiManager from './pages/AiManager.jsx';
 import Compliance from './pages/Compliance.jsx';
 import PatentRates from './pages/PatentRates.jsx';
 import LawChangeCandidates from './pages/LawChangeCandidates.jsx';
+import RoadmapLeads from './pages/RoadmapLeads.jsx';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
         <Route index element={<Overview />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="companies" element={<Companies />} />
+        <Route path="roadmap-leads" element={<RoadmapLeads />} />
         <Route path="ai-manager" element={<AiManager />} />
         <Route path="compliance" element={<Compliance />} />
         <Route path="patent-rates" element={<PatentRates />} />

@@ -8,6 +8,7 @@ const NAV = [
   { to: '/', label: 'Обзор', icon: 'home', end: true },
   { to: '/analytics', label: 'Аналитика', icon: 'finance' },
   { to: '/companies', label: 'Компании', icon: 'team' },
+  { to: '/roadmap-leads', label: 'Роадмап (лиды)', icon: 'doc' },
   { to: '/compliance', label: 'Комплаенс', icon: 'shield' },
   { to: '/patent-rates', label: 'Ставки патента', icon: 'finance' },
   { to: '/law-change-candidates', label: 'Мониторинг закона', icon: 'doc' },

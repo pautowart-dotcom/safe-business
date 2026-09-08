@@ -18,6 +18,7 @@ const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify'
 const { signFileUrl } = require('../core/fileStorage');
 const { ADDON_CATALOG } = require('../core/addons');
 const { SAAS_COMPLIANCE } = require('./content/saasCompliance');
+const { NICHE_LABELS: ROADMAP_NICHE_LABELS, LEGAL_FORM_LABELS: ROADMAP_LEGAL_FORM_LABELS } = require('../modules/roadmap/content/buildRoadmap');
 
 const router = express.Router();
 
@@ -857,6 +858,51 @@ router.post(
       return res.status(502).json({ error: `Push не дошёл (${detail}) — попробуйте отключить и снова включить уведомления` });
     }
     res.json({ ok: true, sent: result.sent, failed: result.failed });
+  })
+);
+
+// Лиды продукта "roadmap открытия бизнеса" (07.09.2026, владелец: "чтобы я
+// видел людей с роадмап, а то не узнаю купил или нет"). Раньше единственный
+// способ узнать о факте покупки было письмо ЮKassa, а сколько людей вообще
+// дошли до интейка (ниша/юрформа), но не оплатили — нигде не было видно.
+// lead пишется на этапе интейка независимо от оплаты (см. комментарий в
+// migrations/0070_roadmap_leads.sql), поэтому сам список leads — это и есть
+// "кто заходил"; LATERAL берёт последнюю попытку оплаты на лида (checkout
+// можно повторить, если платёж не прошёл с первого раза).
+router.get(
+  '/roadmap-leads',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT l.id, l.email, l.phone, l.niche, l.legal_form, l.legal_form_recommended, l.created_at,
+              ro.status AS order_status, ro.amount_rub, ro.opened_status, ro.created_at AS order_created_at, ro.confirmed_at
+       FROM leads l
+       LEFT JOIN LATERAL (
+         SELECT status, amount_rub, opened_status, created_at, confirmed_at
+         FROM roadmap_orders WHERE lead_id = l.id
+         ORDER BY created_at DESC LIMIT 1
+       ) ro ON true
+       ORDER BY l.created_at DESC`
+    );
+    res.json(
+      rows.map((r) => {
+        const legalForm = r.legal_form || r.legal_form_recommended;
+        return {
+          id: r.id,
+          email: r.email,
+          phone: r.phone,
+          niche: r.niche,
+          nicheLabel: ROADMAP_NICHE_LABELS[r.niche] || r.niche,
+          legalForm,
+          legalFormLabel: legalForm ? ROADMAP_LEGAL_FORM_LABELS[legalForm] || legalForm : null,
+          createdAt: r.created_at,
+          orderStatus: r.order_status,
+          amountRub: r.amount_rub,
+          openedStatus: r.opened_status,
+          orderCreatedAt: r.order_created_at,
+          confirmedAt: r.confirmed_at,
+        };
+      })
+    );
   })
 );
 
