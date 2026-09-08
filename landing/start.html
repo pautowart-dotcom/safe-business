@@ -71,14 +71,7 @@
     <fieldset>
       <legend>Ниша</legend>
       <select id="niche" required>
-        <option value="" disabled selected>Выберите нишу</option>
-        <option value="manicure">Маникюр и педикюр</option>
-        <option value="lashes_brows">Ресницы и брови</option>
-        <option value="hair">Волосы (парикмахерские услуги)</option>
-        <option value="massage">Массаж (без медицинской лицензии)</option>
-        <option value="tattoo">Тату, пирсинг и перманентный макияж</option>
-        <option value="depilation">Депиляция (шугаринг, воск, нить)</option>
-        <option value="solarium">Солярий</option>
+        <option value="" disabled selected>Загружаем список ниш…</option>
       </select>
     </fieldset>
 
@@ -140,7 +133,25 @@
   var recommendationBox = document.getElementById('recommendation');
   var submitBtn = document.getElementById('submit-btn');
   var errorBox = document.getElementById('error');
+  var nicheSelect = document.getElementById('niche');
   var leadId = null;
+
+  // Список ниш подтягивается с бэкенда (08.09.2026), а не хранится здесь
+  // отдельным списком — раньше этот <select> был статичным HTML и молча
+  // отставал от реального списка ниш платформы (не было cleaning_basic,
+  // barbershop, cafe_basic, fitness_gym, universal — новые ниши сюда не
+  // попадали, пока кто-то не вспоминал вручную обновить и эту страницу).
+  (async function loadNiches() {
+    try {
+      var res = await fetch('/api/platform/roadmap/niches');
+      var data = await res.json();
+      if (!res.ok || !Array.isArray(data)) throw new Error('bad response');
+      nicheSelect.innerHTML = '<option value="" disabled selected>Выберите нишу</option>'
+        + data.map(function (n) { return '<option value="' + n.key + '">' + n.label + '</option>'; }).join('');
+    } catch (e) {
+      nicheSelect.innerHTML = '<option value="" disabled selected>Не удалось загрузить список — обновите страницу</option>';
+    }
+  })();
 
   function updateSubQuestionsVisibility() {
     var chosen = form.querySelector('input[name=legalForm]:checked').value;

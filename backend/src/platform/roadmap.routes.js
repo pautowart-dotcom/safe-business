@@ -46,6 +46,21 @@ router.use((req, res, next) => {
   res.status(404).json({ error: 'not_launched' });
 });
 
+// Список ниш для формы на /start.html (08.09.2026, владелец: "ниши в
+// роадмапе должны подхватываться из актуальных ниш на платформе") — раньше
+// <select> на start.html был статичным HTML-списком из 7 ниш, вручную
+// вписанным при запуске продукта, и с тех пор ни разу не обновлялся:
+// cleaning_basic, barbershop, cafe_basic, fitness_gym и universal реально
+// доступны в NICHE_LABELS (см. buildRoadmap.js), но человек на живой
+// странице физически не мог их выбрать. Теперь фронт запрашивает список
+// сюда вместо того, чтобы держать свою копию.
+router.get(
+  '/niches',
+  asyncHandler(async (req, res) => {
+    res.json(NICHE_KEYS.map((key) => ({ key, label: NICHE_LABELS[key] })));
+  })
+);
+
 router.post(
   '/intake',
   asyncHandler(async (req, res) => {

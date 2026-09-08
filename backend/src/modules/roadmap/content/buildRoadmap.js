@@ -7,11 +7,17 @@
 //    просто "сделать заранее" вместо "устранить нарушение" — единый
 //    источник фактов, без дублирования цифр в отдельном roadmap-контенте.
 const { registrationItems } = require('./registrationSteps');
+const { SEGMENTS } = require('../../security/content/segments');
 
-// cleaning_basic и barbershop добавлены 19.08.2026 — cleaning_basic сюда не
-// попал при своём добавлении (пропуск, не осознанное решение): чек-лист
-// открытия бизнеса для этой ниши почти неделю показывал только шаги
-// регистрации юрформы, без пунктов из матрицы нарушений.
+// 08.09.2026 (владелец: "ниши в роадмапе должны подхватываться из актуальных
+// ниш на платформе") — раньше список ниш здесь дублировался вручную и минимум
+// дважды отставал от реальности (cleaning_basic и barbershop добавлены
+// 19.08.2026 с опозданием, "пропуск, не осознанное решение" — см. историю
+// правок этого файла и аналогичный комментарий в admin.routes.js/analytics).
+// Сам список и подписи ниш теперь читаются из segments.js — единственного
+// источника правды о нишах платформы (см. его шапку). Здесь остаётся только
+// то, что физически не может жить в segments.js: путь до файла с контентом
+// нарушений для каждой ниши.
 const VIOLATIONS_BY_NICHE = {
   manicure: require('../../security/content/violations/manicure'),
   lashes_brows: require('../../security/content/violations/lashes-brows'),
@@ -24,21 +30,27 @@ const VIOLATIONS_BY_NICHE = {
   barbershop: require('../../security/content/violations/barbershop'),
   cafe_basic: require('../../security/content/violations/cafe-basic'),
   fitness_gym: require('../../security/content/violations/fitness-gym'),
+  // universal (сегменты "Розничная торговля" и "Другое") добавлен 08.09.2026
+  // вместе с этим рефакторингом — контент (violations/universal.js) готов и
+  // используется в тесте безопасности с 30.08.2026, но в roadmap ни разу не
+  // попадал: раньше список ниш здесь просто не пересекался со списком
+  // segments.js, и появление новой ниши в одном месте не значило появление
+  // её в другом.
+  universal: require('../../security/content/violations/universal'),
 };
 
-const NICHE_LABELS = {
-  manicure: 'Маникюр и педикюр',
-  lashes_brows: 'Ресницы и брови',
-  hair: 'Волосы (парикмахерские услуги)',
-  massage: 'Массаж (без медицинской лицензии)',
-  tattoo: 'Тату, пирсинг и перманентный макияж',
-  depilation: 'Депиляция (шугаринг, воск, нить)',
-  solarium: 'Солярий',
-  cleaning_basic: 'Уборка помещений (жильё и офисы)',
-  barbershop: 'Барбершоп',
-  cafe_basic: 'Кафе, кофейня, столовая (без алкоголя)',
-  fitness_gym: 'Фитнес-студия / тренажёрный зал',
-};
+// Подпись берём из segments.js, включаем нишу только если для неё реально
+// есть контент нарушений выше — иначе в тесте безопасности ниша уже видна
+// (paidAudit может быть true), а материала для отдельного платного roadmap
+// ещё нет, и buildStages() ниже упадёт на VIOLATIONS_BY_NICHE[niche]
+// undefined. dance/yoga (segments.js, paidAudit:false) сюда пока не
+// попадают ровно поэтому — не потому что забыли, а потому что для них
+// действительно нет контента.
+const NICHE_LABELS = Object.fromEntries(
+  SEGMENTS.flatMap((s) => s.niches)
+    .filter((n) => VIOLATIONS_BY_NICHE[n.key])
+    .map((n) => [n.key, n.label])
+);
 
 const LEGAL_FORM_LABELS = {
   self_employed: 'Самозанятый (НПД)',
