@@ -37,10 +37,15 @@ const SEGMENTS = [
     key: 'fitness',
     label: 'Фитнес и активность',
     hasNicheStep: true,
+    // dance/yoga переключены на paidAudit: true 08.09.2026 — контент
+    // (violations/paid-questions/pdf/mandatory-documents/pdf/attention-zones)
+    // построен адаптацией fitness_gym.js по итогам research
+    // law-compliance-monitor того же дня, см. шапку violations/dance.js и
+    // violations/yoga.js про источники и что требует проверки юристом.
     niches: [
       { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал', paidAudit: true },
-      { key: 'dance', label: 'Танцы', paidAudit: false },
-      { key: 'yoga', label: 'Йога / растяжка', paidAudit: false },
+      { key: 'dance', label: 'Танцы', paidAudit: true },
+      { key: 'yoga', label: 'Йога / растяжка', paidAudit: true },
     ],
   },
   {

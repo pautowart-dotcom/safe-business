@@ -684,10 +684,15 @@ router.get(
     // компании. cleaning_basic и barbershop добавлены 19.08.2026 — раньше
     // cleaning_basic сюда не попал при своём добавлении (пропуск, не
     // осознанное решение), нарушения этой ниши не подписывались деталями
-    // в этом дашборде почти неделю.
-    // fitness_gym добавлен 07.09.2026 сразу вместе с контентом ниши — тот же
-    // список, тот же урок, что и с cleaning_basic (см. комментарий выше).
-    const NICHES_WITH_CONTENT = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'cleaning_basic', 'barbershop', 'cafe_basic', 'fitness_gym', 'universal'];
+    // в этом дашборде почти неделю. Тот же урок повторился с fitness_gym
+    // (07.09.2026). 08.09.2026 — список ниш здесь переведён на
+    // securityRepository.getNichesWithViolationContent() вместо очередного
+    // хардкода (тот же приём, что уже применён в buildRoadmap.js для
+    // NICHE_LABELS) — новая ниша с контентом попадает сюда автоматически.
+    // НЕ то же самое, что paidAudit в segments.js — тот флаг про готовность
+    // публичного теста, а не про наличие контента для этого внутреннего
+    // дашборда (у cafe_basic контент уже есть, а paidAudit ещё false).
+    const NICHES_WITH_CONTENT = securityRepository.getNichesWithViolationContent();
     const matricesByNiche = {};
     for (const niche of NICHES_WITH_CONTENT) {
       matricesByNiche[niche] = await securityRepository.getViolationMatrix(niche);

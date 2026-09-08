@@ -26,6 +26,8 @@ const PAID_QUESTIONS_BY_NICHE = {
   cafe_basic: require('./paid-questions/cafe-basic'),
   fitness_gym: require('./paid-questions/fitness-gym'),
   universal: require('./paid-questions/universal'),
+  dance: require('./paid-questions/dance'),
+  yoga: require('./paid-questions/yoga'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -41,6 +43,8 @@ const VIOLATIONS_BY_NICHE = {
   cafe_basic: require('./violations/cafe-basic'),
   fitness_gym: require('./violations/fitness-gym'),
   universal: require('./violations/universal'),
+  dance: require('./violations/dance'),
+  yoga: require('./violations/yoga'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -56,6 +60,8 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   cafe_basic: require('./pdf/mandatory-documents/cafe-basic'),
   fitness_gym: require('./pdf/mandatory-documents/fitness-gym'),
   universal: require('./pdf/mandatory-documents/universal'),
+  dance: require('./pdf/mandatory-documents/dance'),
+  yoga: require('./pdf/mandatory-documents/yoga'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -71,6 +77,8 @@ const ATTENTION_ZONES_BY_NICHE = {
   cafe_basic: require('./pdf/attention-zones/cafe-basic'),
   fitness_gym: require('./pdf/attention-zones/fitness-gym'),
   universal: require('./pdf/attention-zones/universal'),
+  dance: require('./pdf/attention-zones/dance'),
+  yoga: require('./pdf/attention-zones/yoga'),
 };
 
 async function getSegments() {
@@ -106,6 +114,17 @@ async function getViolation(niche, code) {
   return matrix.find((v) => v.code === code) || null;
 }
 
+// Ключи ниш, у которых реально есть контент матрицы нарушений — НЕ то же
+// самое, что paidAudit в segments.js (тот флаг про готовность бесплатного
+// теста для клиентов; матрица нарушений может быть готова раньше и
+// использоваться, например, внутренней аналитикой в админке, как cafe_basic
+// до включения её теста, см. admin.routes.js /analytics). 08.09.2026 —
+// добавлено вместо очередного хардкода списка ниш в вызывающем коде (тот же
+// урок, что и с NICHE_LABELS в buildRoadmap.js).
+function getNichesWithViolationContent() {
+  return Object.keys(VIOLATIONS_BY_NICHE);
+}
+
 async function getMandatoryDocuments(niche) {
   const content = MANDATORY_DOCUMENTS_BY_NICHE[niche];
   return content ? content.sections : null;
@@ -133,6 +152,7 @@ module.exports = {
   getFeedbackOptions,
   getViolationMatrix,
   getViolation,
+  getNichesWithViolationContent,
   getMandatoryDocuments,
   getAttentionZones,
   getInspectionGuides,
