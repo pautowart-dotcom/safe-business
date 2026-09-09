@@ -31,7 +31,10 @@ export default function Users() {
     return api.get('/platform/memberships').then((res) => setMembers(res.data)).finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  // 09.09.2026 — не useEffect(load, []) напрямую, см. комментарий в
+  // Checklists.jsx: load() возвращает Promise, React принял бы его за
+  // функцию очистки и упал бы при размонтировании.
+  useEffect(() => { load(); }, []);
   usePullToRefresh(load);
 
   async function handleInvite() {

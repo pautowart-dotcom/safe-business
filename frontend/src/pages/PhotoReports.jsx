@@ -31,7 +31,13 @@ export default function PhotoReports() {
     return api.get('/modules/visits', { params }).then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 
-  useEffect(load, [masterFilter]);
+  // 09.09.2026 — не useEffect(load, [masterFilter]) напрямую: раз load()
+  // теперь возвращает Promise (см. комментарий у load() выше), React
+  // принял бы этот Promise за функцию очистки эффекта и падал бы при
+  // каждой смене мастера/размонтировании — "r is not a function... instance
+  // of Promise", реальный краш на проде (лог краша владельца, /photo-reports).
+  // Обёртка отбрасывает возвращаемое значение, эффекту достаётся undefined.
+  useEffect(() => { load(); }, [masterFilter]);
   usePullToRefresh(load);
 
   useEffect(() => {

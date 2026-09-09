@@ -33,7 +33,13 @@ export default function Checklists() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  // 09.09.2026 — не useEffect(load, []) напрямую: раз load() теперь
+  // возвращает Promise (см. комментарий у load() выше), React принял бы
+  // этот Promise за функцию очистки эффекта и упал бы при размонтировании
+  // ("r is not a function... instance of Promise" — реальный краш на
+  // проде в PhotoReports.jsx с тем же паттерном). Обёртка отбрасывает
+  // возвращаемое значение, оставляя эффекту undefined.
+  useEffect(() => { load(); }, []);
   usePullToRefresh(load);
 
   function marksForItem(itemId) {
