@@ -566,7 +566,21 @@ export default function AnonymousAudit() {
     // единственная публичная, вне Layout (см. комментарий в начале файла),
     // без своего скролл-контейнера она наследовала overflow:hidden от body
     // и была прокручиваемой только на первый экран, дальше — тупик.
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F, height: '100vh', overflowY: 'auto' }}>
+    //
+    // overscrollBehaviorY:'contain' + WebkitOverflowScrolling:'touch' +
+    // paddingBottom с запасом (09.09.2026, тот же класс бага, что уже
+    // чинили в AuthShell/Login.jsx 06.09.2026 — этот файл там прямо назван
+    // в комментарии как ещё не тронутый) — на iOS кнопка "Начать тест"
+    // сидела вплотную к границе скролл-контейнера, "резиновый" отскок
+    // (bounce-back) при долистывании до упора съедал тап по кнопке: палец
+    // убирался ещё во время пружинящей анимации возврата. contain глушит
+    // часть отскока, буфер снизу отодвигает кнопку от самой границы, чтобы
+    // к моменту тапа анимация уже закончилась.
+    <div style={{
+      maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F, height: '100vh',
+      overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch',
+      paddingBottom: 'max(64px, env(safe-area-inset-bottom, 0px) + 40px)',
+    }}>
       {paymentDone && <DoneStep />}
       {!paymentDone && step === 'intro' && (
         <IntroStep

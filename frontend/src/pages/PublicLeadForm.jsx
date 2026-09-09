@@ -62,7 +62,15 @@ export default function PublicLeadForm() {
     // paddingTop вместо центрирования — короткая форма всё ещё выглядит
     // прилично, а длинная (ошибка валидации, мобильная клавиатура) не
     // становится недоступной.
-    <div style={{ height: '100vh', overflowY: 'auto', display: 'flex', justifyContent: 'center', background: C.bg, padding: '40px 20px', fontFamily: F }}>
+    // overscrollBehaviorY/WebkitOverflowScrolling + paddingBottom с запасом
+    // (09.09.2026, тот же класс бага, что чинили в AuthShell/
+    // AnonymousAudit.jsx 06-09.09.2026) — кнопка "Отправить заявку" сидит
+    // вплотную к концу формы, тот же риск "резиновый отскок съедает тап".
+    <div style={{
+      height: '100vh', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch',
+      display: 'flex', justifyContent: 'center', background: C.bg, fontFamily: F,
+      padding: '40px 20px', paddingBottom: 'max(64px, env(safe-area-inset-bottom, 0px) + 40px)',
+    }}>
       <Card style={{ maxWidth: 420, width: '100%' }}>
         {sent ? (
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
