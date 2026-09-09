@@ -46,15 +46,15 @@ export default function Supplies() {
   const [searchParams] = useSearchParams();
 
   function load() {
-    api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
+    return api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
   }
 
   function loadCategories() {
-    api.get('/modules/supplies/categories').then((res) => setCategories(res.data));
+    return api.get('/modules/supplies/categories').then((res) => setCategories(res.data));
   }
 
   function loadPackages() {
-    api.get('/modules/supplies/packages').then((res) => setPackages(res.data));
+    return api.get('/modules/supplies/packages').then((res) => setPackages(res.data));
   }
 
   useEffect(() => {

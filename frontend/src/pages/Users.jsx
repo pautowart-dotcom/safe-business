@@ -28,7 +28,7 @@ export default function Users() {
   const [docForm, setDocForm] = useState(null);
 
   function load() {
-    api.get('/platform/memberships').then((res) => setMembers(res.data)).finally(() => setLoading(false));
+    return api.get('/platform/memberships').then((res) => setMembers(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, []);

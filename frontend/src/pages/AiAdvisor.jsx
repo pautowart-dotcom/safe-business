@@ -407,8 +407,8 @@ function ComplianceAiAdvisor({ company }) {
   const [noticesError, setNoticesError] = useState('');
 
   function loadNotices() {
-    if (!company?.hasAiAccess) return;
-    api
+    if (!company?.hasAiAccess) return Promise.resolve();
+    return api
       .get('/platform/ai-advisor-subscription/law-notices')
       .then((res) => setNotices(res.data))
       .catch((err) => setNoticesError(err.response?.data?.error || 'Не удалось загрузить расшифровки'));

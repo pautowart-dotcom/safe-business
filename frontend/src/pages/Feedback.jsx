@@ -12,7 +12,7 @@ export default function Feedback() {
 
   function load() {
     setLoading(true);
-    api.get('/modules/feedback').then((res) => setMessages(res.data)).finally(() => setLoading(false));
+    return api.get('/modules/feedback').then((res) => setMessages(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, []);

@@ -23,7 +23,12 @@ export default function PhotoReports() {
     setLoading(true);
     const params = { hasPhotos: true };
     if (masterFilter) params.masterMembershipId = masterFilter;
-    api.get('/modules/visits', { params }).then((res) => setVisits(res.data)).finally(() => setLoading(false));
+    // 09.09.2026 — не хватало return: usePullToRefresh(load) по контракту
+    // (см. комментарий в PullToRefreshContext.jsx) ждёт Promise от load(),
+    // чтобы знать, когда убрать индикатор обновления; без return он получал
+    // undefined и считал загрузку завершённой мгновенно, пока реальный
+    // запрос ещё шёл — обновление по свайпу вниз пряталось раньше времени.
+    return api.get('/modules/visits', { params }).then((res) => setVisits(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, [masterFilter]);

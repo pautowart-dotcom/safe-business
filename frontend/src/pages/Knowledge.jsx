@@ -20,7 +20,7 @@ export default function Knowledge() {
   const [renamingSectionId, setRenamingSectionId] = useState(null);
 
   function load() {
-    api.get('/modules/knowledge/sections').then((res) => setSections(res.data)).finally(() => setLoading(false));
+    return api.get('/modules/knowledge/sections').then((res) => setSections(res.data)).finally(() => setLoading(false));
   }
 
   useEffect(load, []);

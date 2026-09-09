@@ -25,7 +25,7 @@ export default function Checklists() {
   const today = localDateStr();
 
   function load() {
-    Promise.all([api.get('/modules/checklists/templates'), api.get('/modules/checklists/marks', { params: { date: today } })])
+    return Promise.all([api.get('/modules/checklists/templates'), api.get('/modules/checklists/marks', { params: { date: today } })])
       .then(([tpl, m]) => {
         setTemplates(tpl.data);
         setMarks(m.data);

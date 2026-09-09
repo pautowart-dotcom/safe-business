@@ -27,7 +27,7 @@ export default function Subscription() {
   const [togglingAi, setTogglingAi] = useState(false);
 
   function load() {
-    api.get('/platform/companies/current').then((res) => setCompany(res.data));
+    return api.get('/platform/companies/current').then((res) => setCompany(res.data));
   }
 
   useEffect(() => {
