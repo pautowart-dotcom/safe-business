@@ -32,6 +32,10 @@ async function loadReportInputs(companyId, profile) {
 
   const sectionsPerNiche = await Promise.all(status.testedNiches.map((n) => repository.getMandatoryDocuments(n)));
   const zonesPerNiche = await Promise.all(status.testedNiches.map((n) => repository.getAttentionZones(n)));
+  // commonAttentionZones — не привязаны к нише (см. content/pdf/attention-zones/common.js),
+  // добавляются в тот же merge, что и нишевые зоны, независимо от того,
+  // какие ниши тестировала компания.
+  zonesPerNiche.push(repository.getCommonAttentionZones());
 
   return {
     status,

@@ -12,6 +12,7 @@
 
 const { SEGMENTS, findSegment, findNiche } = require('./segments');
 const inspectionGuides = require('./inspectionGuides');
+const commonAttentionZones = require('./pdf/attention-zones/common');
 
 const PAID_QUESTIONS_BY_NICHE = {
   manicure: require('./paid-questions/manicure'),
@@ -143,6 +144,13 @@ async function getAttentionZones(niche) {
   return content ? content.zones : null;
 }
 
+// Зоны внимания, не привязанные ни к одной нише — см. content/pdf/
+// attention-zones/common.js. Не async (в отличие от остального контента
+// здесь) — тот же список для всех, не зависит от niche-параметра.
+function getCommonAttentionZones() {
+  return commonAttentionZones.zones;
+}
+
 // Не зависит от ниши (в отличие от остального контента здесь) — права и
 // порядок действий при проверке одинаковы для любой ниши, см. комментарий
 // в inspectionGuides.js. labor_inspection фильтруется по hasEmployees
@@ -163,5 +171,6 @@ module.exports = {
   getNichesWithViolationContent,
   getMandatoryDocuments,
   getAttentionZones,
+  getCommonAttentionZones,
   getInspectionGuides,
 };

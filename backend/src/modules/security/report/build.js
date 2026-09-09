@@ -130,6 +130,11 @@ async function buildReport({ niches, profile, score, maxScore, indexPercent, zon
   const recommendations = buildRecommendations({ violations: sortedViolations, zone, forecast });
 
   const filteredMandatoryDocuments = (mandatoryDocuments || []).filter((section) => !section.employerOnly || hasEmployees);
+  // employerOnly на зонах внимания (09.09.2026) — раньше такого поля не
+  // было вообще, зоны шли в отчёт без фильтра (см. commonAttentionZones в
+  // content/pdf/attention-zones/common.js — первая зона, которой это
+  // реально нужно).
+  const filteredAttentionZones = (attentionZones || []).filter((zone) => !zone.employerOnly || hasEmployees);
 
   const criticalCount = sortedViolations.filter((v) => v.risk >= 9).length;
   const worstViolation = sortedViolations[0] || null;
@@ -162,7 +167,7 @@ async function buildReport({ niches, profile, score, maxScore, indexPercent, zon
     vulnerabilityMap: sortedViolations,
     roadmap,
     mandatoryDocuments: filteredMandatoryDocuments,
-    attentionZones: attentionZones || [],
+    attentionZones: filteredAttentionZones,
     recommendations,
     authorities: AUTHORITIES,
     nextSteps: NEXT_STEPS,
