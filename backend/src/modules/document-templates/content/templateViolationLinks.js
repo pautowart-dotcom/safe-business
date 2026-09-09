@@ -26,6 +26,25 @@
 // law-compliance-monitor) 152-ФЗ-контент, один и тот же паттерн скопирован
 // при наполнении контента по нишам. Генерируем связки циклом, а не 27
 // руками — меньше риск опечатки в коде, который итак идентичен построчно.
+// 08-09.09.2026 — расширение на 5 ниш, получивших шаблоны документов позже
+// пилота (fitness_gym/cafe_basic/universal/dance/yoga, см.
+// document-templates/content/templates/*). Коды нарушений НЕ везде совпадают
+// с первыми 9 нишами — проверено по каждой нише отдельно в
+// security/content/violations/*.js, не скопировано вслепую:
+// - fitness_gym (FT), dance (DN), yoga (YG) — коды 402/403/404/405/406
+//   идентичны исходному паттерну (используют те же ofertaViolation()/
+//   marketingConsentViolation() хелперы из sharedViolationBlocks.js) —
+//   попадают в общий цикл ниже как есть.
+// - cafe_basic (FD) — блок ПДн заканчивается на FD-404, оферты и
+//   рекламной рассылки как отдельных нарушений в violations/cafe-basic.js
+//   НЕТ (не использует ofertaViolation/marketingConsentViolation) —
+//   попадает в цикл PD_DOCS ниже, но исключена из OFERTA_NICHES и из
+//   цикла рекламной рассылки.
+// - universal (UNI) — вообще другая нумерация (блок ПДн — UNI-2xx, не
+//   UNI-4xx: UNI-202 политика, UNI-203 согласие) и нет ни фото-согласия,
+//   ни оферты, ни рекламной рассылки как отдельных проверенных нарушений
+//   — не подходит под цикл PD_DOCS вовсе, добавлена вручную отдельным
+//   блоком в самом низу файла.
 const NICHE_PREFIX = {
   manicure: 'MN',
   lashes_brows: 'LB',
@@ -36,6 +55,10 @@ const NICHE_PREFIX = {
   solarium: 'SL',
   cleaning_basic: 'CL',
   barbershop: 'BB',
+  fitness_gym: 'FT',
+  dance: 'DN',
+  yoga: 'YG',
+  cafe_basic: 'FD',
 };
 
 const PD_DOCS = [
@@ -67,7 +90,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
 // названа в перечне постановления явно, применимость менее очевидна,
 // требует отдельной проверки, не копируем не глядя.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({
@@ -86,8 +109,14 @@ for (const niche of OFERTA_NICHES) {
 // оферты выше), поэтому добавлена во ВСЕ 9 ниш, включая cleaning_basic.
 // Суффикс кода отличается только потому, что у cleaning_basic нет записи
 // -405 (оферта) — это просто следующий свободный номер в её матрице.
+// cafe_basic (08-09.09.2026) — единственная из NICHE_PREFIX, у которой в
+// violations/cafe-basic.js нет отдельного нарушения "реклама без согласия"
+// (блок ПДн заканчивается на FD-404) — включать её в цикл значило бы
+// сослаться на несуществующий код FD-406/FD-405.
 const MARKETING_CODE_SUFFIX = { cleaning_basic: '405' };
+const NO_MARKETING_VIOLATION = ['cafe_basic'];
 for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
+  if (NO_MARKETING_VIOLATION.includes(niche)) continue;
   const suffix = MARKETING_CODE_SUFFIX[niche] || '406';
   LINKS[niche].push({
     violationCode: `${prefix}-${suffix}`,
@@ -97,6 +126,27 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
     hasAnswerIndex: 0,
   });
 }
+
+// universal (08-09.09.2026) — не подходит под цикл PD_DOCS выше (другая
+// нумерация, нет фото-согласия/оферты/рекламной рассылки как отдельных
+// проверенных нарушений в violations/universal.js, см. комментарий у
+// NICHE_PREFIX). Только два пункта, которые реально существуют.
+LINKS.universal = [
+  {
+    violationCode: 'UNI-202',
+    templateKey: 'universal_privacy_policy',
+    templateTitle: 'Политика конфиденциальности',
+    questionCode: 'UNI-202',
+    hasAnswerIndex: 0,
+  },
+  {
+    violationCode: 'UNI-203',
+    templateKey: 'universal_pd_consent',
+    templateTitle: 'Согласие на обработку персональных данных',
+    questionCode: 'UNI-203',
+    hasAnswerIndex: 0,
+  },
+];
 
 function forTemplate(niche, templateKey) {
   return (LINKS[niche] || []).find((l) => l.templateKey === templateKey) || null;
