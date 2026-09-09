@@ -32,7 +32,9 @@ export default function LegalDocument() {
     // "резиновый отскок съедает тап" баг, что чинили в AuthShell/
     // AnonymousAudit.jsx; здесь тап не критичен (нет кнопки внизу, только
     // "Назад" вверху), но добавлено для единообразия того же класса бага.
-    <div style={{ maxWidth: 640, margin: '0 auto', height: '100vh', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', background: C.bg, fontFamily: F, padding: '24px 20px 60px' }}>
+    // className="dvh-scroll" вместо height:'100vh' — отдельный 100vh/100dvh
+    // баг (панель Safari), см. комментарий у .dvh-scroll в styles.css.
+    <div className="dvh-scroll" style={{ maxWidth: 640, margin: '0 auto', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', background: C.bg, fontFamily: F, padding: '24px 20px 60px' }}>
       <button
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
         style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 14, marginBottom: 20, padding: 0 }}

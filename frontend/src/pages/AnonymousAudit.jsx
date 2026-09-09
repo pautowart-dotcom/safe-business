@@ -576,8 +576,15 @@ export default function AnonymousAudit() {
     // убирался ещё во время пружинящей анимации возврата. contain глушит
     // часть отскока, буфер снизу отодвигает кнопку от самой границы, чтобы
     // к моменту тапа анимация уже закончилась.
-    <div style={{
-      maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F, height: '100vh',
+    //
+    // className="dvh-scroll" вместо height:'100vh' инлайном (09.09.2026,
+    // живая жалоба владельца со скриншота — "Завершить тест" уходила под
+    // панель Safari) — тот же баг, что уже чинили для .layout-viewport
+    // (16.08.2026) и .auth-shell (06.09.2026): 100vh считается БЕЗ учёта
+    // скрывающейся панели браузера, sticky-кнопка внизу контейнера
+    // оказывалась ниже реально видимой области. См. styles.css .dvh-scroll.
+    <div className="dvh-scroll" style={{
+      maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F,
       overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch',
       paddingBottom: 'max(64px, env(safe-area-inset-bottom, 0px) + 40px)',
     }}>

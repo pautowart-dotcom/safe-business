@@ -110,6 +110,18 @@ p { margin: 0 0 0.5rem; color: var(--text-muted); }
   height: 100dvh;
 }
 
+/* 09.09.2026 — тот же 100vh/100dvh баг (см. комментарий у .layout-viewport
+   выше), найденный ещё раз на публичных страницах вне Layout.jsx/AuthShell:
+   AnonymousAudit.jsx (жалоба владельца — кнопка "Завершить тест" уходила
+   под панель Safari), LegalDocument.jsx, PublicLeadForm.jsx,
+   YandexCardAudit.jsx. Эти 4 страницы держат свой height:100vh инлайн-
+   стилем (не через .layout-viewport/.auth-shell), поэтому нужен отдельный
+   класс с тем же самым откатным приёмом. */
+.dvh-scroll {
+  height: 100vh;
+  height: 100dvh;
+}
+
 .sidebar {
   width: 240px;
   background: #1a1330;

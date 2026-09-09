@@ -66,8 +66,10 @@ export default function PublicLeadForm() {
     // (09.09.2026, тот же класс бага, что чинили в AuthShell/
     // AnonymousAudit.jsx 06-09.09.2026) — кнопка "Отправить заявку" сидит
     // вплотную к концу формы, тот же риск "резиновый отскок съедает тап".
-    <div style={{
-      height: '100vh', overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch',
+    // className="dvh-scroll" вместо height:'100vh' — отдельный 100vh/100dvh
+    // баг (панель Safari), см. комментарий у .dvh-scroll в styles.css.
+    <div className="dvh-scroll" style={{
+      overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch',
       display: 'flex', justifyContent: 'center', background: C.bg, fontFamily: F,
       padding: '40px 20px', paddingBottom: 'max(64px, env(safe-area-inset-bottom, 0px) + 40px)',
     }}>

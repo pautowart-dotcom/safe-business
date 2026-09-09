@@ -101,7 +101,13 @@ export default function YandexCardAudit() {
   }
 
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F, height: '100vh', overflowY: 'auto' }}>
+    // className="dvh-scroll" вместо height:'100vh' инлайном (09.09.2026,
+    // тот же 100vh/100dvh баг, что дал живую жалобу владельца на
+    // AnonymousAudit.jsx — панель Safari перекрывала кнопку внизу; тот же
+    // паттерн контейнера, тот же риск здесь). См. styles.css .dvh-scroll и
+    // overscrollBehaviorY/WebkitOverflowScrolling — тот же класс бага, что
+    // чинили в AuthShell/AnonymousAudit.jsx для "резинового" отскока.
+    <div className="dvh-scroll" style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: F, overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}>
       {!result && <IntroForm url={url} setUrl={setUrl} onCheck={check} checking={checking} error={error} />}
       {result && <ResultView fields={result.fields} findings={result.findings} onReset={reset} />}
     </div>
