@@ -43,6 +43,7 @@ const SEGMENTS = [
       { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал' },
       { key: 'dance', label: 'Танцы' },
       { key: 'yoga', label: 'Йога / растяжка' },
+      { key: 'pilates', label: 'Пилатес' },
     ],
   },
   {

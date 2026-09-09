@@ -118,6 +118,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/yoga-marketing-consent'),
     require('./templates/yoga-privacy-policy'),
   ],
+  // pilates добавлен 09.09.2026 вместе с остальным контентом ниши (violations/
+  // paid-questions/pdf) — см. комментарий в шапке violations/pilates.js.
+  pilates: [
+    require('./templates/pilates'),
+    require('./templates/pilates-pd-consent'),
+    require('./templates/pilates-pd-distribution'),
+    require('./templates/pilates-marketing-consent'),
+    require('./templates/pilates-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

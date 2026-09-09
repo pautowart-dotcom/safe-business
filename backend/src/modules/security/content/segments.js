@@ -42,10 +42,16 @@ const SEGMENTS = [
     // построен адаптацией fitness_gym.js по итогам research
     // law-compliance-monitor того же дня, см. шапку violations/dance.js и
     // violations/yoga.js про источники и что требует проверки юристом.
+    // pilates добавлен 09.09.2026 — та же санитарная база (раздел VI СП
+    // 2.1.3678-20), что и у dance/yoga, повторного чтения документа не
+    // потребовалось; блок 3 (оборудование) адаптирован отдельно под
+    // реформер/кадиллак (не скопирован ни с fitness_gym, ни с yoga буквально
+    // — см. шапку violations/pilates.js).
     niches: [
       { key: 'fitness_gym', label: 'Фитнес-студия / тренажёрный зал', paidAudit: true },
       { key: 'dance', label: 'Танцы', paidAudit: true },
       { key: 'yoga', label: 'Йога / растяжка', paidAudit: true },
+      { key: 'pilates', label: 'Пилатес', paidAudit: true },
     ],
   },
   {

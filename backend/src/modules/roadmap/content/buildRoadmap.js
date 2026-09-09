@@ -46,6 +46,10 @@ const VIOLATIONS_BY_NICHE = {
   // PDF-отчёт по ним пока недоступны, это отдельная, более крупная задача.
   dance: require('../../security/content/violations/dance'),
   yoga: require('../../security/content/violations/yoga'),
+  // pilates (09.09.2026, сегмент "Фитнес и активность") — контент готов
+  // сразу для теста и roadmap (в отличие от dance/yoga на момент их
+  // добавления выше), paidAudit: true в segments.js с самого начала.
+  pilates: require('../../security/content/violations/pilates'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально

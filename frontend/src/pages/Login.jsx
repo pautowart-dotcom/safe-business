@@ -7,8 +7,13 @@ import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 // Группировка NICHE_OPTIONS по сегменту для <optgroup> — только для
 // отображения на форме регистрации, сам список остаётся плоским везде,
 // где сегмент не нужен (ui/nicheOptions.js).
+// 'fitness' добавлен 09.09.2026 — до этого момента fitness_gym/dance/yoga
+// (в NICHE_OPTIONS с 09.09.2026, см. комментарий там) были бы невидимы в
+// этом списке групп, даже добавленные в плоский список: без своей группы
+// элементы с segment='fitness' просто не проходят фильтр ни в одной строке.
 const NICHE_GROUPS = [
   ['beauty', 'Красота и здоровье'],
+  ['fitness', 'Фитнес и активность'],
   ['cleaning', 'Клининг'],
   ['other', 'Другое'],
 ].map(([segmentKey, segmentLabel]) => [

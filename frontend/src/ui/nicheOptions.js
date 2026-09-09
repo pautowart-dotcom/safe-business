@@ -16,6 +16,16 @@ export const NICHE_OPTIONS = [
   ['solarium', 'Солярий', 'beauty'],
   ['barbershop', 'Барбершоп', 'beauty'],
   ['cleaning_basic', 'Уборка помещений (жильё и офисы)', 'cleaning'],
+  // fitness_gym/dance/yoga (paidAudit: true с 07-08.09.2026) и pilates
+  // (09.09.2026) отсутствовали здесь до 09.09.2026 — найдено при добавлении
+  // pilates: с 08.09.2026 их физически нельзя было выбрать ни в анонимном
+  // тесте (AnonymousAudit.jsx), ни при регистрации (Login.jsx), хотя тест и
+  // roadmap для них уже были live. Тот же класс бага, что чинили в
+  // start.html (см. project_roadmap_niche_sync_2026_09_08 в памяти).
+  ['fitness_gym', 'Фитнес-студия / тренажёрный зал', 'fitness'],
+  ['dance', 'Танцы', 'fitness'],
+  ['yoga', 'Йога / растяжка', 'fitness'],
+  ['pilates', 'Пилатес', 'fitness'],
   // Фаза C (30.08.2026) — общий слой для бизнеса без отраслевой ниши
   // (сегменты 'retail'/'other' в backend/.../segments.js используют один и
   // тот же ключ 'universal'). Сегмент здесь — 'other', просто дефолт для
