@@ -27,7 +27,10 @@ const REPRINT_RELATED_TYPE = 'generated_journal_reprint';
 // REPRINT_RELATED_TYPE/BUSINESS_STATUS_PREFIX. Сама инструкция не
 // дублируется — просто ведём в "Мои сроки", где она уже отрисована рядом
 // с полем даты (InstructionBlock в MyDeadlines.jsx).
-const MANUAL_KEYS_WITH_INSTRUCTION = ['esign'];
+const MANUAL_KEYS_WITH_INSTRUCTION = [
+  'esign', 'briefing_repeat', 'lease_end', 'fire_extinguisher', 'fire_alarm_service',
+  'electrical_resistance', 'disinfection_contract', 'medwaste_contract', 'mswaste_contract',
+];
 
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 // 'journals' убрана 05.08.2026 — раздел заморожен, сервер эту категорию

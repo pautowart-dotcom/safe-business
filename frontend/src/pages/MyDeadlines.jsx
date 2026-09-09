@@ -37,12 +37,17 @@ function fmtMoney(v) {
 // 09.09.2026 — первая инструкция в каталоге сроков (см. catalogItem.instruction
 // в deadlineSlotsCatalog.js). Ветвление "не истёк"/"истёк" — по due_date
 // самого слота: если дата в прошлом, заявление старой подписью уже не
-// подпишешь, это другая процедура, не тот же текст короче.
+// подпишешь, это другая процедура, не тот же текст короче. У пунктов без
+// такого ветвления (огнетушители, ТБО и т.п.) — один сценарий "always",
+// он не зависит от даты.
 function InstructionBlock({ instruction, dueDate }) {
   const [open, setOpen] = useState(false);
   if (!instruction) return null;
-  const isExpired = dueDate && new Date(dueDate) < new Date(new Date().toDateString());
-  const scenario = isExpired ? instruction.expired : instruction.notExpired;
+  let scenario = instruction.always;
+  if (!scenario) {
+    const isExpired = dueDate && new Date(dueDate) < new Date(new Date().toDateString());
+    scenario = isExpired ? instruction.expired : instruction.notExpired;
+  }
   if (!scenario) return null;
   return (
     <div style={{ marginTop: -6, marginBottom: 14 }}>
