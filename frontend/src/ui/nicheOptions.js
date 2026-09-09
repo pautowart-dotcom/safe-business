@@ -26,6 +26,7 @@ export const NICHE_OPTIONS = [
   ['dance', 'Танцы', 'fitness'],
   ['yoga', 'Йога / растяжка', 'fitness'],
   ['pilates', 'Пилатес', 'fitness'],
+  ['martial_arts', 'Бокс и единоборства', 'fitness'],
   // Фаза C (30.08.2026) — общий слой для бизнеса без отраслевой ниши
   // (сегменты 'retail'/'other' в backend/.../segments.js используют один и
   // тот же ключ 'universal'). Сегмент здесь — 'other', просто дефолт для

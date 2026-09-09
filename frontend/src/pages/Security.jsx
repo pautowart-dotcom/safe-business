@@ -44,6 +44,7 @@ const SEGMENTS = [
       { key: 'dance', label: 'Танцы' },
       { key: 'yoga', label: 'Йога / растяжка' },
       { key: 'pilates', label: 'Пилатес' },
+      { key: 'martial_arts', label: 'Бокс и единоборства' },
     ],
   },
   {

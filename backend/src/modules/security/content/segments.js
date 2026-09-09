@@ -52,6 +52,11 @@ const SEGMENTS = [
       { key: 'dance', label: 'Танцы', paidAudit: true },
       { key: 'yoga', label: 'Йога / растяжка', paidAudit: true },
       { key: 'pilates', label: 'Пилатес', paidAudit: true },
+      // martial_arts (09.09.2026) — та же санитарная база, что у остальных
+      // ниш сегмента; "кроссфит" сознательно не выделен отдельно, см.
+      // шапку violations/martial-arts.js — по составу риска не отличается
+      // от fitness_gym.
+      { key: 'martial_arts', label: 'Бокс и единоборства', paidAudit: true },
     ],
   },
   {

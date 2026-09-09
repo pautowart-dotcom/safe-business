@@ -127,6 +127,13 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/pilates-marketing-consent'),
     require('./templates/pilates-privacy-policy'),
   ],
+  martial_arts: [
+    require('./templates/martial-arts'),
+    require('./templates/martial-arts-pd-consent'),
+    require('./templates/martial-arts-pd-distribution'),
+    require('./templates/martial-arts-marketing-consent'),
+    require('./templates/martial-arts-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

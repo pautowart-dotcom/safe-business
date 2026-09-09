@@ -50,6 +50,7 @@ const VIOLATIONS_BY_NICHE = {
   // сразу для теста и roadmap (в отличие от dance/yoga на момент их
   // добавления выше), paidAudit: true в segments.js с самого начала.
   pilates: require('../../security/content/violations/pilates'),
+  martial_arts: require('../../security/content/violations/martial-arts'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально
