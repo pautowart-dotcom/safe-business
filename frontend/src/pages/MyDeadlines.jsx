@@ -34,6 +34,40 @@ function fmtMoney(v) {
   return `${Number(v || 0).toLocaleString('ru-RU')} ₽`;
 }
 
+// 09.09.2026 — первая инструкция в каталоге сроков (см. catalogItem.instruction
+// в deadlineSlotsCatalog.js). Ветвление "не истёк"/"истёк" — по due_date
+// самого слота: если дата в прошлом, заявление старой подписью уже не
+// подпишешь, это другая процедура, не тот же текст короче.
+function InstructionBlock({ instruction, dueDate }) {
+  const [open, setOpen] = useState(false);
+  if (!instruction) return null;
+  const isExpired = dueDate && new Date(dueDate) < new Date(new Date().toDateString());
+  const scenario = isExpired ? instruction.expired : instruction.notExpired;
+  if (!scenario) return null;
+  return (
+    <div style={{ marginTop: -6, marginBottom: 14 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 12.5 }}
+      >
+        {open ? 'Скрыть инструкцию' : 'Как продлить?'}
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{scenario.title}</div>
+          <ol style={{ margin: 0, paddingLeft: 18 }}>
+            {scenario.steps.map((s, i) => (
+              <li key={i} style={{ fontSize: 12.5, color: C.secondary, marginBottom: 4, lineHeight: 1.5 }}>{s}</li>
+            ))}
+          </ol>
+          {scenario.note && <div style={{ fontSize: 11.5, color: C.subtle, marginTop: 6 }}>{scenario.note}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Баг №8: у "Договор аренды — дата окончания" не было способа быстро
 // прикинуть дату по стандартному сроку — 11 месяцев самый частый вариант
 // в РФ (договор на 12+ месяцев подлежит обязательной регистрации, поэтому
@@ -96,6 +130,7 @@ function SlotCard({ slot, onSave, saving, aiDateDetectionAvailable }) {
       <Field label="Дата">
         <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
       </Field>
+      <InstructionBlock instruction={slot.instruction} dueDate={dueDate} />
       {slot.key === 'lease_end' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -6, marginBottom: 14 }}>
           {LEASE_TERM_PRESETS.map(([label, months]) => (

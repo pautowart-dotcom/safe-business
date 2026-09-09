@@ -20,6 +20,15 @@ const BUSINESS_STATUS_PREFIX = 'business_status:';
 // заводит новый бланк (Этап 3 повторно) и скачивает его.
 const REPRINT_RELATED_TYPE = 'generated_journal_reprint';
 
+// 09.09.2026 — пункты каталога "Мои сроки" (core/deadlineSlotsCatalog.js),
+// у которых есть инструкция "как продлить/оформить". Список сознательно
+// маленький и дублируется вручную здесь (не импортируем backend-каталог во
+// фронтенд) — тот же приём, что уже используется в этом файле для
+// REPRINT_RELATED_TYPE/BUSINESS_STATUS_PREFIX. Сама инструкция не
+// дублируется — просто ведём в "Мои сроки", где она уже отрисована рядом
+// с полем даты (InstructionBlock в MyDeadlines.jsx).
+const MANUAL_KEYS_WITH_INSTRUCTION = ['esign'];
+
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 // 'journals' убрана 05.08.2026 — раздел заморожен, сервер эту категорию
 // теперь всегда отдаёт пустой (deadlines.routes.js), фильтр был бы мёртвым.
@@ -141,6 +150,8 @@ export default function Deadlines() {
             : null;
           const isBusinessStatusUnknown = businessStatusKey === 'legal_form_unknown';
           const isBusinessStatusTransition = businessStatusKey && !isBusinessStatusUnknown;
+          const manualKey = item.related_entity_type?.startsWith('manual:') ? item.related_entity_type.slice('manual:'.length) : null;
+          const hasManualInstruction = manualKey && MANUAL_KEYS_WITH_INSTRUCTION.includes(manualKey);
           // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
           // точной даты нет ("не пройден тест", "кончаются расходники") —
           // без due_date, поэтому считать дни/показывать дату для них нельзя.
@@ -212,6 +223,11 @@ export default function Deadlines() {
               {isManagement && isSecurityViolation && (
                 <Btn small variant="secondary" onClick={() => navigate('/security')}>
                   Открыть
+                </Btn>
+              )}
+              {isManagement && hasManualInstruction && (
+                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })}>
+                  Как продлить
                 </Btn>
               )}
               {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && (
