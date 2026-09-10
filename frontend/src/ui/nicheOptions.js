@@ -31,6 +31,7 @@ export const NICHE_OPTIONS = [
   ['atelier', 'Ателье (пошив и ремонт одежды)', 'household'],
   ['shoe_repair', 'Ремонт обуви', 'household'],
   ['photo_studio', 'Фотостудия', 'household'],
+  ['dry_cleaning', 'Химчистка', 'household'],
   // cafe_basic (paidAudit: true с 10.09.2026) отсутствовал здесь, пока
   // paidAudit было false — тот же класс бага, что с fitness_gym/dance/yoga
   // 09.09.2026 (см. project_pilates_niche_2026_09_09 в памяти).

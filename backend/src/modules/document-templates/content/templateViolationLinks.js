@@ -76,6 +76,8 @@ const NICHE_PREFIX = {
   // плюс отдельный PH-407 (согласие на детскую съёмку) вне общего цикла —
   // связан вручную ниже, см. комментарий у PHOTO_STUDIO_MINOR_CONSENT.
   photo_studio: 'PH',
+  // dry_cleaning (10.09.2026) — та же нумерация 402-406, тот же паттерн.
+  dry_cleaning: 'DC',
 };
 
 const PD_DOCS = [
@@ -107,7 +109,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
 // названа в перечне постановления явно, применимость менее очевидна,
 // требует отдельной проверки, не копируем не глядя.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({

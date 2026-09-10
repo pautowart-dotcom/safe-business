@@ -85,6 +85,7 @@ const SEGMENTS = [
       { key: 'atelier', label: 'Ателье (пошив и ремонт одежды)', paidAudit: true },
       { key: 'shoe_repair', label: 'Ремонт обуви', paidAudit: true },
       { key: 'photo_studio', label: 'Фотостудия', paidAudit: true },
+      { key: 'dry_cleaning', label: 'Химчистка', paidAudit: true },
     ],
   },
   {

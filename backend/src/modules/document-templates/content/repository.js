@@ -166,6 +166,16 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/photo-studio-privacy-policy'),
     require('./templates/photo-studio-minor-consent'),
   ],
+  // dry_cleaning добавлен 10.09.2026 вместе с остальным контентом ниши
+  // (четвёртый заход в сегменте "Бытовые услуги") — см. комментарий в шапке
+  // violations/dry-cleaning.js.
+  dry_cleaning: [
+    require('./templates/dry-cleaning'),
+    require('./templates/dry-cleaning-pd-consent'),
+    require('./templates/dry-cleaning-pd-distribution'),
+    require('./templates/dry-cleaning-marketing-consent'),
+    require('./templates/dry-cleaning-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
