@@ -72,6 +72,10 @@ const NICHE_PREFIX = {
   atelier: 'ATL',
   // shoe_repair (10.09.2026) — та же нумерация 402-406, тот же паттерн.
   shoe_repair: 'SR',
+  // photo_studio (10.09.2026) — та же нумерация 402-406 для блока ПДн,
+  // плюс отдельный PH-407 (согласие на детскую съёмку) вне общего цикла —
+  // связан вручную ниже, см. комментарий у PHOTO_STUDIO_MINOR_CONSENT.
+  photo_studio: 'PH',
 };
 
 const PD_DOCS = [
@@ -103,7 +107,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
 // названа в перечне постановления явно, применимость менее очевидна,
 // требует отдельной проверки, не копируем не глядя.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({
@@ -139,6 +143,18 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
     hasAnswerIndex: 0,
   });
 }
+
+// photo_studio (10.09.2026) — PH-407 (согласие на детскую съёмку) вне
+// общего цикла PD_DOCS/OFERTA_NICHES/маркетинга выше — единственный пункт
+// проекта, привязанный к специально написанному под нишу шаблону
+// (photo_studio_minor_consent), а не к одному из 5 стандартных документов.
+LINKS.photo_studio.push({
+  violationCode: 'PH-407',
+  templateKey: 'photo_studio_minor_consent',
+  templateTitle: 'Согласие законного представителя на съёмку ребёнка',
+  questionCode: 'PH-407',
+  hasAnswerIndex: 0,
+});
 
 // universal (08-09.09.2026) — не подходит под цикл PD_DOCS выше (другая
 // нумерация, нет фото-согласия/оферты/рекламной рассылки как отдельных

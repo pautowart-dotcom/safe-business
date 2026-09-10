@@ -55,6 +55,7 @@ const VIOLATIONS_BY_NICHE = {
   // сразу для теста и roadmap, paidAudit: true в segments.js с самого начала.
   atelier: require('../../security/content/violations/atelier'),
   shoe_repair: require('../../security/content/violations/shoe-repair'),
+  photo_studio: require('../../security/content/violations/photo-studio'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально

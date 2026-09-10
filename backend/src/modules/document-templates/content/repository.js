@@ -154,6 +154,18 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/shoe-repair-marketing-consent'),
     require('./templates/shoe-repair-privacy-policy'),
   ],
+  // photo_studio добавлен 10.09.2026 вместе с остальным контентом ниши
+  // (третий заход в сегменте "Бытовые услуги") — 6-й шаблон
+  // (photo-studio-minor-consent) специфичен именно для этой ниши, см.
+  // комментарий в шапке violations/photo-studio.js.
+  photo_studio: [
+    require('./templates/photo-studio'),
+    require('./templates/photo-studio-pd-consent'),
+    require('./templates/photo-studio-pd-distribution'),
+    require('./templates/photo-studio-marketing-consent'),
+    require('./templates/photo-studio-privacy-policy'),
+    require('./templates/photo-studio-minor-consent'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
