@@ -27,8 +27,9 @@ export const NICHE_OPTIONS = [
   ['yoga', 'Йога / растяжка', 'fitness'],
   ['pilates', 'Пилатес', 'fitness'],
   ['martial_arts', 'Бокс и единоборства', 'fitness'],
-  // atelier (10.09.2026) — первая ниша нового сегмента "Бытовые услуги".
+  // atelier/shoe_repair (10.09.2026) — сегмент "Бытовые услуги".
   ['atelier', 'Ателье (пошив и ремонт одежды)', 'household'],
+  ['shoe_repair', 'Ремонт обуви', 'household'],
   // Фаза C (30.08.2026) — общий слой для бизнеса без отраслевой ниши
   // (сегменты 'retail'/'other' в backend/.../segments.js используют один и
   // тот же ключ 'universal'). Сегмент здесь — 'other', просто дефолт для

@@ -57,6 +57,7 @@ const SEGMENTS = [
     key: 'household', label: 'Бытовые услуги',
     niches: [
       { key: 'atelier', label: 'Ателье (пошив и ремонт одежды)' },
+      { key: 'shoe_repair', label: 'Ремонт обуви' },
     ],
   },
   {

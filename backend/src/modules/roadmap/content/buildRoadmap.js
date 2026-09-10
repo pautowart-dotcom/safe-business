@@ -54,6 +54,7 @@ const VIOLATIONS_BY_NICHE = {
   // atelier (10.09.2026, новый сегмент "Бытовые услуги") — контент готов
   // сразу для теста и roadmap, paidAudit: true в segments.js с самого начала.
   atelier: require('../../security/content/violations/atelier'),
+  shoe_repair: require('../../security/content/violations/shoe-repair'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально

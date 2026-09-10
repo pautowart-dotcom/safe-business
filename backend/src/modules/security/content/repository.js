@@ -32,6 +32,7 @@ const PAID_QUESTIONS_BY_NICHE = {
   pilates: require('./paid-questions/pilates'),
   martial_arts: require('./paid-questions/martial-arts'),
   atelier: require('./paid-questions/atelier'),
+  shoe_repair: require('./paid-questions/shoe-repair'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -52,6 +53,7 @@ const VIOLATIONS_BY_NICHE = {
   pilates: require('./violations/pilates'),
   martial_arts: require('./violations/martial-arts'),
   atelier: require('./violations/atelier'),
+  shoe_repair: require('./violations/shoe-repair'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -72,6 +74,7 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   pilates: require('./pdf/mandatory-documents/pilates'),
   martial_arts: require('./pdf/mandatory-documents/martial-arts'),
   atelier: require('./pdf/mandatory-documents/atelier'),
+  shoe_repair: require('./pdf/mandatory-documents/shoe-repair'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -92,6 +95,7 @@ const ATTENTION_ZONES_BY_NICHE = {
   pilates: require('./pdf/attention-zones/pilates'),
   martial_arts: require('./pdf/attention-zones/martial-arts'),
   atelier: require('./pdf/attention-zones/atelier'),
+  shoe_repair: require('./pdf/attention-zones/shoe-repair'),
 };
 
 async function getSegments() {

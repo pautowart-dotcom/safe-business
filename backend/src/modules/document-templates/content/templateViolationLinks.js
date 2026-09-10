@@ -70,6 +70,8 @@ const NICHE_PREFIX = {
   // 402-406, тот же паттерн (использует ofertaViolation/
   // marketingConsentViolation с суффиксом '406', см. violations/atelier.js).
   atelier: 'ATL',
+  // shoe_repair (10.09.2026) — та же нумерация 402-406, тот же паттерн.
+  shoe_repair: 'SR',
 };
 
 const PD_DOCS = [
@@ -101,7 +103,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
 // названа в перечне постановления явно, применимость менее очевидна,
 // требует отдельной проверки, не копируем не глядя.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({

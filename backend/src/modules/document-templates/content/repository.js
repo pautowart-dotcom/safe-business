@@ -144,6 +144,16 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/atelier-marketing-consent'),
     require('./templates/atelier-privacy-policy'),
   ],
+  // shoe_repair добавлен 10.09.2026 вместе с остальным контентом ниши
+  // (второй заход в сегменте "Бытовые услуги") — см. комментарий в шапке
+  // violations/shoe-repair.js.
+  shoe_repair: [
+    require('./templates/shoe-repair'),
+    require('./templates/shoe-repair-pd-consent'),
+    require('./templates/shoe-repair-pd-distribution'),
+    require('./templates/shoe-repair-marketing-consent'),
+    require('./templates/shoe-repair-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
