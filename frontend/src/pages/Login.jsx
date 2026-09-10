@@ -15,6 +15,7 @@ const NICHE_GROUPS = [
   ['beauty', 'Красота и здоровье'],
   ['fitness', 'Фитнес и активность'],
   ['cleaning', 'Клининг'],
+  ['household', 'Бытовые услуги'],
   ['other', 'Другое'],
 ].map(([segmentKey, segmentLabel]) => [
   segmentLabel,

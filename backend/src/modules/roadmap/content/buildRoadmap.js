@@ -51,6 +51,9 @@ const VIOLATIONS_BY_NICHE = {
   // добавления выше), paidAudit: true в segments.js с самого начала.
   pilates: require('../../security/content/violations/pilates'),
   martial_arts: require('../../security/content/violations/martial-arts'),
+  // atelier (10.09.2026, новый сегмент "Бытовые услуги") — контент готов
+  // сразу для теста и roadmap, paidAudit: true в segments.js с самого начала.
+  atelier: require('../../security/content/violations/atelier'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально

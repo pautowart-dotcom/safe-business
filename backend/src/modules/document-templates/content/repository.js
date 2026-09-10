@@ -134,6 +134,16 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/martial-arts-marketing-consent'),
     require('./templates/martial-arts-privacy-policy'),
   ],
+  // atelier добавлен 10.09.2026 вместе с остальным контентом ниши (первая
+  // ниша сегмента "Бытовые услуги") — см. комментарий в шапке
+  // violations/atelier.js.
+  atelier: [
+    require('./templates/atelier'),
+    require('./templates/atelier-pd-consent'),
+    require('./templates/atelier-pd-distribution'),
+    require('./templates/atelier-marketing-consent'),
+    require('./templates/atelier-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

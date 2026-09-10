@@ -54,6 +54,12 @@ const SEGMENTS = [
     ],
   },
   {
+    key: 'household', label: 'Бытовые услуги',
+    niches: [
+      { key: 'atelier', label: 'Ателье (пошив и ремонт одежды)' },
+    ],
+  },
+  {
     key: 'retail', label: 'Розничная торговля',
     niches: [{ key: 'universal', label: 'Общие требования (без отраслевой специфики)' }],
   },
