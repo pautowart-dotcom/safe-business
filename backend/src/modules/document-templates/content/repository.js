@@ -176,6 +176,16 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/dry-cleaning-marketing-consent'),
     require('./templates/dry-cleaning-privacy-policy'),
   ],
+  // pet_grooming добавлен 12.09.2026 вместе с остальным контентом ниши
+  // (первая ниша нового сегмента "Услуги для животных") — см. комментарий в
+  // шапке violations/pet-grooming.js.
+  pet_grooming: [
+    require('./templates/pet-grooming'),
+    require('./templates/pet-grooming-pd-consent'),
+    require('./templates/pet-grooming-pd-distribution'),
+    require('./templates/pet-grooming-marketing-consent'),
+    require('./templates/pet-grooming-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

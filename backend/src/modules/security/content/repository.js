@@ -35,6 +35,7 @@ const PAID_QUESTIONS_BY_NICHE = {
   shoe_repair: require('./paid-questions/shoe-repair'),
   photo_studio: require('./paid-questions/photo-studio'),
   dry_cleaning: require('./paid-questions/dry-cleaning'),
+  pet_grooming: require('./paid-questions/pet-grooming'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -58,6 +59,7 @@ const VIOLATIONS_BY_NICHE = {
   shoe_repair: require('./violations/shoe-repair'),
   photo_studio: require('./violations/photo-studio'),
   dry_cleaning: require('./violations/dry-cleaning'),
+  pet_grooming: require('./violations/pet-grooming'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -81,6 +83,7 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   shoe_repair: require('./pdf/mandatory-documents/shoe-repair'),
   photo_studio: require('./pdf/mandatory-documents/photo-studio'),
   dry_cleaning: require('./pdf/mandatory-documents/dry-cleaning'),
+  pet_grooming: require('./pdf/mandatory-documents/pet-grooming'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -104,6 +107,7 @@ const ATTENTION_ZONES_BY_NICHE = {
   shoe_repair: require('./pdf/attention-zones/shoe-repair'),
   photo_studio: require('./pdf/attention-zones/photo-studio'),
   dry_cleaning: require('./pdf/attention-zones/dry-cleaning'),
+  pet_grooming: require('./pdf/attention-zones/pet-grooming'),
 };
 
 async function getSegments() {
