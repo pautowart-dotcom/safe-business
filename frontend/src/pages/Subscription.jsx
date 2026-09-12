@@ -134,6 +134,13 @@ export default function Subscription() {
       {searchParams.get('payment') === 'done' && company?.subscription_status === 'trial' && (
         <div className="alert" style={{ marginBottom: 16 }}>
           Оплата обрабатывается — обычно это занимает несколько секунд. Обновите страницу, если статус ещё не изменился.
+          {/* 12.09.2026, прямой запрос владельца: способ связаться, если
+              что-то пошло не так после оплаты (письмо не пришло и т.п.). */}
+          <div style={{ marginTop: 8 }}>
+            Если статус не меняется дольше пары минут — напишите в{' '}
+            <a href="https://t.me/safe_business_ru" target="_blank" rel="noreferrer">Телеграм</a> или{' '}
+            <a href="https://wa.me/message/6KDRP3KLEXT3I1" target="_blank" rel="noreferrer">WhatsApp</a>, разберёмся.
+          </div>
         </div>
       )}
       {error && <div className="alert alert-error">{error}</div>}

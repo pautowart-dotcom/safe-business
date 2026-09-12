@@ -388,6 +388,13 @@ function DoneStep() {
         указанную почту (отчёт по тесту или проверка сайта — смотря что оплачивали) — проверьте папку "Спам",
         если письмо не появится в течение 10 минут.
       </div>
+      {/* 12.09.2026, прямой запрос владельца: способ связаться, если после
+          оплаты письмо всё равно не пришло. */}
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+        Если письма нет дольше 10 минут — напишите в{' '}
+        <a href="https://t.me/safe_business_ru" target="_blank" rel="noreferrer">Телеграм</a> или{' '}
+        <a href="https://wa.me/message/6KDRP3KLEXT3I1" target="_blank" rel="noreferrer">WhatsApp</a>, разберёмся.
+      </div>
     </Card>
   );
 }

@@ -197,6 +197,7 @@ router.post(
         to: order.email,
         subject: 'Ваш roadmap открытия бизнеса готов — «Безопасный бизнес»',
         html: `<p>Спасибо за покупку! Ваш персональный roadmap для ниши «${NICHE_LABELS[order.niche]}» готов:</p><p><a href="${resultUrl}">${resultUrl}</a></p><p>Ссылка сохранится за вами — не нужен пароль или регистрация.</p>`,
+        meta: { purpose: 'roadmap_purchase', refTable: 'roadmap_orders', refId: order.id },
       }).catch((err) => console.error('sendMail (roadmap ready) failed:', err));
 
       // Push владельцу платформы (08.09.2026, найдено при разборе реального

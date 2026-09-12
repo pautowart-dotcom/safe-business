@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Btn, C } from '../ui/components.jsx';
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
@@ -6,9 +7,15 @@ import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscri
 const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
 const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
 
-function StatTile({ label, value, hint }) {
+// onNavigate (12.09.2026, прямой запрос владельца: "чтобы при нажатии на
+// каждый из разделов я мог переходить в этот раздел") — карточки на
+// Обзоре были чисто читаемым снапшотом (Card и так поддерживает onClick,
+// просто StatTile его не прокидывал, см. коммит-сообщение). Курсор ставим
+// вручную (Card сама по себе его не добавляет) — тот же приём, что уже
+// есть в Companies.jsx для кликабельных карточек компаний.
+function StatTile({ label, value, hint, onNavigate }) {
   return (
-    <Card style={{ marginBottom: 0 }}>
+    <Card style={{ marginBottom: 0, cursor: onNavigate ? 'pointer' : 'default' }} onClick={onNavigate}>
       <div style={{ fontSize: 28, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>{label}</div>
       {hint && <div style={{ fontSize: 11, color: C.subtle, marginTop: 2 }}>{hint}</div>}
@@ -127,6 +134,7 @@ function NotificationsCard() {
 }
 
 export default function Overview() {
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState('');
 
@@ -144,31 +152,34 @@ export default function Overview() {
       <NotificationsCard />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-        <StatTile label="Компаний всего" value={metrics.totalCompanies} />
-        <StatTile label="Новых за 7 дней" value={metrics.newLast7Days} hint={`${metrics.newLast30Days} за 30 дней`} />
-        <StatTile label="Активны за 7 дней" value={metrics.activeLast7Days} hint="хотя бы одно действие в системе" />
-        <StatTile label="Оценка MRR" value={`${metrics.estimatedMrrRub.toLocaleString('ru-RU')} ₽`} hint="оплаченные × текущая цена, не факт из платёжки" />
+        <StatTile label="Компаний всего" value={metrics.totalCompanies} onNavigate={() => navigate('/companies')} />
+        <StatTile label="Новых за 7 дней" value={metrics.newLast7Days} hint={`${metrics.newLast30Days} за 30 дней`} onNavigate={() => navigate('/companies')} />
+        <StatTile label="Активны за 7 дней" value={metrics.activeLast7Days} hint="хотя бы одно действие в системе" onNavigate={() => navigate('/companies')} />
+        <StatTile label="Оценка MRR" value={`${metrics.estimatedMrrRub.toLocaleString('ru-RU')} ₽`} hint="оплаченные × текущая цена, не факт из платёжки" onNavigate={() => navigate('/finance')} />
         <StatTile
           label="Конверсия в оплату"
           value={metrics.trialToPaidConversionPercent === null ? '—' : `${metrics.trialToPaidConversionPercent}%`}
           hint="среди тех, у кого триал уже закончился"
+          onNavigate={() => navigate('/finance')}
         />
-        <StatTile label="Обращений в поддержку" value={metrics.supportRequestsTotal} hint={`${metrics.supportRequestsLast7Days} за 7 дней`} />
-        <StatTile label="Визитов лендинга" value={metrics.landingVisitsLast7Days} hint={`${metrics.landingVisitsLast30Days} за 30 дней`} />
+        <StatTile label="Обращений в поддержку" value={metrics.supportRequestsTotal} hint={`${metrics.supportRequestsLast7Days} за 7 дней`} onNavigate={() => navigate('/support')} />
+        <StatTile label="Визитов лендинга" value={metrics.landingVisitsLast7Days} hint={`${metrics.landingVisitsLast30Days} за 30 дней`} onNavigate={() => navigate('/analytics')} />
         <StatTile
           label="Конверсия визит → регистрация"
           value={metrics.landingToSignupConversionPercent === null ? '—' : `${metrics.landingToSignupConversionPercent}%`}
           hint="грубо, за 30 дней: визиты и регистрации не связаны напрямую"
+          onNavigate={() => navigate('/analytics')}
         />
-        <StatTile label="Подписчиков ИИ-ассистента" value={metrics.aiAssistantSubscribers} hint={`${metrics.aiAssistantMessagesLast7Days} сообщений за 7 дней`} />
+        <StatTile label="Подписчиков ИИ-ассистента" value={metrics.aiAssistantSubscribers} hint={`${metrics.aiAssistantMessagesLast7Days} сообщений за 7 дней`} onNavigate={() => navigate('/ai-manager')} />
         <StatTile
           label="Сообщений на подписчика/мес"
           value={metrics.aiAssistantAvgMessagesPerSubscriberLast30Days === null ? '—' : metrics.aiAssistantAvgMessagesPerSubscriberLast30Days}
           hint={`${metrics.aiAssistantMessagesLast30Days} всего за 30 дней — для решения по цене`}
+          onNavigate={() => navigate('/ai-manager')}
         />
       </div>
 
-      <Card>
+      <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/companies')}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Регистрации компаний за 14 дней</div>
         {metrics.signupsByDay.length === 0 ? (
           <div style={{ fontSize: 13, color: C.subtle }}>Пока нет регистраций в этом окне</div>
@@ -177,7 +188,7 @@ export default function Overview() {
         )}
       </Card>
 
-      <Card>
+      <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/analytics')}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Визиты лендинга за 14 дней</div>
         {metrics.landingVisitsByDay.length === 0 ? (
           <div style={{ fontSize: 13, color: C.subtle }}>Пока нет визитов в этом окне</div>
@@ -186,7 +197,7 @@ export default function Overview() {
         )}
       </Card>
 
-      <Card>
+      <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/companies')}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>По статусу подписки</div>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
           {Object.entries(metrics.byStatus).map(([key, count]) => (

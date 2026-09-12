@@ -14,6 +14,7 @@ import Compliance from './pages/Compliance.jsx';
 import PatentRates from './pages/PatentRates.jsx';
 import LawChangeCandidates from './pages/LawChangeCandidates.jsx';
 import RoadmapLeads from './pages/RoadmapLeads.jsx';
+import Finance from './pages/Finance.jsx';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -35,6 +36,7 @@ export default function App() {
         }
       >
         <Route index element={<Overview />} />
+        <Route path="finance" element={<Finance />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="companies" element={<Companies />} />
         <Route path="roadmap-leads" element={<RoadmapLeads />} />

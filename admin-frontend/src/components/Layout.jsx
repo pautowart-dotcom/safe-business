@@ -6,6 +6,7 @@ import { C, F } from '../ui/theme.js';
 
 const NAV = [
   { to: '/', label: 'Обзор', icon: 'home', end: true },
+  { to: '/finance', label: 'Финансы', icon: 'finance' },
   { to: '/analytics', label: 'Аналитика', icon: 'finance' },
   { to: '/companies', label: 'Компании', icon: 'team' },
   { to: '/roadmap-leads', label: 'Роадмап (лиды)', icon: 'doc' },

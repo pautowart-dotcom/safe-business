@@ -224,6 +224,7 @@ async function fulfillGuestReport({ companyId, reportId }) {
       `медкнижек, огнетушителей, СОУТ и другими документами) — установите пароль по ссылке, вводить тест заново ` +
       `не понадобится:</p><p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
     attachments: [{ filename: `${reportRow.report_number}.pdf`, content: pdfBuffer }],
+    meta: { purpose: 'report_purchase', refTable: 'security_reports', refId: reportRow.id },
   });
 }
 

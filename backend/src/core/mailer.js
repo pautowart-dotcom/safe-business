@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const pool = require('../db/pool');
 
 // SMTP вместо отдельного transactional-сервиса (SendGrid и т.п.) — осознанный
 // выбор для старта: без регистрации в новом внешнем сервисе с иностранной
@@ -30,9 +31,38 @@ function getTransporter() {
 // attachments (19.08.2026, анонимный разовый аудит) — nodemailer принимает
 // массив как есть ({ filename, content } с Buffer в content), просто
 // прокидываем без изменений.
-async function sendMail({ to, subject, html, attachments }) {
+//
+// meta/email_log (12.09.2026, прямой запрос владельца: "хоть как-то знать
+// пришло ли на почту") — раньше единственным следом неудачной отправки был
+// console.error в конкретном вызывающем коде (в 5+ разных местах, каждое
+// само по себе), нигде не сохранялось и не было видно в админке. Теперь
+// КАЖДЫЙ вызов sendMail (а не только помеченные meta) пишет строку в
+// email_log — success=true/false, текст ошибки при неудаче. purpose по
+// умолчанию 'other' для мест, которые ещё не размечены явно (см.
+// migrations/0118_email_log.sql про честную границу — это факт "SMTP
+// принял", не факт "дошло до входящих"). Запись в БД сама по себе не
+// должна ронять письмо/запрос — обёрнута в свой try/catch, ошибка лога
+// только выводится в консоль.
+async function sendMail({ to, subject, html, attachments, meta = {} }) {
   const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  await getTransporter().sendMail({ from, to, subject, html, attachments });
+  const { purpose = 'other', refTable = null, refId = null } = meta;
+  let success = false;
+  let errorText = null;
+  try {
+    await getTransporter().sendMail({ from, to, subject, html, attachments });
+    success = true;
+  } catch (err) {
+    errorText = err.message || String(err);
+    throw err;
+  } finally {
+    pool
+      .query(
+        `INSERT INTO email_log (purpose, recipient, subject, success, error_text, ref_table, ref_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [purpose, to, subject || null, success, errorText, refTable, refId]
+      )
+      .catch((logErr) => console.error('email_log insert failed:', logErr));
+  }
 }
 
 module.exports = { sendMail };

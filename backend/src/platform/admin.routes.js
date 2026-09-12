@@ -145,6 +145,175 @@ router.get(
   })
 );
 
+// Раздел "Финансы" (12.09.2026, прямой запрос владельца после реального
+// инцидента: дайджест платежей путал разовые покупки отчёта с подписками,
+// см. исправление в scripts/paymentMonitoring.js). До этой страницы в
+// админке НИГДЕ не было единой сводки по деньгам — только дайджест раз в
+// сутки на почту и платежи одной компании внутри её карточки. Пять
+// независимых таблиц платежей (см. комментарий в шапке paymentMonitoring.js)
+// агрегируются здесь по отдельности (typeStats) — схемы не совпадают
+// (roadmap_orders — про leads, не про companies; amount_rub то INTEGER, то
+// NUMERIC), поэтому единый SQL по всем таблицам сразу был бы либо неточным,
+// либо менее читаемым, чем пять одинаковых по форме запросов.
+//
+// is_test = false — тот же фильтр, что у /metrics и /analytics (см.
+// комментарий там): собственные тестовые компании владельца не должны
+// искажать картину реальной выручки. У roadmap_orders своего company_id нет
+// (анонимные leads), поэтому туда фильтр не применяется — там пока не было
+// случая тестовых заказов через боевую форму.
+const PAYMENT_TYPES = [
+  {
+    type: 'subscription',
+    label: 'Подписка на платформу',
+    table: 'subscription_payments',
+    ownerJoin: `JOIN companies c ON c.id = t.company_id AND c.is_test = false`,
+    extraWhere: 't.report_id IS NULL',
+  },
+  {
+    type: 'report_unlock',
+    label: 'Разовая покупка отчёта',
+    table: 'subscription_payments',
+    ownerJoin: `JOIN companies c ON c.id = t.company_id AND c.is_test = false`,
+    extraWhere: 't.report_id IS NOT NULL',
+  },
+  {
+    type: 'addon',
+    label: 'Разовые надстройки',
+    table: 'addon_purchases',
+    ownerJoin: `JOIN companies c ON c.id = t.company_id AND c.is_test = false`,
+  },
+  {
+    type: 'roadmap',
+    label: 'Roadmap открытия бизнеса',
+    table: 'roadmap_orders',
+    ownerJoin: `JOIN leads c ON c.id = t.lead_id`,
+  },
+  {
+    type: 'ai_advisor',
+    label: 'ИИ-советник (подписка)',
+    table: 'ai_advisor_subscription_payments',
+    ownerJoin: `JOIN companies c ON c.id = t.company_id AND c.is_test = false`,
+  },
+];
+
+async function typeStats({ table, ownerJoin, extraWhere }) {
+  const where = extraWhere ? `WHERE ${extraWhere}` : '';
+  const { rows } = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE t.status = 'succeeded' AND t.created_at > now() - interval '1 day') AS today_count,
+       COALESCE(SUM(t.amount_rub) FILTER (WHERE t.status = 'succeeded' AND t.created_at > now() - interval '1 day'), 0) AS today_sum,
+       COUNT(*) FILTER (WHERE t.status = 'succeeded' AND t.created_at > now() - interval '7 days') AS w7_count,
+       COALESCE(SUM(t.amount_rub) FILTER (WHERE t.status = 'succeeded' AND t.created_at > now() - interval '7 days'), 0) AS w7_sum,
+       COUNT(*) FILTER (WHERE t.status = 'succeeded' AND t.created_at > now() - interval '30 days') AS d30_count,
+       COALESCE(SUM(t.amount_rub) FILTER (WHERE t.status = 'succeeded' AND t.created_at > now() - interval '30 days'), 0) AS d30_sum,
+       COUNT(*) FILTER (WHERE t.status = 'succeeded') AS all_count,
+       COALESCE(SUM(t.amount_rub) FILTER (WHERE t.status = 'succeeded'), 0) AS all_sum,
+       COUNT(*) FILTER (WHERE t.status = 'pending') AS pending_count
+     FROM ${table} t
+     ${ownerJoin}
+     ${where}`
+  );
+  const r = rows[0];
+  return {
+    today: { count: Number(r.today_count), sumRub: Number(r.today_sum) },
+    last7Days: { count: Number(r.w7_count), sumRub: Number(r.w7_sum) },
+    last30Days: { count: Number(r.d30_count), sumRub: Number(r.d30_sum) },
+    allTime: { count: Number(r.all_count), sumRub: Number(r.all_sum) },
+    pendingCount: Number(r.pending_count),
+  };
+}
+
+router.get(
+  '/finance',
+  asyncHandler(async (req, res) => {
+    const byType = [];
+    for (const def of PAYMENT_TYPES) {
+      byType.push({ type: def.type, label: def.label, ...(await typeStats(def)) });
+    }
+
+    const grand = { today: { count: 0, sumRub: 0 }, last7Days: { count: 0, sumRub: 0 }, last30Days: { count: 0, sumRub: 0 }, allTime: { count: 0, sumRub: 0 } };
+    for (const t of byType) {
+      for (const period of ['today', 'last7Days', 'last30Days', 'allTime']) {
+        grand[period].count += t[period].count;
+        grand[period].sumRub += t[period].sumRub;
+      }
+    }
+
+    // Единый список последних транзакций по всем 5 источникам сразу — тот
+    // же приём, что и в остальном дашборде (owner_kind различает, вести ли
+    // на карточку компании /companies/:id или это анонимный лид roadmap,
+    // у которого своей страницы в админке нет).
+    // email_ref_table/email_ref_id (12.09.2026) — только subscription/report
+    // разовая покупка и roadmap реально шлют клиенту письмо о покупке (см.
+    // комментарий в шапке mailer.js про email_log) — у остальных 3 типов
+    // сегодня НЕТ клиентского письма вообще (только push владельцу), поэтому
+    // для них ref намеренно NULL, а не подделанная ссылка на что-то
+    // несуществующее.
+    const { rows: transactions } = await pool.query(
+      `SELECT t.*, el.success AS email_success, el.created_at AS email_at, el.error_text AS email_error
+       FROM (
+         SELECT sp.id, 'subscription' AS type, sp.amount_rub::numeric AS amount_rub, sp.status,
+                sp.created_at, sp.confirmed_at, c.name AS owner_name, sp.company_id AS owner_id, 'company' AS owner_kind,
+                sp.is_recurring_charge, NULL::varchar AS email_ref_table, NULL::integer AS email_ref_id
+         FROM subscription_payments sp JOIN companies c ON c.id = sp.company_id AND c.is_test = false
+         WHERE sp.report_id IS NULL
+         UNION ALL
+         SELECT sp.id, 'report_unlock', sp.amount_rub::numeric, sp.status,
+                sp.created_at, sp.confirmed_at, c.name, sp.company_id, 'company', false,
+                'security_reports', sp.report_id
+         FROM subscription_payments sp JOIN companies c ON c.id = sp.company_id AND c.is_test = false
+         WHERE sp.report_id IS NOT NULL
+         UNION ALL
+         SELECT ap.id, 'addon', ap.amount_rub::numeric, ap.status,
+                ap.created_at, ap.confirmed_at, c.name, ap.company_id, 'company', false, NULL, NULL
+         FROM addon_purchases ap JOIN companies c ON c.id = ap.company_id AND c.is_test = false
+         UNION ALL
+         SELECT ro.id, 'roadmap', ro.amount_rub::numeric, ro.status,
+                ro.created_at, ro.confirmed_at, l.email, ro.lead_id, 'lead', false,
+                'roadmap_orders', ro.id
+         FROM roadmap_orders ro JOIN leads l ON l.id = ro.lead_id
+         UNION ALL
+         SELECT aap.id, 'ai_advisor', aap.amount_rub::numeric, aap.status,
+                aap.created_at, aap.confirmed_at, c.name, aap.company_id, 'company', aap.is_recurring_charge, NULL, NULL
+         FROM ai_advisor_subscription_payments aap JOIN companies c ON c.id = aap.company_id AND c.is_test = false
+       ) t
+       LEFT JOIN LATERAL (
+         SELECT success, created_at, error_text FROM email_log
+         WHERE ref_table = t.email_ref_table AND ref_id = t.email_ref_id
+         ORDER BY created_at DESC LIMIT 1
+       ) el ON t.email_ref_table IS NOT NULL
+       ORDER BY t.created_at DESC
+       LIMIT 300`
+    );
+
+    const typeLabelByKey = Object.fromEntries(PAYMENT_TYPES.map((d) => [d.type, d.label]));
+
+    res.json({
+      grand,
+      byType,
+      transactions: transactions.map((r) => ({
+        id: r.id,
+        type: r.type,
+        typeLabel: typeLabelByKey[r.type],
+        amountRub: Number(r.amount_rub),
+        status: r.status,
+        isRecurringCharge: r.is_recurring_charge,
+        createdAt: r.created_at,
+        confirmedAt: r.confirmed_at,
+        ownerName: r.owner_name,
+        ownerId: r.owner_id,
+        ownerKind: r.owner_kind,
+        // null = для этого типа платежа клиенту сегодня не отправляется
+        // письмо вообще (см. комментарий выше) — не путать с false
+        // (письмо реально пытались отправить и получили ошибку SMTP).
+        emailStatus: r.email_ref_table == null ? null : r.email_success === null ? 'not_sent_yet' : r.email_success ? 'sent' : 'failed',
+        emailAt: r.email_at,
+        emailError: r.email_error,
+      })),
+    });
+  })
+);
+
 router.get(
   '/companies',
   asyncHandler(async (req, res) => {
@@ -973,6 +1142,7 @@ router.post(
       to: order.email,
       subject: 'Ваш roadmap открытия бизнеса готов — «Безопасный бизнес»',
       html: `<p>Спасибо за покупку! Ваш персональный roadmap для ниши «${ROADMAP_NICHE_LABELS[order.niche] || order.niche}» готов:</p><p><a href="${resultUrl}">${resultUrl}</a></p><p>Ссылка сохранится за вами — не нужен пароль или регистрация.</p>`,
+      meta: { purpose: 'roadmap_purchase', refTable: 'roadmap_orders', refId: order.id },
     });
 
     res.json({ ok: true, resultUrl });
