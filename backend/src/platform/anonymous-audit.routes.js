@@ -18,7 +18,6 @@ const { studioOsBundleKeys } = require('../core/modules-registry');
 const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
-const { ensureDefaultChecklists } = require('../core/defaultChecklist');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 
@@ -105,10 +104,6 @@ router.post(
       }
 
       await client.query('COMMIT');
-
-      // Тот же дефолтный чек-лист, что и у обычной регистрации
-      // (auth.routes.js) — см. core/defaultChecklist.js.
-      await ensureDefaultChecklists(companyId);
 
       const token = signCompanyToken({ userId, companyId, membershipId: membership.id, role: membership.role, branchId: null });
       res.status(201).json({ token });

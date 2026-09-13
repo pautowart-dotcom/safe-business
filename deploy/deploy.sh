@@ -24,9 +24,6 @@ node src/db/seed.js || true
 echo "== Заполнение служебной смоук-тест компании (Задача 0) =="
 node src/db/seedSmokeTest.js || true
 
-echo "== Дефолтный чек-лист открытия/закрытия смены для существующих компаний =="
-node src/scripts/backfillDefaultChecklists.js || true
-
 echo "== Сборка frontend =="
 cd "$APP_DIR/frontend"
 npm install

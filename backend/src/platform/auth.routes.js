@@ -16,7 +16,6 @@ const { sendMail } = require('../core/mailer');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { SEGMENTS } = require('../modules/security/content/segments');
 const { ensureNicheModules } = require('../modules/security/nicheModules');
-const { ensureDefaultChecklists } = require('../core/defaultChecklist');
 
 const router = express.Router();
 
@@ -227,12 +226,6 @@ router.post(
       // выше (own pool.query) и после COMMIT — иначе строки company_modules
       // из цикла studioOsBundleKeys() ещё не видны за пределами транзакции.
       await ensureNicheModules(company.id, [niche]);
-
-      // Дефолтный чек-лист открытия/закрытия смены (13.09.2026) — см.
-      // комментарий в core/defaultChecklist.js: без него ежедневное
-      // напоминание "не открыли смену" технически включено, но не срабатывает
-      // ни разу, потому что чек-лист внутри модуля никто не создаёт сам.
-      await ensureDefaultChecklists(company.id);
 
       await logEvent({
         companyId: company.id,
