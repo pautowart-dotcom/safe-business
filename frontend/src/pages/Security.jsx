@@ -418,6 +418,7 @@ export default function Security() {
         result={auditResult}
         hasPaidPlan={hasPaidPlan}
         pdfPaywall={pdfPaywall}
+        hasPremises={!!profile?.hasPremises}
         onClose={() => { setAuditResult(null); setPdfPaywall(false); }}
         onViewViolations={() => { setDashboardTab('violations'); setAuditResult(null); setPdfPaywall(false); }}
         onDownload={() => downloadPdf(auditResult.session.id, setError, setPdfPaywall)}
@@ -733,7 +734,78 @@ function IndexHero({ percent, zone, subtitle, note }) {
   );
 }
 
-function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolations, onDownload }) {
+// Быстрая подсказка "Мои сроки" сразу после теста (13.09.2026) — прямая
+// находка по реальным данным (read-only доступ к проду, настроен в этой же
+// сессии): из 142 компаний в триале НИ ОДНА не заполнила ни одной даты в
+// "Мои сроки" — единственный механизм, который должен давать подписке
+// ЕЖЕМЕСЯЧНУЮ комплаенс-ценность (напоминания заранее), а не только разовый
+// результат теста, физически ни разу не запустился. Причина, судя по
+// всему, простая: "Мои сроки" — отдельная незаметная вкладка, до которой
+// руки не доходят, если тест уже "закрыт" в голове как выполненная задача.
+//
+// Сознательно только 2 пункта (ЭЦП — универсально для любого бизнеса,
+// огнетушители — только если есть помещение), не все 11 позиций каталога:
+// цель — просто заронить первую дату, а не заставить пройти длинную форму
+// сразу после теста. Показывается только если это ЕЩЁ не заполнено (не
+// спрашивает повторно при следующих прохождениях теста) и легко
+// пропускается — тот же принцип "не барьер", что и у убранного поля
+// названия компании на регистрации (17.08.2026).
+function QuickDeadlinesPrompt({ hasPremises }) {
+  const [slots, setSlots] = useState(null);
+  const [values, setValues] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    api.get('/platform/my-deadlines').then((res) => setSlots(res.data.slots)).catch(() => setSlots([]));
+  }, []);
+
+  if (dismissed || done || slots === null) return null;
+
+  const wantedKeys = hasPremises ? ['esign', 'fire_extinguisher'] : ['esign'];
+  const empty = wantedKeys
+    .map((key) => slots.find((s) => s.key === key))
+    .filter((s) => s && !s.dueDate);
+  if (empty.length === 0) return null;
+
+  async function save() {
+    const toSave = empty.filter((s) => values[s.key]);
+    if (toSave.length === 0) return;
+    setSaving(true);
+    try {
+      await Promise.all(toSave.map((s) => api.patch(`/platform/my-deadlines/slots/${s.key}`, { dueDate: values[s.key] })));
+      setDone(true);
+    } catch (err) {
+      // Тихо — это необязательная подсказка, не должна ломать экран
+      // результата теста из-за сбоя сохранения одной даты.
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Настройте пару напоминаний — 30 секунд</div>
+      <div style={{ fontSize: 12, color: C.subtle, marginBottom: 14 }}>
+        Тест показывает состояние на сегодня. Впишите пару дат — напомним заранее, до того как это станет нарушением.
+      </div>
+      {empty.map((s) => (
+        <Field key={s.key} label={s.label}>
+          <TextInput type="date" value={values[s.key] || ''} onChange={(e) => setValues((v) => ({ ...v, [s.key]: e.target.value }))} />
+        </Field>
+      ))}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn small onClick={save} disabled={saving || empty.every((s) => !values[s.key])}>
+          {saving ? 'Сохраняем…' : 'Сохранить'}
+        </Btn>
+        <Btn small variant="secondary" onClick={() => setDismissed(true)}>Не сейчас</Btn>
+      </div>
+    </Card>
+  );
+}
+
+function AuditResult({ result, hasPaidPlan, pdfPaywall, hasPremises, onClose, onViewViolations, onDownload }) {
   const { status, warnings } = result;
   const zone = status.zone;
   const violationsCount = status.violations.length;
@@ -747,6 +819,7 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, onClose, onViewViolation
         subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${violationsCount}`}
         note={ZONE_EXPLANATIONS[zone]}
       />
+      <QuickDeadlinesPrompt hasPremises={hasPremises} />
       {warnings?.map((w, i) => (
         <div key={i} className="alert alert-error" style={{ marginBottom: 12 }}>{w}</div>
       ))}
