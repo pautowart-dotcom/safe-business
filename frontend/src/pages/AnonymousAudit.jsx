@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/components.jsx';
@@ -267,6 +267,79 @@ function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcc
   );
 }
 
+// 13.09.2026 — та же подсказка "Мои сроки", что уже стоит после теста в
+// самом приложении (Security.jsx, QuickDeadlinesPrompt), но здесь отдельная
+// копия, а не импорт: этот экран нарочно не использует ни общий api-клиент
+// (см. комментарий у guestApi выше про изоляцию от залогиненной сессии),
+// ни авторизованный роутинг. Реальный повод продублировать, а не отложить:
+// проверка по проду (read-only доступ) показала, что 112 из 142 компаний в
+// активном триале — как раз гости с ЭТОГО экрана, ни разу не заходившие в
+// настоящий личный кабинет, то есть версия в Security.jsx их вообще не
+// касается. Только ЭЦП (без огнетушителей — hasPremises в этом упрощённом
+// анонимном профиле не спрашивается, не гадаем).
+function GuestQuickDeadlinePrompt() {
+  const [slot, setSlot] = useState(null); // null = загрузка/недоступно
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    guestApi
+      .get('/platform/my-deadlines')
+      .then((res) => setSlot(res.data.slots.find((s) => s.key === 'esign') || false))
+      .catch(() => setSlot(false));
+  }, []);
+
+  // slot === false — GET сам не удался (не "поля esign не нашлось", которое
+  // невозможно, каталог фиксированный): показываем прежний статичный текст,
+  // а не пустоту, лучше сказать про фичу словами, чем не сказать вообще.
+  if (slot === false) {
+    return (
+      <Card>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>«Безопасный бизнес» — это не только тест</div>
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+          Приложение само напоминает о сроках медкнижек, огнетушителей, СОУТ и других документов, ведёт финансы
+          и чек-листы смены, отвечает на вопросы через ИИ-ассистента. Результат этого теста уже сохранён —
+          проходить заново не нужно.
+        </div>
+      </Card>
+    );
+  }
+  if (dismissed || done || !slot || slot.dueDate) return null;
+
+  async function save() {
+    if (!value) return;
+    setSaving(true);
+    try {
+      await guestApi.patch('/platform/my-deadlines/slots/esign', { dueDate: value });
+      setDone(true);
+    } catch (err) {
+      // Тихо — необязательная подсказка, не блокирует результат теста.
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>«Безопасный бизнес» — это не только тест</div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
+        Приложение само напоминает о сроках медкнижек, огнетушителей, СОУТ, ЭЦП и других документов, ведёт финансы
+        и чек-листы смены. Результат этого теста уже сохранён — проходить заново не нужно.
+        Впишите ниже, когда у вас истекает ЭЦП — пришлём напоминание заранее.
+      </div>
+      <Field label="ЭЦП истекает">
+        <TextInput type="date" value={value} onChange={(e) => setValue(e.target.value)} />
+      </Field>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn small onClick={save} disabled={saving || !value}>{saving ? 'Сохраняем…' : 'Сохранить'}</Btn>
+        <Btn small variant="secondary" onClick={() => setDismissed(true)}>Не сейчас</Btn>
+      </div>
+    </Card>
+  );
+}
+
 function ResultStep({
   result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
   onPay, paying, onClaimFree, claiming, claimed, error,
@@ -292,15 +365,12 @@ function ResultStep({
           том, что "Безопасный бизнес" вообще не сводится к разовому тесту
           (сроки документов, финансы, чек-листы, ИИ-ассистент). Эта карточка
           не конкурирует с оплатой — она для тех, кто пока не готов платить,
-          но результат терять не хочет. */}
-      <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>«Безопасный бизнес» — это не только тест</div>
-        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
-          Приложение само напоминает о сроках медкнижек, огнетушителей, СОУТ и других документов, ведёт финансы
-          и чек-листы смены, отвечает на вопросы через ИИ-ассистента. Результат этого теста уже сохранён —
-          проходить заново не нужно.
-        </div>
-      </Card>
+          но результат терять не хочет.
+          13.09.2026: было просто текстом про "приложение само напоминает о
+          сроках" — заменено на реально работающую форму (GuestQuickDeadlinePrompt),
+          иначе это осталось бы только обещанием, которое 0 из 142 гостей
+          сами не пошли выполнять. */}
+      <GuestQuickDeadlinePrompt />
 
       <WebsiteCheckOffer
         url={websiteUrl} setUrl={setWebsiteUrl}
