@@ -17,6 +17,29 @@ router.get(
   })
 );
 
+// Статус подписки для ТЕКУЩЕЙ компании (13.09.2026, фикс двух-компаний-
+// бага) — браузер хранит подписку на push глобально, на уровне origin, а не
+// на компанию (`pushManager.getSubscription()` возвращает один и тот же
+// endpoint независимо от того, в какой компании сейчас открыт кабинет).
+// Раньше фронтенд считал состояние "включено/выключено" только по наличию
+// этого браузерного объекта — значит владелец, у которого одна компания уже
+// подписана, видел переключатель "включено" и во второй компании тоже, хотя
+// строки push_subscriptions для неё не было и push туда не приходил.
+router.get(
+  '/subscribe/status',
+  asyncHandler(async (req, res) => {
+    const { endpoint } = req.query;
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Не указан endpoint подписки' });
+    }
+    const { rows } = await pool.query(
+      'SELECT 1 FROM push_subscriptions WHERE endpoint = $1 AND company_id = $2',
+      [endpoint, req.tenant.companyId]
+    );
+    res.json({ subscribed: rows.length > 0 });
+  })
+);
+
 router.post(
   '/subscribe',
   asyncHandler(async (req, res) => {
@@ -24,10 +47,14 @@ router.post(
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
       return res.status(400).json({ error: 'Некорректные данные подписки' });
     }
+    // ON CONFLICT (endpoint, company_id) — миграция 0119: один и тот же
+    // физический endpoint браузера теперь может иметь отдельную строку на
+    // каждую компанию, в которой состоит её владелец, вместо того чтобы
+    // "переподбирать" единственную строку под последнюю открытую компанию.
     await pool.query(
       `INSERT INTO push_subscriptions (company_id, membership_id, endpoint, p256dh, auth)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (endpoint) DO UPDATE SET company_id = EXCLUDED.company_id, membership_id = EXCLUDED.membership_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+       ON CONFLICT (endpoint, company_id) DO UPDATE SET membership_id = EXCLUDED.membership_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
       [req.tenant.companyId, req.tenant.membershipId, endpoint, keys.p256dh, keys.auth]
     );
     res.status(201).json({ ok: true });

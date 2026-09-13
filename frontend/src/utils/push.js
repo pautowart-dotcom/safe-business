@@ -24,11 +24,18 @@ export function isStandalone() {
   return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
 
+// Подписка на push живёт на уровне браузера/origin, а не компании — один и
+// тот же endpoint используется для всех компаний, в которых состоит
+// владелец (миграция 0119, у самого владельца их две). Поэтому "включено"
+// для ТЕКУЩЕЙ компании — это не факт существования браузерной подписки, а
+// то, есть ли для этого endpoint строка на сервере именно в этой компании.
 export async function getPushSubscriptionState() {
   if (!isPushSupported()) return 'unsupported';
   const registration = await navigator.serviceWorker.ready;
   const sub = await registration.pushManager.getSubscription();
-  return sub ? 'subscribed' : 'unsubscribed';
+  if (!sub) return 'unsubscribed';
+  const { data } = await api.get('/platform/push/subscribe/status', { params: { endpoint: sub.endpoint } });
+  return data.subscribed ? 'subscribed' : 'unsubscribed';
 }
 
 export async function subscribeToPush() {
@@ -53,10 +60,15 @@ export async function subscribeToPush() {
   return subscription;
 }
 
+// Намеренно НЕ вызывает subscription.unsubscribe() — это уничтожило бы
+// браузерную push-регистрацию целиком (она одна на origin, общая для всех
+// компаний владельца), и вторая компания в том же браузере молча перестала
+// бы получать push. "Выключить" для одной компании — значит удалить только
+// её строку на сервере; сама браузерная подписка остаётся живой для других
+// компаний, которым принадлежит этот же endpoint.
 export async function unsubscribeFromPush() {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
   await api.delete('/platform/push/subscribe', { data: { endpoint: subscription.endpoint } });
-  await subscription.unsubscribe();
 }
