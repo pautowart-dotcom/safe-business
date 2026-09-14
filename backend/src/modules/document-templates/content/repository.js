@@ -186,6 +186,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/pet-grooming-marketing-consent'),
     require('./templates/pet-grooming-privacy-policy'),
   ],
+  // pet_boarding добавлен 14.09.2026 (вторая ниша сегмента "Услуги для
+  // животных") — см. комментарий в шапке violations/pet-boarding.js.
+  pet_boarding: [
+    require('./templates/pet-boarding'),
+    require('./templates/pet-boarding-pd-consent'),
+    require('./templates/pet-boarding-pd-distribution'),
+    require('./templates/pet-boarding-marketing-consent'),
+    require('./templates/pet-boarding-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

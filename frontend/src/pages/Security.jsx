@@ -66,6 +66,7 @@ const SEGMENTS = [
     key: 'pets', label: 'Услуги для животных',
     niches: [
       { key: 'pet_grooming', label: 'Груминг' },
+      { key: 'pet_boarding', label: 'Передержка и гостиница для животных' },
     ],
   },
   {

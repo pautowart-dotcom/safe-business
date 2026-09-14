@@ -99,6 +99,9 @@ const SEGMENTS = [
     // комментарий в начале violations/pet-grooming.js.
     niches: [
       { key: 'pet_grooming', label: 'Груминг', paidAudit: true },
+      // pet_boarding (14.09.2026) — вторая ниша сегмента, зоогостиница и
+      // передержка животных, см. комментарий в шапке violations/pet-boarding.js.
+      { key: 'pet_boarding', label: 'Передержка и гостиница для животных', paidAudit: true },
     ],
   },
   {
