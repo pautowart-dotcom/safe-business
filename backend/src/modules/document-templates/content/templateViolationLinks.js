@@ -86,6 +86,8 @@ const NICHE_PREFIX = {
   appliance_repair: 'AR',
   // watch_jewelry_repair (14.09.2026) — та же нумерация 402-406, тот же паттерн.
   watch_jewelry_repair: 'WJ',
+  // car_wash (14.09.2026) — та же нумерация 402-406, тот же паттерн.
+  car_wash: 'CW',
 };
 
 const PD_DOCS = [
@@ -117,7 +119,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
 // названа в перечне постановления явно, применимость менее очевидна,
 // требует отдельной проверки, не копируем не глядя.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({

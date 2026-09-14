@@ -35,6 +35,8 @@ export const NICHE_OPTIONS = [
   // appliance_repair (14.09.2026) — сегмент "Бытовые услуги".
   ['appliance_repair', 'Ремонт бытовой техники', 'household'],
   ['watch_jewelry_repair', 'Ремонт часов и ювелирных изделий', 'household'],
+  // car_wash (14.09.2026) — первая ниша нового сегмента "Услуги для автомобилей".
+  ['car_wash', 'Автомойка', 'auto'],
   // pet_grooming (12.09.2026) — первая ниша сегмента "Услуги для животных".
   ['pet_grooming', 'Груминг', 'pets'],
   // pet_boarding (14.09.2026) — вторая ниша сегмента.

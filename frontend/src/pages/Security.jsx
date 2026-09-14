@@ -65,6 +65,12 @@ const SEGMENTS = [
     ],
   },
   {
+    key: 'auto', label: 'Услуги для автомобилей',
+    niches: [
+      { key: 'car_wash', label: 'Автомойка' },
+    ],
+  },
+  {
     key: 'pets', label: 'Услуги для животных',
     niches: [
       { key: 'pet_grooming', label: 'Груминг' },

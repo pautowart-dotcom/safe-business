@@ -213,6 +213,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/watch-jewelry-repair-marketing-consent'),
     require('./templates/watch-jewelry-repair-privacy-policy'),
   ],
+  // car_wash добавлен 14.09.2026 (первая ниша нового сегмента "Услуги для
+  // автомобилей") — см. комментарий в шапке violations/car-wash.js.
+  car_wash: [
+    require('./templates/car-wash'),
+    require('./templates/car-wash-pd-consent'),
+    require('./templates/car-wash-pd-distribution'),
+    require('./templates/car-wash-marketing-consent'),
+    require('./templates/car-wash-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
