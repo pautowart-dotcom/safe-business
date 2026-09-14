@@ -195,6 +195,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/pet-boarding-marketing-consent'),
     require('./templates/pet-boarding-privacy-policy'),
   ],
+  // appliance_repair добавлен 14.09.2026 (сегмент "Бытовые услуги") — см.
+  // комментарий в шапке violations/appliance-repair.js.
+  appliance_repair: [
+    require('./templates/appliance-repair'),
+    require('./templates/appliance-repair-pd-consent'),
+    require('./templates/appliance-repair-pd-distribution'),
+    require('./templates/appliance-repair-marketing-consent'),
+    require('./templates/appliance-repair-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

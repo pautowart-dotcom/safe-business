@@ -59,6 +59,7 @@ const VIOLATIONS_BY_NICHE = {
   dry_cleaning: require('../../security/content/violations/dry-cleaning'),
   pet_grooming: require('../../security/content/violations/pet-grooming'),
   pet_boarding: require('../../security/content/violations/pet-boarding'),
+  appliance_repair: require('../../security/content/violations/appliance-repair'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально

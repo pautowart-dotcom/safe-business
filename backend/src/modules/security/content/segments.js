@@ -86,6 +86,9 @@ const SEGMENTS = [
       { key: 'shoe_repair', label: 'Ремонт обуви', paidAudit: true },
       { key: 'photo_studio', label: 'Фотостудия', paidAudit: true },
       { key: 'dry_cleaning', label: 'Химчистка', paidAudit: true },
+      // appliance_repair (14.09.2026) — тот же правовой каркас (бытовой
+      // подряд), см. комментарий в шапке violations/appliance-repair.js.
+      { key: 'appliance_repair', label: 'Ремонт бытовой техники', paidAudit: true },
     ],
   },
   {

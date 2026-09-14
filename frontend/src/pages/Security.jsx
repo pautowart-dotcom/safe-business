@@ -60,6 +60,7 @@ const SEGMENTS = [
       { key: 'shoe_repair', label: 'Ремонт обуви' },
       { key: 'photo_studio', label: 'Фотостудия' },
       { key: 'dry_cleaning', label: 'Химчистка' },
+      { key: 'appliance_repair', label: 'Ремонт бытовой техники' },
     ],
   },
   {
