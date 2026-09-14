@@ -61,6 +61,7 @@ const SEGMENTS = [
       { key: 'photo_studio', label: 'Фотостудия' },
       { key: 'dry_cleaning', label: 'Химчистка' },
       { key: 'appliance_repair', label: 'Ремонт бытовой техники' },
+      { key: 'watch_jewelry_repair', label: 'Ремонт часов и ювелирных изделий' },
     ],
   },
   {

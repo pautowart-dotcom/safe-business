@@ -204,6 +204,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/appliance-repair-marketing-consent'),
     require('./templates/appliance-repair-privacy-policy'),
   ],
+  // watch_jewelry_repair добавлен 14.09.2026 (сегмент "Бытовые услуги") —
+  // см. комментарий в шапке violations/watch-jewelry-repair.js.
+  watch_jewelry_repair: [
+    require('./templates/watch-jewelry-repair'),
+    require('./templates/watch-jewelry-repair-pd-consent'),
+    require('./templates/watch-jewelry-repair-pd-distribution'),
+    require('./templates/watch-jewelry-repair-marketing-consent'),
+    require('./templates/watch-jewelry-repair-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

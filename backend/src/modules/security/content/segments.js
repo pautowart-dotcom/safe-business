@@ -89,6 +89,10 @@ const SEGMENTS = [
       // appliance_repair (14.09.2026) — тот же правовой каркас (бытовой
       // подряд), см. комментарий в шапке violations/appliance-repair.js.
       { key: 'appliance_repair', label: 'Ремонт бытовой техники', paidAudit: true },
+      // watch_jewelry_repair (14.09.2026) — тот же каркас, плюс специфика
+      // драгметаллов/камней, см. комментарий в шапке
+      // violations/watch-jewelry-repair.js.
+      { key: 'watch_jewelry_repair', label: 'Ремонт часов и ювелирных изделий', paidAudit: true },
     ],
   },
   {
