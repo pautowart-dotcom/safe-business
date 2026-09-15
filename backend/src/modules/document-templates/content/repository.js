@@ -278,6 +278,17 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/bakery-confectionery-marketing-consent'),
     require('./templates/bakery-confectionery-privacy-policy'),
   ],
+  // device_repair добавлен 15.09.2026 (седьмая ниша сегмента "Бытовые
+  // услуги") — 5 шаблонов, включая необязательное согласие на
+  // распространение (отзывы) — не автосвязано (нет кода DR-404), см.
+  // NO_PHOTO_CONSENT в templateViolationLinks.js.
+  device_repair: [
+    require('./templates/device-repair'),
+    require('./templates/device-repair-pd-consent'),
+    require('./templates/device-repair-pd-distribution'),
+    require('./templates/device-repair-marketing-consent'),
+    require('./templates/device-repair-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

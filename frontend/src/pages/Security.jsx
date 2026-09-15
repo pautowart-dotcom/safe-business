@@ -64,6 +64,7 @@ const SEGMENTS = [
       { key: 'dry_cleaning', label: 'Химчистка' },
       { key: 'appliance_repair', label: 'Ремонт бытовой техники' },
       { key: 'watch_jewelry_repair', label: 'Ремонт часов и ювелирных изделий' },
+      { key: 'device_repair', label: 'Ремонт компьютеров и телефонов' },
     ],
   },
   {
