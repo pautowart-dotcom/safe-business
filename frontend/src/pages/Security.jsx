@@ -73,6 +73,12 @@ const SEGMENTS = [
     ],
   },
   {
+    key: 'kids', label: 'Услуги для детей',
+    niches: [
+      { key: 'kids_club', label: 'Детские клубы и секции' },
+    ],
+  },
+  {
     key: 'pets', label: 'Услуги для животных',
     niches: [
       { key: 'pet_grooming', label: 'Груминг' },

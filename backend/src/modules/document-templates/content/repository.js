@@ -241,6 +241,16 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/auto-service-marketing-consent'),
     require('./templates/auto-service-privacy-policy'),
   ],
+  // kids_club добавлен 15.09.2026 (первая ниша нового сегмента "Услуги для
+  // детей") — согласия оформлены от лица законного представителя, см.
+  // комментарий в шапке templates/kids-club.js.
+  kids_club: [
+    require('./templates/kids-club'),
+    require('./templates/kids-club-pd-consent'),
+    require('./templates/kids-club-pd-distribution'),
+    require('./templates/kids-club-marketing-consent'),
+    require('./templates/kids-club-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
