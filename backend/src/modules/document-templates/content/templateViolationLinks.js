@@ -122,6 +122,9 @@ const NICHE_PREFIX = {
   // кода 404 (фото-согласие есть как шаблон, но не как отдельное
   // проверенное нарушение) — см. NO_PHOTO_CONSENT ниже.
   device_repair: 'DR',
+  // dog_training (15.09.2026) — стандартная нумерация 402-406, без фото-
+  // согласия (404) — см. NO_PHOTO_CONSENT ниже.
+  dog_training: 'DT',
 };
 
 const PD_DOCS = [
@@ -135,7 +138,7 @@ const PD_DOCS = [
 // физически, а про то, что для этой ниши фотографировать клиента/его
 // имущество не является реальной практикой, см. комментарий у
 // facade_cleaning в NICHE_PREFIX выше.
-const NO_PHOTO_CONSENT = ['facade_cleaning', 'renovation_cleaning', 'bakery_confectionery', 'device_repair'];
+const NO_PHOTO_CONSENT = ['facade_cleaning', 'renovation_cleaning', 'bakery_confectionery', 'device_repair', 'dog_training'];
 
 const LINKS = {};
 for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
@@ -164,7 +167,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // auto_service включена сюда же — код -405 у неё существует (заказ-наряд по
 // ПП №780 вместо общего ofertaViolation), формат кода/вопроса совпадает с
 // остальными, поэтому связка {niche}_oferta → AS-405 работает тем же циклом.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash', 'tire_service', 'auto_service', 'kids_club', 'facade_cleaning', 'bakery_confectionery', 'device_repair'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash', 'tire_service', 'auto_service', 'kids_club', 'facade_cleaning', 'bakery_confectionery', 'device_repair', 'dog_training'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({

@@ -289,6 +289,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/device-repair-marketing-consent'),
     require('./templates/device-repair-privacy-policy'),
   ],
+  // dog_training добавлен 15.09.2026 (третья ниша сегмента "Услуги для
+  // животных") — 4 шаблона, без фото-согласия (см. NO_PHOTO_CONSENT в
+  // templateViolationLinks.js).
+  dog_training: [
+    require('./templates/dog-training'),
+    require('./templates/dog-training-pd-consent'),
+    require('./templates/dog-training-marketing-consent'),
+    require('./templates/dog-training-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

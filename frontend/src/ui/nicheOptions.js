@@ -55,6 +55,8 @@ export const NICHE_OPTIONS = [
   ['pet_grooming', 'Груминг', 'pets'],
   // pet_boarding (14.09.2026) — вторая ниша сегмента.
   ['pet_boarding', 'Передержка и гостиница для животных', 'pets'],
+  // dog_training (15.09.2026) — третья ниша сегмента "Услуги для животных".
+  ['dog_training', 'Дрессировка собак', 'pets'],
   // cafe_basic (paidAudit: true с 10.09.2026) отсутствовал здесь, пока
   // paidAudit было false — тот же класс бага, что с fitness_gym/dance/yoga
   // 09.09.2026 (см. project_pilates_niche_2026_09_09 в памяти).
