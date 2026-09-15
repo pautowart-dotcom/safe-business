@@ -90,6 +90,12 @@ const NICHE_PREFIX = {
   car_wash: 'CW',
   // tire_service (15.09.2026) — та же нумерация 402-406, тот же паттерн.
   tire_service: 'TS',
+  // auto_service (15.09.2026) — ДРУГАЯ нумерация: 402/403/404 те же
+  // (политика/согласие ПД/фото), но 405/406/407 — заказ-наряд/гарантия/
+  // возврат деталей по ПП №780 (не общий ofertaViolation), реклама сдвинута
+  // на 408 (см. MARKETING_CODE_SUFFIX ниже) — см. комментарий в шапке
+  // violations/auto-service.js.
+  auto_service: 'AS',
 };
 
 const PD_DOCS = [
@@ -121,7 +127,10 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // cleaning_basic сюда осознанно НЕ включена — уборка жилых помещений не
 // названа в перечне постановления явно, применимость менее очевидна,
 // требует отдельной проверки, не копируем не глядя.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash', 'tire_service'];
+// auto_service включена сюда же — код -405 у неё существует (заказ-наряд по
+// ПП №780 вместо общего ofertaViolation), формат кода/вопроса совпадает с
+// остальными, поэтому связка {niche}_oferta → AS-405 работает тем же циклом.
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash', 'tire_service', 'auto_service'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({
@@ -144,7 +153,7 @@ for (const niche of OFERTA_NICHES) {
 // violations/cafe-basic.js нет отдельного нарушения "реклама без согласия"
 // (блок ПДн заканчивается на FD-404) — включать её в цикл значило бы
 // сослаться на несуществующий код FD-406/FD-405.
-const MARKETING_CODE_SUFFIX = { cleaning_basic: '405' };
+const MARKETING_CODE_SUFFIX = { cleaning_basic: '405', auto_service: '408' };
 const NO_MARKETING_VIOLATION = ['cafe_basic'];
 for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
   if (NO_MARKETING_VIOLATION.includes(niche)) continue;

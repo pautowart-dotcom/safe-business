@@ -231,6 +231,16 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/tire-service-marketing-consent'),
     require('./templates/tire-service-privacy-policy'),
   ],
+  // auto_service добавлен 15.09.2026 (третья ниша сегмента "Услуги для
+  // автомобилей") — "оферта" здесь по содержанию заказ-наряд по ПП №780, см.
+  // комментарий в шапке templates/auto-service.js.
+  auto_service: [
+    require('./templates/auto-service'),
+    require('./templates/auto-service-pd-consent'),
+    require('./templates/auto-service-pd-distribution'),
+    require('./templates/auto-service-marketing-consent'),
+    require('./templates/auto-service-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
