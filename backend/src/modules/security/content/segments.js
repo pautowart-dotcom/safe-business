@@ -75,6 +75,11 @@ const SEGMENTS = [
       // на дезинфекционную деятельность (с 01.03.2025, 99-ФЗ), см.
       // комментарий в начале violations/facade-cleaning.js.
       { key: 'facade_cleaning', label: 'Мойка окон и фасадов (промышленный альпинизм)', paidAudit: true },
+      // renovation_cleaning (15.09.2026) — третья ниша сегмента, прямо
+      // закрывает пробел, обозначенный в шапке cleaning-basic.js (CL-801) —
+      // узко про пыль/мусор после ремонта, не про пожар/био, см.
+      // комментарий в начале violations/renovation-cleaning.js.
+      { key: 'renovation_cleaning', label: 'Уборка после ремонта и стройки', paidAudit: true },
     ],
   },
   {

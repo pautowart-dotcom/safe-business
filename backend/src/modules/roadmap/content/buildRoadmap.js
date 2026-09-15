@@ -66,6 +66,7 @@ const VIOLATIONS_BY_NICHE = {
   auto_service: require('../../security/content/violations/auto-service'),
   kids_club: require('../../security/content/violations/kids-club'),
   facade_cleaning: require('../../security/content/violations/facade-cleaning'),
+  renovation_cleaning: require('../../security/content/violations/renovation-cleaning'),
 };
 
 // Подпись берём из segments.js, включаем нишу только если для неё реально

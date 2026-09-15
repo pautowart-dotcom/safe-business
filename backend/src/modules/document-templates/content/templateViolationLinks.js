@@ -108,6 +108,12 @@ const NICHE_PREFIX = {
   // клиента — реальная практика). См. NO_PHOTO_CONSENT ниже. 405/406 —
   // обычный ofertaViolation/marketingConsentViolation, без сдвига.
   facade_cleaning: 'FC',
+  // renovation_cleaning (15.09.2026) — 402/403 стандартные (политика/
+  // согласие ПД), БЕЗ оферты (договор уже описан отдельным пунктом RC-104
+  // в блоке 1, тот же принцип, что у cleaning_basic — см. NO_PHOTO_CONSENT/
+  // MARKETING_CODE_SUFFIX ниже и комментарий в шапке
+  // violations/renovation-cleaning.js), реклама занимает код -405.
+  renovation_cleaning: 'RC',
 };
 
 const PD_DOCS = [
@@ -121,7 +127,7 @@ const PD_DOCS = [
 // физически, а про то, что для этой ниши фотографировать клиента/его
 // имущество не является реальной практикой, см. комментарий у
 // facade_cleaning в NICHE_PREFIX выше.
-const NO_PHOTO_CONSENT = ['facade_cleaning'];
+const NO_PHOTO_CONSENT = ['facade_cleaning', 'renovation_cleaning'];
 
 const LINKS = {};
 for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
@@ -173,7 +179,7 @@ for (const niche of OFERTA_NICHES) {
 // violations/cafe-basic.js нет отдельного нарушения "реклама без согласия"
 // (блок ПДн заканчивается на FD-404) — включать её в цикл значило бы
 // сослаться на несуществующий код FD-406/FD-405.
-const MARKETING_CODE_SUFFIX = { cleaning_basic: '405', auto_service: '408' };
+const MARKETING_CODE_SUFFIX = { cleaning_basic: '405', auto_service: '408', renovation_cleaning: '405' };
 const NO_MARKETING_VIOLATION = ['cafe_basic'];
 for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
   if (NO_MARKETING_VIOLATION.includes(niche)) continue;

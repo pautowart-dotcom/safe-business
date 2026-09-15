@@ -260,6 +260,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/facade-cleaning-marketing-consent'),
     require('./templates/facade-cleaning-privacy-policy'),
   ],
+  // renovation_cleaning добавлен 15.09.2026 (третья ниша сегмента
+  // "Клининг") — тоже 4 шаблона, без фото-согласия (см. NO_PHOTO_CONSENT в
+  // templateViolationLinks.js).
+  renovation_cleaning: [
+    require('./templates/renovation-cleaning'),
+    require('./templates/renovation-cleaning-pd-consent'),
+    require('./templates/renovation-cleaning-marketing-consent'),
+    require('./templates/renovation-cleaning-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {
