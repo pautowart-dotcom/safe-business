@@ -196,6 +196,11 @@ const SEGMENTS = [
     // комментарий в шапке violations/cafe-basic.js.
     niches: [
       { key: 'cafe_basic', label: 'Кафе, кофейня, столовая (без алкоголя)', paidAudit: true },
+      // bakery_confectionery (15.09.2026) — вторая ниша сегмента, формат
+      // "готовим и продаём здесь же" (не попадает под исключение FD-804 у
+      // cafe_basic про поставку в другие точки), см. комментарий в шапке
+      // violations/bakery-confectionery.js.
+      { key: 'bakery_confectionery', label: 'Кондитерская и пекарня', paidAudit: true },
     ],
   },
   {

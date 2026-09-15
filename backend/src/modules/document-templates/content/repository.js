@@ -269,6 +269,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/renovation-cleaning-marketing-consent'),
     require('./templates/renovation-cleaning-privacy-policy'),
   ],
+  // bakery_confectionery добавлен 15.09.2026 (вторая ниша сегмента
+  // "Общепит") — 4 шаблона, без фото-согласия (см. NO_PHOTO_CONSENT в
+  // templateViolationLinks.js).
+  bakery_confectionery: [
+    require('./templates/bakery-confectionery'),
+    require('./templates/bakery-confectionery-pd-consent'),
+    require('./templates/bakery-confectionery-marketing-consent'),
+    require('./templates/bakery-confectionery-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

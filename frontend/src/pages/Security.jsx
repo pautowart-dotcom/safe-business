@@ -95,6 +95,7 @@ const SEGMENTS = [
     key: 'food', label: 'Общепит',
     niches: [
       { key: 'cafe_basic', label: 'Кафе, кофейня, столовая (без алкоголя)' },
+      { key: 'bakery_confectionery', label: 'Кондитерская и пекарня' },
     ],
   },
   {

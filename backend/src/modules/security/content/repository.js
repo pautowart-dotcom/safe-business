@@ -45,6 +45,7 @@ const PAID_QUESTIONS_BY_NICHE = {
   kids_club: require('./paid-questions/kids-club'),
   facade_cleaning: require('./paid-questions/facade-cleaning'),
   renovation_cleaning: require('./paid-questions/renovation-cleaning'),
+  bakery_confectionery: require('./paid-questions/bakery-confectionery'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -78,6 +79,7 @@ const VIOLATIONS_BY_NICHE = {
   kids_club: require('./violations/kids-club'),
   facade_cleaning: require('./violations/facade-cleaning'),
   renovation_cleaning: require('./violations/renovation-cleaning'),
+  bakery_confectionery: require('./violations/bakery-confectionery'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -111,6 +113,7 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   kids_club: require('./pdf/mandatory-documents/kids-club'),
   facade_cleaning: require('./pdf/mandatory-documents/facade-cleaning'),
   renovation_cleaning: require('./pdf/mandatory-documents/renovation-cleaning'),
+  bakery_confectionery: require('./pdf/mandatory-documents/bakery-confectionery'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -144,6 +147,7 @@ const ATTENTION_ZONES_BY_NICHE = {
   kids_club: require('./pdf/attention-zones/kids-club'),
   facade_cleaning: require('./pdf/attention-zones/facade-cleaning'),
   renovation_cleaning: require('./pdf/attention-zones/renovation-cleaning'),
+  bakery_confectionery: require('./pdf/attention-zones/bakery-confectionery'),
 };
 
 async function getSegments() {
