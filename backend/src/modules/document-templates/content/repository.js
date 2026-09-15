@@ -222,6 +222,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/car-wash-marketing-consent'),
     require('./templates/car-wash-privacy-policy'),
   ],
+  // tire_service добавлен 15.09.2026 (вторая ниша сегмента "Услуги для
+  // автомобилей") — см. комментарий в шапке violations/tire-service.js.
+  tire_service: [
+    require('./templates/tire-service'),
+    require('./templates/tire-service-pd-consent'),
+    require('./templates/tire-service-pd-distribution'),
+    require('./templates/tire-service-marketing-consent'),
+    require('./templates/tire-service-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

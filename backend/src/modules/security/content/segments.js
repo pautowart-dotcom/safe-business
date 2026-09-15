@@ -124,6 +124,10 @@ const SEGMENTS = [
     // начале violations/car-wash.js.
     niches: [
       { key: 'car_wash', label: 'Автомойка', paidAudit: true },
+      // tire_service (15.09.2026) — вторая ниша сегмента, тот же правовой
+      // каркас (ГК РФ гл.39), ключевая специфика — утилизация отработанных
+      // шин, см. комментарий в шапке violations/tire-service.js.
+      { key: 'tire_service', label: 'Шиномонтаж', paidAudit: true },
     ],
   },
   {

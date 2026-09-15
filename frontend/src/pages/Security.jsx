@@ -68,6 +68,7 @@ const SEGMENTS = [
     key: 'auto', label: 'Услуги для автомобилей',
     niches: [
       { key: 'car_wash', label: 'Автомойка' },
+      { key: 'tire_service', label: 'Шиномонтаж' },
     ],
   },
   {

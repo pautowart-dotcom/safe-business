@@ -40,6 +40,7 @@ const PAID_QUESTIONS_BY_NICHE = {
   appliance_repair: require('./paid-questions/appliance-repair'),
   watch_jewelry_repair: require('./paid-questions/watch-jewelry-repair'),
   car_wash: require('./paid-questions/car-wash'),
+  tire_service: require('./paid-questions/tire-service'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -68,6 +69,7 @@ const VIOLATIONS_BY_NICHE = {
   appliance_repair: require('./violations/appliance-repair'),
   watch_jewelry_repair: require('./violations/watch-jewelry-repair'),
   car_wash: require('./violations/car-wash'),
+  tire_service: require('./violations/tire-service'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -96,6 +98,7 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   appliance_repair: require('./pdf/mandatory-documents/appliance-repair'),
   watch_jewelry_repair: require('./pdf/mandatory-documents/watch-jewelry-repair'),
   car_wash: require('./pdf/mandatory-documents/car-wash'),
+  tire_service: require('./pdf/mandatory-documents/tire-service'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -124,6 +127,7 @@ const ATTENTION_ZONES_BY_NICHE = {
   appliance_repair: require('./pdf/attention-zones/appliance-repair'),
   watch_jewelry_repair: require('./pdf/attention-zones/watch-jewelry-repair'),
   car_wash: require('./pdf/attention-zones/car-wash'),
+  tire_service: require('./pdf/attention-zones/tire-service'),
 };
 
 async function getSegments() {
