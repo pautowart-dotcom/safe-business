@@ -251,6 +251,15 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/kids-club-marketing-consent'),
     require('./templates/kids-club-privacy-policy'),
   ],
+  // facade_cleaning добавлен 15.09.2026 (вторая ниша сегмента "Клининг") —
+  // только 4 шаблона, без фото-согласия (не применимо к нише, см.
+  // комментарий у NICHE_PREFIX.facade_cleaning в templateViolationLinks.js).
+  facade_cleaning: [
+    require('./templates/facade-cleaning'),
+    require('./templates/facade-cleaning-pd-consent'),
+    require('./templates/facade-cleaning-marketing-consent'),
+    require('./templates/facade-cleaning-privacy-policy'),
+  ],
 };
 
 async function getTemplatesForNiche(niche) {

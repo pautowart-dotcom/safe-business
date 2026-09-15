@@ -43,6 +43,7 @@ const PAID_QUESTIONS_BY_NICHE = {
   tire_service: require('./paid-questions/tire-service'),
   auto_service: require('./paid-questions/auto-service'),
   kids_club: require('./paid-questions/kids-club'),
+  facade_cleaning: require('./paid-questions/facade-cleaning'),
 };
 
 const VIOLATIONS_BY_NICHE = {
@@ -74,6 +75,7 @@ const VIOLATIONS_BY_NICHE = {
   tire_service: require('./violations/tire-service'),
   auto_service: require('./violations/auto-service'),
   kids_club: require('./violations/kids-club'),
+  facade_cleaning: require('./violations/facade-cleaning'),
 };
 
 const MANDATORY_DOCUMENTS_BY_NICHE = {
@@ -105,6 +107,7 @@ const MANDATORY_DOCUMENTS_BY_NICHE = {
   tire_service: require('./pdf/mandatory-documents/tire-service'),
   auto_service: require('./pdf/mandatory-documents/auto-service'),
   kids_club: require('./pdf/mandatory-documents/kids-club'),
+  facade_cleaning: require('./pdf/mandatory-documents/facade-cleaning'),
 };
 
 const ATTENTION_ZONES_BY_NICHE = {
@@ -136,6 +139,7 @@ const ATTENTION_ZONES_BY_NICHE = {
   tire_service: require('./pdf/attention-zones/tire-service'),
   auto_service: require('./pdf/attention-zones/auto-service'),
   kids_club: require('./pdf/attention-zones/kids-club'),
+  facade_cleaning: require('./pdf/attention-zones/facade-cleaning'),
 };
 
 async function getSegments() {

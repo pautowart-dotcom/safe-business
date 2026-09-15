@@ -51,6 +51,7 @@ const SEGMENTS = [
     key: 'cleaning', label: 'Клининг',
     niches: [
       { key: 'cleaning_basic', label: 'Уборка помещений (жильё и офисы)' },
+      { key: 'facade_cleaning', label: 'Мойка окон и фасадов (промышленный альпинизм)' },
     ],
   },
   {
