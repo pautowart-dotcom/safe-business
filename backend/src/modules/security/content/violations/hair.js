@@ -10,7 +10,7 @@
 // шаги, написаны напрямую, без агента, с опорой на уже имеющиеся в файле
 // пометки о неподтверждённых фактах (HR-803) — не убирать эти оговорки.
 
-const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations, workwearLaundryViolation } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -294,6 +294,7 @@ const VIOLATIONS = [
     costMin: 5000, costMax: null, free: false,
     daysMin: 14, daysMax: 14,
   },
+  workwearLaundryViolation('HR'),
 
   // --- Блок 3. Оборудование и материалы ---
   {

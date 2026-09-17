@@ -128,7 +128,7 @@
 // (fineMax: null), howTo отражает ту же низкую тревожность, а не выдумывает
 // процедуру там, где по факту дополнительных действий не требуется.
 
-const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
+const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations, workwearLaundryViolation } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -410,6 +410,7 @@ const VIOLATIONS = [
     costMin: 5000, costMax: null, free: false,
     daysMin: 14, daysMax: 14,
   },
+  workwearLaundryViolation('SL'),
 
   // --- Блок 3. Оборудование и материалы ---
   {
