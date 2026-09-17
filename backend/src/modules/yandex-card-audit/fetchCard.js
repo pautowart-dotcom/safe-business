@@ -4,10 +4,40 @@
 // JSON в <script type="application/json" class="state-view">, отдаются уже
 // в сыром HTML без выполнения JS. Puppeteer (уже используется в проекте для
 // PDF, backend/src/platform/journalGenerator.js) сюда не нужен.
-const ORG_URL_RE = /^https?:\/\/(?:www\.)?yandex\.[a-z.]+\/maps\/org\/[^/]+\/(\d+)\/?/i;
+//
+// SSRF-защита (17.09.2026, найдено security-review) — старая проверка была
+// одним regex'ом на весь URL: /^https?:\/\/(?:www\.)?yandex\.[a-z.]+\/maps\/org\/.../
+// "[a-z.]+" после "yandex." допускает ДОПОЛНИТЕЛЬНЫЕ домены, склеенные точкой —
+// "https://yandex.evil.com/maps/org/x/123/" проходил проверку, а fetch()
+// реально шёл на evil.com (домен, полностью подконтрольный атакующему: тот
+// сам решает, куда указывает DNS-запись "yandex.evil.com" — хоть на
+// 127.0.0.1, хоть на внутренний сервис/метаданные облака). Эндпоинт
+// публичный, без авторизации (за rate-limit'ом, не за paywall) — классический
+// SSRF. Тот же класс бага, что уже был найден и закрыт в website-check/scan.js
+// (assertSafeUrl/isForbiddenIp) — здесь используем более простой и надёжный
+// вариант: хост должен ТОЧНО совпадать с одним из настоящих доменов
+// Яндекс.Карт (без дополнительных лейблов ни до, ни после), парсинг через
+// URL(), а не сборка regex'ом по сырой строке — исключает трюки с userinfo
+// (https://real.yandex.ru@evil.com/...) и подобные.
+const ALLOWED_HOSTS = new Set([
+  'yandex.ru', 'www.yandex.ru',
+  'yandex.com', 'www.yandex.com',
+  'yandex.by', 'www.yandex.by',
+  'yandex.kz', 'www.yandex.kz',
+  'yandex.uz', 'www.yandex.uz',
+]);
+const ORG_PATH_RE = /^\/maps\/org\/[^/]+\/(\d+)\/?$/;
 
 function extractOrgId(url) {
-  const match = String(url || '').match(ORG_URL_RE);
+  let parsed;
+  try {
+    parsed = new URL(String(url || ''));
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+  if (!ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) return null;
+  const match = parsed.pathname.match(ORG_PATH_RE);
   return match ? match[1] : null;
 }
 
