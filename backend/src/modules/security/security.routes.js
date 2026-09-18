@@ -19,6 +19,7 @@ const { ensureNicheModules } = require('./nicheModules');
 const { isAiConfigured, matchDocumentToDeadlineSlot } = require('../../core/documentDateExtract');
 const { CATALOG: DEADLINE_CATALOG } = require('../../core/deadlineSlotsCatalog');
 const templateViolationLinks = require('../document-templates/content/templateViolationLinks');
+const { alreadyHasDocument } = require('../document-templates/documentSignal');
 
 // Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
 // точной даты нет) из docs/task-batch-4.txt. category='documents' — тест
@@ -43,6 +44,36 @@ async function syncTestAction(companyId) {
     relatedEntityType: TEST_NOT_PASSED_RELATED_TYPE,
     relatedEntityId: companyId,
   });
+}
+
+// "Связать все точки" (18.09.2026, решение владельца) — обратный случай к
+// критическим действиям выше: если ответ на вопрос теста — "документ уже
+// есть" (alreadyHasDocument, тот же сигнал, что читает GET /templates в
+// document-templates.routes.js), нарушение НЕ создаётся (scoring.js), а
+// значит ни в "Нарушениях", ни в критических действиях этот случай никогда
+// не всплывёт — хотя реальный риск остаётся (документ мог устареть или
+// потеряться). Регистрируем отдельное действие без даты, ведущее прямо на
+// "Проверку документа на риски" (вкладка "Документы", Deadlines.jsx уже
+// умеет резолвить document_verify:*). relatedEntityId = companyId (не
+// сущность конкретного документа — её нет), уникальность обеспечивает сам
+// relatedEntityType (один на связку niche+templateKey).
+async function syncDocumentVerifyActions(companyId, niche) {
+  const links = templateViolationLinks.LINKS[niche] || [];
+  for (const link of links) {
+    const relatedEntityType = `document_verify:${link.templateKey}`;
+    const hasIt = await alreadyHasDocument(companyId, link);
+    if (hasIt) {
+      await registerAction({
+        companyId,
+        category: 'documents',
+        title: `Проверить документ «${link.templateTitle}» — вы отметили, что он уже есть`,
+        relatedEntityType,
+        relatedEntityId: companyId,
+      });
+    } else {
+      await clearAction({ relatedEntityType, relatedEntityId: companyId, category: 'documents' });
+    }
+  }
 }
 
 const router = express.Router();
@@ -483,6 +514,7 @@ router.post(
       payload: { zone: result.zone, indexPercent: result.indexPercent },
     });
     await syncTestAction(req.tenant.companyId);
+    await syncDocumentVerifyActions(req.tenant.companyId, session.niche);
 
     res.json({ ...result, violationsPersisted: violationsPersisted.length });
   })

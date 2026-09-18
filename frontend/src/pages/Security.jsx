@@ -259,7 +259,10 @@ export default function Security() {
   // передаётся в SecurityDashboard ниже; читается только в момент нового
   // монтирования (после закрытия AuditResult SecurityDashboard размонтирована
   // и монтируется заново), поэтому обычный useState там это подхватывает.
-  const [dashboardTab, setDashboardTab] = useState('overview');
+  // 18.09.2026 — карточка "document_verify" в Дедлайнах ведёт сюда с
+  // { state: { dashboardTab: 'documents' } } (Deadlines.jsx), тот же приём,
+  // что topTab уже использует для location.state?.tab чуть ниже.
+  const [dashboardTab, setDashboardTab] = useState(location.state?.dashboardTab || 'overview');
   // Тест и его результат бесплатны всем, платный барьер только на скачивании
   // PDF (requirePaidPlan — см. downloadPdf выше). Статус подписки нужен
   // здесь только для честной подписи на кнопке/тексте карточки — сама

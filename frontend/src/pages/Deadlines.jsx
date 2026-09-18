@@ -20,6 +20,15 @@ const BUSINESS_STATUS_PREFIX = 'business_status:';
 // заводит новый бланк (Этап 3 повторно) и скачивает его.
 const REPRINT_RELATED_TYPE = 'generated_journal_reprint';
 
+// document_verify (18.09.2026, "связать все точки"): владелец в тесте
+// отметил "документ уже есть" — нарушения нет, значит это действие никогда
+// не попало бы ни в "Нарушения", ни в критические действия (см.
+// backend/security.routes.js syncDocumentVerifyActions). Ведёт не на
+// generic "Готово" (документ мог устареть/потеряться, отметка "готово"
+// здесь была бы неправдой), а во вкладку "Документы" — туда же, где
+// "Проверка документа на риски".
+const DOCUMENT_VERIFY_PREFIX = 'document_verify:';
+
 // 09.09.2026 — пункты каталога "Мои сроки" (core/deadlineSlotsCatalog.js),
 // у которых есть инструкция "как продлить/оформить". Список сознательно
 // маленький и дублируется вручную здесь (не импортируем backend-каталог во
@@ -155,6 +164,7 @@ export default function Deadlines() {
           const isBusinessStatusTransition = businessStatusKey && !isBusinessStatusUnknown;
           const manualKey = item.related_entity_type?.startsWith('manual:') ? item.related_entity_type.slice('manual:'.length) : null;
           const hasManualInstruction = manualKey && MANUAL_KEYS_WITH_INSTRUCTION.includes(manualKey);
+          const isDocumentVerify = item.related_entity_type?.startsWith(DOCUMENT_VERIFY_PREFIX);
           // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
           // точной даты нет ("не пройден тест", "кончаются расходники") —
           // без due_date, поэтому считать дни/показывать дату для них нельзя.
@@ -228,12 +238,17 @@ export default function Deadlines() {
                   Открыть
                 </Btn>
               )}
+              {isManagement && isDocumentVerify && (
+                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'documents' } })}>
+                  Проверить
+                </Btn>
+              )}
               {isManagement && hasManualInstruction && (
                 <Btn small variant="secondary" onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })}>
                   Как продлить
                 </Btn>
               )}
-              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && (
+              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && !isDocumentVerify && (
                 <button
                   onClick={() => markDone(item.id)}
                   style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.secondary }}
