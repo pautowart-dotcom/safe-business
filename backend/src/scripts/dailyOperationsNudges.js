@@ -98,7 +98,7 @@ async function nudgeLowStock() {
 
     const { rows } = await pool.query(
       `SELECT COUNT(*) AS n FROM supplies
-       WHERE company_id = $1 AND low_stock_threshold > 0 AND quantity <= low_stock_threshold`,
+       WHERE company_id = $1 AND low_stock_threshold > 0 AND quantity <= low_stock_threshold AND archived_at IS NULL`,
       [company.id]
     );
     const n = Number(rows[0].n);

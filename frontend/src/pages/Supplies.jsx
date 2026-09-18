@@ -43,7 +43,14 @@ export default function Supplies() {
   // страница — единственное место, где есть полноценное редактирование;
   // ссылка "Изменить наборы →" в Visits.jsx ведёт сюда с этим параметром,
   // чтобы сразу открыть нужный блок, а не заставлять искать его руками.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // ?filter=low (18.09.2026) — раньше клик по "N расходников ниже минимума"
+  // на главном экране вёл на этот же список, но без фильтра: владельцу
+  // приходилось искать нужные позиции среди всего склада самому. Стейт, а
+  // не прямое чтение searchParams в рендере — чтобы можно было снять
+  // фильтр кнопкой "Показать всё", не потеряв его при обычном заходе на
+  // страницу по прямой ссылке из меню (там параметра нет вовсе).
+  const [lowOnly, setLowOnly] = useState(searchParams.get('filter') === 'low');
 
   function load() {
     return api.get('/modules/supplies').then((res) => setSupplies(res.data)).finally(() => setLoading(false));
@@ -296,10 +303,20 @@ export default function Supplies() {
   }
 
   const filteredSupplies = supplies.filter((s) => {
+    if (lowOnly && !s.low_stock) return false;
     if (activeCategory === '') return true;
     if (activeCategory === 'none') return !s.category_id;
     return String(s.category_id) === activeCategory;
   });
+
+  async function archiveSupply(id) {
+    await api.post(`/modules/supplies/${id}/archive`);
+    load();
+  }
+  async function restoreSupply(id) {
+    await api.post(`/modules/supplies/${id}/restore`);
+    load();
+  }
 
   return (
     <div>
@@ -450,17 +467,30 @@ export default function Supplies() {
         </Card>
       )}
 
+      {lowOnly && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.redBg, borderRadius: 10, padding: '8px 14px', marginBottom: 12 }}>
+          <span style={{ fontSize: 13, color: C.red, fontWeight: 600 }}>Показаны только расходники ниже минимума</span>
+          <button
+            onClick={() => { setLowOnly(false); setSearchParams({}, { replace: true }); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 12, fontWeight: 700, textDecoration: 'underline' }}
+          >
+            Показать всё
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : (
         <Card style={{ padding: 0 }}>
           {filteredSupplies.map((s, i) => {
             const low = s.low_stock;
+            const archived = !!s.archived_at;
             return (
-              <div key={s.id} style={{ padding: '14px 16px', borderBottom: i < filteredSupplies.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <div key={s.id} style={{ padding: '14px 16px', borderBottom: i < filteredSupplies.length - 1 ? `1px solid ${C.border}` : 'none', opacity: archived ? 0.6 : 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: low ? C.red : C.green, flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: archived ? C.subtle : low ? C.red : C.green, flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
                       <div style={{ fontSize: 12, color: C.subtle }}>
@@ -470,11 +500,22 @@ export default function Supplies() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {s.is_disinfectant && <Badge color={C.secondary} bg={C.surface}>Дезсредство</Badge>}
-                    {low && <Badge color={C.red} bg={C.redBg}>Мало</Badge>}
-                    <div style={{ fontSize: 16, fontWeight: 800, color: low ? C.red : C.primary }}>{Number(s.quantity)} {s.unit}</div>
+                    {/* archived (18.09.2026) — никогда не "Мало", даже если
+                        реально quantity <= порог: компания больше не
+                        закупает, предупреждать не о чем (см. withLowStock
+                        на бэкенде, тот же принцип). */}
+                    {archived ? <Badge color={C.subtle} bg={C.surface}>Не используется</Badge> : low && <Badge color={C.red} bg={C.redBg}>Мало</Badge>}
+                    <div style={{ fontSize: 16, fontWeight: 800, color: archived ? C.subtle : low ? C.red : C.primary }}>{Number(s.quantity)} {s.unit}</div>
                   </div>
                 </div>
-                {movement && movement.id === s.id ? (
+                {archived ? (
+                  isManagement && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={() => restoreSupply(s.id)} style={{ background: C.greenBg, border: `1px solid ${C.green}33`, borderRadius: 8, padding: '6px 12px', fontSize: 12, color: C.green, cursor: 'pointer', fontWeight: 600 }}>Вернуть в закупку</button>
+                      <button onClick={() => handleDelete(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12, marginLeft: 'auto' }}>Удалить</button>
+                    </div>
+                  )
+                ) : movement && movement.id === s.id ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <TextInput
                       autoFocus
@@ -501,6 +542,14 @@ export default function Supplies() {
                   )}
                   {isManagement && (
                     <button onClick={() => openEdit(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 12, marginLeft: 'auto' }}>Изменить</button>
+                  )}
+                  {/* "Больше не используем" (18.09.2026, реальная жалоба
+                      владельца) — материал, который перестали закупать,
+                      навсегда светился "Мало" на главном экране, потому что
+                      удалить его нельзя (уже в истории визитов). Архивирует,
+                      не удаляет — см. POST /:id/archive. */}
+                  {isManagement && (
+                    <button onClick={() => archiveSupply(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Больше не используем</button>
                   )}
                   {isManagement && (
                     <button onClick={() => handleDelete(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12 }}>Удалить</button>

@@ -470,7 +470,7 @@ function OwnerDashboard() {
             </div>
           )}
           {summary.lowStockCount > 0 && (
-            <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
+            <div onClick={() => navigate('/supplies?filter=low')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
               ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
             </div>
           )}
@@ -727,7 +727,7 @@ function ManagementDashboard() {
           </div>
         )}
         {summary.lowStockCount > 0 && (
-          <div onClick={() => navigate('/supplies')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
+          <div onClick={() => navigate('/supplies?filter=low')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
             ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
           </div>
         )}

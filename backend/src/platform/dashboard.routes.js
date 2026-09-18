@@ -159,7 +159,7 @@ router.get(
     let lowStockCount = null;
     if (role !== 'master') {
       const supplies = await pool.query(
-        `SELECT COUNT(*) AS n FROM supplies WHERE company_id = $1 AND quantity <= low_stock_threshold`,
+        `SELECT COUNT(*) AS n FROM supplies WHERE company_id = $1 AND quantity <= low_stock_threshold AND archived_at IS NULL`,
         [companyId]
       );
       lowStockCount = Number(supplies.rows[0].n);

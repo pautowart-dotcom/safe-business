@@ -9,8 +9,13 @@ const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
+// 18.09.2026 — архивный расходник (archived_at не NULL, см. миграцию 0120)
+// никогда не считается "заканчивающимся", даже если реально quantity <=
+// low_stock_threshold — компания его больше не закупает, предупреждать
+// не о чем. low_stock проверяется здесь же, а не отдельно в каждом месте,
+// где читается этот флаг (дашборд, список) — один источник правды.
 function withLowStock(row) {
-  return { ...row, low_stock: parseFloat(row.quantity) <= parseFloat(row.low_stock_threshold) };
+  return { ...row, low_stock: !row.archived_at && parseFloat(row.quantity) <= parseFloat(row.low_stock_threshold) };
 }
 
 // Пакет 3, Этап 10 п.2: категории — настраиваемые владельцем/админом, не
@@ -89,10 +94,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT s.id, s.name, s.unit, s.product_url, s.quantity, s.low_stock_threshold, s.is_disinfectant,
-              s.category_id, sc.name AS category_name, s.default_quantity_per_visit, s.container_size, s.unit_cost, s.created_at
+              s.category_id, sc.name AS category_name, s.default_quantity_per_visit, s.container_size, s.unit_cost, s.archived_at, s.created_at
        FROM supplies s
        LEFT JOIN supply_categories sc ON sc.id = s.category_id
-       WHERE s.company_id = $1 ORDER BY s.name`,
+       WHERE s.company_id = $1 ORDER BY (s.archived_at IS NOT NULL), s.name`,
       [req.tenant.companyId]
     );
     const mapped = rows.map(withLowStock);
@@ -276,6 +281,39 @@ router.delete(
     });
 
     res.status(204).end();
+  })
+);
+
+// "Больше не используем" (18.09.2026) — альтернатива удалению для
+// расходников, которые компания перестала закупать, но которые уже
+// фигурируют в истории визитов (удалить нельзя, см. DELETE выше). Не
+// прячет позицию совсем — просто перестаёт учитывать её в "заканчивается"
+// (withLowStock/дашборд), сама запись и история движений остаются на месте.
+router.post(
+  '/:id/archive',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `UPDATE supplies SET archived_at = now() WHERE id = $1 AND company_id = $2
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, unit_cost, archived_at, created_at`,
+      [req.params.id, req.tenant.companyId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Позиция не найдена' });
+    res.json(withLowStock(rows[0]));
+  })
+);
+
+router.post(
+  '/:id/restore',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `UPDATE supplies SET archived_at = NULL WHERE id = $1 AND company_id = $2
+       RETURNING id, name, unit, product_url, quantity, low_stock_threshold, is_disinfectant, category_id, default_quantity_per_visit, container_size, unit_cost, archived_at, created_at`,
+      [req.params.id, req.tenant.companyId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Позиция не найдена' });
+    res.json(withLowStock(rows[0]));
   })
 );
 
