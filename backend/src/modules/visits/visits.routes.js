@@ -150,11 +150,24 @@ async function resolveMasterPayout({ masterMembershipId, serviceId, amount }) {
   if (!masterMembershipId) return { payoutType: null, payoutPercent: null, payoutAmount: null };
 
   const masterRes = await pool.query(
-    'SELECT payout_type, payout_percent, payout_fixed_amount FROM memberships WHERE id = $1',
+    'SELECT role, payout_type, payout_percent, payout_fixed_amount FROM memberships WHERE id = $1',
     [masterMembershipId]
   );
   if (masterRes.rows.length === 0) return { payoutType: null, payoutPercent: null, payoutAmount: null };
   const master = masterRes.rows[0];
+
+  // 18.09.2026 — реальная жалоба с собственных студий: визит можно
+  // привязать не только к мастеру, но и к самому владельцу/админу ("Я" в
+  // списке, см. resolveMasterMembership и Visits.jsx) — тогда payout_type
+  // всё равно 'percent' по умолчанию (DB DEFAULT на memberships), а
+  // payout_percent никогда не настраивался, и визит падал с "не задан
+  // процент выплаты", хотя выплаты тут вообще быть не должно — это
+  // собственная выручка владельца, не чья-то зарплата. Роль надёжнее, чем
+  // "заполнено или нет": владелец/админ никогда не получают выплату по
+  // визиту, только реальный мастер.
+  if (master.role !== 'master') {
+    return { payoutType: null, payoutPercent: null, payoutAmount: null };
+  }
 
   let service = null;
   if (serviceId) {
