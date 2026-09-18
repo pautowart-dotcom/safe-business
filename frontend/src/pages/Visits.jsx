@@ -116,9 +116,10 @@ function PhotoUploadCell({ label, url, onUploaded, onZoom }) {
 }
 
 export default function Visits() {
-  const { isManagement, masterLabel } = useAuth();
+  const { isManagement, masterLabel, user } = useAuth();
   const [visits, setVisits] = useState([]);
   const [masters, setMasters] = useState([]);
+  const [myMembership, setMyMembership] = useState(null);
   const [supplies, setSupplies] = useState([]);
   const [companyNiches, setCompanyNiches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -204,8 +205,18 @@ export default function Visits() {
     if (!isManagement) return;
     api.get('/platform/memberships').then((res) => {
       setMasters(res.data.filter((m) => m.role === 'master' && m.user_id));
+      // 18.09.2026 — владелец сам оказывает услуги наравне с мастерами, но
+      // своей роли "мастер" у него нет (одна роль на человека в компании) —
+      // раньше выбрать себя в этом поле было вообще нечем, приходилось либо
+      // приглашать себя отдельным приглашением на второй email (см.
+      // комментарий у resolveMasterMembership на бэкенде), либо визит просто
+      // не заводился. Своя строка находится по user_id === user.id — она
+      // есть в том же ответе (role='owner'/'admin'), просто раньше
+      // отфильтровывалась вместе с остальными не-мастерами.
+      const own = res.data.find((m) => m.user_id === user?.id);
+      setMyMembership(own || null);
     });
-  }, [isManagement]);
+  }, [isManagement, user?.id]);
 
   useEffect(() => {
     api.get('/modules/supplies').then((res) => setSupplies(res.data));
@@ -602,6 +613,7 @@ export default function Visits() {
             <Field label={masterLabel}>
               <Select required value={form.masterMembershipId} onChange={(e) => setForm({ ...form, masterMembershipId: e.target.value })}>
                 <option value="">Выберите {masterLabel === 'Мастер' ? 'мастера' : 'сотрудника'}</option>
+                {myMembership && <option value={myMembership.id}>Я ({user?.name || 'владелец'})</option>}
                 {masters
                   .filter((m) => m.active !== false || String(m.id) === String(form.masterMembershipId))
                   .map((m) => <option key={m.id} value={m.id}>{m.user_name}{m.active === false ? ' (уволен)' : ''}</option>)}

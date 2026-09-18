@@ -210,6 +210,18 @@ async function resolveMasterMembership(companyId, tenant, requestedMasterMembers
   if (!requestedMasterMembershipId) {
     return null; // владелец обязан указать мастера — проверяется вызывающим кодом
   }
+
+  // 18.09.2026 — владелец/админ может выбрать самого себя ("Я" в
+  // выпадающем списке, Visits.jsx), когда сам оказал услугу наравне с
+  // мастерами. Раньше это было физически нечем выбрать (своей роли
+  // "мастер" у него нет — одна роль на человека в компании), приходилось
+  // бы приглашать себя отдельным приглашением на второй email. Своя
+  // membership всегда активна и принадлежит этой же компании (иначе tenant
+  // вообще не прошёл бы requireTenant), доп. проверка роли не нужна.
+  if (String(requestedMasterMembershipId) === String(tenant.membershipId)) {
+    return tenant.membershipId;
+  }
+
   const { rows } = await pool.query(
     `SELECT id FROM memberships WHERE id = $1 AND company_id = $2 AND role = 'master' AND active = true`,
     [requestedMasterMembershipId, companyId]
