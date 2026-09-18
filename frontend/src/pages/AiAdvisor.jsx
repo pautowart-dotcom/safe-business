@@ -262,7 +262,7 @@ function LawNoticesList({ notices, error }) {
 // спрашиваем только если ещё не заполнены в профиле компании (Settings).
 // Сам расчёт — детерминированный core/taxRegimeRecommender.js на бэкенде,
 // агент только собирает ответы и объясняет готовый результат текстом.
-function TaxAgentCard({ company }) {
+function TaxAgentCard({ company, onAskAi }) {
   const [regions, setRegions] = useState(null);
   const [regionCode, setRegionCode] = useState(company.region_code || '');
   const [hasEmployees, setHasEmployees] = useState(company.has_employees);
@@ -339,6 +339,21 @@ function TaxAgentCard({ company }) {
             {result.vatWarning}
           </div>
         )}
+        {/* 18.09.2026 — вместо тупика после расчёта: уточняющий вопрос сразу
+            уходит в тот же чат (ComplianceAiAdvisor), с готовым текстом про
+            конкретный результат, а не общий "спросите что-нибудь". */}
+        {onAskAi && (
+          <Btn
+            small
+            variant="secondary"
+            style={{ marginTop: 14 }}
+            onClick={() => onAskAi(
+              `Уточните по расчёту: почему ${result.options.find((o) => o.regime === result.cheapestRegime)?.label || 'этот вариант'} дешевле всего для меня, и на что обратить внимание перед переходом?`
+            )}
+          >
+            Спросить ИИ об этом расчёте
+          </Btn>
+        )}
         <button
           onClick={() => setResult(null)}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 13, marginTop: 14, padding: 0 }}
@@ -404,9 +419,19 @@ function TaxAgentCard({ company }) {
 // на обе когорты (endpoint/params различаются — новая когорта передаёт
 // ниша/нарушения/сроки на бэкенде сама по company_id, старая явно передаёт
 // период, см. AiChatCard ниже по файлу).
-function AiChatCard({ initialQuestion, endpoint = '/platform/ai-advisor-subscription/ask', params, title, subtitle }) {
+function AiChatCard({ initialQuestion, prefillSignal, endpoint = '/platform/ai-advisor-subscription/ask', params, title, subtitle }) {
   const [messages, setMessages] = useState([]); // [{ question, answer, error, loading }]
   const [question, setQuestion] = useState(initialQuestion || '');
+
+  // prefillSignal (18.09.2026) — в отличие от initialQuestion (читается один
+  // раз при монтировании, для перехода с другой страницы), это событие,
+  // приходящее от соседней карточки НА ТОЙ ЖЕ странице (например, "Спросить
+  // ИИ об этом расчёте" в TaxAgentCard) — карточка чата уже смонтирована,
+  // нужен эффект, а не начальное значение стейта.
+  useEffect(() => {
+    if (prefillSignal) setQuestion(prefillSignal.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillSignal]);
 
   async function send() {
     const q = question.trim();
@@ -467,6 +492,16 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
   // сразу показать главное сверху, если оно есть (hasNotableFindings).
   const [digest, setDigest] = useState(null);
   const [digestError, setDigestError] = useState('');
+  // prefillSignal — объект {text, id}, id меняется на каждый клик (не сам
+  // text), чтобы AiChatCard увидел новый сигнал, даже если текст вопроса
+  // случайно совпал с предыдущим (иначе useEffect по [prefillSignal] с
+  // тем же text не сработал бы повторно).
+  const [prefillSignal, setPrefillSignal] = useState(null);
+
+  function askAi(text) {
+    setPrefillSignal({ text, id: Date.now() });
+    document.getElementById('ai-chat-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   function loadNotices() {
     if (!company?.hasAiAccess) return Promise.resolve();
@@ -509,8 +544,10 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
               <div style={{ fontSize: 14, lineHeight: 1.5 }}>{digest.digest}</div>
             </Card>
           )}
-          <AiChatCard initialQuestion={initialQuestion} />
-          <TaxAgentCard company={company} />
+          <div id="ai-chat-card">
+            <AiChatCard initialQuestion={initialQuestion} prefillSignal={prefillSignal} />
+          </div>
+          <TaxAgentCard company={company} onAskAi={askAi} />
           <LawNoticesList notices={notices} error={noticesError} />
         </>
       ) : (
