@@ -238,6 +238,23 @@ export default function Deadlines() {
                   Открыть
                 </Btn>
               )}
+              {/* 18.09.2026 — второй линк с того же критического нарушения: не
+                  только "Открыть" (общий текст решения из матрицы), но и
+                  "Спросить ИИ" с уже подставленным вопросом про ЭТО
+                  нарушение (AiAdvisor.jsx читает location.state.prefillQuestion).
+                  Если ИИ-надбавка не подключена, ведёт на тот же экран, там
+                  просто покажется предложение подключить — само по себе
+                  неплохой момент для допродажи, не отдельный кейс, который
+                  нужно обрабатывать здесь. */}
+              {isManagement && isSecurityViolation && (
+                <Btn
+                  small
+                  variant="secondary"
+                  onClick={() => navigate('/ai-advisor', { state: { prefillQuestion: `Что мне делать с нарушением «${item.title}»?` } })}
+                >
+                  Спросить ИИ
+                </Btn>
+              )}
               {isManagement && isDocumentVerify && (
                 <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'documents' } })}>
                   Проверить

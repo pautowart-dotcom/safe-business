@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, BackBtn, Btn, TextInput, Select, C, F } from '../ui/components.jsx';
@@ -402,9 +402,9 @@ function TaxAgentCard({ company }) {
 // три отдельные узкие функции без общего входа. Без памяти между вопросами
 // (каждый POST /ask собирает контекст заново) — простой первый шаг, не
 // продакшн-чат с историей; если приживётся, историю можно добавить позже.
-function AiChatCard() {
+function AiChatCard({ initialQuestion }) {
   const [messages, setMessages] = useState([]); // [{ question, answer, error, loading }]
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(initialQuestion || '');
 
   async function send() {
     const q = question.trim();
@@ -457,7 +457,7 @@ function AiChatCard() {
 // другое: расшифровка изменений закона и налоговый агент вместо советов по
 // марже/скидкам — у этой когорты просто нет finance/visits, советовать не
 // по чему.
-function ComplianceAiAdvisor({ company }) {
+function ComplianceAiAdvisor({ company, initialQuestion }) {
   const [notices, setNotices] = useState(null);
   const [noticesError, setNoticesError] = useState('');
 
@@ -485,7 +485,7 @@ function ComplianceAiAdvisor({ company }) {
       {company?.hasAiAccess ? (
         <>
           <ManageSubscriptionCard label="ИИ по законодательству" />
-          <AiChatCard />
+          <AiChatCard initialQuestion={initialQuestion} />
           <TaxAgentCard company={company} />
           <LawNoticesList notices={notices} error={noticesError} />
         </>
@@ -501,6 +501,11 @@ function ComplianceAiAdvisor({ company }) {
 
 export default function AiAdvisor() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // 18.09.2026 — переход с карточки критического нарушения в Дедлайнах
+  // ("Спросить ИИ") приносит готовый вопрос через location.state, не query
+  // (вопрос — полное предложение с кавычками, не хочется его URL-кодировать).
+  const initialQuestion = location.state?.prefillQuestion || '';
   const [searchParams] = useSearchParams();
   const [preset, setPreset] = useState('month');
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -586,7 +591,7 @@ export default function AiAdvisor() {
     return (
       <div>
         <BackBtn onClick={() => navigate(-1)} />
-        <ComplianceAiAdvisor company={company} />
+        <ComplianceAiAdvisor company={company} initialQuestion={initialQuestion} />
       </div>
     );
   }
