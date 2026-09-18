@@ -633,8 +633,23 @@ export default function AiAdvisor() {
             </div>
           )}
 
+          {/* 18.09.2026 — эта когорта тоже проходит тест безопасности и имеет
+              нарушения (обе владельческие студии — пример), но её основной
+              чат ниже знает только финансы, не нарушения/сроки. Переход "Спросить
+              ИИ" с карточки нарушения (Security.jsx/Deadlines.jsx) приносит
+              initialQuestion сюда же — если это тот случай, нужен чат с ПРАВИЛЬНЫМ
+              контекстом (тот же эндпоинт, что и у ComplianceAiAdvisor), а не
+              финансовый, который об этом нарушении ничего не знает. */}
+          {initialQuestion && (
+            <AiChatCard
+              initialQuestion={initialQuestion}
+              endpoint="/platform/ai-advisor-subscription/ask"
+              title="Спросить ИИ о нарушении"
+              subtitle="Отвечает с учётом вашей ниши и открытых нарушений из теста — не общими словами. Это не юридическая консультация."
+            />
+          )}
+
           <AiChatCard
-            initialQuestion={initialQuestion}
             endpoint="/modules/finance/ai-advisor-digest/ask"
             params={periodParams}
             title="Спросить ИИ о своих финансах"

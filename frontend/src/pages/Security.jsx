@@ -2124,6 +2124,7 @@ function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates })
 }
 
 function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) {
+  const navigate = useNavigate();
   const color = riskColor(violation.risk);
   return (
     <Card style={{ borderLeft: `3px solid ${violation.status === 'resolved' ? C.green : color}`, opacity: violation.status === 'resolved' ? 0.7 : 1 }}>
@@ -2166,7 +2167,22 @@ function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) 
           )}
         </div>
       )}
-      {isManagement && violation.status === 'open' && <Btn small variant="green" onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>}
+      {isManagement && violation.status === 'open' && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Btn small variant="green" onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>
+          {/* 18.09.2026 — та же связка, что уже есть в Дедлайнах для
+              критических нарушений (risk>=8), но здесь она видна в
+              "Нарушениях" всем открытым нарушениям, не только критическим —
+              это основное место, где владелец вообще их читает. */}
+          <Btn
+            small
+            variant="secondary"
+            onClick={() => navigate('/ai-advisor', { state: { prefillQuestion: `Что мне делать с нарушением «${violation.title}»?` } })}
+          >
+            Спросить ИИ
+          </Btn>
+        </div>
+      )}
     </Card>
   );
 }
