@@ -165,6 +165,12 @@ export default function Deadlines() {
           const manualKey = item.related_entity_type?.startsWith('manual:') ? item.related_entity_type.slice('manual:'.length) : null;
           const hasManualInstruction = manualKey && MANUAL_KEYS_WITH_INSTRUCTION.includes(manualKey);
           const isDocumentVerify = item.related_entity_type?.startsWith(DOCUMENT_VERIFY_PREFIX);
+          // document_risk_check_review (18.09.2026) — та же вкладка
+          // "Документы", что и document_verify выше, но отдельный тип: это
+          // готовая проверка, которую ещё не открывали, а не "документ
+          // отмечен как уже существующий" — разные события-источники,
+          // хотя ведут в одно место.
+          const isRiskCheckReview = item.related_entity_type === 'document_risk_check_review';
           // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
           // точной даты нет ("не пройден тест", "кончаются расходники") —
           // без due_date, поэтому считать дни/показывать дату для них нельзя.
@@ -260,12 +266,17 @@ export default function Deadlines() {
                   Проверить
                 </Btn>
               )}
+              {isManagement && isRiskCheckReview && (
+                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'documents' } })}>
+                  Открыть
+                </Btn>
+              )}
               {isManagement && hasManualInstruction && (
                 <Btn small variant="secondary" onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })}>
                   Как продлить
                 </Btn>
               )}
-              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && !isDocumentVerify && (
+              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && !isDocumentVerify && !isRiskCheckReview && (
                 <button
                   onClick={() => markDone(item.id)}
                   style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.secondary }}

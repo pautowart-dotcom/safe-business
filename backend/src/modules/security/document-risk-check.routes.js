@@ -8,8 +8,20 @@ const { saveRiskCheckDocument, getFileUrl, signFileUrl } = require('../../core/f
 const { extractText } = require('./document-risk-check/extractText');
 const yandexAssist = require('../../core/yandexAssist');
 const { logEvent } = require('../../core/eventLog');
+const { registerAction, clearAction } = require('../../core/deadlines');
 
 const router = express.Router();
+
+// "Связать все точки" (18.09.2026, продолжение той же правки, что и
+// document_verify в security.routes.js) — раньше проверка документа
+// заканчивалась немым результатом: владелец либо смотрел его сразу, либо
+// забывал, что запускал проверку вообще (2 проверки за всё время — сигнал,
+// что фича теряется). Теперь завершённая проверка регистрирует действие,
+// снимается при первом открытии карточки результата (GET /:id) или при
+// удалении записи. Не пытаемся парсить текст ответа ИИ на "нашлись ли
+// проблемы" — хрупко и не нужно: сам факт "проверка готова, но не открыта"
+// уже достаточный повод напомнить.
+const RISK_CHECK_ACTION_TYPE = 'document_risk_check_review';
 
 // Тот же owner-only гейт, что у остального модуля "Безопасность" (см.
 // security.routes.js, политика конфиденциальности §8.4) — загруженные
@@ -92,6 +104,9 @@ router.get('/document-risk-checks/:id', asyncHandler(async (req, res) => {
   );
   const row = rows[0];
   if (!row) return res.status(404).json({ error: 'Проверка не найдена' });
+  if (row.status === 'done') {
+    await clearAction({ relatedEntityType: RISK_CHECK_ACTION_TYPE, relatedEntityId: row.id, category: 'documents' });
+  }
   res.json({
     id: row.id,
     originalFilename: row.original_filename,
@@ -178,6 +193,13 @@ router.post(
         `UPDATE document_risk_checks SET status = 'done', risk_analysis_enc = $2 WHERE id = $1`,
         [checkId, encrypt(analysis)]
       );
+      await registerAction({
+        companyId: req.tenant.companyId,
+        category: 'documents',
+        title: `Посмотреть результат проверки документа «${originalFilename}»`,
+        relatedEntityType: RISK_CHECK_ACTION_TYPE,
+        relatedEntityId: checkId,
+      });
     } catch (err) {
       console.error('document-risk-check: draftText failed', err);
       await pool.query(
@@ -194,6 +216,7 @@ router.delete('/document-risk-checks/:id', asyncHandler(async (req, res) => {
     [req.params.id, req.tenant.companyId]
   );
   if (rowCount === 0) return res.status(404).json({ error: 'Проверка не найдена' });
+  await clearAction({ relatedEntityType: RISK_CHECK_ACTION_TYPE, relatedEntityId: req.params.id, category: 'documents' });
   res.status(204).end();
 }));
 
