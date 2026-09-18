@@ -397,12 +397,14 @@ function TaxAgentCard({ company }) {
   );
 }
 
-// "Спросить ИИ" (18.09.2026) — чат поверх реального контекста компании
-// (ниша/открытые нарушения/сроки, см. buildBusinessContext на бэкенде), а не
-// три отдельные узкие функции без общего входа. Без памяти между вопросами
-// (каждый POST /ask собирает контекст заново) — простой первый шаг, не
-// продакшн-чат с историей; если приживётся, историю можно добавить позже.
-function AiChatCard({ initialQuestion }) {
+// "Спросить ИИ" (18.09.2026) — чат поверх реального контекста компании, а не
+// узкая функция без общего входа. Без памяти между вопросами (каждый POST
+// /ask собирает контекст заново) — простой первый шаг, не продакшн-чат с
+// историей; если приживётся, историю можно добавить позже. Один компонент
+// на обе когорты (endpoint/params различаются — новая когорта передаёт
+// ниша/нарушения/сроки на бэкенде сама по company_id, старая явно передаёт
+// период, см. AiChatCard ниже по файлу).
+function AiChatCard({ initialQuestion, endpoint = '/platform/ai-advisor-subscription/ask', params, title, subtitle }) {
   const [messages, setMessages] = useState([]); // [{ question, answer, error, loading }]
   const [question, setQuestion] = useState(initialQuestion || '');
 
@@ -413,7 +415,7 @@ function AiChatCard({ initialQuestion }) {
     const idx = messages.length;
     setMessages((prev) => [...prev, { question: q, answer: null, error: '', loading: true }]);
     try {
-      const { data } = await api.post('/platform/ai-advisor-subscription/ask', { question: q });
+      const { data } = await api.post(endpoint, { question: q }, params ? { params } : undefined);
       setMessages((prev) => prev.map((m, i) => (i === idx ? { ...m, answer: data.answer, loading: false } : m)));
     } catch (err) {
       const msg = err.response?.data?.error || 'Не удалось получить ответ — попробуйте ещё раз';
@@ -423,9 +425,9 @@ function AiChatCard({ initialQuestion }) {
 
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Спросить ИИ о своём бизнесе</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{title || 'Спросить ИИ о своём бизнесе'}</div>
       <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 14 }}>
-        Отвечает с учётом вашей ниши, открытых нарушений из теста и ближайших сроков — не общими словами. Это не юридическая консультация.
+        {subtitle || 'Отвечает с учётом вашей ниши, открытых нарушений из теста и ближайших сроков — не общими словами. Это не юридическая консультация.'}
       </div>
       {messages.map((m, i) => (
         <div key={i} style={{ marginBottom: 14 }}>
@@ -511,6 +513,10 @@ export default function AiAdvisor() {
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const ready = preset !== 'custom' || (customFrom && customTo);
+  // Тот же расчёт params, что load() строит для остальных 4 запросов —
+  // AiChatCard (старая когорта) должна спрашивать ИИ про ТОТ ЖЕ период,
+  // что выбран на PeriodBar, не пересчитывать заново внутри компонента.
+  const periodParams = preset === 'custom' ? { dateFrom: customFrom, dateTo: customTo } : { period: preset };
 
   const [company, setCompany] = useState(null);
   const [paywalled, setPaywalled] = useState(false);
@@ -607,7 +613,7 @@ export default function AiAdvisor() {
       {paywalled ? (
         <EnableAiCard
           title="ИИ-советник — надбавка к подписке"
-          description="Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера) и общий текстовый вывод — по вашим данным. Включается в разделе «Подписка»."
+          description="Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и чат с ИИ по вашим финансам. Включается в разделе «Подписка»."
         />
       ) : (
         <>
@@ -626,6 +632,14 @@ export default function AiAdvisor() {
               Текстовые выводы от ИИ пока не подключены — ниже только цифры.
             </div>
           )}
+
+          <AiChatCard
+            initialQuestion={initialQuestion}
+            endpoint="/modules/finance/ai-advisor-digest/ask"
+            params={periodParams}
+            title="Спросить ИИ о своих финансах"
+            subtitle="Отвечает по марже услуг, окупаемости скидок и цене ушедших мастеров за выбранный период — не общими словами."
+          />
 
           <MarginSection data={margin} error={marginError} />
           <DiscountSection data={discount} error={discountError} />

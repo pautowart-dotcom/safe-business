@@ -155,4 +155,88 @@ router.get(
   })
 );
 
+// "Спросить ИИ" для старой когорты (18.09.2026) — то же самое, что уже
+// сделано для новой когорты в platform/ai-advisor-subscription.routes.js
+// (там контекст — ниша/нарушения/сроки), только контекст здесь финансовый:
+// те же три советника, что уже считает /digest выше, просто переиспользуем
+// их чистые compute-функции напрямую вместо похода за уже готовым дайджестом
+// (нет смысла делать HTTP-запрос сам к себе). Билинг/роль — на уровне
+// монтирования роутера (finance/index.js, requireRole('owner') +
+// requireAiAdvisorSubscription), как и у остальных эндпоинтов этого файла —
+// здесь дублировать не нужно.
+const CHAT_SYSTEM_PROMPT =
+  'Ты — ИИ-советник продукта "Безопасный бизнес" для владельцев малого бизнеса (сначала студии маникюра). Тебе дают ' +
+  'уже посчитанные цифры по бизнесу клиента за период — маржа по услугам, окупаемость скидок, цена ушедших мастеров. ' +
+  'Используй ТОЛЬКО эти цифры и вопрос владельца, не выдумывай других фактов о его бизнесе и не пересчитывай/не ' +
+  'придумывай новые числа. Не давай гарантий результата. Тон честный и простой, без канцелярита и без давления. Если ' +
+  'вопрос не связан с переданными данными или требует реальной экспертизы для конкретной ситуации — так и скажи. ' +
+  'Отвечай кратко и по делу — 3-6 предложений, если вопрос явно не требует большего.';
+
+function formatFinanceContextForPrompt({ from, to, marginServices, discountResult, masterDepartures }) {
+  const lines = [`Период: с ${from} по ${to}`];
+
+  const withMargin = marginServices.filter((s) => s.marginPerMinute !== null);
+  if (withMargin.length === 0) {
+    lines.push('Данных по марже услуг за период нет.');
+  } else {
+    lines.push('Маржа по услугам (₽/мин, от худшей к лучшей):');
+    for (const s of withMargin.slice(0, 10)) {
+      lines.push(`- ${s.serviceName}: ${s.marginPerMinute}₽/мин, средний чек ${s.avgPrice}₽, визитов за период ${s.visitsCount}.`);
+    }
+  }
+
+  const { withDiscount, withoutDiscount, windowDays } = discountResult.repeatComparison;
+  if (withDiscount.clients > 0 || withoutDiscount.clients > 0) {
+    lines.push(
+      `Возврат клиентов в течение ${windowDays} дней: со скидкой — ${withDiscount.repeatRate ?? '—'}% (${withDiscount.clients} клиентов), ` +
+        `без скидки — ${withoutDiscount.repeatRate ?? '—'}% (${withoutDiscount.clients} клиентов).`
+    );
+  } else {
+    lines.push('Данных по скидкам за период нет.');
+  }
+
+  const departed = masterDepartures.filter((m) => !m.tooRecentToJudge);
+  if (departed.length === 0) {
+    lines.push('Недавно ушедших мастеров с достаточными данными для оценки нет.');
+  } else {
+    lines.push('Ушедшие мастера:');
+    for (const m of departed) {
+      lines.push(`- ${m.masterName}: из ${m.regularClientsCount} постоянных клиентов ушли вместе с ним ${m.leftCount}.`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+router.post(
+  '/ask',
+  asyncHandler(async (req, res) => {
+    const question = typeof req.body.question === 'string' ? req.body.question.trim() : '';
+    if (!question) return res.status(400).json({ error: 'Введите вопрос' });
+    if (question.length > 1500) return res.status(400).json({ error: 'Слишком длинный вопрос — сократите до 1500 символов' });
+    if (!yandexAssist.isAiConfigured()) return res.status(503).json({ error: 'ИИ пока не настроен — попробуйте позже' });
+
+    const { from, to } = resolvePeriod(req.query);
+    const companyId = req.tenant.companyId;
+
+    const [marginServices, discountResult, masterDepartures] = await Promise.all([
+      computeMarginByService({ companyId, from, to }),
+      computeDiscountRepeatComparison({ companyId, from, to }),
+      computeMasterDepartureImpact({ companyId }),
+    ]);
+
+    const prompt = `${formatFinanceContextForPrompt({ from, to, marginServices, discountResult, masterDepartures })}\n\nВопрос владельца: ${question}`;
+
+    let answer;
+    try {
+      answer = await yandexAssist.draftText({ system: CHAT_SYSTEM_PROMPT, prompt, maxTokens: 700 });
+    } catch (err) {
+      console.error('ai-advisor-digest /ask: draftText failed', err);
+      return res.status(502).json({ error: 'Не удалось получить ответ от ИИ — попробуйте ещё раз' });
+    }
+
+    res.json({ answer, period: { from, to } });
+  })
+);
+
 module.exports = router;
