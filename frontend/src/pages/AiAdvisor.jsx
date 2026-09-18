@@ -462,6 +462,11 @@ function AiChatCard({ initialQuestion, endpoint = '/platform/ai-advisor-subscrip
 function ComplianceAiAdvisor({ company, initialQuestion }) {
   const [notices, setNotices] = useState(null);
   const [noticesError, setNoticesError] = useState('');
+  // Проактивная сводка (18.09.2026) — тот же принцип, что у финансового
+  // /digest: не заставлять владельца самого формулировать вопрос чату,
+  // сразу показать главное сверху, если оно есть (hasNotableFindings).
+  const [digest, setDigest] = useState(null);
+  const [digestError, setDigestError] = useState('');
 
   function loadNotices() {
     if (!company?.hasAiAccess) return Promise.resolve();
@@ -471,11 +476,21 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
       .catch((err) => setNoticesError(err.response?.data?.error || 'Не удалось загрузить расшифровки'));
   }
 
+  function loadDigest() {
+    if (!company?.hasAiAccess) return Promise.resolve();
+    setDigestError('');
+    return api
+      .get('/platform/ai-advisor-subscription/digest')
+      .then((res) => setDigest(res.data))
+      .catch((err) => setDigestError(err.response?.data?.error || 'Не удалось загрузить сводку'));
+  }
+
   useEffect(() => {
     loadNotices();
+    loadDigest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company?.hasAiAccess]);
-  usePullToRefresh(() => Promise.resolve(loadNotices()));
+  usePullToRefresh(() => Promise.all([loadNotices(), loadDigest()]));
 
   return (
     <div>
@@ -487,6 +502,13 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
       {company?.hasAiAccess ? (
         <>
           <ManageSubscriptionCard label="ИИ по законодательству" />
+          {digestError && <div className="alert alert-error">{digestError}</div>}
+          {digest?.digest && (
+            <Card style={{ background: C.primary, color: '#FFF' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 10 }}>Главное сейчас</div>
+              <div style={{ fontSize: 14, lineHeight: 1.5 }}>{digest.digest}</div>
+            </Card>
+          )}
           <AiChatCard initialQuestion={initialQuestion} />
           <TaxAgentCard company={company} />
           <LawNoticesList notices={notices} error={noticesError} />

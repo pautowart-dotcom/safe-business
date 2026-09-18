@@ -185,6 +185,59 @@ function formatContextForPrompt(ctx) {
   return lines.join('\n');
 }
 
+// Проактивная сводка (18.09.2026) — та же идея, что уже работает у
+// финансовой когорты (modules/finance/ai-advisor-digest.routes.js): не
+// ждать, пока владелец сам сформулирует вопрос чату, а сразу показать
+// главное сверху экрана. Переиспользует buildBusinessContext/
+// formatContextForPrompt — тот же контекст, что видит /ask, просто другой
+// промпт (не "ответь на вопрос", а "сведи в один брифинг"). "Notable" — то
+// же по духу решение, что hasNotableMargin и т.п. у финансовой сводки: нет
+// смысла звать ИИ и показывать карточку, если сказать нечего (нет
+// нарушений и нет сроков ближе 30 дней) — 30 дней такое же инженерное
+// решение "разумный горизонт", как и пороги там, можно пересмотреть.
+function hasNotableComplianceFindings(ctx) {
+  if (ctx.violationDetails.length > 0) return true;
+  const horizon = new Date();
+  horizon.setDate(horizon.getDate() + 30);
+  const horizonStr = horizon.toISOString().slice(0, 10);
+  return ctx.deadlines.some((d) => d.overdue || d.dueDate <= horizonStr);
+}
+
+const DIGEST_SYSTEM_PROMPT =
+  'Ты — ИИ-помощник продукта "Безопасный бизнес" для владельцев малого бизнеса без штатного юриста и бухгалтера. Тебе даны ' +
+  'факты о конкретном бизнесе клиента (открытые нарушения из теста безопасности со штрафами и нормами, ближайшие сроки) — ' +
+  'используй ТОЛЬКО эти факты, не выдумывай других. Задача: короткий брифинг (3-5 предложений) — что из переданного самое ' +
+  'срочное и что стоит сделать в первую очередь. Не перечисляй всё подряд, выдели главное. Не обещай гарантированный ' +
+  'результат и не пугай проверками, тон честный и простой. Если и нарушений, и близких сроков нет — не должен был вызываться ' +
+  'вовсе, но если так вышло, коротко скажи, что срочного сейчас нет.';
+
+async function buildComplianceDigest(ctx) {
+  return yandexAssist.draftText({ system: DIGEST_SYSTEM_PROMPT, prompt: formatContextForPrompt(ctx), maxTokens: 400 });
+}
+
+router.get(
+  '/digest',
+  requireAuth,
+  requireTenant,
+  requireAiAdvisorSubscription,
+  asyncHandler(async (req, res) => {
+    const ctx = await buildBusinessContext(req.tenant.companyId);
+    const hasNotableFindings = hasNotableComplianceFindings(ctx);
+    const response = { hasNotableFindings, aiConfigured: yandexAssist.isAiConfigured(), digest: null };
+
+    if (hasNotableFindings && response.aiConfigured) {
+      try {
+        response.digest = await buildComplianceDigest(ctx);
+      } catch (err) {
+        console.error('ai-advisor-subscription /digest: draftText failed', err);
+        response.digestError = 'Не удалось получить текстовую сводку от ИИ';
+      }
+    }
+
+    res.json(response);
+  })
+);
+
 const CHAT_SYSTEM_PROMPT =
   'Ты — ИИ-помощник продукта "Безопасный бизнес" для владельцев малого бизнеса без штатного юриста и бухгалтера. Тебе даны ' +
   'факты о конкретном бизнесе клиента (ниша, открытые нарушения из его теста безопасности со штрафами и нормами, ближайшие ' +
