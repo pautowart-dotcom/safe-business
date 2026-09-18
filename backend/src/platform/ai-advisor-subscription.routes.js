@@ -7,6 +7,8 @@ const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { requireAiAdvisorSubscription } = require('../core/middleware/subscription');
 const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
 const yandexAssist = require('../core/yandexAssist');
+const securityRepository = require('../modules/security/content/repository');
+const { logEvent } = require('../core/eventLog');
 
 // Единая подписка (06.09.2026) — /checkout, /cancel, /reactivate ИИ-советника
 // как отдельного продукта УДАЛЕНЫ (см. git-историю): теперь это часть одной
@@ -116,6 +118,125 @@ router.post(
     }
 
     res.json(response);
+  })
+);
+
+// "ИИ, который знает ваш бизнес" (18.09.2026, решение владельца — дорогой
+// вариант из двух обсуждённых: не точечно усиливать 3 узкие функции, а
+// сделать настоящий чат). До этой правки ни одна из трёх функций ИИ-советника
+// вообще не видела нарушения/сроки компании (проверено при разборе — только
+// нишу видел tax-agent, и то не всегда). Здесь — тот же принцип, что уже
+// работает в tax-agent (buildTaxAgentSummary выше) и в document-risk-check:
+// ИИ ничего не считает и не проверяет сам, только объясняет словами уже
+// существующие, проверенные факты (violationMatrix, deadlines) — те же
+// данные, что показаны в интерфейсе на вкладках "Нарушения"/"Дедлайны", не
+// новый источник правды. Разговорной памяти (истории сообщений) пока нет —
+// каждый вопрос собирает контекст заново с нуля, простой первый шаг, не
+// продакшн-чат с состоянием.
+async function buildBusinessContext(companyId) {
+  const [{ rows: nicheRows }, { rows: violationRows }, { rows: deadlineRows }, { rows: companyRows }] = await Promise.all([
+    pool.query('SELECT niche FROM security_profile_niches WHERE company_id = $1', [companyId]),
+    pool.query(`SELECT violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`, [companyId]),
+    pool.query(
+      `SELECT title, to_char(due_date, 'YYYY-MM-DD') AS due_date FROM deadlines
+       WHERE company_id = $1 AND kind = 'deadline' AND status = 'pending' ORDER BY due_date ASC LIMIT 15`,
+      [companyId]
+    ),
+    pool.query('SELECT region_code, has_employees FROM companies WHERE id = $1', [companyId]),
+  ]);
+
+  const violationDetails = [];
+  for (const v of violationRows) {
+    const details = await securityRepository.getViolation(v.niche, v.violation_code);
+    if (details) {
+      violationDetails.push({ title: details.title, fineText: details.fineText, normBase: details.normBase, solution: details.solution });
+    }
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const deadlines = deadlineRows.map((d) => ({ title: d.title, dueDate: d.due_date, overdue: d.due_date < todayStr }));
+
+  return { niches: nicheRows.map((r) => r.niche), company: companyRows[0] || {}, violationDetails, deadlines };
+}
+
+function formatContextForPrompt(ctx) {
+  const lines = [];
+  lines.push(`Ниша(и) бизнеса: ${ctx.niches.join(', ') || 'не указано в профиле'}`);
+  if (ctx.company.region_code) lines.push(`Регион: ${ctx.company.region_code}`);
+  if (typeof ctx.company.has_employees === 'boolean') lines.push(`Наёмные сотрудники: ${ctx.company.has_employees ? 'есть' : 'нет'}`);
+
+  if (ctx.violationDetails.length === 0) {
+    lines.push('Открытых нарушений по тесту безопасности сейчас нет (или тест ещё не пройден).');
+  } else {
+    lines.push(`Открытые нарушения из теста безопасности (${ctx.violationDetails.length}):`);
+    for (const v of ctx.violationDetails) {
+      lines.push(`- ${v.title}. Штраф: ${v.fineText || 'не определён'}. Норма: ${v.normBase || 'не указана'}. Как решить: ${v.solution || 'не указано'}.`);
+    }
+  }
+
+  if (ctx.deadlines.length === 0) {
+    lines.push('Ближайших сроков в разделе "Мои сроки"/"Дедлайны" не внесено.');
+  } else {
+    lines.push('Ближайшие сроки:');
+    for (const d of ctx.deadlines) {
+      lines.push(`- ${d.title}: ${d.dueDate}${d.overdue ? ' (просрочено)' : ''}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+const CHAT_SYSTEM_PROMPT =
+  'Ты — ИИ-помощник продукта "Безопасный бизнес" для владельцев малого бизнеса без штатного юриста и бухгалтера. Тебе даны ' +
+  'факты о конкретном бизнесе клиента (ниша, открытые нарушения из его теста безопасности со штрафами и нормами, ближайшие ' +
+  'сроки) — используй ТОЛЬКО эти факты и вопрос владельца, не выдумывай других фактов о его бизнесе, которых тебе не давали. ' +
+  'Можно объяснять общие нормы закона по теме вопроса, но если не уверен в конкретной статье или сумме — так и скажи, не ' +
+  'выдумывай. Никогда не давай юридических гарантий и не обещай, что штрафа или проверки не будет. Тон честный и простой, без ' +
+  'канцелярита и без запугивания. Если вопрос не связан с фактами о бизнесе клиента или требует реальной юридической/' +
+  'бухгалтерской оценки конкретной ситуации — прямо скажи об этом и посоветуй обратиться к юристу/бухгалтеру, не изображай ' +
+  'уверенность, которой нет. Отвечай кратко и по делу — 3-6 предложений, если вопрос явно не требует большего.';
+
+router.post(
+  '/ask',
+  requireAuth,
+  requireTenant,
+  requireAiAdvisorSubscription,
+  asyncHandler(async (req, res) => {
+    const question = typeof req.body.question === 'string' ? req.body.question.trim() : '';
+    if (!question) return res.status(400).json({ error: 'Введите вопрос' });
+    // Защита от неконтролируемой стоимости на один запрос — тот же приём,
+    // что и обрезка текста в document-risk-check (там 15000 символов на
+    // ЗАГРУЖЕННЫЙ документ; здесь ввод набирает сам владелец, разумный
+    // потолок намного меньше).
+    if (question.length > 1500) return res.status(400).json({ error: 'Слишком длинный вопрос — сократите до 1500 символов' });
+    if (!yandexAssist.isAiConfigured()) return res.status(503).json({ error: 'ИИ пока не настроен — попробуйте позже' });
+
+    const ctx = await buildBusinessContext(req.tenant.companyId);
+    const prompt = `${formatContextForPrompt(ctx)}\n\nВопрос владельца бизнеса: ${question}`;
+
+    let answer;
+    try {
+      answer = await yandexAssist.draftText({ system: CHAT_SYSTEM_PROMPT, prompt, maxTokens: 700 });
+    } catch (err) {
+      console.error('ai-advisor-subscription /ask: draftText failed', err);
+      return res.status(502).json({ error: 'Не удалось получить ответ от ИИ — попробуйте ещё раз' });
+    }
+
+    // Только факт обращения, не текст вопроса/ответа (могут содержать
+    // чувствительные детали бизнеса) — та же причина, по которой
+    // document_risk_checks.extracted_text_enc/risk_analysis_enc шифруются, а
+    // не просто не логируются: здесь решили не хранить содержимое вовсе,
+    // раз ответ и так не персистится. Цель — не потерять из виду usage, как
+    // это уже случилось с "Мои сроки" (0/142 заполнений и никто не заметил,
+    // пока не проверили вручную).
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'ai_advisor',
+      userId: req.user.id,
+      entityType: 'ai_advisor_chat',
+      action: 'ai_advisor_chat.asked',
+    });
+
+    res.json({ answer });
   })
 );
 

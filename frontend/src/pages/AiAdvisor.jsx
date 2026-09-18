@@ -397,6 +397,61 @@ function TaxAgentCard({ company }) {
   );
 }
 
+// "Спросить ИИ" (18.09.2026) — чат поверх реального контекста компании
+// (ниша/открытые нарушения/сроки, см. buildBusinessContext на бэкенде), а не
+// три отдельные узкие функции без общего входа. Без памяти между вопросами
+// (каждый POST /ask собирает контекст заново) — простой первый шаг, не
+// продакшн-чат с историей; если приживётся, историю можно добавить позже.
+function AiChatCard() {
+  const [messages, setMessages] = useState([]); // [{ question, answer, error, loading }]
+  const [question, setQuestion] = useState('');
+
+  async function send() {
+    const q = question.trim();
+    if (!q) return;
+    setQuestion('');
+    const idx = messages.length;
+    setMessages((prev) => [...prev, { question: q, answer: null, error: '', loading: true }]);
+    try {
+      const { data } = await api.post('/platform/ai-advisor-subscription/ask', { question: q });
+      setMessages((prev) => prev.map((m, i) => (i === idx ? { ...m, answer: data.answer, loading: false } : m)));
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Не удалось получить ответ — попробуйте ещё раз';
+      setMessages((prev) => prev.map((m, i) => (i === idx ? { ...m, error: msg, loading: false } : m)));
+    }
+  }
+
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Спросить ИИ о своём бизнесе</div>
+      <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 14 }}>
+        Отвечает с учётом вашей ниши, открытых нарушений из теста и ближайших сроков — не общими словами. Это не юридическая консультация.
+      </div>
+      {messages.map((m, i) => (
+        <div key={i} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.secondary, marginBottom: 6 }}>{m.question}</div>
+          {m.loading && <div style={{ fontSize: 13, color: C.subtle }}>Думаю...</div>}
+          {m.error && <div className="alert alert-error">{m.error}</div>}
+          {m.answer && (
+            <div style={{ background: C.surface, borderRadius: 10, padding: '12px 14px', fontSize: 13, color: C.primary, lineHeight: 1.55 }}>
+              {m.answer}
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <TextInput
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+          placeholder="Например: что мне грозит за просроченный огнетушитель?"
+        />
+        <Btn onClick={send} disabled={!question.trim()}>Спросить</Btn>
+      </div>
+    </Card>
+  );
+}
+
 // Новая когорта ("только безопасность", core/cohort.js) — та же надбавка
 // (hasAiAccess), что и у финансового ИИ-советника ниже, но содержание
 // другое: расшифровка изменений закона и налоговый агент вместо советов по
@@ -430,13 +485,14 @@ function ComplianceAiAdvisor({ company }) {
       {company?.hasAiAccess ? (
         <>
           <ManageSubscriptionCard label="ИИ по законодательству" />
+          <AiChatCard />
           <TaxAgentCard company={company} />
           <LawNoticesList notices={notices} error={noticesError} />
         </>
       ) : (
         <EnableAiCard
           title="ИИ по законодательству — надбавка к подписке"
-          description="Когда в законе появляется что-то важное для вашего бизнеса, ИИ разбирает это простыми словами, плюс налоговый агент. Включается в разделе «Подписка»."
+          description="Спрашивайте ИИ о своём бизнесе — он знает вашу нишу, открытые нарушения из теста и ближайшие сроки. Плюс налоговый агент и разборы изменений в законе простыми словами. Включается в разделе «Подписка»."
         />
       )}
     </div>
