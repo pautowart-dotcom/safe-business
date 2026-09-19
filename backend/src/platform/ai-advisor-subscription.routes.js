@@ -350,3 +350,8 @@ async function handleAiAdvisorSubscriptionWebhook(paymentId, payment, res) {
 
 module.exports = router;
 module.exports.handleAiAdvisorSubscriptionWebhook = handleAiAdvisorSubscriptionWebhook;
+// Переиспользуются в scripts/complianceDigestNudges.js (18.09.2026) — тот же
+// контекст и то же "стоит ли вообще звать ИИ", что и в GET /digest выше, не
+// дублируем логику ради крона.
+module.exports.buildBusinessContext = buildBusinessContext;
+module.exports.hasNotableComplianceFindings = hasNotableComplianceFindings;

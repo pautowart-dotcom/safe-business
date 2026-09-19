@@ -5,6 +5,8 @@ const { moscowDateStr } = require('../utils/moscowDate');
 const { computeMarginByService } = require('../modules/finance/marginAdvisor');
 const { computeDiscountRepeatComparison } = require('../modules/finance/discountAdvisor');
 const { computeMasterDepartureImpact } = require('../modules/finance/masterDepartureAdvisor');
+const { NEW_COHORT_CUTOFF } = require('../core/cohort');
+const { buildBusinessContext, hasNotableComplianceFindings } = require('../platform/ai-advisor-subscription.routes');
 
 // Запускается раз в сутки по cron (см. deploy/provision.sh), утром по
 // Москве — превращает уже включённые всем по умолчанию модули (Смена,
@@ -183,14 +185,59 @@ async function nudgeAiAdvisors() {
   return companies.length;
 }
 
+// Тот же nudgeAiAdvisors, только для когорты "только безопасность"
+// (core/cohort.js) — у неё нет finance/visits, но есть свой проактивный
+// дайджест (GET /platform/ai-advisor-subscription/digest, 18.09.2026),
+// который до этой правки видели только те, кто сам зашёл на экран
+// "ИИ по законодательству". relatedEntityType переиспользован тот же
+// ('ai_advisor_digest') — Dashboard.jsx уже умеет вести с ним на /ai-advisor
+// (actionTarget), category другая ('documents', не 'financial'), поэтому
+// ON CONFLICT не пересекается со строкой nudgeAiAdvisors даже для той же
+// компании. Не гейтуется подпиской нарочно, тем же принципом, что и
+// nudgeAiAdvisors выше — клик без подписки ведёт на тот же экран, где
+// сразу видно предложение подключить (EnableAiCard), а не в тупик.
+async function nudgeComplianceDigest() {
+  const { rows: companies } = await pool.query(
+    `SELECT DISTINCT c.id, c.name
+     FROM companies c
+     JOIN company_modules cm ON cm.company_id = c.id AND cm.module_key = 'security' AND cm.enabled = true
+     WHERE c.created_at >= $1`,
+    [NEW_COHORT_CUTOFF]
+  );
+
+  for (const company of companies) {
+    await clearAction({ relatedEntityType: 'ai_advisor_digest', relatedEntityId: company.id, category: 'documents' });
+
+    let notable = false;
+    try {
+      const ctx = await buildBusinessContext(company.id);
+      notable = hasNotableComplianceFindings(ctx);
+    } catch (err) {
+      console.error(`nudgeComplianceDigest: расчёт упал для компании ${company.id}:`, err);
+      continue;
+    }
+    if (!notable) continue;
+
+    await registerAction({
+      companyId: company.id,
+      category: 'documents',
+      title: 'ИИ по законодательству нашёл срочное — что сделать в первую очередь',
+      relatedEntityType: 'ai_advisor_digest',
+      relatedEntityId: company.id,
+    });
+  }
+  return companies.length;
+}
+
 async function main() {
   const targetDate = yesterdayStr();
   const shiftCompanies = await nudgeShiftNotOpened(targetDate);
   const revenueCompanies = await nudgeRevenueNotLogged(targetDate);
   const stockCompanies = await nudgeLowStock();
   const aiAdvisorCompanies = await nudgeAiAdvisors();
+  const complianceDigestCompanies = await nudgeComplianceDigest();
   console.log(
-    `dailyOperationsNudges (${targetDate}): смена — ${shiftCompanies} компаний проверено, выручка — ${revenueCompanies}, остатки — ${stockCompanies}, ИИ-советник — ${aiAdvisorCompanies}`
+    `dailyOperationsNudges (${targetDate}): смена — ${shiftCompanies} компаний проверено, выручка — ${revenueCompanies}, остатки — ${stockCompanies}, ИИ-советник — ${aiAdvisorCompanies}, ИИ по законодательству — ${complianceDigestCompanies}`
   );
 }
 
