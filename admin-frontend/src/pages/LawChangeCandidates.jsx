@@ -69,8 +69,10 @@ export default function LawChangeCandidates() {
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Кандидаты на изменение закона</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>
         Внутренний шаг мониторинга (карта фронтов, 03б) — источник: publication.pravo.gov.ru,
-        федеральные законы, отфильтровано по налоговым/бизнес-статусным ключевым словам.
-        Ничего отсюда не публикуется клиенту автоматически — только решение человека.
+        федеральные законы и постановления Правительства. Попадают сюда только те публикации,
+        которые совпадают с нормой, уже процитированной в продукте — по нишам теста/шаблонов
+        документов или налоговому калькулятору (см. core/citedLawReferences.js), не любое
+        изменение подряд. Ничего отсюда не публикуется клиенту автоматически — только решение человека.
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -93,7 +95,7 @@ export default function LawChangeCandidates() {
         <Card key={row.id} style={{ borderLeft: `3px solid ${STATUS_COLOR[row.status]}` }}>
           <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'pre-line' }}>{row.title}</div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>
-            {row.publishedAt || '—'} · ключевые слова: {row.matchedKeywords?.join(', ') || '—'}
+            {row.publishedAt || '—'} · совпадает с: {row.matchedKeywords?.join('; ') || '—'}
           </div>
           <a href={row.docUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.primary }}>Текст на pravo.gov.ru</a>
           <div style={{ fontSize: 11, fontWeight: 700, color: STATUS_COLOR[row.status], marginTop: 6 }}>

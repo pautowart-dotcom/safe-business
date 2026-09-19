@@ -1,31 +1,46 @@
 require('dotenv').config();
 const pool = require('../db/pool');
+const { buildCitationIndex, matchCandidate } = require('../core/citedLawReferences');
 
 // Первый шаг клиентского платного мониторинга закона (карта фронтов, 03б,
 // 31.08.2026) — только сбор кандидатов, без клиентского UI и без оплаты.
-// Источник и контур — решение владельца 31.08.2026: сначала налоги/бизнес-
-// статус (не санитарные/лицензионные требования, там источники и охват
-// сильно другие). Источник проверен вручную curl'ом (WebFetch не достучался
-// до *.gov.ru из этого окружения, прямое соединение — да): официальный
-// портал опубликования правовых актов отдаёт RSS с реальными URL вида
+// Источник проверен вручную curl'ом (WebFetch не достучался до *.gov.ru из
+// этого окружения, прямое соединение — да): официальный портал
+// опубликования правовых актов отдаёт RSS с реальными URL вида
 // http://publication.pravo.gov.ru/api/rss?block=<block>&pageSize=<10|100|200>
 // (только эти три значения pageSize подтверждены — другие отдают HTTP 400).
-// block=president — федеральные законы публикуются там же, где указы
-// президента (закон подписывается и публикуется президентом), это
-// подтверждено на реальных данных: в выборке из последних 200 записей
-// нашлось 6 подлинных поправок в НК РФ.
-const FEED_URL = 'http://publication.pravo.gov.ru/api/rss?block=president&pageSize=200';
+// block=president — федеральные законы (закон подписывается и публикуется
+// президентом); block=government — постановления Правительства РФ (там же,
+// где нормы вида ПП №780/№1514, на которые уже ссылаются шаблоны/матрицы
+// нарушений продукта) — оба формата проверены вручную 18.09.2026.
+const BLOCKS = ['president', 'government'];
+function feedUrl(block) {
+  return `http://publication.pravo.gov.ru/api/rss?block=${block}&pageSize=200`;
+}
 
-// Список сознательно узкий и предметный (налоги/бизнes-статус, не всё
-// законодательство) — соответствует выбранному контуру. Расширять этот
-// список — не то же самое, что расширять контур мониторинга: правки НК РФ
-// иногда называются не "налог", а по номеру статьи, это не решить чистым
-// списком слов, но для MVP-сигнала (не для истины) этого достаточно.
-const KEYWORDS = ['налог', 'нк рф', 'патент', 'самозанят', 'усн', 'упрощен', 'страхов', 'нпд'];
-
-function matchKeywords(title) {
-  const lower = title.toLowerCase();
-  return KEYWORDS.filter((kw) => lower.includes(kw));
+// 18.09.2026 (решение владельца) — раньше единственным фильтром был грубый
+// список слов ('налог', 'страхов' и т.п.) без всякой привязки к тому, что
+// продукт реально утверждает по каждой нише. Итог — очередь из общих правок
+// НК РФ ("статьи 166 и 168...", "статья 145..."), по которым владелец сам
+// не мог судить, важны ли они студии маникюра, и честно сказал "не вижу
+// смысла" их разбирать. Теперь единственный критерий — совпадение с нормой,
+// которую продукт УЖЕ цитирует (core/citedLawReferences.js: normBase в
+// матрицах нарушений, lawReference в шаблонах документов, статьи НК РФ в
+// налоговом калькуляторе). Нет совпадения — кандидат не заводится вовсе,
+// не просто помечается низким приоритетом: непроверяемый шум хуже пустой
+// очереди.
+function summarizeMatches(matches) {
+  const byKey = new Map();
+  for (const m of matches) {
+    const key = `${m.type}:${m.number}`;
+    if (!byKey.has(key)) byKey.set(key, { type: m.type, number: m.number, niches: new Set() });
+    if (m.niche) byKey.get(key).niches.add(m.niche);
+  }
+  return [...byKey.values()].map((e) => {
+    const label = e.type === 'fz' ? `${e.number}-ФЗ` : e.type === 'pp' ? `ПП №${e.number}` : `НК РФ ст.${e.number}`;
+    const niches = [...e.niches];
+    return niches.length > 0 ? `${label} (${niches.join(', ')})` : `${label} (налоговый калькулятор)`;
+  });
 }
 
 const RU_MONTHS = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
@@ -56,28 +71,36 @@ function parseRssItems(xml) {
   });
 }
 
-async function fetchCandidates() {
-  const res = await fetch(FEED_URL);
-  if (!res.ok) throw new Error(`pravo.gov.ru RSS ответил ${res.status}`);
+async function fetchBlockItems(block) {
+  const res = await fetch(feedUrl(block));
+  if (!res.ok) throw new Error(`pravo.gov.ru RSS (${block}) ответил ${res.status}`);
   const xml = await res.text();
   const items = parseRssItems(xml);
-  if (items.length === 0) throw new Error('RSS-лента вернула 0 записей — источник мог сменить формат, парсер не проверял бы это молча');
+  if (items.length === 0) throw new Error(`RSS-лента (${block}) вернула 0 записей — источник мог сменить формат, парсер не проверял бы это молча`);
+  return items.map((item) => ({ ...item, sourceBlock: block }));
+}
 
-  return items
-    .map((item) => ({ ...item, matched: matchKeywords(item.title) }))
+async function fetchCandidates(citationIndex) {
+  const allItems = [];
+  for (const block of BLOCKS) {
+    allItems.push(...(await fetchBlockItems(block)));
+  }
+  return allItems
+    .map((item) => ({ ...item, matched: matchCandidate(item, citationIndex) }))
     .filter((item) => item.matched.length > 0 && item.link);
 }
 
 async function main() {
-  const candidates = await fetchCandidates();
+  const citationIndex = await buildCitationIndex();
+  const candidates = await fetchCandidates(citationIndex);
 
   let inserted = 0;
   for (const c of candidates) {
     const { rowCount } = await pool.query(
       `INSERT INTO law_change_candidates (source, source_block, title, doc_url, published_at, matched_keywords)
-       VALUES ('pravo_gov_ru', 'president', $1, $2, $3, $4)
+       VALUES ('pravo_gov_ru', $1, $2, $3, $4, $5)
        ON CONFLICT (doc_url) DO NOTHING`,
-      [c.title, c.link, extractPublishedDate(c.pubDate), c.matched]
+      [c.sourceBlock, c.title, c.link, extractPublishedDate(c.pubDate), summarizeMatches(c.matched)]
     );
     inserted += rowCount;
   }
@@ -102,4 +125,4 @@ main()
     pool.end().finally(() => process.exit(1));
   });
 
-module.exports = { parseRssItems, matchKeywords, extractPublishedDate };
+module.exports = { parseRssItems, extractPublishedDate, summarizeMatches };
