@@ -5,6 +5,7 @@ require('./modules');
 const { authRoutes, platformRouter, legalRoutes } = require('./platform');
 const { mountModules } = require('./core/modules-registry');
 const { UPLOADS_DIR, verifyFileUrlSignature } = require('./core/fileStorage');
+const { createRateLimiter } = require('./core/rateLimit');
 
 function buildApp() {
   const app = express();
@@ -25,6 +26,21 @@ function buildApp() {
   app.use(express.json());
 
   app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+  // Общий предохранитель от массового обхода API (20.09.2026): 200 запросов в
+  // минуту с одного IP на воркер (воркеров 2 — потолок до ~400). Обычный
+  // экран делает 10-30 запросов, поллинг — единицы в минуту; скрипт-сборщик
+  // упирается в лимит сразу. Не трогаем health (пост-деплойная проверка) и
+  // выдачу файлов по подписанным ссылкам (одна страница может грузить
+  // десятки фото).
+  app.use(
+    '/api',
+    createRateLimiter({
+      windowMs: 60 * 1000,
+      max: 200,
+      skip: (req) => req.path === '/health' || req.path.startsWith('/uploads/'),
+    })
+  );
 
   app.use('/api/auth', authRoutes);
   app.use('/api/platform', platformRouter);

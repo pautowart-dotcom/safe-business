@@ -229,6 +229,31 @@ async function nudgeComplianceDigest() {
   return companies.length;
 }
 
+// Ежедневный контроль аномалий (20.09.2026, шаг 1 защиты от массового
+// копирования, см. core/abuseAlerts.js): только пуш владельцу платформы, без
+// автоблокировок. Нормальный фон — единицы гостей и 1-3 запуска теста на
+// компанию в сутки; пороги стоят с большим запасом, срабатывание — сигнал
+// посмотреть, а не доказательство.
+async function watchAbuse() {
+  const { sendPushToSuperAdmins } = require('../core/pushNotify');
+  const guests = await pool.query(`SELECT COUNT(*) AS n FROM users WHERE is_guest = true AND created_at > now() - interval '24 hours'`);
+  const heavy = await pool.query(
+    `SELECT COUNT(*) AS n FROM (
+       SELECT company_id FROM security_sessions WHERE started_at > now() - interval '24 hours'
+       GROUP BY company_id HAVING COUNT(*) >= 8
+     ) t`
+  );
+  const guestsN = Number(guests.rows[0].n);
+  const heavyN = Number(heavy.rows[0].n);
+  const lines = [];
+  if (guestsN >= 100) lines.push(`гостевых аккаунтов за сутки: ${guestsN}`);
+  if (heavyN >= 1) lines.push(`компаний с 8+ запусками теста за сутки: ${heavyN}`);
+  if (lines.length > 0) {
+    await sendPushToSuperAdmins({ title: 'Подозрительная активность', body: lines.join('; '), url: '/office/companies' });
+  }
+  return { guestsN, heavyN, alerted: lines.length > 0 };
+}
+
 async function main() {
   const targetDate = yesterdayStr();
   const shiftCompanies = await nudgeShiftNotOpened(targetDate);
@@ -236,6 +261,13 @@ async function main() {
   const stockCompanies = await nudgeLowStock();
   const aiAdvisorCompanies = await nudgeAiAdvisors();
   const complianceDigestCompanies = await nudgeComplianceDigest();
+  try {
+    const abuse = await watchAbuse();
+    console.log(`watchAbuse: гостей за сутки ${abuse.guestsN}, компаний с 8+ запусками ${abuse.heavyN}, пуш ${abuse.alerted ? 'отправлен' : 'не нужен'}`);
+  } catch (err) {
+    // контроль аномалий не должен ронять ежедневные напоминания
+    console.error('watchAbuse упал:', err);
+  }
   console.log(
     `dailyOperationsNudges (${targetDate}): смена — ${shiftCompanies} компаний проверено, выручка — ${revenueCompanies}, остатки — ${stockCompanies}, ИИ-советник — ${aiAdvisorCompanies}, ИИ по законодательству — ${complianceDigestCompanies}`
   );

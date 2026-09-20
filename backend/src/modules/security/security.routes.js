@@ -12,6 +12,7 @@ const { saveDocumentFile, getFileUrl, signFileUrl, bareFileUrl } = require('../.
 const repository = require('./content/repository');
 const { mergeDocumentSections } = require('./content/mergeSections');
 const scoring = require('./content/scoring');
+const { secondsLeft } = require('./sessionPacing');
 const { loadProfile } = require('./profile');
 const { computeSecurityStatus, visiblePaidQuestions } = require('./status');
 const { registerAction, clearAction } = require('../../core/deadlines');
@@ -363,6 +364,17 @@ router.post(
     }
     const questions = await visiblePaidQuestions(targetNiche, profile);
 
+    // Не больше 12 запусков теста в сутки на компанию (20.09.2026, шаг 1
+    // защиты от массового обхода): человеку хватает нескольких (повторное
+    // прохождение, по одному на нишу), сборщику карточек нарушений — нет.
+    const startedToday = await pool.query(
+      `SELECT COUNT(*) AS n FROM security_sessions WHERE company_id = $1 AND started_at >= date_trunc('day', now())`,
+      [req.tenant.companyId]
+    );
+    if (Number(startedToday.rows[0].n) >= 12) {
+      return res.status(429).json({ error: 'На сегодня достаточно запусков теста — продолжите завтра' });
+    }
+
     // type исторически 'free'/'paid' (см. миграцию 0008) — тест теперь один
     // и всегда бесплатный, значение сохраняем как есть, чтобы не трогать схему
     // и остальной код, читающий эту колонку.
@@ -436,6 +448,17 @@ router.post(
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
     if (session.status !== 'in_progress') return res.status(400).json({ error: 'Аудит уже завершён' });
+
+    // Минимальное время прохождения (шаг 1 защиты от массового обхода,
+    // 20.09.2026, см. sessionPacing.js): пауза, а не блокировка — повторить
+    // запрос можно через N секунд, ответы сохранены.
+    const wait = secondsLeft(session.started_at, session.total_questions);
+    if (wait > 0) {
+      return res.status(429).json({
+        error: `Вы ответили очень быстро. Проверьте ответы и завершите тест через ${wait} сек.`,
+        retryAfterSeconds: wait,
+      });
+    }
 
     const profile = await loadProfile(req.tenant.companyId);
     const questions = await visiblePaidQuestions(session.niche, profile);

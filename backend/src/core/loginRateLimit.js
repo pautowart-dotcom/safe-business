@@ -40,4 +40,25 @@ async function recordFailedLogin(ip, email) {
   await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1), ($2)', [ipKey(ip), emailKey(email)]);
 }
 
-module.exports = { checkLoginAllowed, recordFailedLogin };
+// Гостевой старт теста (20.09.2026): отдельные окна — час и сутки, счётчик в
+// БД, общий для всех воркеров PM2. Гостевой старт выдаёт рабочий токен без
+// почты и капчи, поэтому именно он — самая дешёвая дверь для массового
+// обхода. Лимиты с запасом для реальных людей (норма — единицы в день на
+// весь сервис). Записи чистит checkLoginAllowed (старше суток).
+const GUEST_MAX_PER_HOUR = 8;
+const GUEST_MAX_PER_DAY = 25;
+
+async function checkGuestStartAllowed(ip) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE created_at > now() - interval '1 hour') AS hour_n, COUNT(*) AS day_n
+     FROM login_attempts WHERE identifier = $1`,
+    [`guest:${ip}`]
+  );
+  return Number(rows[0].hour_n) < GUEST_MAX_PER_HOUR && Number(rows[0].day_n) < GUEST_MAX_PER_DAY;
+}
+
+async function recordGuestStart(ip) {
+  await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`guest:${ip}`]);
+}
+
+module.exports = { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart };

@@ -16,7 +16,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { signCompanyToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
-const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
+const { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart } = require('../core/loginRateLimit');
+const { checkGuestSpike } = require('../core/abuseAlerts');
 const { sendMail } = require('../core/mailer');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
@@ -53,6 +54,15 @@ router.post(
       return res.status(429).json({ error: 'Слишком много попыток. Попробуйте снова через 15 минут.' });
     }
     await recordFailedLogin(req.ip, req.ip);
+
+    // Шаг 1 защиты от массового обхода (20.09.2026): гостевой старт выдаёт
+    // рабочий токен без почты и капчи — через него можно достать содержимое
+    // теста и карточки нарушений. Отдельные окна на час и сутки (счётчик в
+    // БД, общий для воркеров) поверх прежнего лимита 5 за 15 минут.
+    if (!(await checkGuestStartAllowed(req.ip))) {
+      return res.status(429).json({ error: 'Слишком много запусков теста с вашего адреса. Попробуйте позже или зарегистрируйтесь.' });
+    }
+    await recordGuestStart(req.ip);
 
     const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
     const guestEmail = `guest-${crypto.randomUUID()}@guest.business-safe.internal`;
@@ -107,6 +117,9 @@ router.post(
 
       const token = signCompanyToken({ userId, companyId, membershipId: membership.id, role: membership.role, branchId: null });
       res.status(201).json({ token });
+      // Уведомление владельцу платформы, если гостей за час аномально много —
+      // после ответа и без ожидания (не должно ни задерживать, ни ронять старт).
+      checkGuestSpike().catch((err) => console.error('checkGuestSpike failed:', err));
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
