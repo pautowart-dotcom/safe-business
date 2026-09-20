@@ -20,6 +20,7 @@ const { ADDON_CATALOG } = require('../core/addons');
 const { SAAS_COMPLIANCE } = require('./content/saasCompliance');
 const { NICHE_LABELS: ROADMAP_NICHE_LABELS, LEGAL_FORM_LABELS: ROADMAP_LEGAL_FORM_LABELS } = require('../modules/roadmap/content/buildRoadmap');
 const { getPayment } = require('../core/yookassa');
+const { buildCitationIndex } = require('../core/citedLawReferences');
 
 const router = express.Router();
 
@@ -1299,6 +1300,43 @@ router.get(
       [status || null]
     );
     res.json(rows);
+  })
+);
+
+// Реестр норм (19.09.2026, идея владельца) — какие законы продукт цитирует и
+// где именно на них опирается. Строится из того же индекса, по которому
+// lawChangeMonitor.js сверяет новые публикации (core/citedLawReferences.js),
+// поэтому список = ровно то, что реально отслеживается: владелец видит, что
+// мониторится, а юрист может проверить полноту списка. Только чтение,
+// ничего не хранится — индекс пересобирается из контента при старте.
+router.get(
+  '/norms-registry',
+  asyncHandler(async (req, res) => {
+    const index = await buildCitationIndex();
+    const byKey = new Map();
+    for (const c of index) {
+      const key = `${c.type}:${c.number}`;
+      if (!byKey.has(key)) {
+        byKey.set(key, { type: c.type, number: c.number, names: new Set(), niches: new Set(), contexts: new Set(), usages: 0 });
+      }
+      const entry = byKey.get(key);
+      if (c.name) entry.names.add(c.name);
+      if (c.niche) entry.niches.add(c.niche);
+      entry.contexts.add(c.context);
+      entry.usages += 1;
+    }
+    const norms = [...byKey.values()]
+      .map((e) => ({
+        type: e.type,
+        number: e.number,
+        label: e.type === 'fz' ? `${e.number}-ФЗ` : e.type === 'pp' ? `ПП РФ №${e.number}` : `НК РФ, ст. ${e.number}`,
+        names: [...e.names],
+        niches: [...e.niches].sort(),
+        usages: e.usages,
+        examples: [...e.contexts].slice(0, 3),
+      }))
+      .sort((a, b) => b.niches.length - a.niches.length || b.usages - a.usages);
+    res.json({ total: norms.length, norms });
   })
 );
 

@@ -13,6 +13,7 @@ import AiManager from './pages/AiManager.jsx';
 import Compliance from './pages/Compliance.jsx';
 import PatentRates from './pages/PatentRates.jsx';
 import LawChangeCandidates from './pages/LawChangeCandidates.jsx';
+import NormsRegistry from './pages/NormsRegistry.jsx';
 import RoadmapLeads from './pages/RoadmapLeads.jsx';
 import Finance from './pages/Finance.jsx';
 
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="compliance" element={<Compliance />} />
         <Route path="patent-rates" element={<PatentRates />} />
         <Route path="law-change-candidates" element={<LawChangeCandidates />} />
+        <Route path="norms-registry" element={<NormsRegistry />} />
         <Route path="support" element={<Support />} />
         <Route path="client-errors" element={<ClientErrors />} />
         <Route path="legal" element={<LegalDocs />} />
