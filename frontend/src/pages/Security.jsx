@@ -975,7 +975,7 @@ function NoticeAnalysisCard({ notice, onSave, onClose, onAsk }) {
     suggestion.fixDueDate && ['Срок исполнения', fmt(suggestion.fixDueDate)],
     suggestion.fineAmount && ['Штраф', money(suggestion.fineAmount)],
   ].filter(Boolean);
-  const statusView = (st) => (st === 'open' ? ['не устранено', C.red] : st === 'resolved' ? ['устранено', C.green] : ['в вашем тесте не отмечено', C.subtle]);
+  const statusView = (st) => (st === 'open' ? ['не устранено', C.red] : st === 'resolved' ? ['устранено', C.green] : [notice.testCompleted ? 'по вашему тесту нарушения нет' : 'тест ещё не пройден', C.subtle]);
 
   return (
     <div style={{ background: C.surface, borderRadius: 12, padding: 14, marginBottom: 14 }}>

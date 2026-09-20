@@ -261,6 +261,9 @@ router.post(
       fineAmount: analysis.fineAmount,
     };
     const links = await buildEcosystemLinks(req.tenant.companyId, text);
+    // Нужен, чтобы "нарушения в вашем тесте нет" не говорилось человеку, который
+    // тест ещё не проходил (там status тоже null).
+    const testDone = await pool.query("SELECT 1 FROM security_sessions WHERE company_id = $1 AND status = 'completed' LIMIT 1", [req.tenant.companyId]);
 
     await logEvent({
       companyId: req.tenant.companyId,
@@ -275,6 +278,7 @@ router.post(
       analysis: { summary: analysis.summary, findings: analysis.findings, kind: analysis.kind, koapArticles: analysis.koapArticles, aiUsed: analysis.aiUsed },
       aiAvailable: hasAiAccess,
       suggestion,
+      testCompleted: testDone.rows.length > 0,
       ...links,
     });
   })
