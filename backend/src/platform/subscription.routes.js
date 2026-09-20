@@ -13,21 +13,14 @@ const { runScanForPurchase } = require('./website-check.routes');
 
 const SUBSCRIPTION_PRICE_RUB = 1990;
 
-// Единая подписка (06.09.2026) — раньше ИИ-советник был отдельной
-// допподпиской со своей картой и своим циклом списания
-// (ai-advisor-subscription.routes.js, см. историю в git). Владелец попросил
-// одну подписку вместо двух платежей, но с выбором — не всем ИИ нужен.
-// Решение: одна оплата, один сохранённый способ оплаты, а ai_advisor_
-// subscription_status на companies остаётся просто ФЛАГОМ "включена ли
-// надбавка за ИИ" — раньше это был статус отдельного биллинг-цикла, теперь
-// это переключатель внутри одной подписки. subscription_price_rub хранит
-// уже ИТОГОВУЮ сумму (база либо база+надбавка) — chargeRecurringSubscriptions.js
-// просто списывает эту сумму, ему не нужно знать про надбавку отдельно.
-const AI_ADDON_PRICE_RUB = 990;
-
-function totalPrice(includeAi) {
-  return SUBSCRIPTION_PRICE_RUB + (includeAi ? AI_ADDON_PRICE_RUB : 0);
-}
+// ИИ-советник входит в подписку (20.09.2026, решение владельца: "все равно
+// столько пользоваться не будут; если что — введём платно или поднимем цену
+// подписки"). Раньше (06.09.2026) это была надбавка +990 ₽ с переключателем
+// includeAi/toggle-ai — убрана целиком: цена подписки одна, доступ к ИИ
+// определяется самим фактом оплаченной подписки (core/middleware/
+// subscription.js requireAiAdvisorSubscription, companies.routes.js
+// hasAiAccess). Столбцы ai_advisor_subscription_* на companies остаются в
+// схеме как исторические, новым кодом не читаются.
 
 const router = express.Router();
 
@@ -53,57 +46,30 @@ async function startCheckout({ companyId, description, returnUrl, savePaymentMet
 
 // Оформление подписки — создаёт первый платёж и просит ЮKassa сохранить
 // способ оплаты, чтобы дальше списывать автоматически раз в месяц
-// (chargeRecurringSubscriptions.js) без участия владельца/админа.
-// includeAi (06.09.2026) — выбор клиента при оформлении: с ИИ-советником
-// (+990₽) или без. Записывается в companies ДО платежа (как и раньше
-// делала ai-advisor-subscription.routes.js /checkout) — вебхук лишь
-// подтверждает уже известную сумму, не выбирает её заново.
+// (chargeRecurringSubscriptions.js) без участия владельца/админа. Сумма
+// записывается в companies ДО платежа — вебхук лишь подтверждает уже
+// известную сумму, не выбирает её заново. Перезаписывает и старую сумму с
+// надбавкой за ИИ (1990+990), если компания успела её включить до 20.09.2026.
 router.post(
   '/checkout',
   requireAuth,
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
-    const includeAi = !!req.body?.includeAi;
-    const amountRub = totalPrice(includeAi);
     const { rows } = await pool.query(
-      `UPDATE companies SET subscription_price_rub = $2, ai_advisor_subscription_status = $3
-       WHERE id = $1 RETURNING name`,
-      [req.tenant.companyId, amountRub, includeAi ? 'active' : 'inactive']
+      `UPDATE companies SET subscription_price_rub = $2 WHERE id = $1 RETURNING name`,
+      [req.tenant.companyId, SUBSCRIPTION_PRICE_RUB]
     );
     const company = rows[0];
     const payment = await startCheckout({
       companyId: req.tenant.companyId,
-      description: `Подписка «Безопасный бизнес»${includeAi ? ' + ИИ-советник' : ''} — ${company.name}`,
+      description: `Подписка «Безопасный бизнес» — ${company.name}`,
       returnUrl: `${process.env.FRONTEND_URL}/subscription?payment=done`,
       savePaymentMethod: true,
       receiptEmail: req.user.email,
-      amountRub,
+      amountRub: SUBSCRIPTION_PRICE_RUB,
     });
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
-  })
-);
-
-// Включить/выключить ИИ-советник для УЖЕ оформленной подписки (06.09.2026)
-// — без отдельного платежа: просто пересчитывает subscription_price_rub,
-// новая сумма спишется со следующим продлением (chargeRecurringSubscriptions.js
-// читает это поле напрямую). Без пропорционального доплата/возврата за
-// текущий период — сознательно просто для первой версии, тот же принцип,
-// что и у большинства решений этого продукта ("не гадать, не усложнять
-// ради редкого случая").
-router.post(
-  '/toggle-ai',
-  requireAuth,
-  requireTenant,
-  requireRole('owner', 'admin'),
-  asyncHandler(async (req, res) => {
-    const includeAi = !!req.body?.includeAi;
-    const { rows } = await pool.query(
-      `UPDATE companies SET subscription_price_rub = $2, ai_advisor_subscription_status = $3
-       WHERE id = $1 RETURNING subscription_price_rub AS "priceRub", ai_advisor_subscription_status AS "aiStatus"`,
-      [req.tenant.companyId, totalPrice(includeAi), includeAi ? 'active' : 'inactive']
-    );
-    res.json({ ok: true, priceRub: rows[0].priceRub, aiEnabled: rows[0].aiStatus === 'active' });
   })
 );
 

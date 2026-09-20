@@ -193,41 +193,20 @@ function MasterDepartureSection({ data, error }) {
   );
 }
 
-// Единая подписка (06.09.2026) — ИИ-советник больше не отдельный биллинг-
-// цикл, а надбавка (+990₽/мес) внутри одной подписки платформы, включается
-// и отключается на экране "Подписка" (Subscription.jsx, /toggle-ai).
-// Экраны с советниками больше не проводят оплату/отмену сами — только
-// показывают, включена ли надбавка (company.hasAiAccess, посчитано на
-// бэкенде, companies.routes.js /current), и ведут на /subscription, если
-// нет. Раньше здесь были SubscribeCard/ManageSubscriptionCard с
-// собственным чек-аутом — удалены вместе со старым отдельным биллинг-циклом
-// (см. git-историю: ai-advisor-subscription.routes.js /checkout,/cancel,
-// /reactivate).
+// ИИ-советник входит в подписку (20.09.2026, решение владельца) — отдельной
+// надбавки и переключателя больше нет. Экраны советников только показывают,
+// есть ли доступ (company.hasAiAccess = оплаченная подписка, посчитано на
+// бэкенде, companies.routes.js /current), и ведут на /subscription, если нет.
 function EnableAiCard({ title, description }) {
   const navigate = useNavigate();
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title || 'ИИ-советник — доступен как надбавка к подписке'}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title || 'ИИ-советник входит в подписку'}</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
-        {description || 'Включается в разделе «Подписка» — без отдельной оплаты и отдельной карты, одной галочкой.'}
+        {description || 'Оформите подписку в разделе «Подписка» — ИИ-советник откроется сразу, отдельно за него платить не нужно.'}
       </div>
       <Btn onClick={() => navigate('/subscription')}>Перейти к подписке</Btn>
     </Card>
-  );
-}
-
-function ManageSubscriptionCard({ label }) {
-  const navigate = useNavigate();
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, color: C.subtle }}>
-      <span>{label || 'ИИ-советник'} — включён</span>
-      <button
-        onClick={() => navigate('/subscription')}
-        style={{ background: 'none', border: 'none', color: C.primary, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, flexShrink: 0 }}
-      >
-        Управлять
-      </button>
-    </div>
   );
 }
 
@@ -479,7 +458,7 @@ function AiChatCard({ initialQuestion, prefillSignal, endpoint = '/platform/ai-a
   );
 }
 
-// Новая когорта ("только безопасность", core/cohort.js) — та же надбавка
+// Новая когорта ("только безопасность", core/cohort.js) — тот же доступ
 // (hasAiAccess), что и у финансового ИИ-советника ниже, но содержание
 // другое: расшифровка изменений закона и налоговый агент вместо советов по
 // марже/скидкам — у этой когорты просто нет finance/visits, советовать не
@@ -536,7 +515,6 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
 
       {company?.hasAiAccess ? (
         <>
-          <ManageSubscriptionCard label="ИИ по законодательству" />
           {digestError && <div className="alert alert-error">{digestError}</div>}
           {digest?.digest && (
             <Card style={{ background: C.primary, color: '#FFF' }}>
@@ -552,8 +530,8 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
         </>
       ) : (
         <EnableAiCard
-          title="ИИ по законодательству — надбавка к подписке"
-          description="Спрашивайте ИИ о своём бизнесе — он знает вашу нишу, открытые нарушения из теста и ближайшие сроки. Плюс налоговый агент и разборы изменений в законе простыми словами. Включается в разделе «Подписка»."
+          title="ИИ по законодательству — входит в подписку"
+          description="Спрашивайте ИИ о своём бизнесе — он знает вашу нишу, открытые нарушения из теста и ближайшие сроки. Плюс налоговый агент и разборы изменений в законе простыми словами. Откроется сразу после оформления подписки, отдельно платить не нужно."
         />
       )}
     </div>
@@ -671,12 +649,11 @@ export default function AiAdvisor() {
 
       {paywalled ? (
         <EnableAiCard
-          title="ИИ-советник — надбавка к подписке"
-          description="Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и чат с ИИ по вашим финансам. Включается в разделе «Подписка»."
+          title="ИИ-советник — входит в подписку"
+          description="Три советника (маржа по услугам, скидка не окупается, цена ушедшего мастера), общий текстовый вывод и чат с ИИ по вашим финансам. Откроется сразу после оформления подписки, отдельно платить не нужно."
         />
       ) : (
         <>
-          <ManageSubscriptionCard />
           <PeriodBar preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 
           {digestError && <div className="alert alert-error">{digestError}</div>}

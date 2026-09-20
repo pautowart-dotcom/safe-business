@@ -144,14 +144,10 @@ router.get(
       return res.status(404).json({ error: 'Компания не найдена' });
     }
     const company = companyRes.rows[0];
-    // hasAiAccess (06.09.2026, единая подписка) — вычисляется здесь один раз,
-    // чтобы фронт не дублировал логику "база активна И надбавка включена" в
-    // каждом месте, где раньше читали ai_advisor_subscription_status напрямую
-    // (см. requireAiAdvisorSubscription, core/middleware/subscription.js —
-    // та же формула).
-    const hasAiAccess =
-      company.free_addons ||
-      (company.ai_advisor_subscription_status === 'active' && (await isSubscriptionActive(req.tenant.companyId)));
+    // hasAiAccess (20.09.2026) — ИИ входит в подписку: доступ = оплаченная
+    // подписка или ручной бесплатный доступ (та же формула, что в
+    // requireAiAdvisorSubscription, core/middleware/subscription.js).
+    const hasAiAccess = company.free_addons || (await isSubscriptionActive(req.tenant.companyId));
     res.json({ ...company, hasAiAccess, niches: nichesRes.rows.map((r) => r.niche) });
   })
 );

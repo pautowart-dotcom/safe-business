@@ -5,6 +5,8 @@ const { computeMarginByService } = require('./marginAdvisor');
 const { computeDiscountRepeatComparison } = require('./discountAdvisor');
 const { computeMasterDepartureImpact } = require('./masterDepartureAdvisor');
 const yandexAssist = require('../../core/yandexAssist');
+const { logEvent } = require('../../core/eventLog');
+const { isOverDailyAiLimit } = require('../../core/aiUsageLimit');
 
 const router = express.Router();
 
@@ -216,6 +218,10 @@ router.post(
     if (question.length > 1500) return res.status(400).json({ error: 'Слишком длинный вопрос — сократите до 1500 символов' });
     if (!yandexAssist.isAiConfigured()) return res.status(503).json({ error: 'ИИ пока не настроен — попробуйте позже' });
 
+    if (await isOverDailyAiLimit(req.tenant.companyId)) {
+      return res.status(429).json({ error: 'На сегодня лимит вопросов к ИИ исчерпан — продолжите завтра' });
+    }
+
     const { from, to } = resolvePeriod(req.query);
     const companyId = req.tenant.companyId;
 
@@ -234,6 +240,16 @@ router.post(
       console.error('ai-advisor-digest /ask: draftText failed', err);
       return res.status(502).json({ error: 'Не удалось получить ответ от ИИ — попробуйте ещё раз' });
     }
+
+    // Тот же учёт обращений, что у чата по безопасности (entity_type общий):
+    // по нему считается дневной потолок (core/aiUsageLimit.js).
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'ai_advisor',
+      userId: req.user.id,
+      entityType: 'ai_advisor_chat',
+      action: 'ai_advisor_chat.asked',
+    });
 
     res.json({ answer, period: { from, to } });
   })

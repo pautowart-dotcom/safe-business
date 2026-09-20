@@ -17,14 +17,6 @@ export default function Subscription() {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
   const [searchParams] = useSearchParams();
-  // includeAi (07.09.2026, вернули на этот экран) — сначала убирали отсюда
-  // (не смешивать апсейл с самым чувствительным моментом оплаты), но первый
-  // месяц бесплатный — момент "Оформить подписку" наступает не сразу после
-  // регистрации, а обычно уже после месяца реального пользования, когда
-  // решение и так осознанное. Переключить обратно после оформления по-
-  // прежнему можно (togglingAi/toggleAi ниже), выбор здесь не окончательный.
-  const [includeAi, setIncludeAi] = useState(false);
-  const [togglingAi, setTogglingAi] = useState(false);
 
   function load() {
     return api.get('/platform/companies/current').then((res) => setCompany(res.data));
@@ -46,7 +38,7 @@ export default function Subscription() {
     setStarting(true);
     setError('');
     try {
-      const { data } = await api.post('/platform/subscription/checkout', { includeAi });
+      const { data } = await api.post('/platform/subscription/checkout');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
@@ -54,22 +46,6 @@ export default function Subscription() {
     }
   }
 
-  // Включить/выключить ИИ-советник для уже оформленной подписки — без
-  // повторной оплаты, новая сумма спишется со следующим продлением
-  // (subscription.routes.js /toggle-ai, chargeRecurringSubscriptions.js
-  // читает subscription_price_rub напрямую).
-  async function toggleAi(next) {
-    setTogglingAi(true);
-    setError('');
-    try {
-      await api.post('/platform/subscription/toggle-ai', { includeAi: next });
-      load();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось изменить ИИ-советник');
-    } finally {
-      setTogglingAi(false);
-    }
-  }
 
   // Отмена не спрашивает подтверждения через window.confirm — предупреждение
   // и так на экране текстом (до какой даты сохранится доступ) перед самой
@@ -155,30 +131,19 @@ export default function Subscription() {
           <li>Скачивание PDF-отчёта теста безопасности</li>
           <li>«Мои сроки» — персональные напоминания о датах документов</li>
           <li>Движок статуса бизнеса и налогов (самозанятый → ИП, патент, режим налогообложения)</li>
+          <li>ИИ-советник: чат, который знает ваш бизнес, налоговый агент и расшифровки изменений закона простыми словами</li>
         </ul>
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6 }}>
-          Сам тест, его результат и индекс безопасности остаются бесплатными и доступны без подписки. ИИ-советник (расшифровки закона, налоговый агент, ИИ-ассистент) — отдельная надбавка, включается по желанию, см. ниже.
+          Сам тест, его результат и индекс безопасности остаются бесплатными и доступны без подписки.
         </div>
       </Card>
 
       <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_price_rub || 1990} ₽/мес</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_status === 'active' ? (company?.subscription_price_rub || 1990) : 1990} ₽/мес</div>
         {company?.subscription_status === 'active' ? (
           <>
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
               Продлевается автоматически {periodEnd ? `— следующее списание ${periodEnd}` : 'раз в месяц'}.
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 13, cursor: togglingAi ? 'default' : 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={company?.hasAiAccess}
-                disabled={togglingAi}
-                onChange={(e) => toggleAi(e.target.checked)}
-              />
-              ИИ-советник (+990 ₽/мес) — расшифровки закона, налоговый агент, ИИ-ассистент{togglingAi ? ' — сохраняем...' : ''}
-            </label>
-            <div style={{ fontSize: 12, color: C.subtle, marginBottom: 14 }}>
-              Изменение применится со следующего списания, без доплаты/возврата за текущий период.
             </div>
             <Btn variant="secondary" onClick={cancelSubscription} disabled={cancelling}>
               {cancelling ? 'Отменяем...' : 'Отменить подписку'}
@@ -203,12 +168,8 @@ export default function Subscription() {
           </>
         ) : (
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 13, cursor: 'pointer' }}>
-              <input type="checkbox" checked={includeAi} onChange={(e) => setIncludeAi(e.target.checked)} />
-              Включить ИИ-советник (+990 ₽/мес) — расшифровки закона, налоговый агент, ИИ-ассистент
-            </label>
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
-              {(1990 + (includeAi ? 990 : 0))} ₽/мес. Оплата через ЮKassa. Дальше списывается автоматически раз в месяц — оформить подписку нужно один раз. Передумаете — переключить можно в любой момент здесь же.
+              1990 ₽/мес, ИИ-советник входит. Оплата через ЮKassa. Дальше списывается автоматически раз в месяц — оформить подписку нужно один раз. Передумаете — отменить можно в любой момент здесь же.
             </div>
             <Btn onClick={startCheckout} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
           </>

@@ -71,7 +71,7 @@ function PaywallCard() {
     <div style={{ padding: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Доступно с ИИ-советником</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 12 }}>
-        Ассистент — часть той же надбавки, что и советники по марже, скидкам и уходу мастеров. Включается в разделе «Подписка».
+        Ассистент входит в подписку вместе с советниками по марже, скидкам и уходу мастеров. Откроется сразу после оформления подписки, отдельно платить не нужно.
       </div>
       <Btn small onClick={() => navigate('/subscription')}>Перейти к подписке</Btn>
     </div>

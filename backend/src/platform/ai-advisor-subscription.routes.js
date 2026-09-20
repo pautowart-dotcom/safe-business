@@ -10,6 +10,7 @@ const yandexAssist = require('../core/yandexAssist');
 const securityRepository = require('../modules/security/content/repository');
 const { logEvent } = require('../core/eventLog');
 const { AUTHORITY_LABELS } = require('../modules/security/inspections.routes');
+const { isOverDailyAiLimit } = require('../core/aiUsageLimit');
 
 // Единая подписка (06.09.2026) — /checkout, /cancel, /reactivate ИИ-советника
 // как отдельного продукта УДАЛЕНЫ (см. git-историю): теперь это часть одной
@@ -307,6 +308,10 @@ router.post(
     // потолок намного меньше).
     if (question.length > 1500) return res.status(400).json({ error: 'Слишком длинный вопрос — сократите до 1500 символов' });
     if (!yandexAssist.isAiConfigured()) return res.status(503).json({ error: 'ИИ пока не настроен — попробуйте позже' });
+
+    if (await isOverDailyAiLimit(req.tenant.companyId)) {
+      return res.status(429).json({ error: 'На сегодня лимит вопросов к ИИ исчерпан — продолжите завтра' });
+    }
 
     const ctx = await buildBusinessContext(req.tenant.companyId);
     const prompt = `${formatContextForPrompt(ctx)}\n\nВопрос владельца бизнеса: ${question}`;

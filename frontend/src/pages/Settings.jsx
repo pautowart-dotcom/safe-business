@@ -229,7 +229,7 @@ export default function Settings() {
           <Card style={{ background: C.greenBg, borderColor: C.green + '44', cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>🎉 Бесплатный период</div>
             <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>
-            <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — {company?.subscription_price_rub || 1990} ₽/мес</div>
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — 1990 ₽/мес</div>
           </Card>
         ) : (
           <Card style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={() => navigate('/subscription')}>
