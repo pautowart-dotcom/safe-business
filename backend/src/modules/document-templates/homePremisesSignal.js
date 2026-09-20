@@ -11,8 +11,8 @@
 // getPaidQuestions — кросс-модульное чтение (тот же осознанный принцип, что
 // у computeSecurityStatus в ai-assistant/tools/registry.js): вопросник живёт
 // в security, дублировать его здесь заново — риск разойтись с настоящим.
-const pool = require('../../db/pool');
 const securityRepository = require('../security/content/repository');
+const { latestAnswerIndex } = require('./documentSignal');
 
 // Ищем ответ по маркеру violationCodeOverride, а не по индексу варианта в
 // массиве answers — переживёт изменение порядка/добавление новых вариантов
@@ -33,11 +33,9 @@ async function worksFromHome(companyId, niche) {
 
   // Последний ответ на этот вопрос (ORDER BY created_at DESC) — если тест
   // проходили повторно и ответ изменился, важен актуальный, не первый.
-  const { rows } = await pool.query(
-    `SELECT answer_index FROM security_answers WHERE company_id = $1 AND question_code = $2 ORDER BY created_at DESC LIMIT 1`,
-    [companyId, config.code]
-  );
-  return rows[0]?.answer_index === homeAnswerIndex;
+  // Читаем через общий хелпер (расшифровывает answer_index_enc) — прямое
+  // чтение answer_index не видело ни одного ответа после шифрования.
+  return (await latestAnswerIndex(companyId, config.code)) === homeAnswerIndex;
 }
 
 module.exports = { worksFromHome };
