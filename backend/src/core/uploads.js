@@ -78,4 +78,24 @@ const uploadRiskCheckDocument = multer({
   },
 }).single('file');
 
-module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments, uploadCsv, uploadRiskCheckDocument };
+
+// Бумага от проверяющего (предписание/акт/протокол) для разбора в "Истории
+// проверок" (20.09.2026). PDF/DOCX — текстовый слой, JPEG/PNG — через Yandex
+// Vision OCR (российский контур). В памяти и не сохраняется на диск: сам файл
+// нигде не хранится, наружу уходит только результат разбора.
+const uploadInspectionNotice = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const okMime = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/png',
+    ].includes(file.mimetype);
+    if (!okMime) return cb(new Error('Файл должен быть PDF, DOCX, JPG или PNG'));
+    cb(null, true);
+  },
+}).single('file');
+
+module.exports = { uploadPhoto, uploadDocument, uploadSupportAttachments, uploadCsv, uploadRiskCheckDocument, uploadInspectionNotice };

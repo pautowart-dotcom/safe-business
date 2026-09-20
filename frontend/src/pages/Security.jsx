@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -964,12 +964,121 @@ function labelOf(list, key) {
   return (list.find(([k]) => k === key) || [key, key])[1];
 }
 
+const NOTICE_KIND_LABELS = { order: 'Предписание', protocol: 'Протокол', act: 'Акт', notice: 'Уведомление / требование', other: 'Документ' };
+
+function NoticeAnalysisCard({ notice, onSave, onClose, onAsk }) {
+  const { analysis, suggestion, citedNorms, relatedViolations, relatedTemplates, aiAvailable } = notice;
+  const fmt = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('ru-RU');
+  const rows = [
+    suggestion.inspectedOn && ['Дата документа', fmt(suggestion.inspectedOn)],
+    suggestion.authority && ['Орган', labelOf(INSPECTION_AUTHORITIES, suggestion.authority)],
+    suggestion.fixDueDate && ['Срок исполнения', fmt(suggestion.fixDueDate)],
+    suggestion.fineAmount && ['Штраф', money(suggestion.fineAmount)],
+  ].filter(Boolean);
+  const statusView = (st) => (st === 'open' ? ['не устранено', C.red] : st === 'resolved' ? ['устранено', C.green] : ['в вашем тесте не отмечено', C.subtle]);
+
+  return (
+    <div style={{ background: C.surface, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Разбор: {NOTICE_KIND_LABELS[analysis.kind] || 'документ'}</div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 16 }}>✕</button>
+      </div>
+      {analysis.summary ? (
+        <div style={{ fontSize: 13, color: C.primary, lineHeight: 1.55, marginBottom: 10 }}>{analysis.summary}</div>
+      ) : (
+        <div style={{ fontSize: 12, color: C.subtle, lineHeight: 1.5, marginBottom: 10 }}>
+          {aiAvailable
+            ? 'Текстовый разбор от ИИ получить не удалось — ниже то, что нашли в самой бумаге.'
+            : 'Разбор простыми словами от ИИ входит в подписку — ниже то, что нашли в самой бумаге.'}
+        </div>
+      )}
+      {analysis.findings.length > 0 && (
+        <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+          {analysis.findings.map((f, i) => <li key={i}>{f}</li>)}
+        </ul>
+      )}
+      {rows.length > 0 && (
+        <div style={{ fontSize: 12, color: C.secondary, lineHeight: 1.7, marginBottom: 10 }}>
+          {rows.map(([k, v]) => <div key={k}><b>{k}:</b> {v}</div>)}
+          <div style={{ color: C.subtle }}>Значения найдены автоматически — проверьте по оригиналу.</div>
+        </div>
+      )}
+      {analysis.koapArticles.length > 0 && (
+        <div style={{ fontSize: 12, color: C.secondary, marginBottom: 10 }}>Упомянуты статьи КоАП: {analysis.koapArticles.join(', ')}</div>
+      )}
+      {(citedNorms.length > 0 || relatedViolations.length > 0 || relatedTemplates.length > 0) ? (
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 6 }}>Как это связано с вашим бизнесом</div>
+          {citedNorms.length > 0 && <div style={{ fontSize: 12, color: C.secondary, marginBottom: 6 }}>Названные нормы: {citedNorms.map((n) => n.label).join(', ')}</div>}
+          {relatedViolations.map((v) => {
+            const [label, color] = statusView(v.status);
+            return <div key={v.code} style={{ fontSize: 12, marginBottom: 4 }}>{v.title} — <span style={{ color, fontWeight: 600 }}>{label}</span></div>;
+          })}
+          {relatedTemplates.length > 0 && (
+            <div style={{ fontSize: 12, color: C.secondary, marginTop: 6 }}>Документы, которые могут помочь закрыть замечания: {relatedTemplates.map((t) => t.title).join('; ')} (вкладка «Обзор» → шаблоны документов)</div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Названные в бумаге нормы пока не связаны с вашим тестом и шаблонами.</div>
+      )}
+      <div style={{ fontSize: 11, color: C.subtle, marginBottom: 10 }}>Автоматический разбор, не юридическая консультация. Сверяйте с оригиналом, а по спорным вопросам обращайтесь к юристу.</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Btn small onClick={onSave}>Внести в историю проверок</Btn>
+        {aiAvailable && <Btn small variant="secondary" onClick={onAsk}>Спросить ИИ, что делать</Btn>}
+      </div>
+    </div>
+  );
+}
+
 function InspectionsHistoryCard() {
   const [items, setItems] = useState(null);
   const [form, setForm] = useState(null); // null = форма закрыта
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Разбор бумаги от проверяющего (20.09.2026) — результат живёт только в
+  // состоянии страницы, файл нигде не хранится; в историю попадает только то,
+  // что человек сам подтвердил в форме.
+  const [notice, setNotice] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [noticeError, setNoticeError] = useState('');
+  const noticeInputRef = useRef(null);
+  const navigate = useNavigate();
+
+  async function analyzeNotice(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAnalyzing(true);
+    setNoticeError('');
+    setNotice(null);
+    try {
+      const data = new FormData();
+      data.append('file', file);
+      const res = await api.post('/modules/security/inspections/analyze-notice', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setNotice(res.data);
+    } catch (err) {
+      setNoticeError(err.response?.data?.error || 'Не удалось разобрать файл');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  function saveNoticeToHistory() {
+    const sug = notice.suggestion;
+    setForm({
+      inspectedOn: sug.inspectedOn || '',
+      authority: sug.authority || '',
+      kind: 'unknown',
+      areas: sug.areas || [],
+      outcome: sug.outcome || '',
+      fineAmount: sug.fineAmount ? String(sug.fineAmount) : '',
+      fixDueDate: sug.fixDueDate || '',
+      details: notice.analysis.summary || '',
+    });
+    setEditingId(null);
+    setError('');
+  }
 
   function load() {
     return api.get('/modules/security/inspections').then((res) => setItems(res.data)).catch(() => setItems([]));
@@ -1007,6 +1116,7 @@ function InspectionsHistoryCard() {
       else await api.post('/modules/security/inspections', payload);
       setForm(null);
       setEditingId(null);
+      setNotice(null);
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить');
@@ -1091,6 +1201,23 @@ function InspectionsHistoryCard() {
         <ST>История проверок</ST>
         <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>
       </div>
+      <input ref={noticeInputRef} type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={analyzeNotice} style={{ display: 'none' }} />
+      <button
+        onClick={() => noticeInputRef.current?.click()}
+        disabled={analyzing}
+        style={{ width: '100%', background: C.surface, color: C.primary, border: `1px dashed ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 600, cursor: analyzing ? 'default' : 'pointer', marginBottom: 12 }}
+      >
+        {analyzing ? 'Разбираем бумагу…' : 'Пришла бумага от проверяющего? Загрузите — разберём'}
+      </button>
+      {noticeError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{noticeError}</div>}
+      {notice && (
+        <NoticeAnalysisCard
+          notice={notice}
+          onSave={saveNoticeToHistory}
+          onClose={() => setNotice(null)}
+          onAsk={() => navigate('/ai-advisor', { state: { prefillQuestion: `Пришла бумага от проверяющего: ${notice.analysis.summary || 'предписание'}. Что мне делать в первую очередь?` } })}
+        />
+      )}
       {items === null ? (
         <div style={{ fontSize: 13, color: C.subtle }}>Загрузка…</div>
       ) : items.length === 0 ? (

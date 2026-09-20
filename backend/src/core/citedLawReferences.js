@@ -24,7 +24,9 @@ const FZ_PATTERN = /(\d{2,3})-ФЗ(?:\s*«([^»]{3,120})»)?/g;
 
 // ПП: два реальных формата в normBase — "ПП РФ №780" и "Постановление
 // Правительства РФ от ... №780" (иногда "Российской Федерации" полностью).
-const PP_PATTERN = /(?:ПП\s*РФ|Постановлени[ея]\s+Правительства(?:\s+Российской\s+Федерации)?)[^№]{0,60}№\s*(\d+)/g;
+// "Постановлени\S*" — любой падеж (в бумагах проверяющих чаще "Постановлением
+// Правительства РФ от ... № 1514"), не только "Постановление/Постановления".
+const PP_PATTERN = /(?:ПП\s*РФ|Постановлени\S*\s+Правительства(?:\s+Российской\s+Федерации)?)[^№]{0,60}№\s*(\d+)/g;
 
 // Статьи НК РФ — только из core/taxRegimeRecommender.js (единственное
 // место, где продукт реально что-то СЧИТАЕТ по кодексу, а не просто
@@ -69,13 +71,13 @@ async function buildCitationIndex() {
     const matrix = await securityRepository.getViolationMatrix(niche);
     for (const v of matrix || []) {
       for (const c of extractCitations(v.normBase || '')) {
-        index.push({ ...c, niche, context: `нарушение ${v.code} «${v.title}»` });
+        index.push({ ...c, niche, context: `нарушение ${v.code} «${v.title}»`, violationCode: v.code, violationTitle: v.title });
       }
     }
     const templates = await documentRepository.getTemplatesForNiche(niche);
     for (const t of templates || []) {
       for (const c of extractCitations(t.lawReference || '')) {
-        index.push({ ...c, niche, context: `шаблон документа «${t.title}»` });
+        index.push({ ...c, niche, context: `шаблон документа «${t.title}»`, templateKey: t.key, templateTitle: t.title });
       }
     }
   }

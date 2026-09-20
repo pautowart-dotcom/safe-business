@@ -187,4 +187,4 @@ async function matchDocumentToDeadlineSlot({ imageBuffer, mimeType, categoryHint
   return { matched: true, slotKey, date: parsed.date, reason: null };
 }
 
-module.exports = { isAiConfigured, extractDocumentDate, matchDocumentToDeadlineSlot };
+module.exports = { isAiConfigured, extractDocumentDate, matchDocumentToDeadlineSlot, ocrExtractText };
