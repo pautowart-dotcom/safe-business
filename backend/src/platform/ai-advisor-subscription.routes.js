@@ -9,6 +9,7 @@ const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
 const yandexAssist = require('../core/yandexAssist');
 const securityRepository = require('../modules/security/content/repository');
 const { logEvent } = require('../core/eventLog');
+const { AUTHORITY_LABELS } = require('../modules/security/inspections.routes');
 
 // Единая подписка (06.09.2026) — /checkout, /cancel, /reactivate ИИ-советника
 // как отдельного продукта УДАЛЕНЫ (см. git-историю): теперь это часть одной
@@ -134,7 +135,7 @@ router.post(
 // каждый вопрос собирает контекст заново с нуля, простой первый шаг, не
 // продакшн-чат с состоянием.
 async function buildBusinessContext(companyId) {
-  const [{ rows: nicheRows }, { rows: violationRows }, { rows: deadlineRows }, { rows: companyRows }] = await Promise.all([
+  const [{ rows: nicheRows }, { rows: violationRows }, { rows: deadlineRows }, { rows: companyRows }, { rows: inspectionRows }] = await Promise.all([
     pool.query('SELECT niche FROM security_profile_niches WHERE company_id = $1', [companyId]),
     pool.query(`SELECT violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`, [companyId]),
     pool.query(
@@ -143,6 +144,14 @@ async function buildBusinessContext(companyId) {
       [companyId]
     ),
     pool.query('SELECT region_code, has_employees FROM companies WHERE id = $1', [companyId]),
+    // История проверок (19.09.2026) — только структурные поля, заметку
+    // владельца (details_enc, свободный текст) в ИИ не передаём: там могут
+    // быть имена и подробности, которые модели знать незачем.
+    pool.query(
+      `SELECT to_char(inspected_on, 'YYYY-MM-DD') AS inspected_on, authority, outcome, areas, fine_amount
+       FROM inspections WHERE company_id = $1 ORDER BY inspected_on DESC LIMIT 5`,
+      [companyId]
+    ),
   ]);
 
   const violationDetails = [];
@@ -156,8 +165,34 @@ async function buildBusinessContext(companyId) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const deadlines = deadlineRows.map((d) => ({ title: d.title, dueDate: d.due_date, overdue: d.due_date < todayStr }));
 
-  return { niches: nicheRows.map((r) => r.niche), company: companyRows[0] || {}, violationDetails, deadlines };
+  const inspections = inspectionRows.map((r) => ({
+    date: r.inspected_on,
+    authority: AUTHORITY_LABELS[r.authority] || r.authority,
+    outcome: INSPECTION_OUTCOME_LABELS[r.outcome] || r.outcome,
+    areas: (r.areas || []).map((a) => INSPECTION_AREA_LABELS[a] || a),
+    fine: r.fine_amount === null ? null : Number(r.fine_amount),
+  }));
+
+  return { niches: nicheRows.map((r) => r.niche), company: companyRows[0] || {}, violationDetails, deadlines, inspections };
 }
+
+const INSPECTION_OUTCOME_LABELS = {
+  no_findings: 'замечаний нет',
+  remarks_fixed: 'замечания устранены на месте',
+  order: 'выдано предписание',
+  protocol: 'составлен протокол / штраф',
+  suspension: 'приостановка деятельности',
+};
+const INSPECTION_AREA_LABELS = {
+  sanitary: 'санитария',
+  fire: 'пожарная безопасность',
+  personal_data: 'персональные данные',
+  labor: 'трудовые отношения',
+  tax_cash: 'налоги и кассы',
+  consumer_rights: 'защита прав потребителей',
+  licenses_waste: 'лицензии и отходы',
+  other: 'другое',
+};
 
 function formatContextForPrompt(ctx) {
   const lines = [];
@@ -171,6 +206,16 @@ function formatContextForPrompt(ctx) {
     lines.push(`Открытые нарушения из теста безопасности (${ctx.violationDetails.length}):`);
     for (const v of ctx.violationDetails) {
       lines.push(`- ${v.title}. Штраф: ${v.fineText || 'не определён'}. Норма: ${v.normBase || 'не указана'}. Как решить: ${v.solution || 'не указано'}.`);
+    }
+  }
+
+  if (ctx.inspections.length > 0) {
+    lines.push('Прошлые проверки (внесены владельцем):');
+    for (const i of ctx.inspections) {
+      const parts = [`${i.date} — ${i.authority}`, `итог: ${i.outcome}`];
+      if (i.areas.length > 0) parts.push(`проверяли: ${i.areas.join(', ')}`);
+      if (i.fine) parts.push(`штраф ${i.fine} ₽`);
+      lines.push(`- ${parts.join('; ')}`);
     }
   }
 

@@ -171,6 +171,11 @@ export default function Deadlines() {
           // отмечен как уже существующий" — разные события-источники,
           // хотя ведут в одно место.
           const isRiskCheckReview = item.related_entity_type === 'document_risk_check_review';
+          // inspection_order (19.09.2026) — срок исправления по предписанию,
+          // заведённый из вкладки "Проверки" (inspections.routes.js). "Готово"
+          // здесь уместно (это настоящий дедлайн), поэтому общая кнопка не
+          // скрывается — только добавляется переход туда, где запись живёт.
+          const isInspectionOrder = item.related_entity_type === 'inspection_order';
           // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
           // точной даты нет ("не пройден тест", "кончаются расходники") —
           // без due_date, поэтому считать дни/показывать дату для них нельзя.
@@ -264,6 +269,11 @@ export default function Deadlines() {
               {isManagement && isDocumentVerify && (
                 <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'documents' } })}>
                   Проверить
+                </Btn>
+              )}
+              {isManagement && isInspectionOrder && (
+                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'inspection' } })}>
+                  Открыть
                 </Btn>
               )}
               {isManagement && isRiskCheckReview && (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, Select, Icon, C } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C } from '../ui/components.jsx';
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
 
@@ -912,7 +912,7 @@ function SecurityDashboard({
       )}
 
       <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
-        {[['overview', 'Обзор'], ['violations', `Нарушения (${openCount})`], ['documents', 'Документы'], ['inspection', 'Если проверка']].map(([k, l]) => (
+        {[['overview', 'Обзор'], ['violations', `Нарушения (${openCount})`], ['documents', 'Документы'], ['inspection', 'Проверки']].map(([k, l]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -928,8 +928,205 @@ function SecurityDashboard({
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
-      {tab === 'inspection' && <InspectionGuidesTab />}
+      {tab === 'inspection' && (
+        <>
+          <InspectionsHistoryCard />
+          <InspectionGuidesTab />
+        </>
+      )}
     </div>
+  );
+}
+
+// История проверок (19.09.2026, идея владельца) — какие проверки уже были,
+// что проверяли, чем закончилось. Одна вкладка "Проверки" вместо прежней
+// "Если проверка": и память компании, и инструкция на случай новой проверки
+// (InspectionGuidesTab ниже) — по смыслу одно и то же место. Списки
+// значений дублируют бэкенд (modules/security/inspections.routes.js) — тот же
+// приём, что в остальном проекте, общего кода между фронтом и бэком нет.
+const INSPECTION_AUTHORITIES = [
+  ['rospotrebnadzor', 'Роспотребнадзор'], ['fire_inspection', 'Пожарный надзор (МЧС)'], ['labor_inspection', 'Инспекция труда'],
+  ['roskomnadzor', 'Роскомнадзор'], ['tax_inspection', 'Налоговая (ФНС)'], ['other', 'Другой орган'],
+];
+const INSPECTION_KINDS = [['unknown', 'Не знаю'], ['planned', 'Плановая'], ['unplanned', 'Внеплановая']];
+const INSPECTION_AREAS = [
+  ['sanitary', 'Санитария'], ['fire', 'Пожарная безопасность'], ['personal_data', 'Персональные данные'], ['labor', 'Трудовые отношения'],
+  ['tax_cash', 'Налоги и кассы'], ['consumer_rights', 'Права потребителей'], ['licenses_waste', 'Лицензии и отходы'], ['other', 'Другое'],
+];
+const INSPECTION_OUTCOMES = [
+  ['no_findings', 'Замечаний нет'], ['remarks_fixed', 'Замечания устранили на месте'], ['order', 'Выдали предписание'],
+  ['protocol', 'Протокол / штраф'], ['suspension', 'Приостановка деятельности'],
+];
+const OUTCOME_COLOR = { no_findings: 'green', remarks_fixed: 'green', order: 'orange', protocol: 'red', suspension: 'red' };
+const EMPTY_INSPECTION = { inspectedOn: '', authority: '', kind: 'unknown', areas: [], outcome: '', fineAmount: '', fixDueDate: '', details: '' };
+
+function labelOf(list, key) {
+  return (list.find(([k]) => k === key) || [key, key])[1];
+}
+
+function InspectionsHistoryCard() {
+  const [items, setItems] = useState(null);
+  const [form, setForm] = useState(null); // null = форма закрыта
+  const [editingId, setEditingId] = useState(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    return api.get('/modules/security/inspections').then((res) => setItems(res.data)).catch(() => setItems([]));
+  }
+  useEffect(() => { load(); }, []);
+
+  function openCreate() {
+    setForm({ ...EMPTY_INSPECTION });
+    setEditingId(null);
+    setError('');
+  }
+  function openEdit(it) {
+    setForm({
+      inspectedOn: it.inspectedOn, authority: it.authority, kind: it.kind, areas: it.areas || [], outcome: it.outcome,
+      fineAmount: it.fineAmount != null ? String(it.fineAmount) : '', fixDueDate: it.fixDueDate || '', details: it.details || '',
+    });
+    setEditingId(it.id);
+    setError('');
+  }
+
+  async function save() {
+    if (!form.inspectedOn || !form.authority || !form.outcome) {
+      setError('Укажите дату, орган и итог проверки');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const payload = {
+      ...form,
+      fineAmount: form.fineAmount === '' ? null : Number(form.fineAmount),
+      fixDueDate: form.outcome === 'order' && form.fixDueDate ? form.fixDueDate : null,
+    };
+    try {
+      if (editingId) await api.patch(`/modules/security/inspections/${editingId}`, payload);
+      else await api.post('/modules/security/inspections', payload);
+      setForm(null);
+      setEditingId(null);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(id) {
+    if (!confirm('Удалить запись о проверке?')) return;
+    await api.delete(`/modules/security/inspections/${id}`);
+    load();
+  }
+
+  function toggleArea(key) {
+    setForm((f) => ({ ...f, areas: f.areas.includes(key) ? f.areas.filter((a) => a !== key) : [...f.areas, key] }));
+  }
+
+  if (form) {
+    return (
+      <Card>
+        <ST>{editingId ? 'Изменить проверку' : 'Новая запись о проверке'}</ST>
+        <Field label="Дата проверки"><TextInput type="date" value={form.inspectedOn} onChange={(e) => setForm({ ...form, inspectedOn: e.target.value })} /></Field>
+        <Field label="Кто проверял">
+          <Select value={form.authority} onChange={(e) => setForm({ ...form, authority: e.target.value })}>
+            <option value="" disabled>Выберите орган</option>
+            {INSPECTION_AUTHORITIES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+        </Field>
+        <Field label="Вид проверки">
+          <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+            {INSPECTION_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+        </Field>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Что проверяли</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+          {INSPECTION_AREAS.map(([k, l]) => {
+            const on = form.areas.includes(k);
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => toggleArea(k)}
+                style={{ padding: '6px 12px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer', background: on ? C.primary : C.bg, color: on ? '#FFF' : C.secondary, fontSize: 12, fontWeight: 600 }}
+              >
+                {l}
+              </button>
+            );
+          })}
+        </div>
+        <Field label="Чем закончилось">
+          <Select value={form.outcome} onChange={(e) => setForm({ ...form, outcome: e.target.value })}>
+            <option value="" disabled>Выберите итог</option>
+            {INSPECTION_OUTCOMES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+        </Field>
+        {form.outcome === 'order' && (
+          <Field label="Срок исправления по предписанию">
+            <TextInput type="date" value={form.fixDueDate} onChange={(e) => setForm({ ...form, fixDueDate: e.target.value })} />
+          </Field>
+        )}
+        {(form.outcome === 'protocol' || form.outcome === 'suspension' || form.outcome === 'order') && (
+          <Field label="Сумма штрафа, ₽ (если был)">
+            <TextInput type="number" min="0" value={form.fineAmount} onChange={(e) => setForm({ ...form, fineAmount: e.target.value })} placeholder="Например, 20000" />
+          </Field>
+        )}
+        <Field label="Заметка (необязательно)">
+          <TextArea value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} placeholder="Что спрашивали, что просили показать, что сказали — как запомнили" />
+        </Field>
+        {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn small onClick={save} disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить'}</Btn>
+          <Btn small variant="secondary" onClick={() => { setForm(null); setEditingId(null); }}>Отмена</Btn>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <ST>История проверок</ST>
+        <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>
+      </div>
+      {items === null ? (
+        <div style={{ fontSize: 13, color: C.subtle }}>Загрузка…</div>
+      ) : items.length === 0 ? (
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+          Здесь копится память компании: кто приходил, что проверял и чем всё закончилось. Заполнять необязательно, но
+          ИИ-помощник учитывает эти записи в ответах, а срок по предписанию сам попадёт в «Дедлайны». Видно только владельцу.
+        </div>
+      ) : (
+        items.map((it, i) => {
+          const color = C[OUTCOME_COLOR[it.outcome]] || C.subtle;
+          return (
+            <div key={it.id} style={{ padding: '10px 0', borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{it.authorityLabel}</div>
+                  <div style={{ fontSize: 12, color: C.subtle }}>
+                    {new Date(`${it.inspectedOn}T00:00:00`).toLocaleDateString('ru-RU')} · {labelOf(INSPECTION_KINDS, it.kind).toLowerCase()}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color, textAlign: 'right' }}>{labelOf(INSPECTION_OUTCOMES, it.outcome)}</span>
+              </div>
+              {it.areas.length > 0 && (
+                <div style={{ fontSize: 12, color: C.secondary, marginTop: 4 }}>Проверяли: {it.areas.map((a) => labelOf(INSPECTION_AREAS, a).toLowerCase()).join(', ')}</div>
+              )}
+              {it.fineAmount != null && it.fineAmount > 0 && <div style={{ fontSize: 12, color: C.secondary, marginTop: 2 }}>Штраф: {money(it.fineAmount)}</div>}
+              {it.fixDueDate && <div style={{ fontSize: 12, color: C.secondary, marginTop: 2 }}>Срок исправления: {new Date(`${it.fixDueDate}T00:00:00`).toLocaleDateString('ru-RU')}</div>}
+              {it.details && <div style={{ fontSize: 12, color: C.subtle, marginTop: 4, whiteSpace: 'pre-line' }}>{it.details}</div>}
+              <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                <button onClick={() => openEdit(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 12, padding: 0 }}>Изменить</button>
+                <button onClick={() => remove(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.subtle, fontSize: 12, padding: 0 }}>Удалить</button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </Card>
   );
 }
 
