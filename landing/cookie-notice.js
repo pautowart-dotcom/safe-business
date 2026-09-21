@@ -9,7 +9,7 @@
 // с одной кнопкой — как до подключения. Номер счётчика — не секрет.
 // Вебвизор выключен намеренно: он записывает действия посетителей.
 (function () {
-  var METRIKA_ID = '';
+  var METRIKA_ID = '112875830';
   var KEY = 'cookie_consent';
   var OLD_KEY = 'cookie_notice_ok';
 
