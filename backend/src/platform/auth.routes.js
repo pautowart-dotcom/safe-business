@@ -14,6 +14,7 @@ const { saveImage, getFileUrl, signAvatarUrl } = require('../core/fileStorage');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { sendMail } = require('../core/mailer');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
+const { requireCaptcha } = require('../core/captcha');
 const { SEGMENTS } = require('../modules/security/content/segments');
 const { ensureNicheModules } = require('../modules/security/nicheModules');
 
@@ -109,6 +110,7 @@ async function activeMembershipsForUser(userId) {
 
 router.post(
   '/register',
+  requireCaptcha,
   asyncHandler(async (req, res) => {
     const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo } = req.body;
     if (!name || !email || !password) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getCaptchaToken } from '../utils/captcha.js';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/components.jsx';
@@ -512,7 +513,8 @@ export default function AnonymousAudit() {
     setError('');
     setStarting(true);
     try {
-      const { data } = await guestApi.post('/platform/anonymous-audit/start');
+      const captchaToken = await getCaptchaToken();
+      const { data } = await guestApi.post('/platform/anonymous-audit/start', { captchaToken });
       guestApi.defaults.headers.common.Authorization = `Bearer ${data.token}`;
 
       const segment = NICHE_OPTIONS.find(([k]) => k === niche)[2];

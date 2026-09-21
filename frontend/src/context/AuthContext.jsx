@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import { getCaptchaToken } from '../utils/captcha.js';
 import api from '../api/client.js';
 import { masterLabel, masterLabelGenitivePlural, masterLabelGenitiveSingular } from '../ui/roleLabels.js';
 
@@ -143,7 +144,8 @@ export function AuthProvider({ children }) {
   // вход всегда с "неподтверждённого" устройства, поэтому регистрация и
   // подтверждение нового устройства при входе технически одно и то же.
   async function register({ name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo }) {
-    const res = await api.post('/auth/register', { name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo });
+    const captchaToken = await getCaptchaToken();
+    const res = await api.post('/auth/register', { captchaToken, name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo });
     return res.data; // { requiresDeviceVerification: true, email }
   }
 

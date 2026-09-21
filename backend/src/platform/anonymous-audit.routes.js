@@ -18,6 +18,7 @@ const { studioOsBundleKeys } = require('../core/modules-registry');
 const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart } = require('../core/loginRateLimit');
 const { checkGuestSpike } = require('../core/abuseAlerts');
+const { requireCaptcha } = require('../core/captcha');
 const { sendMail } = require('../core/mailer');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
@@ -48,6 +49,7 @@ const CLAIM_TOKEN_TTL_DAYS = 14;
 // из двух лимитов (5 попыток/15 минут).
 router.post(
   '/start',
+  requireCaptcha,
   asyncHandler(async (req, res) => {
     const allowed = await checkLoginAllowed(req.ip, req.ip);
     if (!allowed) {
