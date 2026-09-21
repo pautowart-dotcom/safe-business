@@ -1,9 +1,10 @@
 // Яндекс SmartCaptcha, невидимый режим (21.09.2026): обычному человеку ничего
-// не показывает, подозрительному — окно с заданием. Клиентский ключ задаётся
-// при сборке (VITE_SMARTCAPTCHA_SITEKEY); без него функция сразу возвращает
-// null и всё работает как раньше — сервер тоже проверяет только если у него
-// есть свой ключ (backend/src/core/captcha.js).
-const SITEKEY = import.meta.env.VITE_SMARTCAPTCHA_SITEKEY;
+// не показывает, подозрительному — окно с заданием. Сервер проверяет токен
+// только если у него задан SMARTCAPTCHA_SERVER_KEY (backend/src/core/captcha.js);
+// пока серверного ключа нет, лишний токен просто игнорируется.
+// Клиентский ключ публичный (виден в коде сайта) — можно хранить в репозитории;
+// секретный серверный ключ лежит только в backend/.env на сервере.
+const SITEKEY = import.meta.env.VITE_SMARTCAPTCHA_SITEKEY || 'ysc1_DkexIsISIanyEzB5lbha0YxwT3LP6BNtDp3xC5Uo644c306c';
 let scriptPromise = null;
 
 function loadScript() {
