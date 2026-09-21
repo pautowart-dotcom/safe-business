@@ -38,7 +38,8 @@ export function AuthShell({ children }) {
     // зарегистрировалось только 3.
     <div className="auth-shell" style={{ overflowY: 'auto', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', fontFamily: F, background: C.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 40, marginTop: 16 }}>
-        <div style={{ fontSize: 32, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
+        <img src="/lk/brand/mark-on-light.svg" alt="" width="52" height="60" style={{ display: 'block', margin: '0 auto 18px' }} />
+        <div style={{ fontSize: 30, fontWeight: 800, color: C.primary, letterSpacing: '-1px' }}>Безопасный бизнес</div>
         <div style={{ fontSize: 14, color: C.subtle, marginTop: 6 }}>Сроки, документы и проверки под контролем — для малого бизнеса</div>
       </div>
       {/* paddingBottom с запасом (не просто 24px) — 06.09.2026, после фикса

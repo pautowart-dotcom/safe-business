@@ -4,11 +4,11 @@
 // скучно-монохромно. Остальная палитра (статусы) — как в прототипе.
 export const C = {
   bg: '#FFFFFF',
-  surface: '#F7F7F7',
-  border: '#EBEBEB',
-  subtle: '#ABABAB',
-  secondary: '#6B6B6B',
-  primary: '#2A2A2E',
+  surface: '#F5F7FA',
+  border: '#E3E7EE',
+  subtle: '#8B94A5',
+  secondary: '#5B6577',
+  primary: '#0B1220',
   green: '#16A34A',
   greenBg: '#F0FDF4',
   orange: '#D97706',
@@ -18,6 +18,7 @@ export const C = {
   // Пакет 4: ещё две категории дедлайнов (помещение, журналы) не влезают в
   // прежние 4 цвета без потери различимости бейджей — добавлены две новые,
   // не трогая остальную палитру.
+  accent: '#2563EB',
   blue: '#2563EB',
   blueBg: '#EFF6FF',
   purple: '#7C3AED',

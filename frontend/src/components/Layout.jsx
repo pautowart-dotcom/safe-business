@@ -342,9 +342,7 @@ export default function Layout() {
               onClick={() => navigate('/settings')}
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 14, borderRadius: 8, background: 'rgba(255,255,255,0.08)', cursor: 'pointer' }}
             >
-              <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg, ${C.blue}, ${C.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#FFF', lineHeight: 1 }}>Б</span>
-              </div>
+              <img src="/lk/brand/mark-on-dark.svg" alt="" width="20" height="23" style={{ flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: '#FFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCompany?.name}</div>
               <Icon name="arrow" size={11} color="rgba(255,255,255,0.4)" sw={2} />
             </div>
@@ -434,8 +432,9 @@ export default function Layout() {
             </button>
           )}
           {isHome ? (
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Безопасный бизнес · {currentCompany?.name}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <img src="/lk/brand/mark-on-light.svg" alt="" width="20" height="23" style={{ flexShrink: 0 }} />
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.primary, letterSpacing: '-0.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCompany?.name}</div>
             </div>
           ) : (
             <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
