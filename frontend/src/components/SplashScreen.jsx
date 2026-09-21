@@ -18,8 +18,8 @@ import { C, F } from '../ui/theme.js';
 export default function SplashScreen() {
   return (
     <div style={{ position: 'fixed', inset: 0, background: C.primary, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: F, zIndex: 2000 }}>
-      <div className="splash-pulse" style={{ width: 76, height: 76, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="shield" size={36} color="#FFFFFF" />
+      <div className="splash-pulse" style={{ width: 76, height: 76, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <img src="/lk/brand/mark-on-dark.svg" alt="" width="34" height="39" />
       </div>
       <div style={{ marginTop: 18, fontSize: 15, fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.3px' }}>Безопасный бизнес</div>
     </div>

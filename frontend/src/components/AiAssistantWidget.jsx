@@ -278,7 +278,7 @@ export default function AiAssistantWidget() {
           {/* Монограмма "Б" вместо иконки бота (21.08.2026, владелец: значок
               бота "полный бред") — узнаваемый фирменный знак, не клише
               звёздочки/робота, которое сейчас у всех ИИ-продуктов. */}
-          <span style={{ fontSize: 17, fontWeight: 800, color: '#FFF', lineHeight: 1, fontFamily: F }}>Б</span>
+          <img src="/lk/brand/mark-on-dark.svg" alt="" width="20" height="23" style={{ display: 'block' }} />
         </button>
       )}
 

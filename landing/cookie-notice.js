@@ -23,7 +23,7 @@
     box.style.cssText = [
       'position:fixed', 'left:12px', 'right:12px', 'bottom:12px', 'z-index:2147483000',
       'max-width:560px', 'margin:0 auto', 'padding:14px 16px', 'border-radius:14px',
-      'background:#1d1d24', 'color:#f3f3f7', 'box-shadow:0 8px 30px rgba(0,0,0,.28)',
+      'background:#1d1d24', 'color:#f1f4fa', 'box-shadow:0 8px 30px rgba(0,0,0,.28)',
       'font:14px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif',
       'display:flex', 'gap:12px', 'align-items:center', 'flex-wrap:wrap',
     ].join(';');
@@ -40,7 +40,7 @@
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = 'Понятно';
-    btn.style.cssText = 'flex:0 0 auto;border:0;border-radius:10px;padding:9px 18px;background:#4f46e5;color:#fff;font:700 14px -apple-system,"Segoe UI",system-ui,sans-serif;cursor:pointer';
+    btn.style.cssText = 'flex:0 0 auto;border:0;border-radius:10px;padding:9px 18px;background:#2563eb;color:#fff;font:700 14px -apple-system,"Segoe UI",system-ui,sans-serif;cursor:pointer';
     btn.addEventListener('click', function () {
       try { window.localStorage.setItem(KEY, '1'); } catch (e) {}
       if (box.parentNode) box.parentNode.removeChild(box);
