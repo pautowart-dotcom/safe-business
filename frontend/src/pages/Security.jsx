@@ -753,7 +753,7 @@ function IndexHero({ percent, zone, subtitle, note }) {
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: note ? 4 : 14 }}>{subtitle}</div>
       {note && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>{note}</div>}
       <div style={{ height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${percent}%`, background: 'linear-gradient(90deg, #2563EB, #5B8DEF)', borderRadius: 2 }} />
+        <div style={{ height: '100%', width: `${percent}%`, background: '#FFF', borderRadius: 2 }} />
       </div>
     </div>
   );

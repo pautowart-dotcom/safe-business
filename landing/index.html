@@ -130,7 +130,7 @@
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 15px 26px; border-radius: 10px; font-weight: 700; font-size: 15px; white-space: nowrap; border: none; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
   .btn-lg { padding: 17px 30px; font-size: 16px; }
   .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--accent) 65%, transparent); }
-  @media (prefers-color-scheme: dark) { .btn-primary { color: #0a1020; } }
+  
   .btn-primary:hover { transform: translateY(-1px); }
   .btn-secondary { background: rgba(255,255,255,.07); color: var(--graphite-text); border: 1px solid var(--graphite-border); }
   .btn-secondary:hover { background: rgba(255,255,255,.12); }
@@ -347,6 +347,25 @@
     .price-card { padding: 28px 22px; }
     .price-top { flex-direction: column; gap: 14px; }
   }
+
+  /* ---------- сдержанный акцент (21.09.2026): синий — только для ссылок и знака ---------- */
+  .eyebrow { color: var(--text-muted); }
+  .niche-tag { background: var(--surface-2); color: var(--text-muted); }
+  .niche-tag:hover { background: var(--border); transform: none; }
+  .value-icon, .module-point-icon, .feature-icon, .price-check { background: var(--surface-2); color: var(--text); border-color: transparent; }
+  .feature-card:hover { border-color: var(--text-faint); }
+  .price-card { border-top: 1px solid var(--border); }
+  .btn-primary { background: var(--text); color: var(--bg); box-shadow: none; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -12px rgba(11,18,32,.5); }
+  .hero-band .btn-primary, .cta-band .btn-primary { background: #fff; color: #0b1220; }
+  .hero-badge { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.16); color: #d5dbe8; }
+  .hero-band { background: var(--graphite-1); }
+  .cta-band { background: var(--graphite-1); }
+  .hv-glow, .hv-back { display: none; }
+  .hv-toast-icon { background: var(--surface-2); }
+  .hv-toast-icon svg { color: var(--text); }
+  .niches-label { color: var(--text-faint); }
+  .fit-contacts a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 </style>
 </head>
 <body>

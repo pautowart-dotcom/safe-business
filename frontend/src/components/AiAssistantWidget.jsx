@@ -264,13 +264,13 @@ export default function AiAssistantWidget() {
           style={isDesktop ? {
             position: 'fixed', right: 28, bottom: 28,
             width: 44, height: 44, borderRadius: '50%',
-            background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            background: C.primary, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
             animation: 'ai-pulse 2.5s ease-in-out infinite', zIndex: 200,
           } : {
             position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
             width: 40, height: 40, borderRadius: '50%',
-            background: `linear-gradient(135deg, ${C.primary}, #2563EB)`, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            background: C.primary, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
             animation: 'ai-pulse 2.5s ease-in-out infinite', zIndex: 200,
           }}
