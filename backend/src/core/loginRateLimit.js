@@ -61,4 +61,28 @@ async function recordGuestStart(ip) {
   await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`guest:${ip}`]);
 }
 
-module.exports = { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart };
+// Публичный разбор бумаги от проверяющего (22.09.2026) — вход для рекламы
+// без регистрации. OCR и чтение файла стоят денег за каждый вызов вне
+// зависимости от того, человек это или бот, поэтому лимит строже, чем у
+// гостевого старта теста: обычному человеку хватит нескольких бумаг в
+// день, массовый обход через этот лимит не окупится.
+const NOTICE_AUDIT_MAX_PER_HOUR = 3;
+const NOTICE_AUDIT_MAX_PER_DAY = 8;
+
+async function checkNoticeAuditAllowed(ip) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE created_at > now() - interval '1 hour') AS hour_n, COUNT(*) AS day_n
+     FROM login_attempts WHERE identifier = $1`,
+    [`notice:${ip}`]
+  );
+  return Number(rows[0].hour_n) < NOTICE_AUDIT_MAX_PER_HOUR && Number(rows[0].day_n) < NOTICE_AUDIT_MAX_PER_DAY;
+}
+
+async function recordNoticeAudit(ip) {
+  await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`notice:${ip}`]);
+}
+
+module.exports = {
+  checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart,
+  checkNoticeAuditAllowed, recordNoticeAudit,
+};

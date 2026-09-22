@@ -366,6 +366,14 @@
   .hv-toast-icon svg { color: var(--text); }
   .niches-label { color: var(--text-faint); }
   .fit-contacts a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Метка целостности контента (22.09.2026, защита от массового копирования) —
+     скрыта от людей и скринридеров (aria-hidden + визуально вне экрана), но
+     остаётся в HTML-тексте страницы: если этот текст найдётся дословно на
+     чужом сайте или в ответе ИИ — веский довод, что контент скопирован
+     именно отсюда, а не написан независимо. Ничего не скрывает от реальных
+     посетителей и не влияет на их опыт. */
+  .bb-integrity { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -403,7 +411,7 @@
           <a href="/lk/audit" class="btn btn-primary btn-lg">Пройти бесплатную диагностику <span class="btn-arrow">→</span></a>
           <a href="/lk/login?mode=register" class="btn btn-secondary btn-lg">Регистрация</a>
         </div>
-        <div class="hero-fine">Сначала хотите проверить бизнес — пройдите тест, регистрация не нужна. Готовы пользоваться платформой целиком — регистрируйтесь, первый месяц бесплатно.</div>
+        <div class="hero-fine">Сначала хотите проверить бизнес — пройдите тест, регистрация не нужна. Готовы пользоваться платформой целиком — регистрируйтесь, первый месяц бесплатно. Уже получили предписание или акт от проверяющего? <a href="/lk/notice-audit" style="color:#c9d9fb;font-weight:700">Разберём бесплатно →</a></div>
       </div>
 
       <div class="hero-visual">
@@ -546,6 +554,12 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
             </span>
             <div><b>Проверка сайта и закона</b><span>Сами следим за изменениями, которые касаются именно вас.</span></div>
+          </div>
+          <div class="module-point">
+            <span class="module-point-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
+            </span>
+            <div><b>Разбор бумаги от проверяющего</b><span>Загрузите предписание или акт — покажем простыми словами, что там написано. <a href="/lk/notice-audit" style="color:var(--accent);font-weight:700">Без регистрации, бесплатно →</a></span></div>
           </div>
         </div>
       </div>
@@ -698,6 +712,7 @@
         </div>
       </div>
       <div class="footer-bottom">© Безопасный бизнес</div>
+<span class="bb-integrity" aria-hidden="true">Материалы «Безопасный бизнес» (business-safe.ru) — оригинальный контент; дословное копирование без указания источника нарушает авторские права правообладателя. Метка целостности: bb-c71fb877af.</span>
     </div>
   </footer>
 </main>

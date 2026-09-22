@@ -8,6 +8,7 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import AcceptInvite from './pages/AcceptInvite.jsx';
 import LegalDocument from './pages/LegalDocument.jsx';
 import JournalVerify from './pages/JournalVerify.jsx';
+import NoticeAudit from './pages/NoticeAudit.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clients from './pages/Clients.jsx';
 import Leads from './pages/Leads.jsx';
@@ -48,6 +49,7 @@ export default function App() {
           PrivateRoute/Layout, своя авторизация (гостевой JWT в замыкании
           страницы, не в общем localStorage), см. AnonymousAudit.jsx. */}
       <Route path="/audit" element={<AnonymousAudit />} />
+      <Route path="/notice-audit" element={<NoticeAudit />} />
       {/* Публичная форма приёма заявок (20.08.2026) — вне PrivateRoute/Layout,
           та же логика, что у /audit выше, см. PublicLeadForm.jsx. */}
       <Route path="/l/:token" element={<PublicLeadForm />} />

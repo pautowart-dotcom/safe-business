@@ -31,6 +31,7 @@ const leadsPublicRoutes = require('./leads-public.routes');
 const yandexCardAuditRoutes = require('./yandex-card-audit.routes');
 const websiteCheckRoutes = require('./website-check.routes');
 const watchFeedRoutes = require('./watch-feed.routes');
+const noticeAuditRoutes = require('./notice-audit.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -63,5 +64,6 @@ platformRouter.use('/leads-public', leadsPublicRoutes);
 platformRouter.use('/yandex-card-audit', yandexCardAuditRoutes);
 platformRouter.use('/website-check', websiteCheckRoutes);
 platformRouter.use('/watch-feed', watchFeedRoutes);
+platformRouter.use('/notice-audit', noticeAuditRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
