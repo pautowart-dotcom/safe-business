@@ -67,7 +67,7 @@
     var text = document.createElement('div');
     text.style.cssText = 'flex:1 1 260px';
     text.appendChild(document.createTextNode(METRIKA_ID
-      ? 'Мы используем Яндекс Метрику, чтобы понимать, откуда приходят посетители. Она ставит cookie — только с вашего согласия. '
+      ? 'Мы используем файлы cookie для аналитики — понять, откуда приходят посетители. '
       : 'Сайт не использует cookie для отслеживания и рекламы: только технические данные для работы сайта. '));
     var link = document.createElement('a');
     link.href = '/cookies.html';
