@@ -14,6 +14,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { listUpcomingDeadlines } = require('../core/deadlines');
+const { isSubscriptionActive } = require('../core/middleware/subscription');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -147,12 +148,13 @@ async function loadLawChangeNoticeItem(companyId) {
   const notice = rows[0];
   if (!notice) return null;
 
-  const { rows: companyRows } = await pool.query(
-    `SELECT ai_advisor_subscription_status AS status, free_addons AS "freeAddons" FROM companies WHERE id = $1`,
-    [companyId]
-  );
-  const company = companyRows[0];
-  const subscribed = !!company && (company.freeAddons || company.status === 'active' || company.status === 'past_due');
+  // ИИ-советник входит в общую подписку с 20.09.2026 (см. requireAiAdvisorSubscription,
+  // core/middleware/subscription.js) — раньше здесь проверялся отдельный флаг
+  // ai_advisor_subscription_status, который новым (после объединения) компаниям
+  // никогда не проставляется, поэтому подсказка всегда выглядела запертой даже
+  // для реальных подписчиков. Проверяем тем же способом, что и сам доступ к ИИ.
+  const { rows: companyRows } = await pool.query(`SELECT free_addons AS "freeAddons" FROM companies WHERE id = $1`, [companyId]);
+  const subscribed = !!companyRows[0]?.freeAddons || (await isSubscriptionActive(companyId));
 
   if (subscribed) {
     return {
