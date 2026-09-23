@@ -214,8 +214,11 @@ export default function Deadlines() {
           }
 
           return (
-            <Card key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
+            <Card key={item.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'center', gap: 10 }}>
+              {/* Текст на всю ширину карточки, кнопки — отдельным рядом под ним
+                  (22.09.2026): раньше две-три кнопки справа забирали почти всю
+                  ширину, название сжималось в узкую колонку и обрезалось. */}
+              <div style={{ minWidth: 0, flex: '1 1 100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Badge color={cat.color} bg={cat.bg}>{cat.label}</Badge>
                   {isAction ? (
