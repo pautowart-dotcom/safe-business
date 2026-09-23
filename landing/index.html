@@ -374,6 +374,30 @@
      именно отсюда, а не написан независимо. Ничего не скрывает от реальных
      посетителей и не влияет на их опыт. */
   .bb-integrity { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+
+  /* ---------- телефон (22.09.2026): страница была шире экрана ---------- */
+  .lbl-short { display: none; }
+  .brand { min-width: 0; }
+  .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .nav-cta { flex: none; }
+  html { overflow-x: hidden; }
+  @media (max-width: 980px) {
+    .hero-inner > * { min-width: 0; }
+    .hv-row { flex-wrap: wrap; row-gap: 2px; }
+    .hv-meta { white-space: normal; }
+    .hv-toast { right: 0; }
+  }
+  @media (max-width: 600px) {
+    .nav-inner { padding: 14px 16px; gap: 12px; }
+    .nav-cta { gap: 12px; font-size: 13.5px; }
+    .nav-reg { padding: 9px 13px !important; font-size: 13px !important; }
+    .lbl-full { display: none; }
+    .lbl-short { display: inline; }
+    .brand { font-size: 15px; gap: 8px; }
+    .wrap { padding: 0 16px; }
+    .hero-inner { padding: 40px 16px 56px; }
+    .btn { white-space: normal; text-align: center; }
+  }
 </style>
 </head>
 <body>
@@ -382,7 +406,7 @@
   <div class="nav-inner">
     <div class="brand">
       <picture class="brand-logo"><source srcset="/brand/mark-on-dark.svg" media="(prefers-color-scheme: dark)"><img src="/brand/mark-on-light.svg" alt="" width="26" height="30"></picture>
-      Безопасный бизнес
+      <span class="brand-name">Безопасный бизнес</span>
     </div>
     <div class="navlinks">
       <a href="#modules">Функции</a>
@@ -392,7 +416,7 @@
     </div>
     <div class="nav-cta">
       <a href="/lk/login">Войти</a>
-      <a href="/lk/login?mode=register" class="btn btn-light" style="padding:11px 20px; font-size:14px;">Зарегистрироваться</a>
+      <a href="/lk/login?mode=register" class="btn btn-light nav-reg" style="padding:11px 20px; font-size:14px;"><span class="lbl-full">Зарегистрироваться</span><span class="lbl-short">Регистрация</span></a>
     </div>
   </div>
 </nav>
