@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../ui/Icon.jsx';
 import { Btn } from '../ui/components.jsx';
@@ -168,9 +168,29 @@ export default function OnboardingModal({ onClose }) {
   // когорты ("только безопасность", core/cohort.js) вообще нет — та же
   // фильтрация по hasModule, что уже применяется к меню "Ещё" (More.jsx).
   const allSlides = buildSlides(masterLabel, masterLabelGenitiveSingular, masterLabelGenitivePlural)[isOwner ? 'owner' : isManagement ? 'admin' : 'master'];
-  const slides = allSlides.filter((s) => !s.moduleKey || hasModule(s.moduleKey));
+  // Приветственный слайд без moduleKey раньше говорил "учёт визитов и
+  // финансов" всем, включая новую когорту (только безопасность) — там этих
+  // разделов нет. Текст зависит от того, что реально включено.
+  const hasOperations = hasModule('visits') || hasModule('finance');
+  const slides = allSlides
+    .filter((s) => !s.moduleKey || hasModule(s.moduleKey))
+    .map((s, i) => (i === 0 && !hasOperations && isOwner
+      ? { ...s, text: 'Сервис следит за сроками, документами и проверками вашего бизнеса. Бесплатный тест покажет, что сейчас не в порядке, а дальше мы напомним заранее — до того, как это станет штрафом.' }
+      : s));
   const isLast = step === slides.length - 1;
   const slide = slides[step];
+
+  // Свайп в сторону: влево — дальше, вправо — назад.
+  const touchStartX = useRef(null);
+  function onTouchStart(e) { touchStartX.current = e.touches[0].clientX; }
+  function onTouchEnd(e) {
+    if (touchStartX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0 && !isLast) setStep((s) => s + 1);
+    if (dx > 0 && step > 0) setStep((s) => s - 1);
+  }
 
   // Раньше без try/catch: если markOnboardingSeen() падал (сеть/сервер),
   // closing навсегда оставался true — кнопка "зависала" задизейбленной, а
@@ -197,7 +217,7 @@ export default function OnboardingModal({ onClose }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20, fontFamily: F }}>
-      <div style={{ background: C.bg, borderRadius: 20, padding: 28, width: '100%', maxWidth: Math.min(MAX_WIDTH - 40, 360), textAlign: 'center' }}>
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ background: C.bg, borderRadius: 20, padding: 28, width: '100%', maxWidth: Math.min(MAX_WIDTH - 40, 360), textAlign: 'center', touchAction: 'pan-y' }}>
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <Icon name={slide.icon} size={30} color={C.primary} />
         </div>
@@ -214,6 +234,14 @@ export default function OnboardingModal({ onClose }) {
         <Btn onClick={() => (isLast ? finish() : setStep(step + 1))} disabled={closing}>
           {closing ? 'Сохраняем...' : isLast ? 'Начать работу' : 'Далее'}
         </Btn>
+        {step > 0 && (
+          <button
+            onClick={() => setStep(step - 1)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.secondary, fontSize: 13, marginTop: 14, padding: 0, fontFamily: F, display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
+          >
+            ← Назад
+          </button>
+        )}
         {!isLast && (
           <button
             onClick={finish}

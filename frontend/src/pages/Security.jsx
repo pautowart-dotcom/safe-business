@@ -780,7 +780,17 @@ function QuickDeadlinesPrompt({ hasPremises }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // "Нет ЭЦП" / "не сейчас" запоминаем в браузере — иначе при каждом
+  // прохождении теста человека снова спрашивали бы про подпись, которой у
+  // него, возможно, вообще нет (ЭЦП нужна не каждому ИП/самозанятому).
+  const DISMISS_KEY = 'quickDeadlinesDismissed';
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
+  });
+  function dismiss() {
+    try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* приватный режим */ }
+    setDismissed(true);
+  }
 
   useEffect(() => {
     api.get('/platform/my-deadlines').then((res) => setSlots(res.data.slots)).catch(() => setSlots([]));
@@ -811,9 +821,13 @@ function QuickDeadlinesPrompt({ hasPremises }) {
 
   return (
     <Card style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Настройте пару напоминаний — 30 секунд</div>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+        {empty.length === 1 ? 'Есть электронная подпись (ЭЦП)?' : 'Впишите даты, которые знаете'}
+      </div>
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 14 }}>
-        Тест показывает состояние на сегодня. Впишите пару дат — напомним заранее, до того как это станет нарушением.
+        {empty.length === 1
+          ? 'Если есть — укажите, когда она заканчивается, и мы напомним заранее. Если её у вас нет — просто нажмите «У меня нет».'
+          : 'Тест показывает состояние на сегодня. Укажите срок действия того, что у вас есть, — напомним заранее. Незнакомые или ненужные поля оставьте пустыми.'}
       </div>
       {empty.map((s) => (
         <Field key={s.key} label={s.label}>
@@ -824,7 +838,7 @@ function QuickDeadlinesPrompt({ hasPremises }) {
         <Btn small onClick={save} disabled={saving || empty.every((s) => !values[s.key])}>
           {saving ? 'Сохраняем…' : 'Сохранить'}
         </Btn>
-        <Btn small variant="secondary" onClick={() => setDismissed(true)}>Не сейчас</Btn>
+        <Btn small variant="secondary" onClick={dismiss}>{empty.length === 1 ? 'У меня нет' : 'Не сейчас'}</Btn>
       </div>
     </Card>
   );
