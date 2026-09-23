@@ -133,7 +133,10 @@ function WatchFeedDashboard() {
 
   return (
     <div>
-      <Card style={{ background: attention ? C.orangeBg : C.greenBg, borderColor: (attention ? C.orange : C.green) + '44' }}>
+      <Card
+        style={{ background: attention ? C.orangeBg : C.greenBg, borderColor: (attention ? C.orange : C.green) + '44', cursor: attention ? 'pointer' : 'default' }}
+        onClick={attention ? () => navigate('/security', { state: { dashboardTab: 'violations' } }) : undefined}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: attention ? C.orange : C.green, flexShrink: 0 }} />
           <div style={{ fontSize: 17, fontWeight: 800 }}>
@@ -141,7 +144,7 @@ function WatchFeedDashboard() {
           </div>
         </div>
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6 }}>
-          {attention ? 'Остальное под наблюдением — ничего срочного, кроме отмеченного ниже.' : 'Мы продолжаем следить за сроками, законом и вашими проверками.'}
+          {attention ? 'Посмотреть, что именно →' : 'Мы продолжаем следить за сроками, законом и вашими проверками.'}
         </div>
       </Card>
 
