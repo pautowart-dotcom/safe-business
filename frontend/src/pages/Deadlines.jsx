@@ -157,6 +157,12 @@ export default function Deadlines() {
           // (политика конфиденциальности §8.4 — Безопасность видна только
           // владельцу). Вместо "Готово" — ссылка туда, где реально решается.
           const isSecurityViolation = item.related_entity_type === 'security_violation';
+          // test_findings_followup (22.09.2026) — разовое напоминание на
+          // следующий день после регистрации, если открытые нарушения из
+          // теста так и остались открытыми (dailyOperationsNudges.js). Та же
+          // цель, что у "Открыть" ниже (isSecurityViolation) — вкладка
+          // "Нарушения", а не общий "Обзор".
+          const isTestFindingsFollowup = item.related_entity_type === 'test_findings_followup';
           const businessStatusKey = item.related_entity_type?.startsWith(BUSINESS_STATUS_PREFIX)
             ? item.related_entity_type.slice(BUSINESS_STATUS_PREFIX.length)
             : null;
@@ -247,6 +253,11 @@ export default function Deadlines() {
               {isManagement && isSecurityViolation && (
                 <Btn small variant="secondary" onClick={() => navigate('/security')}>
                   Открыть
+                </Btn>
+              )}
+              {isManagement && isTestFindingsFollowup && (
+                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'violations' } })}>
+                  Посмотреть
                 </Btn>
               )}
               {/* 18.09.2026 — второй линк с того же критического нарушения: не

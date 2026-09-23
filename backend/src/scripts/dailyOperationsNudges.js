@@ -229,6 +229,48 @@ async function nudgeComplianceDigest() {
   return companies.length;
 }
 
+function pluralViolations(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'нарушение';
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'нарушения';
+  return 'нарушений';
+}
+
+// Разовое напоминание "на следующий день" (22.09.2026, владелец: "проходят
+// тест за 5 минут и уходят") — второй, отложенный шанс достучаться до тех,
+// у кого при завершении теста не сработал (или не был замечен) мгновенный
+// пуш по критическому нарушению (security.routes.js, CRITICAL_RISK_THRESHOLD,
+// там же — сразу в момент завершения теста, риск ≥8). Здесь — шире (любые
+// открытые нарушения, не только критические) и с задержкой в сутки, когда
+// уведомления в браузере уже реалистичнее успели разрешить. Срабатывает
+// строго один раз на компанию — условие "зарегистрирован вчера" истинно
+// только один день, отдельного снятия/повтора не нужно, в отличие от
+// nudgeShiftNotOpened и соседей выше.
+async function nudgeUnresolvedTestFindings(targetDate) {
+  const { rows: companies } = await pool.query(
+    `SELECT c.id, c.name, COUNT(v.id)::int AS open_n
+     FROM companies c
+     JOIN memberships m ON m.company_id = c.id AND m.role = 'owner'
+     JOIN users u ON u.id = m.user_id AND u.is_guest = false
+     JOIN security_violations v ON v.company_id = c.id AND v.status = 'open'
+     WHERE c.created_at::date = $1::date
+     GROUP BY c.id, c.name`,
+    [targetDate]
+  );
+
+  for (const company of companies) {
+    await registerAction({
+      companyId: company.id,
+      category: 'documents',
+      title: `Тест нашёл ${company.open_n} ${pluralViolations(company.open_n)} — посмотрите, что нужно оформить`,
+      relatedEntityType: 'test_findings_followup',
+      relatedEntityId: company.id,
+    });
+  }
+  return companies.length;
+}
+
 // Ежедневный контроль аномалий (20.09.2026, шаг 1 защиты от массового
 // копирования, см. core/abuseAlerts.js): только пуш владельцу платформы, без
 // автоблокировок. Нормальный фон — единицы гостей и 1-3 запуска теста на
@@ -261,6 +303,7 @@ async function main() {
   const stockCompanies = await nudgeLowStock();
   const aiAdvisorCompanies = await nudgeAiAdvisors();
   const complianceDigestCompanies = await nudgeComplianceDigest();
+  const testFindingsCompanies = await nudgeUnresolvedTestFindings(targetDate);
   try {
     const abuse = await watchAbuse();
     console.log(`watchAbuse: гостей за сутки ${abuse.guestsN}, компаний с 8+ запусками ${abuse.heavyN}, пуш ${abuse.alerted ? 'отправлен' : 'не нужен'}`);
@@ -269,7 +312,7 @@ async function main() {
     console.error('watchAbuse упал:', err);
   }
   console.log(
-    `dailyOperationsNudges (${targetDate}): смена — ${shiftCompanies} компаний проверено, выручка — ${revenueCompanies}, остатки — ${stockCompanies}, ИИ-советник — ${aiAdvisorCompanies}, ИИ по законодательству — ${complianceDigestCompanies}`
+    `dailyOperationsNudges (${targetDate}): смена — ${shiftCompanies} компаний проверено, выручка — ${revenueCompanies}, остатки — ${stockCompanies}, ИИ-советник — ${aiAdvisorCompanies}, ИИ по законодательству — ${complianceDigestCompanies}, напоминание про находки теста — ${testFindingsCompanies}`
   );
 }
 

@@ -1399,7 +1399,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
       <DocumentTemplatesCard isManagement={isManagement} />
-      <WebsiteCheckCard isManagement={isManagement} />
+      <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
       {/* DocumentRiskCheckCard переехала во вкладку "Документы" (31.08.2026,
           владелец: лишнее действие — идти в другую вкладку и заново
           выбирать тот же файл, который только что загрузили сюда). */}
@@ -1971,9 +1971,9 @@ function RiskCheckHistoryCard({ isManagement, refreshSignal }) {
 // Проверка сайта на риски 152-ФЗ (03.09.2026) — бесплатный бонус
 // подписчикам (раз в 30 дней, лимит на backend, core/middleware/
 // websiteCheck.js — без него подписка давала бы неограниченные бесплатные
-// проверки чужих сайтов), либо разовая оплата 990₽ через тот же
-// addons-чекаут, что и "Шаблоны документов" выше.
-function WebsiteCheckCard({ isManagement }) {
+// проверки чужих сайтов), либо разовая оплата (core/addons.js, сейчас
+// 490₽) через тот же addons-чекаут, что и "Шаблоны документов" выше.
+function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
   const [url, setUrl] = useState('');
   const [checkId, setCheckId] = useState(null);
   const [result, setResult] = useState(null);
@@ -2074,6 +2074,9 @@ function WebsiteCheckCard({ isManagement }) {
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
         Проверяем сайт на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта, согласие на обработку персональных данных в формах, уведомление о cookie.
         Это не юридическое заключение — только предварительная проверка.
+      </div>
+      <div style={{ fontSize: 12.5, color: hasPaidPlan ? C.green : C.subtle, marginBottom: 12 }}>
+        {hasPaidPlan ? 'По подписке — раз в 30 дней бесплатно.' : 'По подписке — раз в 30 дней бесплатно. Без подписки — разовая оплата.'}
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
