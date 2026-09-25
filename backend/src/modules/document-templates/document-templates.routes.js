@@ -14,6 +14,7 @@ const { renderDocumentPdf } = require('./render');
 const { worksFromHome } = require('./homePremisesSignal');
 const templateViolationLinks = require('./content/templateViolationLinks');
 const { alreadyHasDocument } = require('./documentSignal');
+const securityRepository = require('../security/content/repository');
 const yandexAssist = require('../../core/yandexAssist');
 
 const router = express.Router();
@@ -104,10 +105,26 @@ router.get(
     // alreadyHasDocument = true не скрывает шаблон совсем (документ мог
     // потеряться/устареть) — фронт вместо "создать" покажет "у вас уже
     // отмечено, что он есть — стоит проверить, а не создавать заново".
+    // openViolationId/nextStep (25.09.2026, "пакет на подпись") — открытое
+    // нарушение компании, которое закрывает этот документ, и его уже
+    // проверенный текст "что сделать" (solution из violations/*.js) — ничего
+    // нового юридического не пишем, только показываем рядом с документом.
+    const { rows: openRows } = await pool.query(
+      `SELECT id, violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`,
+      [req.tenant.companyId]
+    );
+    const matrixCache = {};
+    async function violationDetails(niche, code) {
+      if (!(niche in matrixCache)) matrixCache[niche] = await securityRepository.getViolationMatrix(niche);
+      return matrixCache[niche]?.find((v) => v.code === code) || null;
+    }
+
     const templates = await Promise.all(
       filtered.map(async (t) => {
         const link = templateViolationLinks.forTemplate(t.niche, t.key);
         const hasIt = link ? await alreadyHasDocument(req.tenant.companyId, link) : false;
+        const openRow = link ? openRows.find((r) => r.niche === t.niche && r.violation_code === link.violationCode) : null;
+        const details = openRow ? await violationDetails(t.niche, link.violationCode) : null;
         return {
           key: t.key,
           niche: t.niche,
@@ -120,6 +137,8 @@ router.get(
           fields: t.fields,
           closesViolationCode: link ? link.violationCode : null,
           alreadyHasDocument: hasIt,
+          openViolationId: openRow ? openRow.id : null,
+          nextStep: details ? details.solution : null,
         };
       })
     );
@@ -202,7 +221,7 @@ router.post(
     }
 
     const values = data && typeof data === 'object' ? data : {};
-    const missing = template.fields.filter((f) => f.required && !String(values[f.key] || '').trim());
+    const missing = missingRequired(template, values);
     if (missing.length > 0) {
       return res.status(400).json({ error: `Заполните обязательные поля: ${missing.map((f) => f.label).join(', ')}` });
     }
@@ -213,55 +232,136 @@ router.post(
     const existingDetails = await loadSavedDetails(req.tenant.companyId);
     await saveDetails(req.tenant.companyId, existingDetails, values, template.fields.map((f) => f.key));
 
-    const generatedAt = new Date();
-    // profile — уже загружен выше (проверка ниши); прокидываем его же в
-    // рендер для сборки составных документов (assembleBody, render.js) —
-    // без него clause-документы не смогут решить, какие пункты показывать.
-    // worksFromHome — не поле самого profile (там такого нет для этой ниши,
-    // см. homePremisesSignal.js), довычисляем и кладём в копию профиля
-    // только для рендера этого документа.
-    const profileForRender = { ...profile, worksFromHome: await worksFromHome(req.tenant.companyId, template.niche) };
-    const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt, profile: profileForRender });
-    const filename = await saveDocumentFile(pdfBuffer, 'application/pdf');
+    res.status(201).json(await generateOne(req, template, profile, values));
+  })
+);
 
-    const { rows } = await pool.query(
-      `INSERT INTO generated_documents
-         (company_id, template_key, template_version, template_title, template_status_at_generation,
-          law_reference_at_generation, data_enc, file_url, generated_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, generated_at`,
-      [
-        req.tenant.companyId,
-        template.key,
-        template.version,
-        template.title,
-        template.status,
-        template.lawReference || null,
-        encrypt(JSON.stringify(values)),
-        getFileUrl(filename),
-        req.user.id,
-      ]
-    );
+// "Пакет на подпись" (25.09.2026, план владельца "ИИ делает бумажную работу —
+// вы подписываете") — те же документы, что и /generate, но все нужные разом:
+// реквизиты вводятся один раз, фронт присылает список ключей шаблонов,
+// закрывающих открытые нарушения из теста. Доступ — тот же requireAddon, что
+// и у одиночной генерации: владелец ещё не решил, входит ли пакет в подписку
+// (память project_subscription_rethink_2026_09_24), цены не трогаем.
+// Сначала проверяем ВСЕ шаблоны и поля, потом генерируем — чтобы не получить
+// половину пакета из-за одной незаполненной графы в последнем документе.
+const PACK_MAX = 20;
+
+router.post(
+  '/generate-pack',
+  requireAddon(ADDON_KEY),
+  asyncHandler(async (req, res) => {
+    const { templateKeys, data } = req.body;
+    if (!Array.isArray(templateKeys) || templateKeys.length === 0) {
+      return res.status(400).json({ error: 'Не выбраны документы' });
+    }
+    const keys = [...new Set(templateKeys.map(String))].slice(0, PACK_MAX);
+
+    const profile = await loadProfile(req.tenant.companyId);
+    if (!profile) return res.status(403).json({ error: 'Сначала пройдите тест безопасности' });
+
+    const templates = [];
+    for (const key of keys) {
+      const template = await repository.getTemplate(key);
+      if (!template) return res.status(400).json({ error: 'Неизвестный шаблон' });
+      if (!profile.niches.includes(template.niche)) {
+        return res.status(403).json({ error: 'Этот шаблон не относится к вашей нише' });
+      }
+      templates.push(template);
+    }
+
+    const values = data && typeof data === 'object' ? data : {};
+    const missingLabels = new Map();
+    for (const template of templates) {
+      for (const f of missingRequired(template, values)) {
+        if (!missingLabels.has(f.key)) missingLabels.set(f.key, f.label);
+      }
+    }
+    if (missingLabels.size > 0) {
+      return res.status(400).json({ error: `Заполните обязательные поля: ${[...missingLabels.values()].join(', ')}` });
+    }
+
+    const allFieldKeys = [...new Set(templates.flatMap((t) => t.fields.map((f) => f.key)))];
+    const existingDetails = await loadSavedDetails(req.tenant.companyId);
+    await saveDetails(req.tenant.companyId, existingDetails, values, allFieldKeys);
+
+    // Последовательно, не Promise.all — рендер PDF тяжёлый по памяти, а
+    // пакет обычно 3–5 документов.
+    const documents = [];
+    for (const template of templates) {
+      // В историю каждого документа — только его собственные поля, не общий
+      // набор реквизитов всего пакета.
+      const own = {};
+      for (const f of template.fields) if (values[f.key] !== undefined) own[f.key] = values[f.key];
+      documents.push({ templateKey: template.key, ...(await generateOne(req, template, profile, own)) });
+    }
 
     await logEvent({
       companyId: req.tenant.companyId,
       moduleKey: 'document-templates',
       userId: req.user.id,
       entityType: 'generated_document',
-      entityId: rows[0].id,
-      action: 'generated_document.created',
+      entityId: documents[0].id,
+      action: 'generated_document.pack_created',
     });
 
-    res.status(201).json({
-      id: rows[0].id,
-      templateTitle: template.title,
-      status: template.status,
-      generatedAt: rows[0].generated_at,
-      downloadUrl: signFileUrl(getFileUrl(filename)),
-      securityDocumentId: null,
-    });
+    res.status(201).json({ documents });
   })
 );
+
+function missingRequired(template, values) {
+  return template.fields.filter((f) => f.required && !String(values[f.key] || '').trim());
+}
+
+// Один документ: рендер, файл, запись в историю. Общая часть /generate и
+// /generate-pack; проверки доступа, ниши и полей — у вызывающего.
+async function generateOne(req, template, profile, values) {
+  const generatedAt = new Date();
+  // profile прокидываем в рендер для сборки составных документов
+  // (assembleBody, render.js) — без него clause-документы не смогут решить,
+  // какие пункты показывать. worksFromHome — не поле самого profile (там
+  // такого нет для этой ниши, см. homePremisesSignal.js), довычисляем и
+  // кладём в копию профиля только для рендера этого документа.
+  const profileForRender = { ...profile, worksFromHome: await worksFromHome(req.tenant.companyId, template.niche) };
+  const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt, profile: profileForRender });
+  const filename = await saveDocumentFile(pdfBuffer, 'application/pdf');
+
+  const { rows } = await pool.query(
+    `INSERT INTO generated_documents
+       (company_id, template_key, template_version, template_title, template_status_at_generation,
+        law_reference_at_generation, data_enc, file_url, generated_by_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, generated_at`,
+    [
+      req.tenant.companyId,
+      template.key,
+      template.version,
+      template.title,
+      template.status,
+      template.lawReference || null,
+      encrypt(JSON.stringify(values)),
+      getFileUrl(filename),
+      req.user.id,
+    ]
+  );
+
+  await logEvent({
+    companyId: req.tenant.companyId,
+    moduleKey: 'document-templates',
+    userId: req.user.id,
+    entityType: 'generated_document',
+    entityId: rows[0].id,
+    action: 'generated_document.created',
+  });
+
+  return {
+    id: rows[0].id,
+    templateTitle: template.title,
+    status: template.status,
+    generatedAt: rows[0].generated_at,
+    downloadUrl: signFileUrl(getFileUrl(filename)),
+    securityDocumentId: null,
+  };
+}
 
 router.get(
   '/generated',

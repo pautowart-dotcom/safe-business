@@ -938,7 +938,7 @@ function SecurityDashboard({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} />
+        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
@@ -1347,7 +1347,7 @@ function InspectionGuidesTab() {
   );
 }
 
-function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport }) {
+function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport, onResolveViolation, onDocumentsChange }) {
   const hasResult = status?.indexPercent != null;
   const outstanding = status?.outstandingNiches || [];
 
@@ -1412,7 +1412,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
       <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
 
-      <DocumentTemplatesCard isManagement={isManagement} />
+      <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
       <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
       {/* DocumentRiskCheckCard переехала во вкладку "Документы" (31.08.2026,
           владелец: лишнее действие — идти в другую вкладку и заново
@@ -2150,7 +2150,7 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
 
 // Тихая обкатка снята 13.08.2026 (решение владельца) — доступно всем
 // компаниям, вместе с backend-гейтом в document-templates.routes.js.
-function DocumentTemplatesCard({ isManagement }) {
+function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsChange }) {
   const [templates, setTemplates] = useState(null);
   const [savedDetails, setSavedDetails] = useState({});
   const [generated, setGenerated] = useState([]);
@@ -2283,7 +2283,21 @@ function DocumentTemplatesCard({ isManagement }) {
         <div style={{ fontSize: 13, color: C.secondary }}>Для вашей ниши шаблонов пока нет.</div>
       )}
 
-      {addon && !addon.purchased && templates && templates.length > 0 && (
+      {templates && templates.length > 0 && (
+        <SigningPackBlock
+          templates={templates}
+          savedDetails={savedDetails}
+          addon={addon}
+          payingAddon={payingAddon}
+          onPay={payForAddon}
+          onGenerated={load}
+          onResolveViolation={onResolveViolation}
+          onDocumentsChange={onDocumentsChange}
+        />
+      )}
+
+      {/* Когда есть "Пакет на подпись", кнопка оплаты уже там — не дублируем. */}
+      {addon && !addon.purchased && templates && templates.length > 0 && !templates.some((t) => t.openViolationId && !t.alreadyHasDocument) && (
         <div style={{ padding: '10px 12px', marginBottom: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 13, marginBottom: 8 }}>
             Доступ ко всем документам вашей ниши — разовая оплата {addon.priceRub.toLocaleString('ru-RU')} ₽, без подписки. Оплачивается один раз, дальше документы доступны без ограничений.
@@ -2437,6 +2451,160 @@ function DocumentTemplatesCard({ isManagement }) {
         </div>
       )}
     </Card>
+  );
+}
+
+// "Пакет на подпись" (25.09.2026, план владельца "ИИ делает бумажную работу —
+// вы подписываете"): все документы, закрывающие ОТКРЫТЫЕ нарушения из теста,
+// собираются одной кнопкой, реквизиты вводятся один раз. Доступ тот же, что у
+// одиночной генерации (разовая покупка шаблонов) — цены не трогаем, пока
+// владелец не решил про подписку. "Что сделать" — уже проверенный текст
+// solution самого нарушения (nextStep с бэкенда), не новый юридический текст.
+function docWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'документ';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'документа';
+  return 'документов';
+}
+
+function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, onGenerated, onResolveViolation, onDocumentsChange }) {
+  const needed = templates.filter((t) => t.openViolationId && !t.alreadyHasDocument);
+  const [formData, setFormData] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [results, setResults] = useState(null);
+  const [doneIds, setDoneIds] = useState({});
+  const [marking, setMarking] = useState(null);
+
+  // Общие поля всех документов пакета: один ключ — одно поле (реквизиты в
+  // шаблонах называются одинаково), обязательное, если обязательно хоть где-то.
+  const fields = [];
+  for (const t of needed) {
+    for (const f of t.fields) {
+      const existing = fields.find((x) => x.key === f.key);
+      if (!existing) fields.push({ ...f });
+      else if (f.required) existing.required = true;
+    }
+  }
+
+  if (needed.length === 0 && !results) return null;
+
+  const purchased = addon && addon.purchased;
+
+  function openForm() {
+    const prefilled = {};
+    fields.forEach((f) => { if (savedDetails[f.key]) prefilled[f.key] = savedDetails[f.key]; });
+    setFormData(prefilled);
+    setError('');
+  }
+
+  async function submit() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const { data } = await api.post('/modules/document-templates/generate-pack', {
+        templateKeys: needed.map((t) => t.key),
+        data: formData,
+      });
+      const byKey = Object.fromEntries(needed.map((t) => [t.key, t]));
+      setResults(data.documents.map((d) => ({ ...d, violationId: byKey[d.templateKey]?.openViolationId, nextStep: byKey[d.templateKey]?.nextStep })));
+      setFormData(null);
+      onGenerated && onGenerated();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось собрать документы');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // "Подписал(а)": документ уходит в «Мои документы», связанное нарушение —
+  // в устранённые. Ровно то же, что владелец и так делал двумя кнопками в
+  // разных местах, одним действием.
+  async function markDone(doc) {
+    setMarking(doc.id);
+    setError('');
+    try {
+      await api.post(`/modules/document-templates/generated/${doc.id}/add-to-documents`).catch((err) => {
+        if (err.response?.status !== 409) throw err;
+      });
+      if (doc.violationId) {
+        if (onResolveViolation) await onResolveViolation(doc.violationId);
+        else await api.patch(`/modules/security/violations/${doc.violationId}/resolve`);
+      }
+      setDoneIds((prev) => ({ ...prev, [doc.id]: true }));
+      onDocumentsChange && onDocumentsChange();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось отметить документ');
+    } finally {
+      setMarking(null);
+    }
+  }
+
+  return (
+    <div style={{ padding: '12px 14px', marginBottom: 14, borderRadius: 12, background: C.greenBg, border: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Пакет на подпись</div>
+
+      {!results && (
+        <>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 8 }}>
+            По итогам теста {needed.length === 1 ? 'один документ закроет' : `${needed.length} ${docWord(needed.length)} закроют`} ваши находки. Мы заполним их вашими реквизитами — останется проверить и подписать.
+          </div>
+          <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13 }}>
+            {needed.map((t) => <li key={t.key}>{t.title}</li>)}
+          </ul>
+
+          {!purchased ? (
+            addon && (
+              <Btn small onClick={onPay} disabled={payingAddon}>
+                {payingAddon ? 'Секунду…' : `Открыть документы — ${addon.priceRub.toLocaleString('ru-RU')} ₽ разово`}
+              </Btn>
+            )
+          ) : formData === null ? (
+            <Btn small onClick={openForm}>Собрать все документы</Btn>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>Реквизиты вводятся один раз — для всех документов сразу.</div>
+              {fields.map((f) => (
+                <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
+                  <TextInput value={formData[f.key] || ''} onChange={(e) => setFormData((prev) => ({ ...prev, [f.key]: e.target.value }))} />
+                </Field>
+              ))}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Btn small onClick={submit} disabled={submitting}>{submitting ? 'Собираем…' : `Собрать ${needed.length} PDF`}</Btn>
+                <Btn small variant="secondary" onClick={() => setFormData(null)}>Отмена</Btn>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {results && (
+        <>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 8 }}>
+            Готово. Скачайте, проверьте реквизиты и подпишите. Когда документ подписан и лежит на месте — отметьте его, и находка закроется.
+          </div>
+          {results.map((d) => (
+            <div key={d.id} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{d.templateTitle}</span>
+                <a href={d.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать PDF</a>
+              </div>
+              {d.nextStep && <div style={{ fontSize: 12, color: C.subtle, margin: '4px 0 6px' }}><strong>Что сделать:</strong> {d.nextStep}</div>}
+              {doneIds[d.id] ? (
+                <div style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>✓ Подписан, находка закрыта</div>
+              ) : (
+                <Btn small variant="green" onClick={() => markDone(d)} disabled={marking === d.id}>
+                  {marking === d.id ? 'Секунду…' : 'Подписал(а)'}
+                </Btn>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+
+      {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+    </div>
   );
 }
 
