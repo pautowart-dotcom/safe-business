@@ -32,7 +32,9 @@ const AUTHORITY_LABELS = {
   tax_inspection: 'Налоговая (ФНС)',
   other: 'Другой орган',
 };
-const KINDS = ['planned', 'unplanned', 'unknown'];
+// unplanned_complaint/preventive_visit — миграция 0122: причина проверки
+// важнее, чем "плановая/внеплановая" (мораторий на плановые до 2030).
+const KINDS = ['planned', 'unplanned', 'unplanned_complaint', 'preventive_visit', 'unknown'];
 // Фиксированный список, не свободный текст — чтобы области можно было
 // сравнивать между компаниями, когда (и если) появится согласованная
 // обезличенная аналитика.

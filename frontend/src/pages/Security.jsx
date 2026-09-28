@@ -962,7 +962,15 @@ const INSPECTION_AUTHORITIES = [
   ['rospotrebnadzor', 'Роспотребнадзор'], ['fire_inspection', 'Пожарный надзор (МЧС)'], ['labor_inspection', 'Инспекция труда'],
   ['roskomnadzor', 'Роскомнадзор'], ['tax_inspection', 'Налоговая (ФНС)'], ['other', 'Другой орган'],
 ];
-const INSPECTION_KINDS = [['unknown', 'Не знаю'], ['planned', 'Плановая'], ['unplanned', 'Внеплановая']];
+// 28.09.2026 — причина важнее, чем "плановая/внеплановая" (миграция 0122).
+// 'unplanned' остаётся для старых записей и когда причину не знают.
+const INSPECTION_KINDS = [
+  ['unknown', 'Не знаю'],
+  ['unplanned_complaint', 'Внеплановая — по жалобе'],
+  ['unplanned', 'Внеплановая — другая причина'],
+  ['preventive_visit', 'Профилактический визит'],
+  ['planned', 'Плановая'],
+];
 const INSPECTION_AREAS = [
   ['sanitary', 'Санитария'], ['fire', 'Пожарная безопасность'], ['personal_data', 'Персональные данные'], ['labor', 'Трудовые отношения'],
   ['tax_cash', 'Налоги и кассы'], ['consumer_rights', 'Права потребителей'], ['licenses_waste', 'Лицензии и отходы'], ['other', 'Другое'],
