@@ -39,6 +39,7 @@ const DOCUMENT_VERIFY_PREFIX = 'document_verify:';
 const MANUAL_KEYS_WITH_INSTRUCTION = [
   'esign', 'briefing_repeat', 'lease_end', 'fire_extinguisher', 'fire_alarm_service',
   'electrical_resistance', 'disinfection_contract', 'medwaste_contract', 'mswaste_contract',
+  'ofd_contract',
 ];
 
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
