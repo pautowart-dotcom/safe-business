@@ -11,18 +11,26 @@ import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 // (в NICHE_OPTIONS с 09.09.2026, см. комментарий там) были бы невидимы в
 // этом списке групп, даже добавленные в плоский список: без своей группы
 // элементы с segment='fitness' просто не проходят фильтр ни в одной строке.
-const NICHE_GROUPS = [
+// 30.09.2026 — тот же баг повторился: 'auto' (15.09) и 'kids' (15.09) не
+// были добавлены сюда, и автомойка/шиномонтаж/автосервис/детские клубы две
+// недели не показывались при регистрации. Теперь ниша с сегментом, которого
+// нет в списке ниже, попадает в "Другое", а не исчезает молча.
+const SEGMENT_GROUPS = [
   ['beauty', 'Красота и здоровье'],
   ['fitness', 'Фитнес и активность'],
+  ['kids', 'Услуги для детей'],
   ['cleaning', 'Клининг'],
   ['household', 'Бытовые услуги'],
+  ['auto', 'Услуги для автомобилей'],
   ['pets', 'Услуги для животных'],
   ['food', 'Общепит'],
   ['other', 'Другое'],
-].map(([segmentKey, segmentLabel]) => [
+];
+const KNOWN_SEGMENTS = SEGMENT_GROUPS.map(([key]) => key);
+const NICHE_GROUPS = SEGMENT_GROUPS.map(([segmentKey, segmentLabel]) => [
   segmentLabel,
-  NICHE_OPTIONS.filter(([, , seg]) => seg === segmentKey),
-]);
+  NICHE_OPTIONS.filter(([, , seg]) => seg === segmentKey || (segmentKey === 'other' && !KNOWN_SEGMENTS.includes(seg))),
+]).filter(([, options]) => options.length > 0);
 
 export function AuthShell({ children }) {
   return (
