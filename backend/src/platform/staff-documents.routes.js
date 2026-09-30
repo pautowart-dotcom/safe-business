@@ -9,8 +9,23 @@ const { registerDeadline } = require('../core/deadlines');
 const { uploadDocument } = require('../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
 
-const DOC_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
+// criminal_record_certificate / periodic_medical_exam — миграция 0123, для
+// детских ниш. У справки о несудимости нет законного срока действия (нужна
+// при приёме, ст. 351.1 ТК РФ) — вместо expires_at хранится issued_on, и
+// напоминание не ставится.
+const DOC_LABELS = {
+  medical_book: 'Мед. книжка',
+  certificate: 'Сертификат',
+  employment_contract: 'Срочный договор',
+  criminal_record_certificate: 'Справка об отсутствии судимости',
+  periodic_medical_exam: 'Периодический медосмотр',
+};
 const DOC_TYPES = Object.keys(DOC_LABELS);
+const NO_EXPIRY_TYPES = ['criminal_record_certificate'];
+
+function isDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
+}
 const REMINDER_LEAD_DAYS = 14;
 
 // Срок напоминания регистрируется сразу — за REMINDER_LEAD_DAYS до реальной
@@ -25,11 +40,14 @@ function minusDays(dateStr, days) {
 }
 
 async function syncDeadline({ companyId, doc, employeeName }) {
+  if (!doc.expires_at) return;
   const label = DOC_LABELS[doc.doc_type] + (doc.title ? ` · ${doc.title}` : '');
   await registerDeadline({
     companyId,
     category: 'staff',
-    title: `${label} — ${employeeName}: истекает ${doc.expires_at}`,
+    title: doc.doc_type === 'periodic_medical_exam'
+      ? `${label} — ${employeeName}: пройти до ${doc.expires_at}`
+      : `${label} — ${employeeName}: истекает ${doc.expires_at}`,
     dueDate: minusDays(doc.expires_at, REMINDER_LEAD_DAYS),
     relatedEntityType: 'staff_document',
     relatedEntityId: doc.id,
@@ -57,7 +75,8 @@ router.get(
     }
 
     const { rows } = await pool.query(
-      `SELECT sd.id, sd.membership_id, sd.doc_type, sd.title, sd.expires_at, sd.file_url, sd.created_at
+      `SELECT sd.id, sd.membership_id, sd.doc_type, sd.title, sd.expires_at,
+              to_char(sd.issued_on, 'YYYY-MM-DD') AS issued_on, sd.file_url, sd.created_at
        FROM staff_documents sd
        WHERE ${where}
        ORDER BY sd.expires_at ASC`,
@@ -72,9 +91,13 @@ router.post(
   requireRole('owner'),
   uploadDocument,
   asyncHandler(async (req, res) => {
-    const { membershipId, docType, title, expiresAt } = req.body;
-    if (!membershipId || !DOC_TYPES.includes(docType) || !expiresAt) {
-      return res.status(400).json({ error: 'Укажите сотрудника, тип документа и дату истечения' });
+    const { membershipId, docType, title, expiresAt, issuedOn } = req.body;
+    const noExpiry = NO_EXPIRY_TYPES.includes(docType);
+    if (!membershipId || !DOC_TYPES.includes(docType)) {
+      return res.status(400).json({ error: 'Укажите сотрудника и тип документа' });
+    }
+    if (noExpiry ? !isDate(issuedOn) : !isDate(expiresAt)) {
+      return res.status(400).json({ error: noExpiry ? 'Укажите дату выдачи справки' : 'Укажите дату истечения' });
     }
 
     const member = await pool.query(
@@ -93,10 +116,11 @@ router.post(
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO staff_documents (company_id, membership_id, doc_type, title, expires_at, created_by_user_id, file_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at, file_url, created_at`,
-      [req.tenant.companyId, membershipId, docType, title || null, expiresAt, req.user.id, fileUrl]
+      `INSERT INTO staff_documents (company_id, membership_id, doc_type, title, expires_at, issued_on, created_by_user_id, file_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at,
+                 to_char(issued_on, 'YYYY-MM-DD') AS issued_on, file_url, created_at`,
+      [req.tenant.companyId, membershipId, docType, title || null, noExpiry ? null : expiresAt, noExpiry ? issuedOn : null, req.user.id, fileUrl]
     );
     const doc = { ...rows[0], file_url: rows[0].file_url ? signFileUrl(rows[0].file_url) : null };
 
@@ -119,7 +143,10 @@ router.patch(
   requireRole('owner'),
   uploadDocument,
   asyncHandler(async (req, res) => {
-    const { title, expiresAt } = req.body;
+    const { title, expiresAt, issuedOn } = req.body;
+    if ((expiresAt && !isDate(expiresAt)) || (issuedOn && !isDate(issuedOn))) {
+      return res.status(400).json({ error: 'Некорректная дата' });
+    }
 
     let fileUrl = null;
     if (req.file) {
@@ -130,11 +157,13 @@ router.patch(
     const { rows } = await pool.query(
       `UPDATE staff_documents SET
          title = COALESCE($1, title),
-         expires_at = COALESCE($2, expires_at),
-         file_url = COALESCE($3, file_url)
+         expires_at = CASE WHEN doc_type = 'criminal_record_certificate' THEN expires_at ELSE COALESCE($2, expires_at) END,
+         file_url = COALESCE($3, file_url),
+         issued_on = CASE WHEN doc_type = 'criminal_record_certificate' THEN COALESCE($6, issued_on) ELSE issued_on END
        WHERE id = $4 AND company_id = $5
-       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at, file_url, created_at`,
-      [title !== undefined ? title || null : null, expiresAt || null, fileUrl, req.params.id, req.tenant.companyId]
+       RETURNING id, membership_id, doc_type, title, to_char(expires_at, 'YYYY-MM-DD') AS expires_at,
+                 to_char(issued_on, 'YYYY-MM-DD') AS issued_on, file_url, created_at`,
+      [title !== undefined ? title || null : null, expiresAt || null, fileUrl, req.params.id, req.tenant.companyId, issuedOn || null]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Документ не найден' });

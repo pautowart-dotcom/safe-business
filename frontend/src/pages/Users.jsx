@@ -6,11 +6,30 @@ import { copyToClipboard } from '../utils/clipboard.js';
 import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } from '../ui/components.jsx';
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '' };
-const DOC_TYPE_LABELS = { medical_book: 'Мед. книжка', certificate: 'Сертификат', employment_contract: 'Срочный договор' };
-const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '', file: null };
+const DOC_TYPE_LABELS = {
+  medical_book: 'Мед. книжка',
+  certificate: 'Сертификат',
+  employment_contract: 'Срочный договор',
+  criminal_record_certificate: 'Справка об отсутствии судимости',
+  periodic_medical_exam: 'Периодический медосмотр',
+};
+const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '', issuedOn: '', file: null };
+// Ниши, где персонал работает с детьми (30.09.2026, миграция 0123):
+// справка о несудимости при приёме (ст. 351.1 ТК РФ) и медосмотр раз в год.
+const KIDS_NICHES = ['kids_club'];
+const CRIMINAL_RECORD = 'criminal_record_certificate';
+
+function employeeWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'сотрудник';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'сотрудника';
+  return 'сотрудников';
+}
 
 export default function Users() {
-  const { isOwner, masterLabel } = useAuth();
+  const { isOwner, masterLabel, niches } = useAuth();
+  const isKidsNiche = (niches || []).some((n) => KIDS_NICHES.includes(n));
   // Термин роли "master" зависит от ниши компании (ui/roleLabels.js,
   // 20.08.2026) — "Мастер" для красоты, "Сотрудник" для клининга и т.п.
   const ROLE_LABELS = { owner: 'Владелец', admin: 'Администратор', master: masterLabel };
@@ -26,15 +45,25 @@ export default function Users() {
   const [confirmDel, setConfirmDel] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docForm, setDocForm] = useState(null);
+  // Кто из команды уже сдал справку о несудимости — только для детских ниш.
+  const [withCriminalRecord, setWithCriminalRecord] = useState(null);
 
   function load() {
+    if (isKidsNiche && isOwner) {
+      api
+        .get('/platform/staff-documents')
+        .then((res) => setWithCriminalRecord(new Set(res.data.filter((d) => d.doc_type === CRIMINAL_RECORD).map((d) => d.membership_id))))
+        .catch(() => setWithCriminalRecord(null));
+    }
     return api.get('/platform/memberships').then((res) => setMembers(res.data)).finally(() => setLoading(false));
   }
 
   // 09.09.2026 — не useEffect(load, []) напрямую, см. комментарий в
   // Checklists.jsx: load() возвращает Promise, React принял бы его за
-  // функцию очистки и упал бы при размонтировании.
-  useEffect(() => { load(); }, []);
+  // функцию очистки и упал бы при размонтировании. isKidsNiche приходит из
+  // AuthContext асинхронно — перезагружаем, когда ниши стали известны.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [isKidsNiche]);
   usePullToRefresh(load);
 
   async function handleInvite() {
@@ -70,8 +99,11 @@ export default function Users() {
   }
 
   async function handleAddDocument() {
-    if (!docForm.expiresAt) return;
-    let body = { membershipId: editing.id, docType: docForm.docType, title: docForm.title, expiresAt: docForm.expiresAt };
+    const noExpiry = docForm.docType === CRIMINAL_RECORD;
+    if (noExpiry ? !docForm.issuedOn : !docForm.expiresAt) return;
+    let body = noExpiry
+      ? { membershipId: editing.id, docType: docForm.docType, title: docForm.title, issuedOn: docForm.issuedOn }
+      : { membershipId: editing.id, docType: docForm.docType, title: docForm.title, expiresAt: docForm.expiresAt };
     let headers = {};
     if (docForm.file) {
       const fd = new FormData();
@@ -83,12 +115,14 @@ export default function Users() {
     await api.post('/platform/staff-documents', body, { headers });
     setDocForm(null);
     loadDocuments(editing.id);
+    load();
   }
 
   async function handleDeleteDocument(id) {
     if (!confirm('Удалить документ?')) return;
     await api.delete(`/platform/staff-documents/${id}`);
     loadDocuments(editing.id);
+    load();
   }
 
   async function handleRemove(id) {
@@ -175,7 +209,11 @@ export default function Users() {
                 <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: i < documents.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{DOC_TYPE_LABELS[d.doc_type]}{d.title ? ` · ${d.title}` : ''}</div>
-                    <div style={{ fontSize: 12, color: C.subtle }}>Истекает {new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                    <div style={{ fontSize: 12, color: C.subtle }}>
+                      {d.expires_at
+                        ? `${d.doc_type === 'periodic_medical_exam' ? 'Следующий' : 'Истекает'} ${new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                        : `Выдана ${new Date(`${d.issued_on}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                    </div>
                     {d.file_url && (
                       <a href={d.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.primary }}>Открыть файл</a>
                     )}
@@ -196,6 +234,8 @@ export default function Users() {
                     <option value="medical_book">Мед. книжка</option>
                     <option value="certificate">Сертификат</option>
                     <option value="employment_contract">Срочный договор</option>
+                    {isKidsNiche && <option value="criminal_record_certificate">Справка об отсутствии судимости</option>}
+                    {isKidsNiche && <option value="periodic_medical_exam">Периодический медосмотр</option>}
                   </Select>
                 </Field>
                 {docForm.docType === 'certificate' && (
@@ -203,9 +243,27 @@ export default function Users() {
                     <TextInput value={docForm.title} onChange={(e) => setDocForm({ ...docForm, title: e.target.value })} placeholder="Например, курс лешмейкера" />
                   </Field>
                 )}
-                <Field label="Дата истечения">
-                  <TextInput type="date" value={docForm.expiresAt} onChange={(e) => setDocForm({ ...docForm, expiresAt: e.target.value })} />
-                </Field>
+                {docForm.docType === CRIMINAL_RECORD ? (
+                  <>
+                    <Field label="Дата выдачи справки">
+                      <TextInput type="date" value={docForm.issuedOn} onChange={(e) => setDocForm({ ...docForm, issuedOn: e.target.value })} />
+                    </Field>
+                    <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>
+                      Нужна при приёме на работу у всех, кто может контактировать с детьми, не только у педагогов (ст. 351.1 ТК РФ). Срока действия по закону нет, поэтому напоминания не будет.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Field label={docForm.docType === 'periodic_medical_exam' ? 'Дата следующего медосмотра' : 'Дата истечения'}>
+                      <TextInput type="date" value={docForm.expiresAt} onChange={(e) => setDocForm({ ...docForm, expiresAt: e.target.value })} />
+                    </Field>
+                    {docForm.docType === 'periodic_medical_exam' && (
+                      <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>
+                        Для работы с детьми — раз в год. Напомним за 2 недели.
+                      </div>
+                    )}
+                  </>
+                )}
                 <Field label="Файл-подтверждение (фото, скан или PDF, необязательно)">
                   <input type="file" accept="image/*,application/pdf" onChange={(e) => setDocForm({ ...docForm, file: e.target.files?.[0] || null })} />
                 </Field>
@@ -279,6 +337,20 @@ export default function Users() {
         </Card>
       )}
 
+      {isKidsNiche && withCriminalRecord && (() => {
+        const missing = members.filter((m) => m.role !== 'owner' && m.active !== false && !withCriminalRecord.has(m.id)).length;
+        return missing > 0 ? (
+          <Card style={{ borderColor: C.red + '55' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+              Нет справки о несудимости: {missing} {employeeWord(missing)}
+            </div>
+            <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+              Для работы с детьми справка нужна у всех, кто может с ними контактировать, включая администратора и уборщицу. Штраф — за каждого сотрудника без справки. Отметьте справку в карточке сотрудника: «Изменить» → «Документы».
+            </div>
+          </Card>
+        ) : null;
+      })()}
+
       <Card>
         <ST>Сотрудники · {members.length}</ST>
         {members.map((m, i, arr) => (
@@ -293,6 +365,9 @@ export default function Users() {
                   {m.role === 'master' && m.payout_type === 'fixed' && m.payout_fixed_amount != null && ` · ${m.payout_fixed_amount}₽ за визит`}
                   {m.role === 'master' && m.payout_type === 'shift' && m.shift_payout_amount != null && ` · ${m.shift_payout_amount}₽ за смену`}
                 </div>
+                {isKidsNiche && withCriminalRecord && m.role !== 'owner' && m.active !== false && !withCriminalRecord.has(m.id) && (
+                  <div style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>Нет справки о несудимости</div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

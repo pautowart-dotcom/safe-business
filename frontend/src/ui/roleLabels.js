@@ -8,6 +8,8 @@ const DEFAULT_LABEL = { nominative: 'Мастер', nominativePlural: 'Маст�
 
 const NICHE_LABELS = {
   cleaning_basic: { nominative: 'Сотрудник', nominativePlural: 'Сотрудники', genitivePlural: 'Сотрудников', genitiveSingular: 'сотрудника' },
+  // 30.09.2026 — в детском клубе педагоги и администраторы, не "мастера".
+  kids_club: { nominative: 'Сотрудник', nominativePlural: 'Сотрудники', genitivePlural: 'Сотрудников', genitiveSingular: 'сотрудника' },
 };
 
 // Если у компании несколько ниш (мультивыбор в "Красота и здоровье") и хотя
