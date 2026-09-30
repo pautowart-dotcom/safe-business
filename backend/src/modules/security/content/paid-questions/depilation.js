@@ -324,6 +324,7 @@ const QUESTIONS = [
       { label: 'Да', points: 1 },
       { label: 'Планирую', points: 0.5 },
       { label: 'Нет', points: 0 },
+      { label: 'Точка франшизы — знак зарегистрирован у франшизы', points: 1 },
     ],
   },
   {
