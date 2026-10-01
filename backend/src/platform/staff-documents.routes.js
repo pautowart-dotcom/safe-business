@@ -9,16 +9,16 @@ const { registerDeadline } = require('../core/deadlines');
 const { uploadDocument } = require('../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
 
-// criminal_record_certificate / periodic_medical_exam — миграция 0123, для
-// детских ниш. У справки о несудимости нет законного срока действия (нужна
-// при приёме, ст. 351.1 ТК РФ) — вместо expires_at хранится issued_on, и
-// напоминание не ставится.
+// criminal_record_certificate — миграция 0123, для детских ниш. У справки о
+// несудимости нет законного срока действия (нужна при приёме, ст. 351.1 ТК
+// РФ) — вместо expires_at хранится issued_on, и напоминание не ставится.
+// Медкнижки и медосмотры убраны 01.10.2026 (миграция 0125): даты и сканы —
+// сведения о здоровье, не храним. Вместо них — напоминание раз в квартал
+// проверить медкнижки (scripts/dailyOperationsNudges.js).
 const DOC_LABELS = {
-  medical_book: 'Мед. книжка',
   certificate: 'Сертификат',
   employment_contract: 'Срочный договор',
   criminal_record_certificate: 'Справка об отсутствии судимости',
-  periodic_medical_exam: 'Периодический медосмотр',
 };
 const DOC_TYPES = Object.keys(DOC_LABELS);
 const NO_EXPIRY_TYPES = ['criminal_record_certificate'];
@@ -45,9 +45,7 @@ async function syncDeadline({ companyId, doc, employeeName }) {
   await registerDeadline({
     companyId,
     category: 'staff',
-    title: doc.doc_type === 'periodic_medical_exam'
-      ? `${label} — ${employeeName}: пройти до ${doc.expires_at}`
-      : `${label} — ${employeeName}: истекает ${doc.expires_at}`,
+    title: `${label} — ${employeeName}: истекает ${doc.expires_at}`,
     dueDate: minusDays(doc.expires_at, REMINDER_LEAD_DAYS),
     relatedEntityType: 'staff_document',
     relatedEntityId: doc.id,
@@ -109,8 +107,10 @@ router.post(
       return res.status(400).json({ error: 'Сотрудник не найден в этой компании' });
     }
 
+    // Скан справки о несудимости не храним — сведения о судимости охраняются
+    // отдельно (ст. 10 152-ФЗ), достаточно даты выдачи.
     let fileUrl = null;
-    if (req.file) {
+    if (req.file && !noExpiry) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
       fileUrl = getFileUrl(filename);
     }
@@ -148,8 +148,12 @@ router.patch(
       return res.status(400).json({ error: 'Некорректная дата' });
     }
 
+    const current = await pool.query('SELECT doc_type FROM staff_documents WHERE id = $1 AND company_id = $2', [req.params.id, req.tenant.companyId]);
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'Документ не найден' });
+    }
     let fileUrl = null;
-    if (req.file) {
+    if (req.file && !NO_EXPIRY_TYPES.includes(current.rows[0].doc_type)) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
       fileUrl = getFileUrl(filename);
     }

@@ -7,15 +7,14 @@ import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Avatar, C } fr
 
 const EMPTY_INVITE_FORM = { role: 'master', invitedEmail: '', payoutPercent: '' };
 const DOC_TYPE_LABELS = {
-  medical_book: 'Мед. книжка',
   certificate: 'Сертификат',
   employment_contract: 'Срочный договор',
   criminal_record_certificate: 'Справка об отсутствии судимости',
-  periodic_medical_exam: 'Периодический медосмотр',
 };
-const EMPTY_DOC_FORM = { docType: 'medical_book', title: '', expiresAt: '', issuedOn: '', file: null };
+const EMPTY_DOC_FORM = { docType: 'certificate', title: '', expiresAt: '', issuedOn: '', file: null };
 // Ниши, где персонал работает с детьми (30.09.2026, миграция 0123):
-// справка о несудимости при приёме (ст. 351.1 ТК РФ) и медосмотр раз в год.
+// справка о несудимости при приёме (ст. 351.1 ТК РФ). Медкнижки и медосмотры
+// не храним с 01.10.2026 (сведения о здоровье, миграция 0125).
 const KIDS_NICHES = ['kids_club'];
 const CRIMINAL_RECORD = 'criminal_record_certificate';
 
@@ -201,6 +200,9 @@ export default function Users() {
 
         <div style={{ marginTop: 24 }}>
           <ST>Документы</ST>
+          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10, lineHeight: 1.5 }}>
+            Медкнижки и медосмотры здесь не храним — это сведения о здоровье. Раз в квартал напомним проверить, что медкнижки сотрудников не просрочены.
+          </div>
           <Card>
             {documents.length === 0 ? (
               <div className="empty-hint">Документов пока нет</div>
@@ -211,7 +213,7 @@ export default function Users() {
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{DOC_TYPE_LABELS[d.doc_type]}{d.title ? ` · ${d.title}` : ''}</div>
                     <div style={{ fontSize: 12, color: C.subtle }}>
                       {d.expires_at
-                        ? `${d.doc_type === 'periodic_medical_exam' ? 'Следующий' : 'Истекает'} ${new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                        ? `Истекает ${new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
                         : `Выдана ${new Date(`${d.issued_on}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`}
                     </div>
                     {d.file_url && (
@@ -231,11 +233,9 @@ export default function Users() {
               <Card>
                 <Field label="Тип документа">
                   <Select value={docForm.docType} onChange={(e) => setDocForm({ ...docForm, docType: e.target.value })}>
-                    <option value="medical_book">Мед. книжка</option>
                     <option value="certificate">Сертификат</option>
                     <option value="employment_contract">Срочный договор</option>
                     {isKidsNiche && <option value="criminal_record_certificate">Справка об отсутствии судимости</option>}
-                    {isKidsNiche && <option value="periodic_medical_exam">Периодический медосмотр</option>}
                   </Select>
                 </Field>
                 {docForm.docType === 'certificate' && (
@@ -254,19 +254,18 @@ export default function Users() {
                   </>
                 ) : (
                   <>
-                    <Field label={docForm.docType === 'periodic_medical_exam' ? 'Дата следующего медосмотра' : 'Дата истечения'}>
+                    <Field label="Дата истечения">
                       <TextInput type="date" value={docForm.expiresAt} onChange={(e) => setDocForm({ ...docForm, expiresAt: e.target.value })} />
                     </Field>
-                    {docForm.docType === 'periodic_medical_exam' && (
-                      <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>
-                        Для работы с детьми — раз в год. Напомним за 2 недели.
-                      </div>
-                    )}
                   </>
                 )}
-                <Field label="Файл-подтверждение (фото, скан или PDF, необязательно)">
-                  <input type="file" accept="image/*,application/pdf" onChange={(e) => setDocForm({ ...docForm, file: e.target.files?.[0] || null })} />
-                </Field>
+                {/* Скан справки о несудимости не принимаем — сведения о судимости
+                    охраняются отдельно (ст. 10 152-ФЗ), храним только дату. */}
+                {docForm.docType !== CRIMINAL_RECORD && (
+                  <Field label="Файл-подтверждение (фото, скан или PDF, необязательно)">
+                    <input type="file" accept="image/*,application/pdf" onChange={(e) => setDocForm({ ...docForm, file: e.target.files?.[0] || null })} />
+                  </Field>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Btn small onClick={handleAddDocument}>Добавить</Btn>
                   <Btn small variant="secondary" onClick={() => setDocForm(null)}>Отмена</Btn>

@@ -558,7 +558,7 @@ export default function AnonymousAudit() {
       return;
     }
     if (!acceptedTerms) {
-      setError('Нужно принять условия оферты и политики конфиденциальности');
+      setError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
       return;
     }
     setError('');
@@ -586,7 +586,7 @@ export default function AnonymousAudit() {
       return;
     }
     if (!acceptedTerms) {
-      setError('Нужно принять условия оферты и политики конфиденциальности');
+      setError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
       return;
     }
     setError('');
@@ -612,7 +612,7 @@ export default function AnonymousAudit() {
       return;
     }
     if (!websiteAcceptedTerms) {
-      setWebsiteCheckError('Нужно принять условия оферты и политики конфиденциальности');
+      setWebsiteCheckError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
       return;
     }
     setWebsiteCheckError('');

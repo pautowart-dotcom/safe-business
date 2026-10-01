@@ -12,11 +12,9 @@ const SUBSCRIPTION_STATUS_LABELS = {
   cancelled: 'Подписка отменена',
 };
 const DOC_TYPE_LABELS = {
-  medical_book: 'Мед. книжка',
   certificate: 'Сертификат',
   employment_contract: 'Срочный договор',
   criminal_record_certificate: 'Справка об отсутствии судимости',
-  periodic_medical_exam: 'Периодический медосмотр',
 };
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 // 'journals' убрана 05.08.2026 — раздел заморожен целиком (до легализации
@@ -315,7 +313,7 @@ export default function Settings() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>{DOC_TYPE_LABELS[d.doc_type]}{d.title ? ` · ${d.title}` : ''}</div>
               <div style={{ fontSize: 12, color: C.subtle }}>
                 {d.expires_at
-                  ? `${d.doc_type === 'periodic_medical_exam' ? 'Следующий' : 'Истекает'} ${new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  ? `Истекает ${new Date(d.expires_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
                   : `Выдана ${new Date(`${d.issued_on}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`}
               </div>
             </div>

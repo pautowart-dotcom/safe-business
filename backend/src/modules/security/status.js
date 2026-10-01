@@ -100,21 +100,15 @@ async function computeSecurityStatus(companyId) {
   // штрафовать за экономически неизбежную неполную занятость по ТК (см.
   // обсуждение с владельцем 06-07.08.2026) — считаем только то, что владелец
   // сам внёс и что реально просрочено.
-  const [overdueDeadlinesRes, overdueMedicalBooksRes] = await Promise.all([
-    pool.query(
-      `SELECT COUNT(*) AS n FROM deadlines
-       WHERE company_id = $1 AND status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE
-         AND category IN ('staff', 'premises', 'documents')`,
-      [companyId]
-    ),
-    pool.query(
-      `SELECT COUNT(*) AS n FROM staff_documents sd
-       JOIN memberships m ON m.id = sd.membership_id
-       WHERE sd.company_id = $1 AND sd.doc_type = 'medical_book' AND sd.expires_at < CURRENT_DATE AND m.active = true`,
-      [companyId]
-    ),
-  ]);
-  const overdueCount = Number(overdueDeadlinesRes.rows[0].n) + Number(overdueMedicalBooksRes.rows[0].n);
+  // Медкнижки сотрудников с 01.10.2026 не хранятся (миграция 0125 — сведения
+  // о здоровье), отдельного подсчёта просроченных больше нет.
+  const overdueDeadlinesRes = await pool.query(
+    `SELECT COUNT(*) AS n FROM deadlines
+     WHERE company_id = $1 AND status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE
+       AND category IN ('staff', 'premises', 'documents')`,
+    [companyId]
+  );
+  const overdueCount = Number(overdueDeadlinesRes.rows[0].n);
   totalScore += 0; // просроченные пункты дают 0 баллов каждый — явно для читаемости
   totalMax += overdueCount;
 

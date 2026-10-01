@@ -2,6 +2,7 @@ require('dotenv').config();
 const pool = require('../db/pool');
 const { registerAction, clearAction } = require('../core/deadlines');
 const { moscowDateStr } = require('../utils/moscowDate');
+const { deleteFile, filenameFromUrl } = require('../core/fileStorage');
 const { computeMarginByService } = require('../modules/finance/marginAdvisor');
 const { computeDiscountRepeatComparison } = require('../modules/finance/discountAdvisor');
 const { computeMasterDepartureImpact } = require('../modules/finance/masterDepartureAdvisor');
@@ -296,8 +297,65 @@ async function watchAbuse() {
   return { guestsN, heavyN, alerted: lines.length > 0 };
 }
 
+// Медкнижки сотрудников больше не храним (01.10.2026, миграция 0125 —
+// сведения о здоровье). Вместо сроков по каждой книжке — одно напоминание
+// раз в квартал всем компаниям, где есть сотрудники кроме владельца.
+// Ключ напоминания включает квартал: создаётся один раз за квартал и, если
+// владелец отметил его выполненным, в том же квартале не возвращается.
+function quarterKey(dateStr) {
+  const [y, m] = dateStr.split('-').map(Number);
+  return { year: y, q: Math.floor((m - 1) / 3) + 1 };
+}
+
+async function nudgeQuarterlyMedicalBooksCheck() {
+  const { year, q } = quarterKey(moscowDateStr(new Date()));
+  const type = `medbook_check:${year}-Q${q}`;
+  const prev = q === 1 ? `medbook_check:${year - 1}-Q4` : `medbook_check:${year}-Q${q - 1}`;
+  const { rows: companies } = await pool.query(
+    `SELECT DISTINCT m.company_id AS id FROM memberships m
+     WHERE m.active = true AND m.role <> 'owner'`
+  );
+  let created = 0;
+  for (const { id } of companies) {
+    await clearAction({ relatedEntityType: prev, relatedEntityId: id, category: 'staff' });
+    const exists = await pool.query(
+      'SELECT 1 FROM deadlines WHERE related_entity_type = $1 AND related_entity_id = $2 AND category = $3',
+      [type, id, 'staff']
+    );
+    if (exists.rows.length > 0) continue;
+    await registerAction({
+      companyId: id,
+      category: 'staff',
+      title: 'Раз в квартал: проверьте, что медкнижки сотрудников не просрочены',
+      relatedEntityType: type,
+      relatedEntityId: id,
+    });
+    created++;
+  }
+  return created;
+}
+
+// Файлы, которые миграции поставили в очередь на удаление (SQL не может
+// трогать диск) — например, сканы медкнижек из миграции 0125.
+async function purgePendingFileDeletions() {
+  const { rows } = await pool.query('SELECT id, file_url FROM pending_file_deletions ORDER BY id LIMIT 500');
+  for (const row of rows) {
+    await deleteFile(filenameFromUrl(row.file_url));
+    await pool.query('DELETE FROM pending_file_deletions WHERE id = $1', [row.id]);
+  }
+  return rows.length;
+}
+
 async function main() {
+  try {
+    const purged = await purgePendingFileDeletions();
+    if (purged > 0) console.log(`Удалено файлов из очереди: ${purged}`);
+  } catch (err) {
+    console.error('purgePendingFileDeletions упал:', err);
+  }
   const targetDate = yesterdayStr();
+  const medbookCompanies = await nudgeQuarterlyMedicalBooksCheck();
+  console.log(`Квартальное напоминание про медкнижки: создано ${medbookCompanies}`);
   const shiftCompanies = await nudgeShiftNotOpened(targetDate);
   const revenueCompanies = await nudgeRevenueNotLogged(targetDate);
   const stockCompanies = await nudgeLowStock();
