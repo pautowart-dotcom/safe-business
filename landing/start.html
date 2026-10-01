@@ -132,8 +132,6 @@
     <fieldset>
       <legend>Email — куда пришлём ссылку на готовый roadmap</legend>
       <input type="email" id="email" required placeholder="you@example.com">
-      <div class="hint" style="margin-top:14px; margin-bottom: -4px;">Телефон (необязательно)</div>
-      <input type="tel" id="phone" placeholder="+7 900 000-00-00" style="margin-top:8px;">
     </fieldset>
 
     <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.5; margin:16px 0 8px; cursor:pointer;">
@@ -214,7 +212,9 @@
     var isFranchise = form.querySelector('input[name=isFranchise]:checked').value === 'yes';
     return {
       email: document.getElementById('email').value.trim(),
-      phone: document.getElementById('phone').value.trim() || null,
+      // Телефон больше не спрашиваем (01.10.2026): согласие «заказ» юриста
+      // покрывает только email.
+      phone: null,
       niche: document.getElementById('niche').value,
       hasEmployees: form.querySelector('input[name=hasEmployees]:checked').value === 'yes',
       legalForm: legalForm,
