@@ -4,12 +4,14 @@ import { C } from './theme.js';
 // Галочки согласий по рекомендациям юриста (30.09.2026): каждая — отдельно,
 // заранее НЕ отмечены, формулировки дословные. Ссылки ведут на документы в
 // legal_documents (миграция 0124).
-// purpose: 'account' — формы регистрации/покупки (согласие "личный кабинет"),
+// purpose: 'account' — регистрация (согласие "личный кабинет"), 'order' —
+// покупка без регистрации (согласие "заказ", юрист 01.10.2026),
 // 'feedback' — форма обращения в поддержку (согласие "обратная связь").
 export const LEGAL_DOCS = {
   userAgreement: '/lk/legal/user_agreement',
   privacyPolicy: '/lk/legal/privacy_policy',
   consentAccount: '/lk/legal/consent_account',
+  consentOrder: '/lk/legal/consent_order',
   consentFeedback: '/lk/legal/consent_feedback',
 };
 
@@ -32,7 +34,7 @@ export function AgreementCheckbox({ id = 'consent-agreement', checked, onChange 
 }
 
 export function PdConsentCheckbox({ id = 'consent-pd', checked, onChange, purpose = 'account' }) {
-  const consentHref = purpose === 'feedback' ? LEGAL_DOCS.consentFeedback : LEGAL_DOCS.consentAccount;
+  const consentHref = purpose === 'feedback' ? LEGAL_DOCS.consentFeedback : purpose === 'order' ? LEGAL_DOCS.consentOrder : LEGAL_DOCS.consentAccount;
   return (
     <label htmlFor={id} style={labelStyle}>
       <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ marginTop: 2 }} required />
@@ -64,6 +66,7 @@ export function LegalFooter() {
     [LEGAL_DOCS.userAgreement, 'Пользовательское соглашение'],
     [LEGAL_DOCS.privacyPolicy, 'Политика конфиденциальности'],
     [LEGAL_DOCS.consentAccount, 'Согласие на обработку ПДн (личный кабинет)'],
+    [LEGAL_DOCS.consentOrder, 'Согласие на обработку ПДн (заказ)'],
     [LEGAL_DOCS.consentFeedback, 'Согласие на обработку ПДн (обратная связь)'],
   ];
   return (

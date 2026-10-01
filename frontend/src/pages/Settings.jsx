@@ -327,6 +327,7 @@ export default function Settings() {
           ['/lk/legal/user_agreement', 'Пользовательское соглашение'],
           ['/lk/legal/privacy_policy', 'Политика конфиденциальности'],
           ['/lk/legal/consent_account', 'Согласие на обработку ПДн (личный кабинет)'],
+          ['/lk/legal/consent_order', 'Согласие на обработку ПДн (заказ)'],
           ['/lk/legal/consent_feedback', 'Согласие на обработку ПДн (обратная связь)'],
         ].map(([href, label], i, arr) => (
           <a key={href} href={href} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 14, color: C.primary, textDecoration: 'none', marginBottom: i < arr.length - 1 ? 8 : 0 }}>{label}</a>

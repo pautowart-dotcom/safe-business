@@ -254,7 +254,7 @@ function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcc
       <Field label="Email">
         <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </Field>
-      <ConsentPair idPrefix="site" onChange={setAcceptedTerms} />
+      <ConsentPair idPrefix="site" purpose="order" onChange={setAcceptedTerms} />
       {error && <div className="alert alert-error">{error}</div>}
       <Btn small onClick={onPay} disabled={paying || !url.trim()}>{paying ? 'Переходим к оплате…' : 'Проверить сайт — 490 ₽'}</Btn>
     </Card>
@@ -400,7 +400,7 @@ function ResultStep({
         <Field label="Email">
           <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
-        <ConsentPair idPrefix="report" onChange={setAcceptedTerms} />
+        <ConsentPair idPrefix="report" purpose="order" onChange={setAcceptedTerms} />
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
