@@ -70,11 +70,12 @@ export default function LegalDocs() {
       </Card>
       <ST>Публичные страницы</ST>
       <div style={{ fontSize: 12, color: C.subtle }}>
-        <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/oferta</a>
-        {' · '}
-        <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/privacy_policy</a>
-        {' · '}
-        <a href="/lk/legal/faq" target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/faq</a>
+        {['user_agreement', 'privacy_policy', 'consent_account', 'consent_feedback', 'faq'].map((key, i) => (
+          <span key={key}>
+            {i > 0 && ' · '}
+            <a href={`/lk/legal/${key}`} target="_blank" rel="noreferrer" style={{ color: C.primary }}>/legal/{key}</a>
+          </span>
+        ))}
       </div>
     </div>
   );

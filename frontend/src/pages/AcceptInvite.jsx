@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client.js';
 import { AuthShell, VerifyCodeForm } from './Login.jsx';
 import { Btn, Field, TextInput, C } from '../ui/components.jsx';
+import { AgreementCheckbox, PdConsentCheckbox } from '../ui/LegalConsents.jsx';
 
 export default function AcceptInvite() {
   const { token } = useParams();
@@ -15,7 +16,10 @@ export default function AcceptInvite() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Две отдельные галочки (юрист, 30.09.2026), на сервер — одно acceptedTerms.
+  const [acceptedAgreement, setAcceptedAgreement] = useState(false);
+  const [acceptedPd, setAcceptedPd] = useState(false);
+  const acceptedTerms = acceptedAgreement && acceptedPd;
   const [analyticsConsent, setAnalyticsConsent] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -183,15 +187,8 @@ export default function AcceptInvite() {
           <TextInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
         </Field>
 
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
-          <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
-          <span>
-            Я принимаю условия{' '}
-            <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
-            {' '}и{' '}
-            <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
-          </span>
-        </label>
+        <AgreementCheckbox checked={acceptedAgreement} onChange={setAcceptedAgreement} />
+        <PdConsentCheckbox purpose="account" checked={acceptedPd} onChange={setAcceptedPd} />
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 20, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />

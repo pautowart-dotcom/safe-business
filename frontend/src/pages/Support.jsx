@@ -5,6 +5,7 @@ import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Field, TextInput, TextArea, Btn, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
 import MarkdownLite from '../ui/MarkdownLite.jsx';
+import { PdConsentCheckbox } from '../ui/LegalConsents.jsx';
 
 const MAX_ATTACHMENTS = 3;
 
@@ -20,6 +21,7 @@ export default function Support() {
   const [email, setEmail] = useState(user?.email || '');
   const [files, setFiles] = useState([]);
   const [sent, setSent] = useState(false);
+  const [pdConsent, setPdConsent] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -43,7 +45,7 @@ export default function Support() {
   usePullToRefresh(loadHistory);
 
   async function send() {
-    if (!message.trim() || !email.trim()) return;
+    if (!message.trim() || !email.trim() || !pdConsent) return;
     setError('');
     try {
       let body;
@@ -101,7 +103,10 @@ export default function Support() {
               />
               {files.length > 0 && <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Выбрано: {files.length}</div>}
             </Field>
-            <Btn onClick={send}>Отправить</Btn>
+            {/* Юрист, 30.09.2026: в форме обратной связи — только согласие
+                на обработку ПДн (обратная связь), без пользовательского соглашения. */}
+            <PdConsentCheckbox id="consent-feedback" purpose="feedback" checked={pdConsent} onChange={setPdConsent} />
+            <Btn onClick={send} disabled={!pdConsent}>Отправить</Btn>
           </>
         ) : (
           <div style={{ background: C.greenBg, borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>

@@ -325,8 +325,14 @@ export default function Settings() {
 
       <Card>
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Документы</div>
-        <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 14, color: C.primary, textDecoration: 'none', marginBottom: 8 }}>Публичная оферта</a>
-        <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 14, color: C.primary, textDecoration: 'none' }}>Политика конфиденциальности</a>
+        {[
+          ['/lk/legal/user_agreement', 'Пользовательское соглашение'],
+          ['/lk/legal/privacy_policy', 'Политика конфиденциальности'],
+          ['/lk/legal/consent_account', 'Согласие на обработку ПДн (личный кабинет)'],
+          ['/lk/legal/consent_feedback', 'Согласие на обработку ПДн (обратная связь)'],
+        ].map(([href, label], i, arr) => (
+          <a key={href} href={href} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 14, color: C.primary, textDecoration: 'none', marginBottom: i < arr.length - 1 ? 8 : 0 }}>{label}</a>
+        ))}
       </Card>
 
       <Card>

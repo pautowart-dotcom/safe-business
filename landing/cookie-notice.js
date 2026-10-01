@@ -64,16 +64,30 @@
       'display:flex', 'gap:12px', 'align-items:center', 'flex-wrap:wrap',
     ].join(';');
 
+    // Текст — дословно по рекомендации юриста (30.09.2026), со ссылками на
+    // политику и страницу о cookie. Метрика по-прежнему грузится только
+    // после «Согласен»; крестик = отказ (счётчик не загружается).
     var text = document.createElement('div');
     text.style.cssText = 'flex:1 1 260px';
-    text.appendChild(document.createTextNode(METRIKA_ID
-      ? 'Мы используем файлы cookie для аналитики — понять, откуда приходят посетители. '
-      : 'Сайт не использует cookie для отслеживания и рекламы: только технические данные для работы сайта. '));
-    var link = document.createElement('a');
-    link.href = '/cookies.html';
-    link.textContent = 'Подробнее';
-    link.style.cssText = 'color:#9dbcf7;font-weight:700';
-    text.appendChild(link);
+    function a(href, label) {
+      var l = document.createElement('a');
+      l.href = href;
+      l.textContent = label;
+      l.target = '_blank';
+      l.rel = 'noreferrer';
+      l.style.cssText = 'color:#9dbcf7;font-weight:700';
+      return l;
+    }
+    if (METRIKA_ID) {
+      text.appendChild(document.createTextNode('Продолжая использование сайта, я выражаю согласие на обработку моих персональных данных при помощи сервиса Яндекс.Метрика, подтверждаю, что '));
+      text.appendChild(a('/lk/legal/privacy_policy', 'ознакомлен с политикой'));
+      text.appendChild(document.createTextNode(' в отношении обработки персональных данных и уведомлен об '));
+      text.appendChild(a('/cookies.html', 'использовании файлов cookies'));
+      text.appendChild(document.createTextNode('.'));
+    } else {
+      text.appendChild(document.createTextNode('Сайт не использует cookie для отслеживания и рекламы: только технические данные для работы сайта. '));
+      text.appendChild(a('/cookies.html', 'Подробнее'));
+    }
 
     function button(label, primary, value) {
       var b = document.createElement('button');
@@ -92,12 +106,25 @@
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
     if (METRIKA_ID) {
-      actions.appendChild(button('Только необходимые', false, 'necessary'));
-      actions.appendChild(button('Принять', true, 'all'));
+      actions.appendChild(button('Согласен', true, 'all'));
     } else {
       actions.appendChild(button('Понятно', true, 'necessary'));
     }
 
+    // Крестик в углу, как на образце юриста: закрыть без согласия.
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Закрыть без согласия');
+    close.textContent = '×';
+    close.style.cssText = 'position:absolute;top:6px;right:10px;border:0;background:transparent;color:#9aa6bd;font:20px/1 -apple-system,"Segoe UI",system-ui,sans-serif;cursor:pointer;padding:4px';
+    close.addEventListener('click', function () {
+      save('necessary');
+      if (box.parentNode) box.parentNode.removeChild(box);
+    });
+    box.style.position = 'fixed';
+    text.style.paddingRight = '18px';
+
+    box.appendChild(close);
     box.appendChild(text);
     box.appendChild(actions);
     document.body.appendChild(box);

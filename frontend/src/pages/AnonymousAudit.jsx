@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/components.jsx';
 import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
+import { ConsentPair } from '../ui/LegalConsents.jsx';
 
 // Разовый аудит без регистрации (19.08.2026, п.5 плана, переделано по явному
 // уточнению владельца) — публичная страница, НЕ обёрнута в PrivateRoute/
@@ -253,15 +254,7 @@ function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcc
       <Field label="Email">
         <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </Field>
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
-        <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
-        <span>
-          Я принимаю условия{' '}
-          <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
-          {' '}и{' '}
-          <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
-        </span>
-      </label>
+      <ConsentPair idPrefix="site" onChange={setAcceptedTerms} />
       {error && <div className="alert alert-error">{error}</div>}
       <Btn small onClick={onPay} disabled={paying || !url.trim()}>{paying ? 'Переходим к оплате…' : 'Проверить сайт — 490 ₽'}</Btn>
     </Card>
@@ -407,15 +400,7 @@ function ResultStep({
         <Field label="Email">
           <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
-          <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} style={{ marginTop: 2 }} required />
-          <span>
-            Я принимаю условия{' '}
-            <a href="/lk/legal/oferta" target="_blank" rel="noreferrer" style={{ color: C.primary }}>оферты</a>
-            {' '}и{' '}
-            <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer" style={{ color: C.primary }}>политики конфиденциальности</a>
-          </span>
-        </label>
+        <ConsentPair idPrefix="report" onChange={setAcceptedTerms} />
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>

@@ -8,11 +8,12 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireSuperAdmin } = require('../core/middleware/role');
 const securityRepository = require('../modules/security/content/repository');
 const { sendMail } = require('../core/mailer');
-const { isAiConfigured, draftText } = require('../core/aiAssist');
-// Отдельно от draftText выше (Anthropic, черновики поддержки) — расшифровка
-// закона использует YandexGPT (core/yandexAssist.js), тот же провайдер, что
-// уже реально подключён и оплачен (см. ai-advisor-digest), а не Anthropic,
-// который на этом сервере не настроен намеренно.
+// 01.10.2026 — весь ИИ только YandexGPT (core/yandexAssist.js): политика
+// обработки ПДн (юрист, 30.09.2026) прямо говорит, что трансграничной
+// передачи нет и ИИ-сервис — YandexGPT. Черновики ответов поддержки раньше
+// шли через Anthropic (core/aiAssist.js, удалён) — ключ на сервере не был
+// настроен, но код оставался.
+const { isAiConfigured, draftText } = require('../core/yandexAssist');
 const { isAiConfigured: isYandexAiConfigured, draftText: draftLawExplanation } = require('../core/yandexAssist');
 const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
 const { signFileUrl } = require('../core/fileStorage');
@@ -706,7 +707,7 @@ router.post(
   '/support-requests/:id/draft-reply',
   asyncHandler(async (req, res) => {
     if (!isAiConfigured()) {
-      return res.status(400).json({ error: 'ИИ не настроен на сервере (нет ANTHROPIC_API_KEY)' });
+      return res.status(400).json({ error: 'ИИ не настроен на сервере (нет YANDEX_GPT_API_KEY / YANDEX_FOLDER_ID)' });
     }
 
     const current = await pool.query(
