@@ -6,6 +6,7 @@ import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
 import { reachGoal } from '../utils/metrika.js';
+import { PartnerServicesCard, PartnerRequestButton, partnerServiceForViolation } from '../ui/PartnerServices.jsx';
 
 const LEGAL_FORM_OPTIONS = [
   { value: 'self_employed', label: 'Самозанятый' },
@@ -1051,6 +1052,7 @@ function NoticeAnalysisCard({ notice, onSave, onClose, onAsk }) {
         <Btn small onClick={onSave}>Внести в историю проверок</Btn>
         {aiAvailable && <Btn small variant="secondary" onClick={onAsk}>Спросить ИИ, что делать</Btn>}
       </div>
+      <PartnerRequestButton serviceKey="claims" context="разбор бумаги от проверяющего" label="Подготовить ответ с юристом" />
     </div>
   );
 }
@@ -1425,6 +1427,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
 
       <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
       <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
+      {isManagement && <PartnerServicesCard />}
       {/* DocumentRiskCheckCard переехала во вкладку "Документы" (31.08.2026,
           владелец: лишнее действие — идти в другую вкладку и заново
           выбирать тот же файл, который только что загрузили сюда). */}
@@ -2704,6 +2707,9 @@ function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) 
             Спросить ИИ
           </Btn>
         </div>
+      )}
+      {isManagement && violation.status === 'open' && partnerServiceForViolation(violation.code) && (
+        <PartnerRequestButton serviceKey={partnerServiceForViolation(violation.code)} context={`нарушение «${violation.title}» (${violation.code})`} />
       )}
     </Card>
   );
