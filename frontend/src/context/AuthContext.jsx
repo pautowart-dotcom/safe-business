@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { getCaptchaToken } from '../utils/captcha.js';
 import api from '../api/client.js';
 import { masterLabel, masterLabelGenitivePlural, masterLabelGenitiveSingular } from '../ui/roleLabels.js';
+import { reachGoal } from '../utils/metrika.js';
 
 const AuthContext = createContext(null);
 
@@ -146,6 +147,7 @@ export function AuthProvider({ children }) {
   async function register({ name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo }) {
     const captchaToken = await getCaptchaToken();
     const res = await api.post('/auth/register', { captchaToken, name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo });
+    reachGoal('register_done');
     return res.data; // { requiresDeviceVerification: true, email }
   }
 

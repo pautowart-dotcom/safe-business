@@ -137,6 +137,7 @@
       });
       var checkoutData = await checkoutRes.json();
       if (!checkoutRes.ok) throw new Error(errorMessage(checkoutData, 'Не получилось создать оплату'));
+      if (typeof window.ym === 'function') window.ym(112875830, 'reachGoal', 'checkout_start');
       window.location.href = checkoutData.confirmationUrl;
     } catch (e) {
       showError(e.message);

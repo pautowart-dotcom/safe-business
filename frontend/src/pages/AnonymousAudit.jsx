@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/components.jsx';
 import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 import { ConsentPair } from '../ui/LegalConsents.jsx';
+import { reachGoal } from '../utils/metrika.js';
 
 // Разовый аудит без регистрации (19.08.2026, п.5 плана, переделано по явному
 // уточнению владельца) — публичная страница, НЕ обёрнута в PrivateRoute/
@@ -539,6 +540,7 @@ export default function AnonymousAudit() {
         });
       }
       await guestApi.post(`/modules/security/sessions/${session.id}/complete`);
+      reachGoal('test_completed');
       const { data: status } = await guestApi.get('/modules/security/status');
       setResult(status);
 
@@ -570,6 +572,7 @@ export default function AnonymousAudit() {
         acceptedTerms,
         analyticsConsent,
       });
+      reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
@@ -624,6 +627,7 @@ export default function AnonymousAudit() {
         acceptedTerms: websiteAcceptedTerms,
         source: 'test',
       });
+      reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setWebsiteCheckError(err.response?.data?.error || 'Не удалось начать оплату');

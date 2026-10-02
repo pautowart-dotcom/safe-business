@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Btn, C } from '../ui/components.jsx';
+import { reachGoal } from '../utils/metrika.js';
 
 const STATUS_LABELS = {
   trial: 'Бесплатный период',
@@ -39,6 +40,7 @@ export default function Subscription() {
     setError('');
     try {
       const { data } = await api.post('/platform/subscription/checkout');
+      reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');

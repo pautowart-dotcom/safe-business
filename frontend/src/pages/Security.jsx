@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C } from '../ui/components.jsx';
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
+import { reachGoal } from '../utils/metrika.js';
 
 const LEGAL_FORM_OPTIONS = [
   { value: 'self_employed', label: 'Самозанятый' },
@@ -214,6 +215,7 @@ function PdfPaywallNotice() {
     setPayError('');
     try {
       const { data } = await api.post('/platform/subscription/checkout');
+      reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setPayError(err.response?.data?.error || 'Не удалось начать оплату');
@@ -367,6 +369,7 @@ export default function Security() {
       }
 
       await api.post(`/modules/security/sessions/${activeAudit.session.id}/complete`);
+      reachGoal('test_completed');
 
       // Ниша пройдена — если в плане этого захода есть ещё ниши, сразу
       // (без промежуточного экрана) переходим к следующей. Эта сессия уже
@@ -2070,6 +2073,7 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
     setError('');
     try {
       const { data } = await api.post('/platform/addons/website_check/checkout', { url: url.trim() });
+      reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
@@ -2214,6 +2218,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     setError('');
     try {
       const { data } = await api.post('/platform/addons/document_templates/checkout');
+      reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
