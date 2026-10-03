@@ -184,7 +184,7 @@ function premisesOperationQuestions(prefix, { q601Hint = null } = {}) {
     {
       code: `${prefix}-601`,
       block: 6,
-      text: 'Заключён ли договор на вывоз твёрдых бытовых отходов?',
+      text: 'Заключён ли договор на вывоз твёрдых коммунальных отходов (ТКО)?',
       hint: q601Hint,
       showIf: null,
       answers: [
