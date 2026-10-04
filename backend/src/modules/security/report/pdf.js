@@ -105,6 +105,7 @@ function money(value) {
 // узнавал структуру документа взглядом, а не только по оглавлению.
 function sectionHeader(number, text) {
   return {
+    pageBreak: 'before',
     margin: [0, 0, 0, 14],
     columns: [
       {
@@ -136,13 +137,8 @@ function violationBlock(v, index) {
             stack: [
               { text: `№${index + 1}  ${v.title}`, bold: true, fontSize: 12 },
               { text: v.description, margin: [0, 4, 0, 6], fontSize: 10, color: '#444444' },
-              {
-                columns: [
-                  { text: [{ text: 'Риск: ', color: '#888888' }, { text: `${v.risk}/10`, color, bold: true }], fontSize: 10 },
-                  { text: [{ text: 'Штраф: ', color: '#888888' }, { text: v.fineText, bold: true }], fontSize: 10 },
-                ],
-                margin: [0, 0, 0, 4],
-              },
+              { text: [{ text: 'Риск: ', color: '#888888' }, { text: `${v.risk}/10`, color, bold: true }], fontSize: 10, margin: [0, 0, 0, 2] },
+              { text: [{ text: 'Ответственность: ', color: '#888888' }, { text: v.fineText }], fontSize: 9.5, margin: [0, 0, 0, 4] },
               { text: [{ text: 'Основание: ', color: '#888888' }, { text: v.normBase }], fontSize: 9, margin: [0, 0, 0, 4] },
               { text: [{ text: 'Что сделать: ', color: '#888888' }, { text: v.solution }], fontSize: 10, bold: false, margin: [0, 0, 0, v.howTo && v.howTo.length > 0 ? 6 : 4] },
               v.howTo && v.howTo.length > 0
@@ -193,72 +189,65 @@ function styledTable(widths, headerRow, rows) {
   };
 }
 
-const TOC_SECTIONS = [
-  'Резюме руководителя',
-  'Карта уязвимостей',
-  'Дорожная карта устранения',
-  'Обязательные документы',
-  'Дополнительные зоны внимания',
-  'Персональные рекомендации',
-  'Какие органы могут проверять бизнес',
-  'Если вас уже оштрафовали',
-  'Что делать дальше',
-];
-
-function tocPage() {
-  return {
-    stack: [
-      { text: 'Содержание', style: 'sectionTitle', margin: [0, 0, 0, 20] },
-      ...TOC_SECTIONS.map((t, i) => ({
-        columns: [
-          { text: `${i + 1}. ${t}`, fontSize: 12 },
-          { text: '', fontSize: 12 }, // pdfmake не поддерживает leader dots нативно — раздел без номера страницы, ориентир по порядку.
-        ],
-        margin: [0, 0, 0, 10],
-      })),
-    ],
-    pageBreak: 'after',
-  };
-}
-
 function buildDocDefinition(report) {
   const { titlePage, summary, vulnerabilityMap, roadmap, mandatoryDocuments, attentionZones, recommendations, authorities, nextSteps, whatIfFined, platformBridge, disclaimer } = report;
 
   const content = [
-    // --- Титульный лист ---
-    { text: 'БЕЗОПАСНЫЙ БИЗНЕС', style: 'brand', margin: [0, 90, 0, 0] },
-    { text: 'Полный аудит безопасности бизнеса', fontSize: 15, color: '#666666', margin: [0, 6, 0, 36] },
+    // --- Титульный лист (04.10.2026: «как у консалтинга» — для кого,
+    // итог в трёх цифрах и что делать первым, вместо пустого листа) ---
+    { text: 'БЕЗОПАСНЫЙ БИЗНЕС', fontSize: 11, bold: true, color: '#888888', characterSpacing: 2, margin: [0, 40, 0, 0] },
+    { text: 'Заключение о соответствии требованиям', fontSize: 24, bold: true, margin: [0, 10, 0, 4] },
+    { text: [titlePage.niche, titlePage.legalForm].filter(Boolean).join(' · '), fontSize: 13, color: '#555555', margin: [0, 0, 0, 2] },
+    titlePage.companyName ? { text: `Подготовлено для: ${titlePage.companyName}`, fontSize: 11, color: '#555555' } : null,
+    { text: `№ ${titlePage.reportNumber} от ${titlePage.generatedAt.toLocaleDateString('ru-RU')}`, fontSize: 9, color: '#999999', margin: [0, 2, 0, 30] },
     {
       columns: [
         {
           width: 170,
           stack: [
-            { text: `${summary.indexPercent}%`, fontSize: 40, bold: true, color: ZONE_COLORS[titlePage.zone] },
-            { text: 'Индекс безопасности', fontSize: 9, color: '#888888', margin: [0, 0, 0, 10] },
-            progressBar(summary.indexPercent, ZONE_COLORS[titlePage.zone], 150, 12),
+            { text: `${Math.round(summary.indexPercent)}%`, fontSize: 44, bold: true, color: ZONE_COLORS[titlePage.zone] },
+            { text: 'Индекс соответствия', fontSize: 9, color: '#888888', margin: [0, 0, 0, 10] },
+            progressBar(summary.indexPercent, ZONE_COLORS[titlePage.zone], 150, 10),
             { text: titlePage.zoneLabel, bold: true, fontSize: 11, color: ZONE_COLORS[titlePage.zone], margin: [0, 8, 0, 0] },
           ],
         },
         {
           width: '*',
           table: {
-            widths: ['auto', '*'],
-            body: [
-              ['Ниша', titlePage.niche],
-              ['Форма работы', titlePage.legalForm],
-              ['Дата формирования', titlePage.generatedAt.toLocaleDateString('ru-RU')],
-              ['ID отчёта', titlePage.reportNumber],
-            ].map((row) => [{ text: row[0], color: '#888888', fontSize: 10 }, { text: row[1], fontSize: 10 }]),
+            widths: ['*', '*', '*'],
+            body: [[
+              { stack: [{ text: String(summary.violationsCount), fontSize: 22, bold: true }, { text: 'нарушений найдено', fontSize: 9, color: '#666666' }] },
+              { stack: [{ text: String(summary.freeCount), fontSize: 22, bold: true, color: '#1E8449' }, { text: 'можно закрыть без затрат', fontSize: 9, color: '#666666' }] },
+              { stack: [{ text: `${Math.round(summary.projectedPercent)}%`, fontSize: 22, bold: true }, { text: 'индекс после первых двух недель плана', fontSize: 9, color: '#666666' }] },
+            ]],
           },
-          layout: 'noBorders',
+          layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 0, paddingRight: () => 12 },
         },
       ],
       margin: [0, 0, 0, 30],
     },
-    { text: 'Отчёт носит информационный характер и не является юридическим заключением.', fontSize: 9, italics: true, color: '#999999', margin: [0, 74, 0, 0] },
-    { text: '', pageBreak: 'after' },
-
-    tocPage(),
+    {
+      table: {
+        widths: ['*'],
+        body: [[{
+          border: [false, false, false, false],
+          stack: [
+            { text: 'Главное', bold: true, fontSize: 13, margin: [0, 0, 0, 8] },
+            { ul: [
+              summary.violationsCount === 0
+                ? 'По вашим ответам нарушений не найдено.'
+                : `Найдено ${summary.violationsCount} нарушений; ${summary.freeCount} из них закрываются без затрат — документами и внутренними правилами.`,
+              summary.worstViolation ? `Самый серьёзный риск: «${summary.worstViolation.title}» (риск ${summary.worstViolation.risk}/10).` : null,
+              summary.firstAction ? `Начните с: «${summary.firstAction.title}» — ${summary.firstAction.free ? 'без затрат' : 'с небольшими затратами'}, ${summary.firstAction.days} дн.` : null,
+              summary.fixableCount > 0 ? `Если выполнить первые две недели плана (${summary.fixableCount} пунктов), индекс вырастет до ${Math.round(summary.projectedPercent)}%.` : null,
+            ].filter(Boolean), fontSize: 11, lineHeight: 1.25 },
+          ],
+        }]],
+      },
+      layout: { fillColor: () => '#F4F6F8', paddingLeft: () => 16, paddingRight: () => 14, paddingTop: () => 14, paddingBottom: () => 14 },
+    },
+    { text: 'Внутри: карта нарушений со ссылками на нормы, план устранения по неделям, перечень обязательных документов, кто и что проверяет.', fontSize: 9.5, color: '#666666', margin: [0, 16, 0, 0] },
+    { text: 'Заключение носит информационный характер, составлено по ответам владельца и не является юридическим заключением.', fontSize: 8.5, italics: true, color: '#999999', margin: [0, 8, 0, 0] },
 
     // --- Резюме руководителя ---
     sectionHeader(1, 'Резюме руководителя'),
@@ -267,15 +256,16 @@ function buildDocDefinition(report) {
       ['Показатель', 'Значение'],
       [
         [{ text: 'Статус бизнеса', fontSize: 10 }, { text: summary.zoneLabel, fontSize: 10, bold: true, color: ZONE_COLORS[titlePage.zone] }],
-        [{ text: 'Индекс безопасности', fontSize: 10 }, { text: `${summary.indexPercent}%`, fontSize: 10, bold: true }],
+        [{ text: 'Индекс соответствия', fontSize: 10 }, { text: `${Math.round(summary.indexPercent)}%`, fontSize: 10, bold: true }],
         [{ text: 'Найдено нарушений', fontSize: 10 }, { text: String(summary.violationsCount), fontSize: 10 }],
-        [{ text: 'Критических нарушений (риск 9–10)', fontSize: 10 }, { text: String(summary.criticalCount), fontSize: 10, color: summary.criticalCount > 0 ? '#c0392b' : undefined }],
-        [{ text: 'Ориентировочные риски', fontSize: 10 }, { text: `до ${money(summary.estimatedFineMax)}`, fontSize: 10 }],
+        [{ text: 'Высокий риск (9–10 из 10)', fontSize: 10 }, { text: String(summary.criticalCount), fontSize: 10, color: summary.criticalCount > 0 ? '#c0392b' : undefined }],
+        [{ text: 'Можно закрыть без затрат', fontSize: 10 }, { text: String(summary.freeCount), fontSize: 10, color: '#1E8449' }],
+        [{ text: 'Ориентировочный бюджет устранения', fontSize: 10 }, { text: `от ${money(summary.budgetMin)}`, fontSize: 10 }],
       ]
     ),
     { text: '', margin: [0, 14, 0, 0] },
     summary.worstViolation ? { text: [{ text: 'Самое опасное нарушение: ', color: '#888888' }, { text: summary.worstViolation.title, bold: true }], fontSize: 11, margin: [0, 0, 0, 4] } : null,
-    summary.firstAction ? { text: [{ text: 'Первое действие: ', color: '#888888' }, { text: `${summary.firstAction.title} (срок: ${summary.firstAction.days} дн.)`, bold: true }], fontSize: 11, margin: [0, 0, 0, 14] } : null,
+    summary.firstAction ? { text: [{ text: 'Начать с: ', color: '#888888' }, { text: `${summary.firstAction.title} (${summary.firstAction.free ? 'без затрат' : 'с затратами'}, ${summary.firstAction.days} дн.)`, bold: true }], fontSize: 11, margin: [0, 0, 0, 14] } : null,
 
     { text: 'Общая карта безопасности', style: 'subheader', margin: [0, 10, 0, 8] },
     styledTable(
@@ -290,7 +280,6 @@ function buildDocDefinition(report) {
 
     summary.topThree.length > 0 ? { text: 'Три главные уязвимости', style: 'subheader', margin: [0, 20, 0, 10] } : null,
     ...summary.topThree.map((v, i) => violationBlock(v, i)),
-    { text: '', pageBreak: 'after' },
 
     // --- Карта уязвимостей ---
     sectionHeader(2, 'Карта уязвимостей'),
@@ -302,40 +291,21 @@ function buildDocDefinition(report) {
           ],
         }
       : { stack: vulnerabilityMap.map((v, i) => violationBlock(v, i)) },
-    { text: '', pageBreak: 'after' },
 
     // --- Дорожная карта устранения ---
     sectionHeader(3, 'Дорожная карта устранения'),
     roadmapTimeline([
-      { label: 'Сегодня', count: roadmap.today.length },
+      { label: 'Быстро', count: roadmap.today.length },
       { label: '7 дней', count: roadmap.week.length },
       { label: '14 дней', count: roadmap.twoWeeks.length },
       { label: '30 дней', count: roadmap.month.length },
     ]),
-    roadmapBucket('Сделать сегодня (до 1 дня)', roadmap.today),
-    roadmapBucket('Сделать за 7 дней', roadmap.week),
-    roadmapBucket('Сделать за 14 дней', roadmap.twoWeeks),
-    roadmapBucket('Сделать за 30 дней и далее', roadmap.month),
-    roadmap.quickWins.length > 0
-      ? {
-          margin: [0, 6, 0, 14],
-          table: {
-            widths: ['*'],
-            body: [[{
-              border: [false, false, false, false],
-              stack: [
-                { text: 'Быстрые победы', bold: true, margin: [0, 0, 0, 4], fontSize: 11 },
-                { text: 'Вы можете снизить уровень риска бизнеса уже сегодня.', fontSize: 9, color: '#666666', margin: [0, 0, 0, 6] },
-                { ul: roadmap.quickWins.map((v) => `${v.solution} Стоимость: 0 ₽.`), fontSize: 10 },
-              ],
-            }]],
-          },
-          layout: { fillColor: () => '#EAFAF1', paddingLeft: () => 12, paddingRight: () => 10, paddingTop: () => 10, paddingBottom: () => 10 },
-        }
-      : null,
+    roadmapBucket('Быстрые шаги — около дня на каждый', roadmap.today),
+    roadmapBucket('В течение недели', roadmap.week),
+    roadmapBucket('В течение двух недель', roadmap.twoWeeks),
+    roadmapBucket('В течение месяца и дольше', roadmap.month),
     { text: `Ориентировочный бюджет устранения нарушений: от ${money(roadmap.budgetMin)}`, bold: true, fontSize: 11, margin: [0, 8, 0, 2] },
     { text: 'Важно: расчёт предварительный и зависит от региона, подрядчиков и особенностей бизнеса.', fontSize: 9, italics: true, color: '#999999' },
-    { text: '', pageBreak: 'after' },
 
     // --- Обязательные документы ---
     sectionHeader(4, 'Обязательные документы'),
@@ -346,7 +316,6 @@ function buildDocDefinition(report) {
         { ul: section.items, fontSize: 10 },
       ],
     })),
-    { text: '', pageBreak: 'after' },
 
     // --- Дополнительные зоны внимания ---
     sectionHeader(5, 'Дополнительные зоны внимания'),
@@ -367,7 +336,6 @@ function buildDocDefinition(report) {
       },
       layout: { fillColor: () => '#FAFAFA', paddingLeft: () => 12, paddingRight: () => 10, paddingTop: () => 10, paddingBottom: () => 10 },
     })),
-    { text: '', pageBreak: 'after' },
 
     // --- Персональные рекомендации ---
     sectionHeader(6, 'Персональные рекомендации'),
@@ -415,7 +383,6 @@ function buildDocDefinition(report) {
       },
       layout: { fillColor: () => '#F7F7F7', paddingLeft: () => 12, paddingRight: () => 10, paddingTop: () => 10, paddingBottom: () => 10 },
     },
-    { text: '', pageBreak: 'after' },
 
     // --- Какие органы могут проверять бизнес ---
     sectionHeader(7, 'Какие органы могут проверять бизнес'),
@@ -438,7 +405,6 @@ function buildDocDefinition(report) {
         { text: step.text, fontSize: 10, color: '#444444', margin: [0, 3, 0, 0] },
       ],
     })),
-    { text: '', pageBreak: 'after' },
 
     // --- Что делать дальше ---
     sectionHeader(9, 'Что делать дальше'),

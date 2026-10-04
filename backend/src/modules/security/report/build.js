@@ -49,8 +49,9 @@ const FRONTEND_BASE = process.env.FRONTEND_URL || 'https://business-safe.ru/lk';
 
 const NEXT_STEPS = [
   'Исправлять самостоятельно по дорожной карте выше.',
-  'Использовать готовые шаблоны документов по вашей нише — уже доступны в личном кабинете.',
-  'Настроить напоминания на конкретные даты (медкнижки, СОУТ, огнетушители и т.д.) в разделе «Мои сроки», чтобы не возвращаться к этому отчёту вручную.',
+  'Оформить недостающие документы: готовые шаблоны по вашей нише, заполненные вашими реквизитами, — в личном кабинете (разовая покупка).',
+  'Настроить напоминания на конкретные даты (ЭЦП, СОУТ, огнетушители, договоры) в разделе «Мои сроки», чтобы не возвращаться к этому отчёту вручную.',
+  'Сложные пункты (договоры, уведомление в Роскомнадзор, ответ на предписание) — с юристом-партнёром: оставьте заявку в разделе «Безопасность».',
 ];
 
 // Файл 08 §7 (расширение 26.08.2026, по запросу владельца) — что делать,
@@ -83,10 +84,10 @@ const WHAT_IF_FINED = [
 ];
 
 const PLATFORM_BRIDGE = {
-  intro: 'Этот PDF — снимок на дату формирования. Все документы, сроки и шаблоны из отчёта уже сохранены в вашем личном кабинете — не нужно хранить только эту распечатку.',
+  intro: 'Этот PDF — снимок на дату формирования. Результаты теста и нарушения сохранены в вашем личном кабинете — там же можно отмечать, что уже исправлено.',
   links: [
     { label: 'Мои сроки — настроить напоминания', url: `${FRONTEND_BASE}/deadlines` },
-    { label: 'Готовые шаблоны документов по вашей нише', url: `${FRONTEND_BASE}/security` },
+    { label: 'Нарушения, документы и заявка юристу', url: `${FRONTEND_BASE}/security` },
   ],
 };
 
@@ -121,7 +122,7 @@ function summaryByBlock(answersWithBlocks, hasEmployees) {
 // сессий (по одной на нишу). mandatoryDocuments/attentionZones — уже
 // объединены по нескольким нишам (mergeSections.js), сюда приходят готовыми.
 // niches — массив ключей ниш, вошедших в отчёт (для заголовка).
-async function buildReport({ niches, profile, score, maxScore, indexPercent, zone, violations, answersWithBlocks, mandatoryDocuments, attentionZones, reportNumber }) {
+async function buildReport({ niches, profile, score, maxScore, indexPercent, zone, violations, answersWithBlocks, mandatoryDocuments, attentionZones, reportNumber, companyName }) {
   const hasEmployees = profile.workModel === 'employees' || profile.workModel === 'mixed';
   const sortedViolations = scoring.sortByRisk(violations);
 
@@ -138,6 +139,11 @@ async function buildReport({ niches, profile, score, maxScore, indexPercent, zon
 
   const criticalCount = sortedViolations.filter((v) => v.risk >= 9).length;
   const worstViolation = sortedViolations[0] || null;
+  // Первый шаг (04.10.2026) — не «самое опасное» (это часто долгий и дорогой
+  // пункт), а самый быстрый из самых рискованных: то, что реально сделать
+  // на этой неделе. Дорожная карта уже отсортирована по риску внутри сроков.
+  const firstStep = roadmap.today[0] || roadmap.week[0] || roadmap.twoWeeks[0] || roadmap.month[0] || null;
+  const freeCount = sortedViolations.filter((v) => v.free).length;
   const nicheLabels = [];
   for (const niche of niches) {
     const nicheContent = await repository.getNiche(profile.segment, niche);
@@ -150,6 +156,8 @@ async function buildReport({ niches, profile, score, maxScore, indexPercent, zon
       legalForm: LEGAL_FORM_LABELS[profile.legalForm],
       generatedAt: new Date(),
       reportNumber,
+      // 'Моя компания' — имя по умолчанию у гостевого аудита, на обложку не выводим.
+      companyName: companyName && companyName !== 'Моя компания' ? companyName : null,
       zone,
       zoneLabel: ZONE_LABELS[zone],
     },
@@ -160,7 +168,11 @@ async function buildReport({ niches, profile, score, maxScore, indexPercent, zon
       criticalCount,
       estimatedFineMax: sortedViolations.reduce((sum, v) => sum + (v.fineMax || 0), 0),
       worstViolation,
-      firstAction: worstViolation ? { title: worstViolation.title, days: worstViolation.daysMin } : null,
+      firstAction: firstStep ? { title: firstStep.title, days: firstStep.daysMin, free: !!firstStep.free } : null,
+      freeCount,
+      budgetMin: roadmap.budgetMin,
+      projectedPercent: forecast.projectedPercent,
+      fixableCount: forecast.fixableCount,
       blocks: summaryByBlock(answersWithBlocks, hasEmployees),
       topThree: sortedViolations.slice(0, 3),
     },

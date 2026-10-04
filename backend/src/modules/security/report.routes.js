@@ -50,6 +50,8 @@ async function loadReportInputs(companyId, profile) {
 async function buildReportPdfBuffer(companyId, reportRow) {
   const profile = await loadProfile(companyId);
   const { status, mandatoryDocuments, attentionZones } = await loadReportInputs(companyId, profile);
+  // «Подготовлено для: …» на обложке; гостевое «Моя компания» build.js не печатает.
+  const { rows: companyRows } = await pool.query('SELECT name FROM companies WHERE id = $1', [companyId]);
 
   const report = await buildReport({
     niches: status.testedNiches,
@@ -63,6 +65,7 @@ async function buildReportPdfBuffer(companyId, reportRow) {
     mandatoryDocuments,
     attentionZones,
     reportNumber: reportRow.report_number,
+    companyName: companyRows[0]?.name || null,
   });
 
   return renderPdf(report);
