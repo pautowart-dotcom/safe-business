@@ -5,6 +5,7 @@ const { encrypt, decrypt } = require('../../core/crypto');
 const yandexAgent = require('../../core/yandexAgent');
 const { listToolDefinitions, getTool } = require('./tools/registry');
 const { SYSTEM_PROMPT } = require('./systemPrompt');
+const { buildKnowledgeContext } = require('./knowledge');
 
 const router = express.Router();
 
@@ -83,8 +84,27 @@ router.post(
       return res.status(503).json({ error: 'ИИ-ассистент пока не настроен на сервере (нужны YANDEX_AI_STUDIO_API_KEY и YANDEX_FOLDER_ID)' });
     }
 
+    // Справка из пунктов теста по нише компании (07.10.2026, см. knowledge.js).
+    // Если не получилось собрать — отвечаем без неё, чат не роняем.
+    let knowledge = null;
+    try {
+      knowledge = await buildKnowledgeContext(req.tenant.companyId, message);
+    } catch (err) {
+      console.error('[ai-assistant] knowledge context failed:', err.message);
+    }
+    let knowledgeNote;
+    if (!knowledge || knowledge.niches.length === 0) {
+      knowledgeNote = 'Справка из базы сервиса: компания ещё не прошла тест безопасности, ниша неизвестна. На вопросы о требованиях отвечай по правилу «в» и предложи пройти тест в разделе «Безопасность».';
+    } else if (!knowledge.text) {
+      knowledgeNote = `Справка из базы сервиса (ниша компании: ${knowledge.nicheNames}): по этому вопросу подходящих пунктов не найдено.`;
+    } else {
+      knowledgeNote = `Справка из базы сервиса (ниша компании: ${knowledge.nicheNames}). Пункты теста, подобранные по вопросу:\n\n${knowledge.text}`;
+    }
+
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      // Одним системным сообщением: несколько system подряд OpenAI-совместимый
+      // эндпоинт Yandex вживую не проверялся.
+      { role: 'system', content: `${SYSTEM_PROMPT}\n\n${knowledgeNote}` },
       ...sanitizeHistory(req.body.history),
       { role: 'user', content: message },
     ];
@@ -96,7 +116,8 @@ router.post(
 
     let result;
     try {
-      result = await yandexAgent.chat({ messages, tools: listToolDefinitions() });
+      // 1000 вместо 800 по умолчанию — ответ по справке идёт с шагами.
+      result = await yandexAgent.chat({ messages, tools: listToolDefinitions(), maxTokens: 1000 });
     } catch (err) {
       return res.status(502).json({ error: 'Не удалось получить ответ от ИИ: ' + err.message });
     }
