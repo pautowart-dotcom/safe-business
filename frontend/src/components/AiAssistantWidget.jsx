@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
-import { Card, Btn, TextArea, C, F } from '../ui/components.jsx';
+import { Card, Btn, Field, TextInput, TextArea, C, F } from '../ui/components.jsx';
+import { PdConsentCheckbox } from '../ui/LegalConsents.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { MAX_WIDTH } from '../ui/theme.js';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 
@@ -58,8 +60,63 @@ function PendingActionCard({ confirmationText, busy, error, onConfirm, onCancel 
 
 const GREETING = {
   role: 'assistant',
-  content: 'Здравствуйте. Сейчас умею: записывать визит клиента, вносить расход, вносить доход, отвечать про выручку/расходы за период и про открытые нарушения безопасности. Ничего не выдумываю и не подтверждаю запись без вас.',
+  // 07.10.2026: приветствие одно на всех клиентов — главное для них ответы о
+  // требованиях по их тесту; визиты упомянуты с оговоркой (раздел по умолчанию
+  // выключен, см. checkVisitModulesEnabled в tools/registry.js).
+  content: 'Здравствуйте. Отвечаю на вопросы о требованиях к вашему бизнесу — документы, санитария, пожарная безопасность, персональные данные, реклама — по пунктам вашего теста. Подскажу, что у вас открыто и с чего начать. Ещё могу вносить расходы и доходы, а если подключён раздел «Визиты» — записывать визиты. Не найду ответа — предложу передать вопрос нам в поддержку.',
 };
+
+// Кнопка «Передать вопрос в поддержку» (07.10.2026) — под ответом, где ИИ
+// не нашёл пункта в базе (метка [[ПОДДЕРЖКА]], ai-assistant.routes.js).
+// Тот же POST /platform/support и то же согласие, что у заявки юристу
+// (PartnerServices.jsx) — обращение попадает в раздел обращений админки.
+function SupportOffer({ question }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState(user?.email || '');
+  const [consent, setConsent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    if (!email.trim() || !consent) return;
+    setSending(true);
+    setError('');
+    try {
+      await api.post('/platform/support', { email: email.trim(), message: `Вопрос из ИИ-ассистента (ответа в базе не нашлось):\n${question}` });
+      setSent(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось отправить');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (sent) {
+    return <div style={{ fontSize: 12, color: C.green, margin: '-4px 0 12px' }}>✓ Передали. Ответим на почту и в разделе «Поддержка».</div>;
+  }
+  if (!open) {
+    return (
+      <div style={{ margin: '-4px 0 12px' }}>
+        <Btn small variant="secondary" onClick={() => setOpen(true)}>Передать вопрос в поддержку</Btn>
+      </div>
+    );
+  }
+  return (
+    <div style={{ margin: '-4px 0 12px', padding: '12px 14px', borderRadius: 10, background: C.surface }}>
+      <Field label="Email для ответа">
+        <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+      <PdConsentCheckbox id="consent-ai-support" purpose="feedback" checked={consent} onChange={setConsent} />
+      {error && <div className="alert alert-error">{error}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn small onClick={submit} disabled={sending || !consent || !email.trim()}>{sending ? 'Отправляем…' : 'Отправить'}</Btn>
+        <Btn small variant="secondary" onClick={() => setOpen(false)}>Отмена</Btn>
+      </div>
+    </div>
+  );
+}
 
 // Компактный пейвол прямо здесь (20.08.2026, владелец: кружок "спокойно
 // открывался" сразу после регистрации, до всякой оплаты) — сама надбавка
@@ -138,7 +195,7 @@ export default function AiAssistantWidget() {
       const res = await api.post('/modules/ai-assistant/chat', { message: text, history });
       const data = res.data;
       if (data.type === 'text' || data.type === 'clarification') {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.text }]);
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.text, offerSupport: !!data.offerSupport, question: text }]);
       } else if (data.type === 'pending_action') {
         setPending({ tool: data.tool, params: data.params, confirmationText: data.confirmationText });
       }
@@ -362,7 +419,10 @@ function AiAssistantPanelBody({
           */}
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
             {messages.map((m, i) => (
-              <Bubble key={i} role={m.role} text={m.content} />
+              <div key={i}>
+                <Bubble role={m.role} text={m.content} />
+                {m.offerSupport && <SupportOffer question={m.question} />}
+              </div>
             ))}
             {sending && <Bubble role="assistant" text="Думаю..." />}
             {pending && (
@@ -383,7 +443,7 @@ function AiAssistantPanelBody({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Например: внести расход 5000 на аренду"
+              placeholder="Например: нужен ли мне уголок потребителя?"
               style={{ minHeight: 40, flex: 1, fontFamily: F, fontSize: 13 }}
               disabled={sending}
             />

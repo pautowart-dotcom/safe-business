@@ -89,6 +89,12 @@ router.post(
     let knowledge = null;
     try {
       knowledge = await buildKnowledgeContext(req.tenant.companyId, message);
+      // Уточнение («а где взять форму?») само по себе ничего не находит —
+      // ищем ещё раз вместе с предыдущим вопросом пользователя.
+      const prevUser = sanitizeHistory(req.body.history).reverse().find((m) => m.role === 'user');
+      if (knowledge && !knowledge.text && prevUser) {
+        knowledge = await buildKnowledgeContext(req.tenant.companyId, `${prevUser.content} ${message}`);
+      }
     } catch (err) {
       console.error('[ai-assistant] knowledge context failed:', err.message);
     }
@@ -123,8 +129,14 @@ router.post(
     }
 
     if (result.type === 'text') {
-      await saveMessage(req.tenant.companyId, 'assistant', result.text);
-      return res.json({ type: 'text', text: result.text });
+      // Метка [[ПОДДЕРЖКА]] (systemPrompt.js, правило «в») — ответа в базе нет,
+      // фронт покажет кнопку «Передать вопрос в поддержку». Саму метку
+      // пользователю не показываем.
+      const SUPPORT_MARK = /\s*\[\[ПОДДЕРЖКА\]\]\s*/g;
+      const offerSupport = SUPPORT_MARK.test(result.text);
+      const text = result.text.replace(SUPPORT_MARK, '\n').trim();
+      await saveMessage(req.tenant.companyId, 'assistant', text);
+      return res.json({ type: 'text', text, offerSupport });
     }
 
     // tool_calls — в этом узком срезе в реестре ровно один инструмент,
