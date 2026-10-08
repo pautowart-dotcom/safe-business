@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C, SH } from '../ui/components.jsx';
+import { FM } from '../ui/theme.js';
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
 import { reachGoal } from '../utils/metrika.js';
@@ -751,9 +752,9 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) 
 
 function IndexHero({ percent, zone, subtitle, note }) {
   return (
-    <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Индекс безопасности</div>
-      <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-2px', marginBottom: 4 }}>{percent}%</div>
+    <div style={{ background: C.primary, borderRadius: 10, padding: 20, marginBottom: 12, color: '#FFF', boxShadow: SH.raised }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>Индекс безопасности</div>
+      <div style={{ fontSize: 44, fontWeight: 600, fontFamily: FM, fontVariantNumeric: 'tabular-nums', letterSpacing: '-1px', marginBottom: 4 }}>{percent}%</div>
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: note ? 4 : 14 }}>{subtitle}</div>
       {note && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>{note}</div>}
       <div style={{ height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' }}>

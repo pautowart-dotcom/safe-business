@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, Field, TextInput, Select, Btn, Icon, C } from '../ui/components.jsx';
+import { Card, Field, TextInput, Select, Btn, Icon, C, SH } from '../ui/components.jsx';
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
 const SUBSCRIPTION_STATUS_LABELS = {
@@ -343,7 +343,7 @@ export default function Settings() {
         </label>
       </Card>
 
-      <div onClick={handleSwitch} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div onClick={handleSwitch} className="ui-press" style={{ background: C.bg, boxShadow: SH.card, borderRadius: 10, padding: '14px 16px', marginBottom: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 600 }}>Сменить компанию</div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{currentCompany?.name}</div>
@@ -353,7 +353,7 @@ export default function Settings() {
 
       <button
         onClick={logout}
-        style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+        className="ui-press" style={{ width: '100%', background: C.bg, border: 'none', boxShadow: SH.card, borderRadius: 10, padding: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
       >
         <Icon name="logout" size={16} color={C.red} />
         <span style={{ fontSize: 15, color: C.red, fontWeight: 600 }}>Выйти</span>

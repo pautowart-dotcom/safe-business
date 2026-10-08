@@ -6,7 +6,7 @@ import Icon from '../ui/Icon.jsx';
 import OnboardingModal from './OnboardingModal.jsx';
 import AiAssistantWidget from './AiAssistantWidget.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
-import { C, F, MAX_WIDTH } from '../ui/theme.js';
+import { C, F, MAX_WIDTH, PAGE_BG, SH } from '../ui/theme.js';
 
 // 23.08.2026: первая версия просто сажала весь контент на 1200px — на
 // "лёгких" экранах (одна карточка-сводка, форма, список из пары строк) это
@@ -320,7 +320,7 @@ export default function Layout() {
   // ниже не тронута ни на символ.
   if (isDesktop) {
     return (
-      <div style={{ height: '100vh', display: 'flex', background: C.bg, fontFamily: F }}>
+      <div style={{ height: '100vh', display: 'flex', background: PAGE_BG, fontFamily: F }}>
         {!user?.onboarding_seen_at && <OnboardingModal />}
         <div style={{ width: 232, flexShrink: 0, background: C.primary, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 12px' }}>
           <div>
@@ -418,9 +418,9 @@ export default function Layout() {
     // className="layout-viewport" — 100vh с откатом на 100dvh (styles.css),
     // иначе на iOS Safari в обычной вкладке нижняя навигация уезжала за
     // пределы реально видимой области, когда была видна панель браузера.
-    <div className="layout-viewport" style={{ maxWidth: MAX_WIDTH, margin: '0 auto', background: C.bg, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
+    <div className="layout-viewport" style={{ maxWidth: MAX_WIDTH, margin: '0 auto', background: PAGE_BG, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
       {!user?.onboarding_seen_at && <OnboardingModal />}
-      <div style={{ padding: '16px 20px 12px', background: C.bg, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '16px 20px 12px', background: PAGE_BG, borderBottom: '1px solid rgba(15,27,45,.06)', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           {showBack && (
             <button
@@ -519,17 +519,36 @@ export default function Layout() {
         <Outlet />
       </div>
 
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, background: C.bg, borderTop: `1px solid ${C.border}`, display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
-        {nav.map((n) => {
-          const active = n.to === '/more' ? location.pathname === '/more' || moreActive : n.end ? location.pathname === n.to : location.pathname.startsWith(n.to);
-          return (
-            <NavLink key={n.to} to={n.to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 4px 8px', textDecoration: 'none', gap: 3 }}>
-              <Icon name={n.icon} size={22} color={active ? C.primary : C.subtle} sw={active ? 2.2 : 1.6} />
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? C.primary : C.subtle }}>{n.label}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
+      {/* Нижняя панель (08.10.2026, вид «Строже 1»): над активной вкладкой
+          тонкая черта переезжает при переключении, иконка коротко «встаёт на
+          место» (ui-tab-icon-on в styles.css). Ключ у иконки — путь вкладки +
+          активность, чтобы анимация запускалась заново при каждом переходе. */}
+      {(() => {
+        const activeIndex = nav.findIndex((n) => (n.to === '/more' ? location.pathname === '/more' || moreActive : n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)));
+        return (
+          <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, background: 'rgba(255,255,255,.97)', borderTop: '1px solid #E1E4E9', boxShadow: SH.nav, display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+            {activeIndex >= 0 && (
+              <div
+                className="ui-tab-line"
+                style={{ position: 'absolute', top: -1, left: 0, width: `${100 / nav.length}%`, height: 2, display: 'flex', justifyContent: 'center', transform: `translateX(${activeIndex * 100}%)` }}
+              >
+                <div style={{ width: 28, height: 2, borderRadius: 1, background: C.primary }} />
+              </div>
+            )}
+            {nav.map((n, i) => {
+              const active = i === activeIndex;
+              return (
+                <NavLink key={n.to} to={n.to} className="ui-tab" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 4px 8px', textDecoration: 'none', gap: 4 }}>
+                  <span key={`${n.to}-${active}`} className={active ? 'ui-tab-icon-on' : undefined} style={{ display: 'flex' }}>
+                    <Icon name={n.icon} size={22} color={active ? C.primary : '#98A0AD'} sw={active ? 2 : 1.6} />
+                  </span>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, color: active ? C.primary : '#98A0AD', transition: 'color .2s' }}>{n.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+        );
+      })()}
 
       {/* Плавающий виджет ИИ-ассистента (20.08.2026) — та же граница, что
           раньше была у пункта меню/роута: owner-only + модуль ai-assistant

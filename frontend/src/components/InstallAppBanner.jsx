@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDeferredInstallPrompt, onInstallPromptChange } from '../utils/installPrompt.js';
 import { isStandalone } from '../utils/push.js';
-import { C } from '../ui/components.jsx';
+import { C, SH } from '../ui/components.jsx';
 
 const DISMISS_KEY = 'installAppBannerDismissed';
 
@@ -34,7 +34,7 @@ export default function InstallAppBanner() {
   }
 
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ background: C.bg, borderRadius: 10, boxShadow: SH.card, padding: '10px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{ fontSize: 12, color: C.secondary, lineHeight: 1.5, flex: 1 }}>
         Можно установить приложение на телефон — иконка на экране «Домой», без браузера.
       </div>

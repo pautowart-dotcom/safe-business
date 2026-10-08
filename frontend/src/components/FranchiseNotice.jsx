@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { C } from '../ui/components.jsx';
+import { C, SH } from '../ui/components.jsx';
 
 // 08.09.2026 (владелец: "у знакомой массаж по франшизе, и это большая часть
 // точек") — показывается только когда при регистрации отметили "точка
@@ -21,7 +21,7 @@ export default function FranchiseNotice({ company }) {
   }
 
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ background: C.bg, borderRadius: 10, boxShadow: SH.card, padding: '10px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{ fontSize: 12, color: C.secondary, lineHeight: 1.5, flex: 1 }}>
         Точка оформлена не на вас — убедитесь, что человек, на кого оформлено ИП/ООО, тоже видит напоминания в приложении.
       </div>

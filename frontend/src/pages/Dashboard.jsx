@@ -4,7 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
-import { FM } from '../ui/theme.js';
+import { FM, SH } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import InstallAppBanner from '../components/InstallAppBanner.jsx';
 import FranchiseNotice from '../components/FranchiseNotice.jsx';
@@ -15,7 +15,6 @@ import { isNewCohort } from '../utils/cohort.js';
 
 const ZONE_LABEL = { green: 'Зелёная зона', yellow: 'Жёлтая зона · Есть нарушения', red: 'Красная зона · Есть нарушения' };
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
-const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
 const SHIFT_LABEL = { open: 'Смена открыта', closed: 'Смена закрыта', not_opened: 'Смена ещё не открыта' };
 const SHIFT_COLOR = { open: C.green, closed: C.subtle, not_opened: C.orange };
 
@@ -219,7 +218,7 @@ function StatRow({ revenueLabel, revenue, reportsDone, reportsTotal, criticalCou
     { label: 'Индекс безопасности', value: indexPercent != null ? `${indexPercent}%` : '—', dot: indexPercent != null ? C.orange : null },
   ];
   return (
-    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 0', display: 'flex', marginBottom: 16 }}>
+    <div style={{ background: C.bg, boxShadow: SH.card, borderRadius: 10, padding: '16px 0', display: 'flex', marginBottom: 16 }}>
       {stats.map((s, i) => (
         <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, borderLeft: i > 0 ? `1px solid ${C.border}` : 'none' }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.subtle, textTransform: 'uppercase' }}>{s.label}</div>
@@ -377,9 +376,14 @@ function OwnerDashboard() {
           превращается в шум. Теперь как "Центр действий" ниже — просто не
           рендерится, если нечего показывать. */}
       {criticalCount > 0 && (
-        <Card style={{ border: `1.5px solid ${C.red}`, marginBottom: 12 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: C.red, marginBottom: 10 }}>
-            Критических действий: {criticalCount}
+        <Card style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: C.redBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01" /><circle cx="12" cy="12" r="9" /></svg>
+            </span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: C.primary }}>
+              Критических действий: <span style={{ fontFamily: FM, color: C.red }}>{criticalCount}</span>
+            </span>
           </div>
           {subscriptionProblem && (
             <div onClick={() => navigate('/subscription')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: visibleOverdue.length > 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
@@ -412,16 +416,27 @@ function OwnerDashboard() {
       {/* 2. Статус в целом — просто числа, без индекса/скоринга. */}
       <Card style={{ marginBottom: 12 }}>
         <ST>Статус документов</ST>
-        <div style={{ display: 'flex', gap: 24 }}>
-          <div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: C.green }}>{inOrderCount}</div>
-            <div style={{ fontSize: 12, color: C.subtle }}>в порядке</div>
+        <div style={{ display: 'flex' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 26, fontWeight: 600, fontFamily: FM, fontVariantNumeric: 'tabular-nums', color: C.primary }}>{inOrderCount}</div>
+            <div style={{ fontSize: 12, color: C.secondary, display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: C.green }} />в порядке
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: overdueOrNoDate.length > 0 ? C.red : C.subtle }}>{overdueOrNoDate.length}</div>
-            <div style={{ fontSize: 12, color: C.subtle }}>требуют внимания</div>
+          <div style={{ width: 1, background: C.border, margin: '0 16px' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 26, fontWeight: 600, fontFamily: FM, fontVariantNumeric: 'tabular-nums', color: C.primary }}>{overdueOrNoDate.length}</div>
+            <div style={{ fontSize: 12, color: C.secondary, display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: overdueOrNoDate.length > 0 ? C.red : C.subtle }} />требуют внимания
+            </div>
           </div>
         </div>
+        {inOrderCount + overdueOrNoDate.length > 0 && (
+          <div style={{ display: 'flex', gap: 3, height: 4, marginTop: 14, borderRadius: 2, overflow: 'hidden' }}>
+            {inOrderCount > 0 && <div style={{ flex: inOrderCount, background: C.green }} />}
+            {overdueOrNoDate.length > 0 && <div style={{ flex: overdueOrNoDate.length, background: C.red }} />}
+          </div>
+        )}
       </Card>
 
       {/* 3. Рекомендации — правила по датам, см. utils/dashboardRecommendations.js. */}
@@ -485,7 +500,7 @@ function OwnerDashboard() {
           с белыми карточками-соседями по сетке (живой скриншот 23.08.2026).
           На телефоне это по-прежнему единственное место, где видна выручка. */}
       {!isDesktop && (
-        <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+        <div style={{ background: C.primary, borderRadius: 10, padding: 16, marginBottom: 12, boxShadow: SH.raised }}>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
         </div>
@@ -499,14 +514,13 @@ function OwnerDashboard() {
 
       {security ? (
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ZONE_COLOR[security.zone], flexShrink: 0 }} />
-              Безопасность
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Безопасность</span>
+            <span style={{ fontFamily: FM, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 600, color: C.primary }}>
+              {security.indexPercent}<span style={{ fontSize: 13, color: C.secondary }}>%</span>
             </span>
-            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}><span style={{ fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{security.indexPercent}%</span></Badge>
           </div>
-          <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: 4, background: '#EEF0F3', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${security.indexPercent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
           </div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>{ZONE_LABEL[security.zone]} · Открыть →</div>
@@ -742,7 +756,7 @@ function ManagementDashboard() {
         )}
       </Card>
 
-      <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+      <div style={{ background: C.primary, borderRadius: 10, padding: 16, marginBottom: 12, boxShadow: SH.raised }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(revenue)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Выручка {dayLabel}</div>
       </div>
@@ -780,14 +794,13 @@ function ManagementDashboard() {
 
       {isOwner && (security ? (
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ZONE_COLOR[security.zone], flexShrink: 0 }} />
-              Безопасность
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Безопасность</span>
+            <span style={{ fontFamily: FM, fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 600, color: C.primary }}>
+              {security.indexPercent}<span style={{ fontSize: 13, color: C.secondary }}>%</span>
             </span>
-            <Badge color={ZONE_COLOR[security.zone]} bg={ZONE_BG[security.zone]}><span style={{ fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{security.indexPercent}%</span></Badge>
           </div>
-          <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: 4, background: '#EEF0F3', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${security.indexPercent}%`, background: ZONE_COLOR[security.zone], borderRadius: 2 }} />
           </div>
           <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>{ZONE_LABEL[security.zone]} · Открыть →</div>
@@ -889,7 +902,7 @@ function MasterDashboard() {
         </Card>
       )}
 
-      <div style={{ background: C.primary, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+      <div style={{ background: C.primary, borderRadius: 10, padding: 16, marginBottom: 12, boxShadow: SH.raised }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#FFF', letterSpacing: '-0.5px', fontFamily: FM, fontVariantNumeric: 'tabular-nums' }}>{money(masterEarned)}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Мои финансы сегодня</div>
       </div>
@@ -956,7 +969,7 @@ function QuickAction({ label, icon, onClick }) {
   return (
     <button
       onClick={onClick}
-      style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+      style={{ background: C.bg, boxShadow: SH.card, borderRadius: 10, padding: 14, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
     >
       <Icon name={icon} size={20} color={C.primary} />
       <span style={{ fontSize: 12, color: C.secondary, fontWeight: 500 }}>{label}</span>

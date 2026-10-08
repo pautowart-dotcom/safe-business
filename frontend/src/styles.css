@@ -353,3 +353,26 @@ p { margin: 0 0 0.5rem; color: var(--text-muted); }
 .violation-card.risk-high-border { border-left-color: #e67e22; }
 .violation-card.risk-medium-border { border-left-color: #b7950b; }
 .violation-card.risk-low-border { border-left-color: var(--success); }
+
+/* Новый вид «Строже 1» (08.10.2026, макет на холсте «направления дизайна»):
+   серый фон, карточки приподняты многослойной тенью, спокойные короткие
+   анимации без прыжков. Классы навешиваются в ui/components.jsx и
+   components/Layout.jsx — отдельные страницы не трогаем. */
+.ui-press { transition: transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .16s, background-color .16s; }
+.ui-press:active { transform: scale(.985) translateY(1px); background-color: #F7F8FA !important; box-shadow: 0 0 0 1px rgba(15,27,45,.08), 0 1px 2px rgba(15,27,45,.08) !important; }
+.ui-btn { transition: transform .14s cubic-bezier(.2,.8,.2,1), opacity .14s; }
+.ui-btn:active:not(:disabled) { transform: scale(.97); opacity: .88; }
+
+.ui-tab { -webkit-tap-highlight-color: transparent; transition: transform .14s; }
+.ui-tab:active { transform: scale(.92); }
+.ui-tab-icon-on { animation: ui-tab-settle .3s cubic-bezier(.2,.8,.2,1); }
+@keyframes ui-tab-settle {
+  from { transform: translateY(2px) scale(.9); opacity: .6; }
+  to { transform: none; opacity: 1; }
+}
+.ui-tab-line { transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-press, .ui-btn, .ui-tab, .ui-tab-line { transition: none; }
+  .ui-tab-icon-on { animation: none; }
+}

@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Field, TextInput, Select, Btn, Badge, Icon, C, F, SH } from '../ui/components.jsx';
+import { FM } from '../ui/theme.js';
 import { TrendLineChart, StatTile, StackedBarBreakdown, DonutBreakdown, VerticalBarChart, Sparkline, StatWave, CHART_COLORS, compactMoney } from '../ui/charts.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
@@ -575,7 +576,7 @@ function ShowMoreList({ items, pageSize = 6, renderItem, emptyText }) {
 // выдумываем форму.
 function StatCard({ label, value, valueColor, delta, deltaGood, icon, iconColor, iconBg, wave, waveColor }) {
   return (
-    <div style={{ flex: '1 1 220px', minWidth: 220, position: 'relative', overflow: 'hidden', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', background: C.bg }}>
+    <div style={{ flex: '1 1 220px', minWidth: 220, position: 'relative', overflow: 'hidden', boxShadow: SH.card, borderRadius: 10, padding: '16px 18px', background: C.bg }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, position: 'relative', zIndex: 1 }}>
         <div style={{ fontSize: 12, color: C.subtle }}>{label}</div>
         <div style={{ width: 30, height: 30, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -738,7 +739,7 @@ function OverviewTab({
           каталога (GET /modules/visits/services), не заглушка. */}
       {isDesktop && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 12, padding: 18, color: '#FFF' }}>
+          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 10, padding: 18, color: '#FFF', boxShadow: SH.raised }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>Ключевые показатели</div>
             {[
               ['Услуг за период', summary.visitsCount ?? 0],
@@ -753,7 +754,7 @@ function OverviewTab({
             ))}
           </div>
 
-          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 12, padding: 18, color: '#FFF' }}>
+          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 10, padding: 18, color: '#FFF', boxShadow: SH.raised }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>Движение денежных средств</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
               <span style={{ color: 'rgba(255,255,255,0.6)' }}>Поступления</span>
@@ -771,7 +772,7 @@ function OverviewTab({
             )}
           </div>
 
-          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 12, padding: 18, color: '#FFF' }}>
+          <div style={{ flex: 1, minWidth: 220, background: C.primary, borderRadius: 10, padding: 18, color: '#FFF', boxShadow: SH.raised }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>Активные услуги{services ? ` · ${services.length}` : ''}</div>
               <button onClick={() => navigate('/services')} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6, padding: '4px 8px', color: '#FFF', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>+ Добавить</button>
@@ -793,7 +794,7 @@ function OverviewTab({
       )}
 
       <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' } : undefined}>
-      <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
+      <div style={{ background: C.primary, borderRadius: 10, padding: 20, marginBottom: 12, color: '#FFF', boxShadow: SH.raised }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 10px' }}>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Услуг за период</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>{summary.visitsCount ?? 0}</div>
@@ -809,7 +810,7 @@ function OverviewTab({
             <div style={{ height: 1, background: 'rgba(255,255,255,0.25)', margin: '12px 0 10px' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>= Чистая прибыль</div>
-              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1px', color: summary.netProfit >= 0 ? '#FFF' : '#FCA5A5' }}>{money(summary.netProfit)}</div>
+              <div style={{ fontSize: 28, fontWeight: 600, fontFamily: FM, fontVariantNumeric: 'tabular-nums', letterSpacing: '-1px', color: summary.netProfit >= 0 ? '#FFF' : '#FCA5A5' }}>{money(summary.netProfit)}</div>
             </div>
           </>
         )}
@@ -1531,9 +1532,9 @@ function MasterFinance() {
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Мои финансы</div>
       <PeriodBar {...period} />
 
-      <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 12, color: '#FFF' }}>
+      <div style={{ background: C.primary, borderRadius: 10, padding: 20, marginBottom: 12, color: '#FFF', boxShadow: SH.raised }}>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Итого к выплате</div>
-        <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: '-1.5px' }}>{money(totalPayout)}</div>
+        <div style={{ fontSize: 40, fontWeight: 600, fontFamily: FM, fontVariantNumeric: 'tabular-nums', letterSpacing: '-1px' }}>{money(totalPayout)}</div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>{visits.length} визитов</div>
       </div>
 

@@ -1,19 +1,21 @@
 import { forwardRef } from 'react';
 import Icon from './Icon.jsx';
-import { C, F } from './theme.js';
+import { C, F, SH } from './theme.js';
 
 const cs = (base, ...rest) => Object.assign({}, base, ...rest);
 
 export function Card({ children, style = {}, onClick }) {
   return (
-    <div onClick={onClick} style={cs({ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }, style)}>
+    <div onClick={onClick} className={onClick ? 'ui-press' : undefined} style={cs({ background: C.bg, borderRadius: 10, padding: 16, marginBottom: 12, boxShadow: SH.card }, style)}>
       {children}
     </div>
   );
 }
 
 export function ST({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 700, color: C.subtle, letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 10 }}>{children}</div>;
+  // 08.10.2026, вид «Строже 1»: обычный регистр вместо мелкого серого
+  // капслока — капслок давал ощущение «анкеты» (подписи полей формы).
+  return <div style={{ fontSize: 13, fontWeight: 600, color: C.secondary, marginBottom: 12 }}>{children}</div>;
 }
 
 export function BackBtn({ onClick, label = 'Назад' }) {
@@ -42,12 +44,14 @@ export function Btn({ children, onClick, type = 'button', variant = 'primary', s
       type={type}
       onClick={onClick}
       disabled={disabled}
+      className="ui-btn"
       style={cs(
         {
           width: small ? 'auto' : '100%',
-          background: bg,
+          background: variant === 'secondary' && !disabled ? C.bg : bg,
           color: col,
-          border: variant === 'secondary' ? `1px solid ${C.border}` : 'none',
+          border: 'none',
+          boxShadow: disabled ? 'none' : variant === 'secondary' ? SH.card : SH.raised,
           borderRadius: 12,
           padding: small ? '8px 16px' : '14px',
           fontSize: small ? 13 : 15,
@@ -146,4 +150,4 @@ export function ChevronRow({ children, onClick }) {
   );
 }
 
-export { Icon, C, F };
+export { Icon, C, F, SH };

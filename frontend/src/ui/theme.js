@@ -36,3 +36,14 @@ export const F = "'Manrope',-apple-system,'SF Pro Text','Segoe UI',sans-serif";
 export const FM = "ui-monospace,'SF Mono','Menlo','Consolas',monospace";
 
 export const MAX_WIDTH = 430;
+
+// Вид «Строже 1» (08.10.2026, выбран владельцем на макетах): фон страницы
+// серый, белые карточки над ним «приподняты» многослойной тенью — тонкий
+// контур + короткая и длинная мягкие тени + блик сверху. C.bg остаётся
+// белым: им закрашены карточки, поля и вкладки по всему приложению.
+export const PAGE_BG = '#E7E9ED';
+export const SH = {
+  card: 'inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 1px rgba(15,27,45,.07), 0 1px 2px rgba(15,27,45,.08), 0 4px 10px -2px rgba(15,27,45,.10), 0 12px 24px -8px rgba(15,27,45,.12)',
+  raised: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 4px rgba(14,26,43,.2), 0 8px 16px -6px rgba(14,26,43,.35)',
+  nav: '0 -6px 20px -8px rgba(15,27,45,.14)',
+};
