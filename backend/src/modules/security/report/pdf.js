@@ -439,13 +439,28 @@ function buildDocDefinition(report) {
       subheader: { fontSize: 12, bold: true },
     },
     pageMargins: [40, 40, 40, 56],
+    // Водяной знак (08.10.2026) — на каждой странице, по диагонали, бледный:
+    // для кого и какой номер. Чтобы заключение нельзя было выдать за своё
+    // другой студии или пустить по рукам как «образец». Номер отчёта —
+    // тот же, что на титуле и в колонтитуле, по нему находим запись у себя.
+    watermark: {
+      text: titlePage.companyName ? `${titlePage.companyName} · № ${titlePage.reportNumber}` : `Заключение № ${titlePage.reportNumber}`,
+      font: 'DejaVuSans',
+      color: '#888888',
+      opacity: 0.08,
+      bold: true,
+    },
     // Колонтитул — номер отчёта и страницы на каждой странице (не было
     // раньше вообще) — при распечатке отдельными листами понятно, что
     // к чему относится.
     footer: (currentPage, pageCount) => ({
       margin: [40, 12, 40, 0],
       columns: [
-        { text: `«Безопасный бизнес» · Отчёт ${report.titlePage.reportNumber}`, fontSize: 7, color: '#AAAAAA' },
+        {
+          text: [`«Безопасный бизнес» · Отчёт ${titlePage.reportNumber}`, titlePage.companyName ? ` · для ${titlePage.companyName}` : ''].join(''),
+          fontSize: 7,
+          color: '#AAAAAA',
+        },
         { text: `${currentPage} / ${pageCount}`, fontSize: 7, color: '#AAAAAA', alignment: 'right' },
       ],
     }),
