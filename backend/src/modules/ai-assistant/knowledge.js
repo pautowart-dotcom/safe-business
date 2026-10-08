@@ -12,6 +12,7 @@
 const repository = require('../security/content/repository');
 const { computeSecurityStatus } = require('../security/status');
 const { NICHE_LABELS } = require('../roadmap/content/buildRoadmap');
+const yandexAgent = require('../../core/yandexAgent');
 
 const STOP_WORDS = new Set([
   'нужно', 'нужен', 'нужна', 'нужны', 'можно', 'надо', 'какой', 'какие', 'какая', 'какое', 'если', 'чтобы',
@@ -116,10 +117,46 @@ function formatItem(item, statusByCode) {
   return lines.join('\n');
 }
 
+// Запасной подбор (08.10.2026): владелец называет вещи своими словами
+// («справка после больничного», «бумажка для мастера»), и поиск по основам
+// слов промахивается мимо пункта, который в тесте есть. Тогда отдаём модели
+// только пронумерованный список названий пунктов ниши и просим выбрать
+// номера — отдельным коротким вызовом, без истории и инструментов. Ответ
+// «0» (ничего не подходит) — нормальный исход, тогда правило «в».
+async function pickByTitles(items, question) {
+  if (!items.length || !yandexAgent.isAiConfigured()) return [];
+  const list = items.map((item, i) => `${i + 1}. ${item.title}`).join('\n');
+  const result = await yandexAgent.chat({
+    messages: [
+      {
+        role: 'system',
+        content:
+          'Ты подбираешь пункты из списка требований к бизнесу под вопрос владельца. Верни через запятую номера ' +
+          'не более чем 3 пунктов, которые прямо отвечают на вопрос. Если ни один пункт прямо не отвечает — верни 0. ' +
+          'Только номера, без слов.',
+      },
+      { role: 'user', content: `Список:\n${list}\n\nВопрос: ${question}` },
+    ],
+    maxTokens: 20,
+    temperature: 0,
+  });
+  if (result.type !== 'text') return [];
+  const numbers = (result.text.match(/\d+/g) || []).map(Number);
+  const picked = [];
+  for (const n of numbers) {
+    const item = items[n - 1];
+    if (item && !picked.includes(item)) picked.push(item);
+    if (picked.length === 3) break;
+  }
+  return picked;
+}
+
 // Возвращает текст справки для системного сообщения или null, если тест
 // не пройден / ничего подходящего не нашлось (тогда модель по правилам
-// говорит, что пункта в базе нет).
-async function buildKnowledgeContext(companyId, question) {
+// говорит, что пункта в базе нет). previousQuestion — предыдущий вопрос
+// пользователя: уточнение («а где взять форму?») само по себе ничего не
+// находит, ищем ещё раз вместе с ним.
+async function buildKnowledgeContext(companyId, question, previousQuestion = null) {
   const status = await computeSecurityStatus(companyId);
   const niches = (status.profile?.niches || []).filter(Boolean);
   if (niches.length === 0) return { niches: [], text: null };
@@ -135,7 +172,16 @@ async function buildKnowledgeContext(companyId, question) {
     }
   }
 
-  const found = searchItems(items, question);
+  const fullQuestion = previousQuestion ? `${previousQuestion} ${question}` : question;
+  let found = searchItems(items, question);
+  if (found.length === 0 && previousQuestion) found = searchItems(items, fullQuestion);
+  if (found.length === 0) {
+    try {
+      found = await pickByTitles(items, fullQuestion);
+    } catch (err) {
+      console.error('[ai-assistant] pickByTitles failed:', err.message);
+    }
+  }
   const nicheNames = niches.map((n) => NICHE_LABELS[n] || n).join(', ');
   if (found.length === 0) return { niches, nicheNames, text: null };
 
@@ -147,4 +193,4 @@ async function buildKnowledgeContext(companyId, question) {
   };
 }
 
-module.exports = { buildKnowledgeContext, searchItems, queryStems };
+module.exports = { buildKnowledgeContext, searchItems, queryStems, pickByTitles };

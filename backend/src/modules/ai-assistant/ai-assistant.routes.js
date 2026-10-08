@@ -22,6 +22,23 @@ async function saveMessage(companyId, role, content) {
   );
 }
 
+// Вопросы, на которые в базе не нашлось ответа (08.10.2026) — список
+// пробелов базы для владельца (admin /ai-unanswered). Без company_id и
+// user_id: нужен сам вопрос и ниша, а не кто спросил. Текст шифруется — в
+// нём могут оказаться имена. Хранится 90 дней, чистим при каждой записи.
+const UNANSWERED_RETENTION_DAYS = 90;
+
+async function logUnanswered(question, nicheNames) {
+  await pool.query(
+    `DELETE FROM ai_unanswered_questions WHERE created_at < now() - ($1 || ' days')::interval`,
+    [String(UNANSWERED_RETENTION_DAYS)]
+  );
+  await pool.query(
+    `INSERT INTO ai_unanswered_questions (question_enc, niches) VALUES ($1, $2)`,
+    [encrypt(question), nicheNames]
+  );
+}
+
 router.get(
   '/messages',
   asyncHandler(async (req, res) => {
@@ -88,13 +105,8 @@ router.post(
     // Если не получилось собрать — отвечаем без неё, чат не роняем.
     let knowledge = null;
     try {
-      knowledge = await buildKnowledgeContext(req.tenant.companyId, message);
-      // Уточнение («а где взять форму?») само по себе ничего не находит —
-      // ищем ещё раз вместе с предыдущим вопросом пользователя.
       const prevUser = sanitizeHistory(req.body.history).reverse().find((m) => m.role === 'user');
-      if (knowledge && !knowledge.text && prevUser) {
-        knowledge = await buildKnowledgeContext(req.tenant.companyId, `${prevUser.content} ${message}`);
-      }
+      knowledge = await buildKnowledgeContext(req.tenant.companyId, message, prevUser?.content || null);
     } catch (err) {
       console.error('[ai-assistant] knowledge context failed:', err.message);
     }
@@ -136,6 +148,11 @@ router.post(
       const offerSupport = SUPPORT_MARK.test(result.text);
       const text = result.text.replace(SUPPORT_MARK, '\n').trim();
       await saveMessage(req.tenant.companyId, 'assistant', text);
+      if (offerSupport) {
+        await logUnanswered(message, knowledge?.nicheNames || null).catch((err) =>
+          console.error('[ai-assistant] unanswered log failed:', err.message)
+        );
+      }
       return res.json({ type: 'text', text, offerSupport });
     }
 

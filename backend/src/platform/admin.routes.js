@@ -17,6 +17,7 @@ const { isAiConfigured, draftText } = require('../core/yandexAssist');
 const { isAiConfigured: isYandexAiConfigured, draftText: draftLawExplanation } = require('../core/yandexAssist');
 const { sendPushToSuperAdmins, isPushConfigured } = require('../core/pushNotify');
 const { signFileUrl } = require('../core/fileStorage');
+const { decrypt } = require('../core/crypto');
 const { ADDON_CATALOG } = require('../core/addons');
 const { SAAS_COMPLIANCE } = require('./content/saasCompliance');
 const { NICHE_LABELS: ROADMAP_NICHE_LABELS, LEGAL_FORM_LABELS: ROADMAP_LEGAL_FORM_LABELS } = require('../modules/roadmap/content/buildRoadmap');
@@ -660,6 +661,19 @@ router.patch(
       return res.status(404).json({ error: 'Журнал не найден' });
     }
     res.json(rows[0]);
+  })
+);
+
+// Вопросы ИИ-ассистенту без ответа в базе (08.10.2026, миграция 0127) —
+// список пробелов базы, по нему владелец решает, какие пункты добавить.
+// Без привязки к компании, текст расшифровывается только здесь.
+router.get(
+  '/ai-unanswered',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT id, question_enc, niches, created_at FROM ai_unanswered_questions ORDER BY created_at DESC LIMIT 200`
+    );
+    res.json(rows.map((r) => ({ id: r.id, question: decrypt(r.question_enc), niches: r.niches, createdAt: r.created_at })));
   })
 );
 

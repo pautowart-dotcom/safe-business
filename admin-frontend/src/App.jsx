@@ -15,6 +15,7 @@ import PatentRates from './pages/PatentRates.jsx';
 import LawChangeCandidates from './pages/LawChangeCandidates.jsx';
 import NormsRegistry from './pages/NormsRegistry.jsx';
 import RoadmapLeads from './pages/RoadmapLeads.jsx';
+import AiUnanswered from './pages/AiUnanswered.jsx';
 import Finance from './pages/Finance.jsx';
 
 function PrivateRoute({ children }) {
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="companies" element={<Companies />} />
         <Route path="roadmap-leads" element={<RoadmapLeads />} />
+        <Route path="ai-unanswered" element={<AiUnanswered />} />
         <Route path="ai-manager" element={<AiManager />} />
         <Route path="compliance" element={<Compliance />} />
         <Route path="patent-rates" element={<PatentRates />} />

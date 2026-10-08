@@ -20,6 +20,7 @@ const NAV = [
   // день уже был бы перебором.
   { to: '/ai-manager', label: 'ИИ-управляющий', icon: 'ai-monogram' },
   { to: '/support', label: 'Поддержка', icon: 'msg' },
+  { to: '/ai-unanswered', label: 'Вопросы без ответа', icon: 'msg' },
   { to: '/client-errors', label: 'Логи краша', icon: 'bug' },
   { to: '/legal', label: 'Юридические документы', icon: 'doc' },
   { to: '/journal-types', label: 'Типы журналов', icon: 'doc' },
