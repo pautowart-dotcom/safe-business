@@ -85,7 +85,7 @@ function ViolationPreview({ violations }) {
           </div>
           <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ filter: 'blur(5px)', userSelect: 'none', pointerEvents: 'none', fontSize: 12.5, color: C.secondary, lineHeight: 1.5, padding: '8px 10px', background: C.surface, borderRadius: 8 }}>
-              Штраф: {v.fineText}. Норма: {v.normBase}. Как исправить: {v.solution}
+              Штраф: размер и статья закона. Норма: на чём основано требование. Как исправить: пошаговый план с документами и сроками.
             </div>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700, color: C.subtle }}>
               🔒 штраф, норма закона и план решения — в полном отчёте

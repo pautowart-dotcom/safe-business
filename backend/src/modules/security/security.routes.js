@@ -225,6 +225,22 @@ router.get(
   '/status',
   asyncHandler(async (req, res) => {
     const status = await computeSecurityStatus(req.tenant.companyId);
+
+    // Гость анонимного теста (platform/anonymous-audit.routes.js), который ещё
+    // ничего не оплатил, видит на странице только название и риск нарушения —
+    // штраф, норма и план стоят за размытием, но раньше сам текст приходил в
+    // ответе и читался через инструменты разработчика (08.10.2026). После
+    // успешной оплаты (и для всех обычных пользователей) ответ полный.
+    const { rows: guestRows } = await pool.query('SELECT is_guest FROM users WHERE id = $1', [req.user.id]);
+    if (guestRows[0]?.is_guest && Array.isArray(status.violations)) {
+      const { rows: paidRows } = await pool.query(
+        `SELECT 1 FROM subscription_payments WHERE company_id = $1 AND status = 'succeeded' LIMIT 1`,
+        [req.tenant.companyId]
+      );
+      if (paidRows.length === 0) {
+        status.violations = status.violations.map((v) => ({ code: v.code, block: v.block, title: v.title, risk: v.risk, status: v.status }));
+      }
+    }
     res.json(status);
   })
 );
