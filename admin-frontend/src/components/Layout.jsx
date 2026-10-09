@@ -9,6 +9,7 @@ const NAV = [
   { to: '/finance', label: 'Финансы', icon: 'finance' },
   { to: '/analytics', label: 'Аналитика', icon: 'finance' },
   { to: '/companies', label: 'Компании', icon: 'team' },
+  { to: '/promo-codes', label: 'Промокоды', icon: 'finance' },
   { to: '/roadmap-leads', label: 'Роадмап (лиды)', icon: 'doc' },
   { to: '/compliance', label: 'Комплаенс', icon: 'shield' },
   { to: '/patent-rates', label: 'Ставки патента', icon: 'finance' },

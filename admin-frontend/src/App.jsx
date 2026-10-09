@@ -16,6 +16,7 @@ import LawChangeCandidates from './pages/LawChangeCandidates.jsx';
 import NormsRegistry from './pages/NormsRegistry.jsx';
 import RoadmapLeads from './pages/RoadmapLeads.jsx';
 import AiUnanswered from './pages/AiUnanswered.jsx';
+import PromoCodes from './pages/PromoCodes.jsx';
 import Finance from './pages/Finance.jsx';
 
 function PrivateRoute({ children }) {
@@ -40,6 +41,7 @@ export default function App() {
         <Route index element={<Overview />} />
         <Route path="finance" element={<Finance />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="promo-codes" element={<PromoCodes />} />
         <Route path="companies" element={<Companies />} />
         <Route path="roadmap-leads" element={<RoadmapLeads />} />
         <Route path="ai-unanswered" element={<AiUnanswered />} />

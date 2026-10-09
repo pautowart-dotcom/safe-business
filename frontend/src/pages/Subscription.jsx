@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, Btn, C } from '../ui/components.jsx';
+import { Card, Btn, TextInput, C } from '../ui/components.jsx';
 import { reachGoal } from '../utils/metrika.js';
 
 const STATUS_LABELS = {
@@ -35,11 +35,36 @@ export default function Subscription() {
     if (searchParams.get('payment') === 'done') load();
   }, [searchParams]);
 
+  // Промокод (09.10.2026) — скидка только на первый платёж. Сначала
+  // проверяем код и показываем итоговую сумму, в /checkout уходит уже
+  // применённый код (сервер проверяет его ещё раз сам).
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoChecking, setPromoChecking] = useState(false);
+
+  async function applyPromo(e) {
+    e.preventDefault();
+    if (!promoInput.trim()) return;
+    setPromoChecking(true);
+    setPromoError('');
+    try {
+      const { data } = await api.post('/platform/subscription/promo/check', { code: promoInput, appliesTo: 'subscription' });
+      setPromo(data);
+    } catch (err) {
+      setPromo(null);
+      setPromoError(err.response?.data?.error || 'Не удалось проверить промокод');
+    } finally {
+      setPromoChecking(false);
+    }
+  }
+
   async function startCheckout() {
     setStarting(true);
     setError('');
     try {
-      const { data } = await api.post('/platform/subscription/checkout');
+      const { data } = await api.post('/platform/subscription/checkout', promo ? { promoCode: promo.code } : {});
       reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
@@ -174,7 +199,28 @@ export default function Subscription() {
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
               1990 ₽/мес, ИИ-советник входит. Оплата через ЮKassa. Дальше списывается автоматически раз в месяц — оформить подписку нужно один раз. Передумаете — отменить можно в любой момент здесь же.
             </div>
-            <Btn onClick={startCheckout} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
+            {promo ? (
+              <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                  <span>Промокод <b>{promo.code}</b></span>
+                  <button onClick={() => { setPromo(null); setPromoInput(''); }} style={{ background: 'none', border: 'none', color: C.subtle, cursor: 'pointer', fontSize: 12, padding: 0 }}>убрать</button>
+                </div>
+                <div style={{ marginTop: 4, color: C.secondary }}>
+                  Первый месяц — <b>{promo.finalRub} ₽</b> вместо {promo.priceRub} ₽. Дальше {promo.priceRub} ₽/мес.
+                </div>
+              </div>
+            ) : promoOpen ? (
+              <form onSubmit={applyPromo} style={{ display: 'flex', gap: 8, marginBottom: promoError ? 6 : 14 }}>
+                <TextInput value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="Промокод" autoFocus style={{ flex: 1, minWidth: 0 }} />
+                <Btn type="submit" variant="secondary" disabled={promoChecking || !promoInput.trim()}>{promoChecking ? '...' : 'Применить'}</Btn>
+              </form>
+            ) : (
+              <button onClick={() => setPromoOpen(true)} style={{ display: 'block', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 14 }}>
+                Есть промокод?
+              </button>
+            )}
+            {promoError && <div style={{ fontSize: 12, color: C.red, marginBottom: 14 }}>{promoError}</div>}
+            <Btn onClick={startCheckout} disabled={starting}>{starting ? 'Переходим к оплате...' : promo ? `Оплатить ${promo.finalRub} ₽` : 'Оформить подписку'}</Btn>
           </>
         )}
       </Card>

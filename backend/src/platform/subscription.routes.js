@@ -10,6 +10,17 @@ const { notifyAddonPurchase } = require('./addons.routes');
 const { handleAiAdvisorSubscriptionWebhook } = require('./ai-advisor-subscription.routes');
 const { fulfillGuestReport } = require('./anonymous-audit.routes');
 const { runScanForPurchase } = require('./website-check.routes');
+const { evaluatePromo } = require('../core/promoCodes');
+const { createRateLimiter } = require('../core/rateLimit');
+
+// Против перебора кодов (09.10.2026): гостевой тест открыт любому, токен без
+// почты — без лимита простые коды вроде "ТЕСТ50" угадывались бы скриптом.
+// 10 попыток за 10 минут с IP хватает человеку с опечатками.
+const promoRateLimit = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  message: 'Слишком много попыток ввести промокод. Подождите 10 минут.',
+});
 
 const SUBSCRIPTION_PRICE_RUB = 1990;
 
@@ -25,7 +36,7 @@ const SUBSCRIPTION_PRICE_RUB = 1990;
 const router = express.Router();
 
 // Общая часть чек-аута для двух режимов ниже.
-async function startCheckout({ companyId, description, returnUrl, savePaymentMethod, reportId, receiptEmail, amountRub }) {
+async function startCheckout({ companyId, description, returnUrl, savePaymentMethod, reportId, receiptEmail, amountRub, promoCodeId, discountRub }) {
   const payment = await createPayment({
     amountRub,
     description,
@@ -36,13 +47,41 @@ async function startCheckout({ companyId, description, returnUrl, savePaymentMet
   });
 
   await pool.query(
-    `INSERT INTO subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge, report_id)
-     VALUES ($1, $2, $3, 'pending', false, $4)`,
-    [companyId, payment.id, amountRub, reportId || null]
+    `INSERT INTO subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge, report_id, promo_code_id, discount_rub)
+     VALUES ($1, $2, $3, 'pending', false, $4, $5, $6)`,
+    [companyId, payment.id, amountRub, reportId || null, promoCodeId || null, discountRub || 0]
   );
 
   return payment;
 }
+
+// Предпросмотр цены с промокодом (09.10.2026) — до перехода к оплате, чтобы
+// человек видел итоговую сумму. Та же проверка, что и в /checkout и
+// /checkout-one-time ниже (core/promoCodes.js), так что цена не разойдётся.
+// appliesTo: 'subscription' (страница «Подписка») или 'report' (гостевой
+// тест с лендинга, AnonymousAudit.jsx).
+router.post(
+  '/promo/check',
+  promoRateLimit,
+  requireAuth,
+  requireTenant,
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const appliesTo = req.body?.appliesTo === 'report' ? 'report' : 'subscription';
+    try {
+      const { promo, discountRub, finalRub } = await evaluatePromo({
+        code: req.body?.code,
+        companyId: req.tenant.companyId,
+        appliesTo,
+        priceRub: SUBSCRIPTION_PRICE_RUB,
+      });
+      res.json({ code: promo.code, priceRub: SUBSCRIPTION_PRICE_RUB, discountRub, finalRub });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  })
+);
 
 // Оформление подписки — создаёт первый платёж и просит ЮKassa сохранить
 // способ оплаты, чтобы дальше списывать автоматически раз в месяц
@@ -56,6 +95,24 @@ router.post(
   requireTenant,
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
+    // Промокод (09.10.2026) — снижает только сумму ЭТОГО первого платежа.
+    // subscription_price_rub ниже остаётся полной ценой: по ней идут
+    // автопродления, так скидка и не переходит на следующие месяцы.
+    let promoResult = null;
+    if (req.body?.promoCode) {
+      try {
+        promoResult = await evaluatePromo({
+          code: req.body.promoCode,
+          companyId: req.tenant.companyId,
+          appliesTo: 'subscription',
+          priceRub: SUBSCRIPTION_PRICE_RUB,
+        });
+      } catch (err) {
+        if (err.status) return res.status(err.status).json({ error: err.message });
+        throw err;
+      }
+    }
+
     const { rows } = await pool.query(
       `UPDATE companies SET subscription_price_rub = $2 WHERE id = $1 RETURNING name`,
       [req.tenant.companyId, SUBSCRIPTION_PRICE_RUB]
@@ -63,11 +120,15 @@ router.post(
     const company = rows[0];
     const payment = await startCheckout({
       companyId: req.tenant.companyId,
-      description: `Подписка «Безопасный бизнес» — ${company.name}`,
+      description: promoResult
+        ? `Подписка «Безопасный бизнес» — ${company.name} (первый месяц, промокод ${promoResult.promo.code})`
+        : `Подписка «Безопасный бизнес» — ${company.name}`,
       returnUrl: `${process.env.FRONTEND_URL}/subscription?payment=done`,
       savePaymentMethod: true,
       receiptEmail: req.user.email,
-      amountRub: SUBSCRIPTION_PRICE_RUB,
+      amountRub: promoResult ? promoResult.finalRub : SUBSCRIPTION_PRICE_RUB,
+      promoCodeId: promoResult?.promo.id,
+      discountRub: promoResult?.discountRub,
     });
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
   })
@@ -99,6 +160,23 @@ router.post(
       [reportId, req.tenant.companyId]
     );
     if (reportRows.length === 0) return res.status(404).json({ error: 'Отчёт не найден' });
+
+    // Промокод на отчёт (09.10.2026) — проверяем до того, как трогать email
+    // гостя ниже: неверный код не должен наполовину сохранять данные.
+    let promoResult = null;
+    if (req.body?.promoCode) {
+      try {
+        promoResult = await evaluatePromo({
+          code: req.body.promoCode,
+          companyId: req.tenant.companyId,
+          appliesTo: 'report',
+          priceRub: SUBSCRIPTION_PRICE_RUB,
+        });
+      } catch (err) {
+        if (err.status) return res.status(err.status).json({ error: err.message });
+        throw err;
+      }
+    }
 
     // Гость анонимного аудита (platform/anonymous-audit.routes.js,
     // 19.08.2026) — здесь, а не при создании гостевого аккаунта, впервые
@@ -146,12 +224,16 @@ router.post(
     // него нет пароля.
     const payment = await startCheckout({
       companyId: req.tenant.companyId,
-      description: `Разовая покупка отчёта «Безопасный бизнес» — ${company.name}`,
+      description: promoResult
+        ? `Разовая покупка отчёта «Безопасный бизнес» — ${company.name} (промокод ${promoResult.promo.code})`
+        : `Разовая покупка отчёта «Безопасный бизнес» — ${company.name}`,
       returnUrl: `${process.env.FRONTEND_URL}/audit?payment=done`,
       savePaymentMethod: false,
       reportId,
       receiptEmail,
-      amountRub: SUBSCRIPTION_PRICE_RUB,
+      amountRub: promoResult ? promoResult.finalRub : SUBSCRIPTION_PRICE_RUB,
+      promoCodeId: promoResult?.promo.id,
+      discountRub: promoResult?.discountRub,
     });
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
   })

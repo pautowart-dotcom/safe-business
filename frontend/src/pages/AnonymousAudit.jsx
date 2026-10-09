@@ -335,9 +335,53 @@ function GuestQuickDeadlinePrompt() {
   );
 }
 
+// Поле промокода перед оплатой отчёта (09.10.2026). Свёрнуто в ссылку
+// «Есть промокод?», чтобы не отвлекать тех, у кого кода нет. Отдельная
+// форма не нужна — Enter в поле применяет код, а не уходит в оплату.
+function PromoField({ input, setInput, promo, error, checking, onApply, onRemove }) {
+  const [open, setOpen] = useState(false);
+  if (promo) {
+    return (
+      <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 13 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+          <span>Промокод <b>{promo.code}</b></span>
+          <button onClick={onRemove} style={{ background: 'none', border: 'none', color: C.subtle, cursor: 'pointer', fontSize: 12, padding: 0 }}>убрать</button>
+        </div>
+        <div style={{ marginTop: 4, color: C.secondary }}>
+          Отчёт — <b>{promo.finalRub} ₽</b> вместо {promo.priceRub} ₽
+        </div>
+      </div>
+    );
+  }
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{ display: 'block', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 12 }}>
+        Есть промокод?
+      </button>
+    );
+  }
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <TextInput
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onApply(); } }}
+          placeholder="Промокод"
+          autoFocus
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        <Btn variant="secondary" onClick={onApply} disabled={checking || !input.trim()}>{checking ? '…' : 'Применить'}</Btn>
+      </div>
+      {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
 function ResultStep({
   result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
   onPay, paying, onClaimFree, claiming, claimed, error,
+  promoInput, setPromoInput, promo, promoError, promoChecking, onApplyPromo, onRemovePromo,
   websiteUrl, setWebsiteUrl, websiteEmail, setWebsiteEmail, websiteAcceptedTerms, setWebsiteAcceptedTerms,
   onPayWebsiteCheck, payingWebsiteCheck, websiteCheckError,
 }) {
@@ -406,9 +450,15 @@ function ResultStep({
           <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
         </label>
+        <PromoField
+          input={promoInput} setInput={setPromoInput} promo={promo} error={promoError}
+          checking={promoChecking} onApply={onApplyPromo} onRemove={onRemovePromo}
+        />
         {error && <div className="alert alert-error">{error}</div>}
       </Card>
-      <StickyFooterButton onClick={onPay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${PRICE_RUB} ₽`}</StickyFooterButton>
+      <StickyFooterButton onClick={onPay} disabled={paying}>
+        {paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${promo ? promo.finalRub : PRICE_RUB} ₽`}
+      </StickyFooterButton>
       {/* 02.09.2026, живой разбор воронки: раньше эта ссылка стояла прямо
           над платной кнопкой, тем же цветом и весом (C.primary, стрелка →),
           что делало её визуально равноценной альтернативой оплате — из 47
@@ -554,6 +604,34 @@ export default function AnonymousAudit() {
     }
   }
 
+  // Промокод на отчёт (09.10.2026) — основной поток идёт через этот тест,
+  // поэтому поле здесь, перед оплатой. Сервер проверяет код ещё раз сам
+  // при /checkout-one-time — сумма в кнопке и в ЮKassa не разойдутся.
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoChecking, setPromoChecking] = useState(false);
+
+  async function applyPromo() {
+    if (!promoInput.trim()) return;
+    setPromoChecking(true);
+    setPromoError('');
+    try {
+      const { data } = await guestApi.post('/platform/subscription/promo/check', { code: promoInput, appliesTo: 'report' });
+      setPromo(data);
+    } catch (err) {
+      setPromo(null);
+      setPromoError(err.response?.data?.error || 'Не удалось проверить промокод');
+    } finally {
+      setPromoChecking(false);
+    }
+  }
+  function removePromo() {
+    setPromo(null);
+    setPromoInput('');
+    setPromoError('');
+  }
+
   async function pay() {
     if (!email || !email.includes('@')) {
       setError('Укажите email');
@@ -571,6 +649,7 @@ export default function AnonymousAudit() {
         email,
         acceptedTerms,
         analyticsConsent,
+        ...(promo ? { promoCode: promo.code } : {}),
       });
       reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
@@ -686,6 +765,8 @@ export default function AnonymousAudit() {
           onPay={pay} paying={paying}
           onClaimFree={claimFree} claiming={claiming} claimed={claimed}
           error={error}
+          promoInput={promoInput} setPromoInput={setPromoInput} promo={promo} promoError={promoError}
+          promoChecking={promoChecking} onApplyPromo={applyPromo} onRemovePromo={removePromo}
           websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl}
           websiteEmail={websiteEmail} setWebsiteEmail={setWebsiteEmail}
           websiteAcceptedTerms={websiteAcceptedTerms} setWebsiteAcceptedTerms={setWebsiteAcceptedTerms}
