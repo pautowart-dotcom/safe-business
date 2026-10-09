@@ -34,7 +34,7 @@ function RoadmapLeadCard({ lead }) {
     setBusy(true);
     setResult(null);
     try {
-      const { data } = await api.post(`/platform/admin/roadmap-leads/${lead.orderId}/recheck`);
+      const { data } = await api.post(`/platform/admin/roadmap-leads/${lead.orderId}/recheck`, null, { silent: true });
       setResult({ ok: true, resultUrl: data.resultUrl });
     } catch (err) {
       setResult({ error: err.response?.data?.error || 'Не получилось проверить платёж' });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Badge, Btn, Field, TextInput, C } from '../ui/components.jsx';
 
@@ -40,7 +41,7 @@ export default function PromoCodes() {
 
   function load() {
     return api
-      .get('/platform/admin-promo-codes')
+      .get('/platform/admin-promo-codes', { silent: true })
       .then(({ data: d }) => setData(d))
       .catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить промокоды'));
   }
@@ -53,7 +54,7 @@ export default function PromoCodes() {
     setSaving(true);
     setFormError('');
     try {
-      await api.post('/platform/admin-promo-codes', form);
+      await api.post('/platform/admin-promo-codes', form, { silent: true });
       setForm(null);
       load();
     } catch (err) {
@@ -65,7 +66,7 @@ export default function PromoCodes() {
 
   async function patch(id, body) {
     try {
-      await api.patch(`/platform/admin-promo-codes/${id}`, body);
+      await api.patch(`/platform/admin-promo-codes/${id}`, body, { silent: true });
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить');
@@ -207,7 +208,7 @@ export default function PromoCodes() {
                 {payments[c.id]?.map((p) => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0' }}>
                     <span>
-                      {p.companyName}
+                      <Link to={`/companies/${p.companyId}`} style={{ color: C.primary }}>{p.companyName}</Link>
                       {p.isTest && <span style={{ color: C.purple }}> · тест</span>}
                       <span style={{ color: C.subtle }}> · {new Date(p.createdAt).toLocaleDateString('ru-RU')}</span>
                     </span>

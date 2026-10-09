@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { Btn, Card, Field, TextArea, C } from '../ui/components.jsx';
 import Linkify from '../ui/Linkify.jsx';
@@ -19,7 +20,7 @@ function ReplyForm({ request, onSent }) {
     setError('');
     setDrafting(true);
     try {
-      const { data } = await api.post(`/platform/admin/support-requests/${request.id}/draft-reply`);
+      const { data } = await api.post(`/platform/admin/support-requests/${request.id}/draft-reply`, null, { silent: true });
       setReplyText(data.draft);
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось получить черновик');
@@ -36,7 +37,7 @@ function ReplyForm({ request, onSent }) {
       const { data } = await api.post(`/platform/admin/support-requests/${request.id}/reply`, {
         replyText,
         resolutionNote,
-      });
+      }, { silent: true });
       onSent(data);
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось отправить ответ');
@@ -71,7 +72,17 @@ function RequestCard({ request, onUpdate }) {
   return (
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>{request.user_name || '—'}{request.company_name ? ` · ${request.company_name}` : ''}</div>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>
+          {request.user_name || '—'}
+          {request.company_name && (
+            <>
+              {' · '}
+              {request.company_id ? (
+                <Link to={`/companies/${request.company_id}`} style={{ color: C.primary }}>{request.company_name}</Link>
+              ) : request.company_name}
+            </>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{
             fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
@@ -122,26 +133,44 @@ function RequestCard({ request, onUpdate }) {
 
 export default function Support() {
   const [requests, setRequests] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  // 09.10.2026: решённые обращения шли тем же списком под открытыми — чтобы
+  // увидеть, что ещё ждёт ответа, приходилось листать. По умолчанию открытые.
+  const [filter, setFilter] = useState('open');
 
   useEffect(() => {
-    api.get('/platform/admin/support-requests').then((res) => setRequests(res.data));
+    api
+      .get('/platform/admin/support-requests', { silent: true })
+      .then((res) => setRequests(res.data))
+      .catch((err) => setLoadError(err.response?.data?.error || 'Не удалось загрузить обращения'));
   }, []);
 
   function handleUpdate(updated) {
     setRequests((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
   }
 
+  if (loadError) return <div className="alert alert-error">{loadError}</div>;
   if (!requests) return <div className="page-loading">Загрузка...</div>;
 
   const openCount = requests.filter((r) => r.status !== 'resolved').length;
+  const visible = filter === 'open' ? requests.filter((r) => r.status !== 'resolved') : requests;
+  const chip = (active) => ({
+    background: active ? C.primary : C.surface, color: active ? '#FFF' : C.secondary,
+    border: `1px solid ${active ? C.primary : C.border}`, borderRadius: 10, padding: '7px 12px',
+    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  });
 
   return (
     <div>
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>Поддержка ({openCount} открыто из {requests.length})</div>
-      {requests.length === 0 ? (
-        <div style={{ fontSize: 13, color: C.subtle }}>Обращений пока нет</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>Поддержка</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setFilter('open')} style={chip(filter === 'open')}>Ждут ответа ({openCount})</button>
+        <button onClick={() => setFilter('all')} style={chip(filter === 'all')}>Все ({requests.length})</button>
+      </div>
+      {visible.length === 0 ? (
+        <div style={{ fontSize: 13, color: C.subtle }}>{requests.length === 0 ? 'Обращений пока нет' : 'Всё отвечено 👍'}</div>
       ) : (
-        requests.map((r) => <RequestCard key={r.id} request={r} onUpdate={handleUpdate} />)
+        visible.map((r) => <RequestCard key={r.id} request={r} onUpdate={handleUpdate} />)
       )}
     </div>
   );

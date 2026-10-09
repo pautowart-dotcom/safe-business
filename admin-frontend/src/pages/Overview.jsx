@@ -93,7 +93,7 @@ function NotificationsCard() {
     setPushError('');
     setTestResult('');
     try {
-      await api.post('/platform/admin/push/test');
+      await api.post('/platform/admin/push/test', null, { silent: true });
       setTestResult('Отправлено');
     } catch (err) {
       setPushError(err.response?.data?.error || 'Не удалось отправить');
@@ -139,7 +139,7 @@ export default function Overview() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/platform/admin/metrics').then((res) => setMetrics(res.data)).catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
+    api.get('/platform/admin/metrics', { silent: true }).then((res) => setMetrics(res.data)).catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
   }, []);
 
   if (error) return <div className="alert alert-error">{error}</div>;
@@ -151,7 +151,9 @@ export default function Overview() {
 
       <NotificationsCard />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+      {/* auto-fill вместо repeat(3, 1fr) (09.10.2026) — на телефоне три
+          колонки по ~100px сжимали числа и подписи в нечитаемую кашу. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
         <StatTile label="Компаний всего" value={metrics.totalCompanies} onNavigate={() => navigate('/companies')} />
         <StatTile label="Новых за 7 дней" value={metrics.newLast7Days} hint={`${metrics.newLast30Days} за 30 дней`} onNavigate={() => navigate('/companies')} />
         <StatTile label="Активны за 7 дней" value={metrics.activeLast7Days} hint="хотя бы одно действие в системе" onNavigate={() => navigate('/companies')} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Badge, ST, C } from '../ui/components.jsx';
 
@@ -51,11 +52,16 @@ export default function Finance() {
   const [data, setData] = useState(null);
   const [typeFilter, setTypeFilter] = useState('all');
   const [query, setQuery] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    api.get('/platform/admin/finance').then((res) => setData(res.data));
+    api
+      .get('/platform/admin/finance', { silent: true })
+      .then((res) => setData(res.data))
+      .catch((err) => setLoadError(err.response?.data?.error || 'Не удалось загрузить финансы'));
   }, []);
 
+  if (loadError) return <div className="alert alert-error">{loadError}</div>;
   if (!data) return <div className="page-loading">Загрузка...</div>;
 
   const { grand, byType, transactions } = data;
@@ -127,7 +133,13 @@ export default function Finance() {
           <Card key={`${t.type}-${t.id}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{t.ownerName || (t.ownerKind === 'lead' ? 'Анонимный лид' : 'Компания удалена')}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  {t.ownerKind === 'company' && t.ownerName ? (
+                    <Link to={`/companies/${t.ownerId}`} style={{ color: C.primary, textDecoration: 'none' }}>{t.ownerName} ›</Link>
+                  ) : (
+                    t.ownerName || (t.ownerKind === 'lead' ? 'Анонимный лид' : 'Компания удалена')
+                  )}
+                </div>
                 <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
                   {t.typeLabel}{t.isRecurringCharge ? ' · автосписание' : ''}
                 </div>

@@ -31,6 +31,16 @@ api.interceptors.response.use(
       if (window.location.pathname !== '/office/login') {
         window.location.href = '/office/login';
       }
+    } else if (!error.config?.silent) {
+      // 09.10.2026: большинство экранов ловили ошибки молча (`.then` без
+      // `.catch`, `try/finally` без `catch`) — кнопка просто "ничего не
+      // делала", а экран висел на "Загрузка...". Общее всплывающее
+      // сообщение показывает Layout.jsx (ApiErrorToast). Запрос с
+      // { silent: true } в конфиге — экран сам показывает ошибку.
+      const message = error.response?.data?.error
+        || (error.code === 'ECONNABORTED' ? 'Сервер не ответил за 20 секунд' : null)
+        || (!error.response ? 'Нет связи с сервером' : `Ошибка сервера (${error.response.status})`);
+      window.dispatchEvent(new CustomEvent('admin-api-error', { detail: message }));
     }
     return Promise.reject(error);
   }

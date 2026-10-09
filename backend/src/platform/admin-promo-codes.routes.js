@@ -164,7 +164,7 @@ router.get(
   '/:id/payments',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT sp.id, c.name AS "companyName", c.is_test AS "isTest", sp.amount_rub AS "amountRub",
+      `SELECT sp.id, c.id AS "companyId", c.name AS "companyName", c.is_test AS "isTest", sp.amount_rub AS "amountRub",
               sp.discount_rub AS "discountRub", sp.status, sp.created_at AS "createdAt"
        FROM subscription_payments sp JOIN companies c ON c.id = sp.company_id
        WHERE sp.promo_code_id = $1

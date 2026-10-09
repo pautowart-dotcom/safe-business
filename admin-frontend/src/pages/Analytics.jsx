@@ -67,8 +67,8 @@ export default function Analytics() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/platform/admin/analytics'),
-      api.get('/platform/admin/sellable-stats'),
+      api.get('/platform/admin/analytics', { silent: true }),
+      api.get('/platform/admin/sellable-stats', { silent: true }),
     ])
       .then(([analyticsRes, sellableRes]) => {
         setData(analyticsRes.data);

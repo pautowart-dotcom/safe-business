@@ -11,7 +11,7 @@ export default function AiUnanswered() {
 
   useEffect(() => {
     api
-      .get('/platform/admin/ai-unanswered')
+      .get('/platform/admin/ai-unanswered', { silent: true })
       .then(({ data }) => setRows(data))
       .catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить список'));
   }, []);

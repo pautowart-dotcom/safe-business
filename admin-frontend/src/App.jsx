@@ -43,6 +43,7 @@ export default function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="promo-codes" element={<PromoCodes />} />
         <Route path="companies" element={<Companies />} />
+        <Route path="companies/:id" element={<Companies />} />
         <Route path="roadmap-leads" element={<RoadmapLeads />} />
         <Route path="ai-unanswered" element={<AiUnanswered />} />
         <Route path="ai-manager" element={<AiManager />} />

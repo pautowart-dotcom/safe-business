@@ -37,6 +37,23 @@ router.use(requireAuth, requireSuperAdmin);
 // не факт из платёжной системы (её ещё нет, оплата активируется вручную).
 const CURRENT_PRICE_RUB = 1990;
 
+// Счётчики для меню кабинета (09.10.2026) — "что ждёт меня": открытые
+// обращения, кандидаты изменений закона на разбор, вопросы ИИ без ответа за
+// неделю. Один лёгкий запрос на загрузку меню, без содержимого.
+router.get(
+  '/nav-counts',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM support_requests WHERE status = 'open') AS support,
+         (SELECT COUNT(*) FROM law_change_candidates WHERE status = 'pending') AS law,
+         (SELECT COUNT(*) FROM ai_unanswered_questions WHERE created_at > now() - interval '7 days') AS ai_unanswered`
+    );
+    const r = rows[0];
+    res.json({ support: Number(r.support), law: Number(r.law), aiUnanswered: Number(r.ai_unanswered) });
+  })
+);
+
 router.get(
   '/metrics',
   asyncHandler(async (req, res) => {
@@ -331,7 +348,11 @@ router.get(
     // добавлены для поиска на фронте (Companies.jsx) по email/телефону
     // владельца, не только по названию/id.
     const { rows } = await pool.query(
+      // last_activity_at (09.10.2026) — для сортировки/подсветки "давно не
+      // заходили" прямо в списке, без захода в карточку каждой компании.
       `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test,
+              c.subscription_current_period_end,
+              (SELECT MAX(el.created_at) FROM event_log el WHERE el.company_id = c.id) AS last_activity_at,
               (SELECT COUNT(*) FROM branches b WHERE b.company_id = c.id) AS branch_count,
               (SELECT COUNT(*) FROM memberships m WHERE m.company_id = c.id AND m.invite_status = 'active') AS member_count,
               owner.name AS owner_name, owner.email AS owner_email, owner.phone AS owner_phone,
@@ -405,7 +426,11 @@ router.get(
   '/companies/:id',
   asyncHandler(async (req, res) => {
     const companyResult = await pool.query(
+      // subscription_current_period_end (09.10.2026) — карточка компании
+      // (Companies.jsx) показывает "оплачено до", но поле сюда не выбиралось,
+      // и дата не появлялась никогда.
       `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test, c.free_addons,
+              c.subscription_current_period_end,
               EXISTS (
                 SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
                 WHERE m.company_id = c.id AND m.role = 'owner' AND u.is_guest = true
@@ -467,8 +492,10 @@ router.get(
       // письма ЮKassa. report_id связывает разовый платёж с конкретным
       // отчётом из reports выше (сопоставляется на фронте).
       pool.query(
-        `SELECT id, amount_rub, status, is_recurring_charge, report_id, created_at, confirmed_at
-         FROM subscription_payments WHERE company_id = $1 ORDER BY created_at DESC`,
+        `SELECT sp.id, sp.amount_rub, sp.status, sp.is_recurring_charge, sp.report_id, sp.created_at, sp.confirmed_at,
+                sp.discount_rub, pc.code AS promo_code
+         FROM subscription_payments sp LEFT JOIN promo_codes pc ON pc.id = sp.promo_code_id
+         WHERE sp.company_id = $1 ORDER BY sp.created_at DESC`,
         [req.params.id]
       ),
     ]);
@@ -686,7 +713,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT sr.id, sr.message, sr.email, sr.created_at, sr.status, sr.reply_text,
-              sr.resolution_note, sr.replied_at, u.name AS user_name, c.name AS company_name
+              sr.resolution_note, sr.replied_at, u.name AS user_name, c.name AS company_name, sr.company_id
        FROM support_requests sr
        LEFT JOIN users u ON u.id = sr.user_id
        LEFT JOIN companies c ON c.id = sr.company_id

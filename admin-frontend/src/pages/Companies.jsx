@@ -1,18 +1,42 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Badge, BackBtn, C } from '../ui/components.jsx';
 
 const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
 const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
 const MODULE_LABELS = { visits: 'Визиты', clients: 'Клиенты', finance: 'Финансы', security: 'Безопасность', supplies: 'Склад', checklists: 'Чек-листы', knowledge: 'База знаний', platform: 'Платформа (вход, команда)', other: 'Прочее' };
+const ROLE_LABELS = { owner: 'владелец', admin: 'администратор', master: 'мастер' };
 
 function daysAgo(dateStr) {
   if (!dateStr) return null;
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function activityLabel(dateStr) {
+  const d = daysAgo(dateStr);
+  if (d == null) return 'не заходили';
+  if (d === 0) return 'активность сегодня';
+  return `активность ${d} дн. назад`;
+}
+
+// Кнопки действий в карточке компании — раньше у каждой был свой длинный
+// inline-стиль, отличались только цветом.
+function ActionBtn({ color, onClick, disabled, children }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{ background: 'none', border: `1px solid ${color}`, color, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function CompanyDetail({ id, onBack, onDeleted }) {
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [updatingSubscription, setUpdatingSubscription] = useState(false);
   const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
@@ -20,7 +44,11 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   const [updatingFreeAddons, setUpdatingFreeAddons] = useState(false);
 
   function load() {
-    api.get(`/platform/admin/companies/${id}`).then((res) => setData(res.data));
+    setLoadError('');
+    api
+      .get(`/platform/admin/companies/${id}`, { silent: true })
+      .then((res) => setData(res.data))
+      .catch((err) => setLoadError(err.response?.data?.error || 'Не удалось загрузить компанию'));
   }
 
   useEffect(load, [id]);
@@ -95,6 +123,14 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     }
   }
 
+  if (loadError) {
+    return (
+      <div>
+        <BackBtn onClick={onBack} label="К списку компаний" />
+        <div className="alert alert-error">{loadError}</div>
+      </div>
+    );
+  }
   if (!data) return <div className="page-loading">Загрузка...</div>;
   const { company, memberships, modules, addons, activityByModule, recentActivity, reports, payments } = data;
   const lastActivityAt = activityByModule.length > 0
@@ -118,48 +154,30 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         {company.subscription_current_period_end && ` · оплачено до ${new Date(company.subscription_current_period_end).toLocaleDateString('ru-RU')}`}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      {/* flexWrap (09.10.2026) — на телефоне 4 кнопки в один ряд уезжали за
+          правый край экрана, последние было не нажать. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {company.subscription_status !== 'active' && (
-          <button
-            onClick={() => setSubscription('active', 365)}
-            disabled={updatingSubscription}
-            style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          >
+          <ActionBtn color={C.green} onClick={() => setSubscription('active', 365)} disabled={updatingSubscription}>
             Отметить оплаченной вручную (365 дн.)
-          </button>
+          </ActionBtn>
         )}
         {company.subscription_status !== 'active' && (
-          <button
-            onClick={() => setSubscription('active', 60)}
-            disabled={updatingSubscription}
-            style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          >
+          <ActionBtn color={C.green} onClick={() => setSubscription('active', 60)} disabled={updatingSubscription}>
             Оплачено на 2 месяца
-          </button>
+          </ActionBtn>
         )}
         {company.subscription_status === 'active' && (
-          <button
-            onClick={() => setSubscription('trial')}
-            disabled={updatingSubscription}
-            style={{ background: 'none', border: `1px solid ${C.border}`, color: C.secondary, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          >
+          <ActionBtn color={C.secondary} onClick={() => setSubscription('trial')} disabled={updatingSubscription}>
             Снять ручную отметку
-          </button>
+          </ActionBtn>
         )}
-        <button
-          onClick={toggleTestFlag}
-          disabled={updatingTestFlag}
-          style={{ background: 'none', border: `1px solid ${C.purple}`, color: C.purple, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-        >
+        <ActionBtn color={C.purple} onClick={toggleTestFlag} disabled={updatingTestFlag}>
           {company.is_test ? 'Убрать пометку теста' : 'Пометить как тестовую'}
-        </button>
-        <button
-          onClick={toggleFreeAddons}
-          disabled={updatingFreeAddons}
-          style={{ background: 'none', border: `1px solid ${C.green}`, color: C.green, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-        >
+        </ActionBtn>
+        <ActionBtn color={C.green} onClick={toggleFreeAddons} disabled={updatingFreeAddons}>
           {company.free_addons ? 'Выключить ИИ-советников бесплатно' : 'Включить ИИ-советников бесплатно'}
-        </button>
+        </ActionBtn>
       </div>
 
       <Card>
@@ -204,6 +222,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
                 {p.amount_rub.toLocaleString('ru-RU')} ₽
                 <span style={{ color: C.subtle }}>
                   {' · '}{p.report_id ? 'разовая покупка отчёта' : p.is_recurring_charge ? 'автосписание подписки' : 'подписка'}
+                  {p.promo_code && ` · промокод ${p.promo_code} (−${p.discount_rub} ₽)`}
                   {' · '}{new Date(p.created_at).toLocaleDateString('ru-RU')}
                 </span>
               </span>
@@ -245,7 +264,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         {memberships.map((m) => (
           <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
             <span>{m.user_name || '—'}{m.user_email ? ` · ${m.user_email}` : ''}{!m.user_name && !m.user_email ? 'Приглашение отправлено' : ''}</span>
-            <span style={{ color: C.subtle }}>{m.role}{m.invite_status === 'pending' ? ' · ожидает' : ''}</span>
+            <span style={{ color: C.subtle }}>{ROLE_LABELS[m.role] || m.role}{m.invite_status === 'pending' ? ' · ожидает' : ''}</span>
           </div>
         ))}
       </Card>
@@ -254,7 +273,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Модули</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {modules.map((m) => (
-            <Badge key={m.module_key} color={m.enabled ? C.green : C.subtle} bg={m.enabled ? C.greenBg : C.surface}>{m.module_key}</Badge>
+            <Badge key={m.module_key} color={m.enabled ? C.green : C.subtle} bg={m.enabled ? C.greenBg : C.surface}>{MODULE_LABELS[m.module_key] || m.module_key}</Badge>
           ))}
         </div>
       </Card>
@@ -305,81 +324,150 @@ function matchesQuery(c, query) {
   return haystack.includes(q);
 }
 
+const STATUS_FILTERS = [
+  ['all', 'Все'],
+  ['active', 'Оплачено'],
+  ['trial', 'Пробный'],
+  ['problem', 'Просрочено / отменено'],
+];
+
+function chipStyle(active) {
+  return {
+    background: active ? C.primary : C.surface, color: active ? '#FFF' : C.secondary,
+    border: `1px solid ${active ? C.primary : C.border}`, borderRadius: 10, padding: '8px 14px',
+    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  };
+}
+
 export default function Companies() {
+  // 09.10.2026: выбранная компания, вкладка и поиск жили только в useState —
+  // "назад" в браузере, обновление страницы или ссылка на компанию из
+  // другого раздела выкидывали к началу списка с пустым поиском. Теперь
+  // компания — в адресе (/companies/:id), фильтры — в ?параметрах.
+  const { id: selectedId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [companies, setCompanies] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const [query, setQuery] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const query = searchParams.get('q') || '';
   // Раздел (03.09.2026, владелец: "гости отдельно, кто зарегистрировался
   // отдельно") — гость анонимного аудита/лендинга (is_guest_owner) технически
   // та же таблица companies, но по смыслу совсем другая аудитория (ещё не
   // решили остаться), смешанный список было тяжело просматривать.
-  const [tab, setTab] = useState('registered'); // 'registered' | 'guest'
+  const tab = searchParams.get('tab') === 'guest' ? 'guest' : 'registered';
+  const status = searchParams.get('status') || 'all';
+  const hideTest = searchParams.get('test') !== 'show';
+  const sort = searchParams.get('sort') === 'activity' ? 'activity' : 'created';
 
-  function load() {
-    api.get('/platform/admin/companies').then((res) => setCompanies(res.data));
+  function setParam(key, value, defaultValue) {
+    const next = new URLSearchParams(searchParams);
+    if (value === defaultValue || value === '') next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: true });
   }
 
-  useEffect(load, []);
+  function load() {
+    setLoadError('');
+    api
+      .get('/platform/admin/companies', { silent: true })
+      .then((res) => setCompanies(res.data))
+      .catch((err) => setLoadError(err.response?.data?.error || 'Не удалось загрузить список компаний'));
+  }
+
+  // Перезагружаем при каждом возврате к списку — в карточке могли пометить
+  // компанию тестовой/оплаченной, список не должен показывать старое.
+  useEffect(() => {
+    if (!selectedId) load();
+  }, [selectedId]);
+
+  // Назад — по истории браузера, чтобы вернуться ровно туда, откуда пришли
+  // (список с тем же поиском/фильтром, промокоды и т.п.); если карточку
+  // открыли прямой ссылкой — истории нет, тогда просто к списку.
+  function backToList() {
+    if (location.key !== 'default') navigate(-1);
+    else navigate('/companies');
+  }
 
   if (selectedId) {
     return (
       <CompanyDetail
         id={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={backToList}
         onDeleted={() => {
-          setSelectedId(null);
+          navigate('/companies', { replace: true });
           load();
         }}
       />
     );
   }
 
+  if (loadError) return <div className="alert alert-error">{loadError}</div>;
   if (!companies) return <div className="page-loading">Загрузка...</div>;
 
   const byTab = companies.filter((c) => (tab === 'guest' ? c.is_guest_owner : !c.is_guest_owner));
-  const visible = byTab.filter((c) => matchesQuery(c, query));
+  // Тестовые скрыты по умолчанию (шум в списке клиентов), но поиск находит
+  // и их — иначе свою тестовую студию не найти по названию.
+  const byTest = hideTest && !query.trim() ? byTab.filter((c) => !c.is_test) : byTab;
+  const byStatus = byTest.filter((c) => {
+    if (status === 'all') return true;
+    if (status === 'problem') return c.subscription_status === 'past_due' || c.subscription_status === 'cancelled';
+    return c.subscription_status === status;
+  });
+  const visible = byStatus.filter((c) => matchesQuery(c, query));
+  if (sort === 'activity') {
+    visible.sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0));
+  }
   const guestCount = companies.filter((c) => c.is_guest_owner).length;
   const registeredCount = companies.length - guestCount;
+  const testCount = byTab.filter((c) => c.is_test).length;
 
   return (
     <div>
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>Компании ({companies.length})</div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <button
-          onClick={() => setTab('registered')}
-          style={{
-            background: tab === 'registered' ? C.primary : C.surface, color: tab === 'registered' ? '#FFF' : C.secondary,
-            border: `1px solid ${tab === 'registered' ? C.primary : C.border}`, borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <button onClick={() => setParam('tab', 'registered', 'registered')} style={chipStyle(tab === 'registered')}>
           Зарегистрированные ({registeredCount})
         </button>
-        <button
-          onClick={() => setTab('guest')}
-          style={{
-            background: tab === 'guest' ? C.primary : C.surface, color: tab === 'guest' ? '#FFF' : C.secondary,
-            border: `1px solid ${tab === 'guest' ? C.primary : C.border}`, borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
+        <button onClick={() => setParam('tab', 'guest', 'registered')} style={chipStyle(tab === 'guest')}>
           Гости ({guestCount})
         </button>
       </div>
 
       <input
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => setParam('q', e.target.value, '')}
         placeholder="Поиск: название, ID, email, телефон..."
-        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, fontSize: 13, marginBottom: 16, boxSizing: 'border-box' }}
+        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
       />
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+        {STATUS_FILTERS.map(([k, l]) => (
+          <button key={k} onClick={() => setParam('status', k, 'all')} style={{ ...chipStyle(status === k), padding: '5px 10px', fontSize: 12 }}>{l}</button>
+        ))}
+        <span style={{ flex: 1 }} />
+        <select
+          value={sort}
+          onChange={(e) => setParam('sort', e.target.value, 'created')}
+          style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', fontSize: 12, background: C.bg, color: C.secondary }}
+        >
+          <option value="created">Сначала новые</option>
+          <option value="activity">По последней активности</option>
+        </select>
+        {testCount > 0 && (
+          <label style={{ fontSize: 12, color: C.secondary, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!hideTest} onChange={(e) => setParam('test', e.target.checked ? 'show' : 'hide', 'hide')} />
+            тестовые ({testCount})
+          </label>
+        )}
+      </div>
 
       {visible.length === 0 ? (
         <div style={{ fontSize: 13, color: C.subtle }}>{companies.length === 0 ? 'Пока нет ни одной компании' : 'Ничего не найдено'}</div>
       ) : (
         visible.map((c) => (
-          <Card key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(c.id)}>
+          <Card key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/companies/${c.id}`)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{c.name} <span style={{ fontSize: 12, fontWeight: 400, color: C.subtle }}>#{c.id}</span></div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -391,6 +479,11 @@ export default function Companies() {
             </div>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>
               Регистрация {new Date(c.created_at).toLocaleDateString('ru-RU')} · {c.member_count} сотрудник(ов)
+              {c.owner_email && ` · ${c.owner_email}`}
+            </div>
+            <div style={{ fontSize: 12, color: daysAgo(c.last_activity_at) > 14 || !c.last_activity_at ? C.subtle : C.secondary, marginTop: 3 }}>
+              {activityLabel(c.last_activity_at)}
+              {c.subscription_status === 'active' && c.subscription_current_period_end && ` · оплачено до ${new Date(c.subscription_current_period_end).toLocaleDateString('ru-RU')}`}
             </div>
           </Card>
         ))

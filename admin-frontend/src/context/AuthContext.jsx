@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
   // устройство запоминается, повторный вход с него код уже не спрашивает.
   async function login(email, password) {
     const deviceToken = localStorage.getItem('admin_deviceToken') || undefined;
-    const res = await api.post('/auth/login', { email, password, deviceToken });
+    const res = await api.post('/auth/login', { email, password, deviceToken }, { silent: true });
     if (res.data.requiresDeviceVerification) {
       return res.data; // { requiresDeviceVerification: true, email }
     }
@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
   }
 
   async function verifyCode(email, code) {
-    const res = await api.post('/auth/verify-code', { email, code });
+    const res = await api.post('/auth/verify-code', { email, code }, { silent: true });
     return applyAuthResult(res.data);
   }
 

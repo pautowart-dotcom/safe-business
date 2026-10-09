@@ -41,7 +41,7 @@ export default function LawChangeCandidates() {
   async function generateDraft(id) {
     setDrafting(id);
     try {
-      const { data } = await api.post(`/platform/admin/law-change-candidates/${id}/draft-explanation`);
+      const { data } = await api.post(`/platform/admin/law-change-candidates/${id}/draft-explanation`, null, { silent: true });
       setDrafts((prev) => ({ ...prev, [id]: data.explanation }));
       setSourceFetched((prev) => ({ ...prev, [id]: data.sourceTextFetched }));
     } catch (err) {
@@ -54,7 +54,7 @@ export default function LawChangeCandidates() {
   async function publish(id) {
     setPublishing(id);
     try {
-      await api.post(`/platform/admin/law-change-candidates/${id}/publish`, { explanation: drafts[id] });
+      await api.post(`/platform/admin/law-change-candidates/${id}/publish`, { explanation: drafts[id] }, { silent: true });
       setPublished((prev) => ({ ...prev, [id]: true }));
       load(filter);
     } catch (err) {

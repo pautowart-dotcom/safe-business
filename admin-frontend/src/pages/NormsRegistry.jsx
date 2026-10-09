@@ -12,7 +12,7 @@ export default function NormsRegistry() {
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    api.get('/platform/admin/norms-registry')
+    api.get('/platform/admin/norms-registry', { silent: true })
       .then((res) => setData(res.data))
       .catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить реестр'));
   }, []);

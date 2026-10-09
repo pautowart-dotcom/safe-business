@@ -42,7 +42,7 @@ export default function PatentRates() {
     setSaving(true);
     setError('');
     try {
-      await api.post('/platform/admin/patent-rates', form);
+      await api.post('/platform/admin/patent-rates', form, { silent: true });
       setForm(EMPTY_FORM);
       load();
     } catch (err) {

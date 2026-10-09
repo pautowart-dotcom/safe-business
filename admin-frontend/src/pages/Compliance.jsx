@@ -60,7 +60,7 @@ export default function Compliance() {
   const [error, setError] = useState('');
 
   function load() {
-    api.get('/platform/admin/compliance')
+    api.get('/platform/admin/compliance', { silent: true })
       .then((res) => setItems(res.data.items))
       .catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
   }

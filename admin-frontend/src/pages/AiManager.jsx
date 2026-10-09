@@ -60,7 +60,7 @@ export default function AiManager() {
     setMessages((prev) => [...prev, { role: 'user', content: value }]);
     setInput('');
     try {
-      const res = await api.post('/platform/admin-ai-assistant/chat', { message: value, history });
+      const res = await api.post('/platform/admin-ai-assistant/chat', { message: value, history }, { silent: true });
       setMessages((prev) => [...prev, { role: 'assistant', content: res.data.text }]);
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось получить ответ');
