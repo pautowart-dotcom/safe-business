@@ -20,9 +20,12 @@ router.get(
       params.push(req.query.dateTo);
       where += ` AND occurred_at <= $${params.length}`;
     }
+    // Тот же лимит, что у выручки (revenue.routes.js, 09.10.2026): за явный
+    // период — до 5000 строк, без периода — последние 200.
+    const limit = req.query.dateFrom && req.query.dateTo ? 5000 : 200;
     const { rows } = await pool.query(
       `SELECT id, name, amount, category, channel, occurred_at, created_at FROM expense_entries
-       WHERE ${where} ORDER BY occurred_at DESC LIMIT 200`,
+       WHERE ${where} ORDER BY occurred_at DESC LIMIT ${limit}`,
       params
     );
     res.json(rows);

@@ -22,6 +22,12 @@ router.get(
       params.push(req.query.dateTo);
       where += ` AND fe.occurred_at <= $${params.length}`;
     }
+    // 09.10.2026: раньше всегда LIMIT 200 — у своих студий владельца за месяц
+    // (август) записей больше, и список молча обрезался, а сумма строк не
+    // сходилась с "Итого". За явный период (так зовёт экран "Финансы") отдаём
+    // до 5000 строк — хватает на полгода+ активной студии; без периода — как
+    // раньше, последние 200.
+    const limit = req.query.dateFrom && req.query.dateTo ? 5000 : 200;
     const { rows } = await pool.query(
       `SELECT fe.id, fe.source, fe.visit_id, fe.membership_id, u.name AS master_name,
               fe.amount, fe.comment, fe.occurred_at, fe.created_at
@@ -30,7 +36,7 @@ router.get(
        LEFT JOIN users u ON u.id = m.user_id
        WHERE ${where}
        ORDER BY fe.occurred_at DESC, fe.id DESC
-       LIMIT 200`,
+       LIMIT ${limit}`,
       params
     );
     res.json(rows);

@@ -283,9 +283,14 @@ router.get(
                        OR v.photo_before_url_2 IS NOT NULL OR v.photo_after_url_2 IS NOT NULL)`;
     }
 
+    // 09.10.2026: за явный период (Финансы → мастер, "Мои финансы" мастера
+    // считают заработок по этому списку) 200 визитов обрезали месяц у
+    // активной студии — там до 5000. Без периода (история "Визиты",
+    // фотоотчёты) — как раньше, последние 200.
+    const limit = req.query.dateFrom && req.query.dateTo ? 5000 : 200;
     const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} ${FROM_CLAUSE}
-       WHERE ${where} ORDER BY v.visit_at DESC LIMIT 200`,
+       WHERE ${where} ORDER BY v.visit_at DESC LIMIT ${limit}`,
       params
     );
     res.json(maskOtherMastersEarnings(await attachSupplies(rows), req.tenant));
