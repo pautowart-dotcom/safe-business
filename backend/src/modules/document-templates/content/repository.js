@@ -97,6 +97,13 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/cafe-basic-marketing-consent'),
     require('./templates/cafe-basic-privacy-policy'),
   ],
+  coffee_shop: [
+    require('./templates/coffee-shop'),
+    require('./templates/coffee-shop-pd-consent'),
+    require('./templates/coffee-shop-pd-distribution'),
+    require('./templates/coffee-shop-marketing-consent'),
+    require('./templates/coffee-shop-privacy-policy'),
+  ],
   universal: [
     require('./templates/universal'),
     require('./templates/universal-pd-consent'),

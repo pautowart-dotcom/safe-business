@@ -60,7 +60,8 @@ export const NICHE_OPTIONS = [
   // cafe_basic (paidAudit: true с 10.09.2026) отсутствовал здесь, пока
   // paidAudit было false — тот же класс бага, что с fitness_gym/dance/yoga
   // 09.09.2026 (см. project_pilates_niche_2026_09_09 в памяти).
-  ['cafe_basic', 'Кафе, кофейня, столовая (без алкоголя)', 'food'],
+  ['cafe_basic', 'Кафе, столовая с кухней (без алкоголя)', 'food'],
+  ['coffee_shop', 'Кофейня, кофе с собой (без кухни)', 'food'],
   // Фаза C (30.08.2026) — общий слой для бизнеса без отраслевой ниши
   // (сегменты 'retail'/'other' в backend/.../segments.js используют один и
   // тот же ключ 'universal'). Сегмент здесь — 'other', просто дефолт для

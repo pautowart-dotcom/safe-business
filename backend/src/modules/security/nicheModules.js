@@ -39,6 +39,7 @@ const NICHE_EXTRA_MODULES = {
 // решение принято, не как предположение.
 const NICHE_HIDDEN_MODULES = {
   cafe_basic: ['visits'],
+  coffee_shop: ['visits'],
 };
 
 async function ensureNicheModules(companyId, niches) {

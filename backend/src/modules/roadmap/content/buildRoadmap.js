@@ -29,6 +29,7 @@ const VIOLATIONS_BY_NICHE = {
   cleaning_basic: require('../../security/content/violations/cleaning-basic'),
   barbershop: require('../../security/content/violations/barbershop'),
   cafe_basic: require('../../security/content/violations/cafe-basic'),
+  coffee_shop: require('../../security/content/violations/coffee-shop'),
   fitness_gym: require('../../security/content/violations/fitness-gym'),
   // universal (сегменты "Розничная торговля" и "Другое") добавлен 08.09.2026
   // вместе с этим рефакторингом — контент (violations/universal.js) готов и
