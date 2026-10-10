@@ -216,7 +216,7 @@ const SEGMENTS = [
       // "готовим и продаём здесь же" (не попадает под исключение FD-804 у
       // cafe_basic про поставку в другие точки), см. комментарий в шапке
       // violations/bakery-confectionery.js.
-      { key: 'bakery_confectionery', label: 'Кондитерская и пекарня', paidAudit: true },
+      { key: 'bakery_confectionery', label: 'Пекарня, кондитерская с витриной', paidAudit: true },
     ],
   },
   {
