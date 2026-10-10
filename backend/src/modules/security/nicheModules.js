@@ -40,6 +40,7 @@ const NICHE_EXTRA_MODULES = {
 const NICHE_HIDDEN_MODULES = {
   cafe_basic: ['visits'],
   coffee_shop: ['visits'],
+  street_food: ['visits'],
 };
 
 async function ensureNicheModules(companyId, niches) {

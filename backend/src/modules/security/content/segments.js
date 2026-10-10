@@ -209,6 +209,9 @@ const SEGMENTS = [
       // coffee_shop (10.10.2026) — выделена из cafe_basic: напитки, готовая
       // еда и разогрев без горячей кухни. См. шапку violations/coffee-shop.js.
       { key: 'coffee_shop', label: 'Кофейня, кофе с собой (без кухни)', paidAudit: true },
+      // street_food (10.10.2026) — киоски/павильоны (НТО), шаурма, фудтраки.
+      // См. шапку violations/street-food.js.
+      { key: 'street_food', label: 'Стрит-фуд: шаурма, киоск, фудтрак', paidAudit: true },
       // bakery_confectionery (15.09.2026) — вторая ниша сегмента, формат
       // "готовим и продаём здесь же" (не попадает под исключение FD-804 у
       // cafe_basic про поставку в другие точки), см. комментарий в шапке

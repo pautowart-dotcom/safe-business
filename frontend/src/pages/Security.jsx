@@ -101,6 +101,7 @@ const SEGMENTS = [
     niches: [
       { key: 'cafe_basic', label: 'Кафе, столовая с кухней (без алкоголя)' },
       { key: 'coffee_shop', label: 'Кофейня, кофе с собой (без кухни)' },
+      { key: 'street_food', label: 'Стрит-фуд: шаурма, киоск, фудтрак' },
       { key: 'bakery_confectionery', label: 'Кондитерская и пекарня' },
     ],
   },

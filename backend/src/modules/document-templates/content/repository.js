@@ -104,6 +104,13 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/coffee-shop-marketing-consent'),
     require('./templates/coffee-shop-privacy-policy'),
   ],
+  street_food: [
+    require('./templates/street-food'),
+    require('./templates/street-food-pd-consent'),
+    require('./templates/street-food-pd-distribution'),
+    require('./templates/street-food-marketing-consent'),
+    require('./templates/street-food-privacy-policy'),
+  ],
   universal: [
     require('./templates/universal'),
     require('./templates/universal-pd-consent'),
