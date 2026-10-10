@@ -111,6 +111,13 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/street-food-marketing-consent'),
     require('./templates/street-food-privacy-policy'),
   ],
+  custom_cakes: [
+    require('./templates/custom-cakes'),
+    require('./templates/custom-cakes-pd-consent'),
+    require('./templates/custom-cakes-pd-distribution'),
+    require('./templates/custom-cakes-marketing-consent'),
+    require('./templates/custom-cakes-privacy-policy'),
+  ],
   universal: [
     require('./templates/universal'),
     require('./templates/universal-pd-consent'),

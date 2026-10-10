@@ -217,6 +217,9 @@ const SEGMENTS = [
       // cafe_basic про поставку в другие точки), см. комментарий в шапке
       // violations/bakery-confectionery.js.
       { key: 'bakery_confectionery', label: 'Пекарня, кондитерская с витриной', paidAudit: true },
+      // custom_cakes (10.10.2026) — торты по индивидуальным заказам, в том
+      // числе самозанятые из дома. См. шапку violations/custom-cakes.js.
+      { key: 'custom_cakes', label: 'Кондитер на заказ: торты и десерты', paidAudit: true },
     ],
   },
   {

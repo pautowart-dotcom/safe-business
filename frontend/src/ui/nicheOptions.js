@@ -51,6 +51,7 @@ export const NICHE_OPTIONS = [
   ['renovation_cleaning', 'Уборка после ремонта и стройки', 'cleaning'],
   // bakery_confectionery (15.09.2026) — вторая ниша сегмента "Общепит".
   ['bakery_confectionery', 'Пекарня, кондитерская с витриной', 'food'],
+  ['custom_cakes', 'Кондитер на заказ: торты и десерты', 'food'],
   // pet_grooming (12.09.2026) — первая ниша сегмента "Услуги для животных".
   ['pet_grooming', 'Груминг', 'pets'],
   // pet_boarding (14.09.2026) — вторая ниша сегмента.

@@ -103,6 +103,7 @@ const SEGMENTS = [
       { key: 'coffee_shop', label: 'Кофейня, кофе с собой (без кухни)' },
       { key: 'street_food', label: 'Стрит-фуд: шаурма, киоск, фудтрак' },
       { key: 'bakery_confectionery', label: 'Пекарня, кондитерская с витриной' },
+      { key: 'custom_cakes', label: 'Кондитер на заказ: торты и десерты' },
     ],
   },
   {

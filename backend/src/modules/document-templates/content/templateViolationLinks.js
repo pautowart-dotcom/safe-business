@@ -63,6 +63,8 @@ const NICHE_PREFIX = {
   // без отдельных нарушений оферты и рекламной рассылки.
   coffee_shop: 'CF',
   street_food: 'SF',
+  // custom_cakes (10.10.2026) — ПДн 402-404 из базы кафе, без -405/-406.
+  custom_cakes: 'CK',
   // pilates (09.09.2026) — та же нумерация 402-406, что fitness_gym/dance/
   // yoga (использует ofertaViolation/marketingConsentViolation с суффиксом
   // '406', см. violations/pilates.js) — попадает в общий цикл без
@@ -195,7 +197,7 @@ for (const niche of OFERTA_NICHES) {
 // (блок ПДн заканчивается на FD-404) — включать её в цикл значило бы
 // сослаться на несуществующий код FD-406/FD-405.
 const MARKETING_CODE_SUFFIX = { cleaning_basic: '405', auto_service: '408', renovation_cleaning: '405' };
-const NO_MARKETING_VIOLATION = ['cafe_basic', 'coffee_shop', 'street_food'];
+const NO_MARKETING_VIOLATION = ['cafe_basic', 'coffee_shop', 'street_food', 'custom_cakes'];
 for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
   if (NO_MARKETING_VIOLATION.includes(niche)) continue;
   const suffix = MARKETING_CODE_SUFFIX[niche] || '406';
