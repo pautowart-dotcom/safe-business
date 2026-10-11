@@ -33,7 +33,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('PB'),
+  ...legalBasisCoreQuestions('PB', { notificationActivity: 'передержки животных' }),
   {
     code: 'PB-105',
     block: 1,

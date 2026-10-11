@@ -8,7 +8,7 @@
 // FC-301..304, FC-403, FC-801/802 — новый контент под специфику ниши.
 
 const {
-  personnelReportingQuestion,
+  notificationNotRequiredQuestion, personnelReportingQuestion,
   laborMisrepresentationQuestion,
   ofertaQuestion,
   marketingConsentQuestion,
@@ -30,18 +30,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  {
-    code: 'FC-102',
-    block: 1,
-    text: 'Подано ли уведомление о начале деятельности в Роспотребнадзор?',
-    hint: null,
-    showIf: null,
-    answers: [
-      { label: 'Да', points: 1 },
-      { label: 'Не уверен', points: 0.5 },
-      { label: 'Нет', points: 0 },
-    ],
-  },
+  notificationNotRequiredQuestion('FC', { activity: 'мойки окон и фасадов' }),
   {
     code: 'FC-103',
     block: 1,

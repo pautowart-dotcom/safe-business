@@ -30,7 +30,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('PH'),
+  ...legalBasisCoreQuestions('PH', { notificationActivity: 'услуг фотостудии' }),
 
   // --- Блок 2. Безопасность студии (всегда) ---
   {

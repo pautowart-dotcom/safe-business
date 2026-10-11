@@ -30,7 +30,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('WJ'),
+  ...legalBasisCoreQuestions('WJ', { notificationActivity: 'ремонта часов и ювелирных изделий' }),
   {
     code: 'WJ-105',
     block: 1,

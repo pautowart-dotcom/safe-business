@@ -31,7 +31,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('AR'),
+  ...legalBasisCoreQuestions('AR', { notificationActivity: 'ремонта бытовой техники' }),
   {
     code: 'AR-105',
     block: 1,

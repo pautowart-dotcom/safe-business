@@ -31,7 +31,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('GR'),
+  ...legalBasisCoreQuestions('GR', { notificationActivity: 'груминга' }),
   {
     code: 'GR-105',
     block: 1,

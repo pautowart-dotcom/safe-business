@@ -29,14 +29,35 @@ function personnelReportingQuestion(prefix) {
   };
 }
 
+// -102 для ниш, которых нет в перечне ПП РФ №725 (см. одноимённую функцию
+// в sharedViolationBlocks.js). Ответ «таких видов нет» не создаёт нарушения.
+function notificationNotRequiredQuestion(prefix, { activity }) {
+  return {
+    code: `${prefix}-102`,
+    block: 1,
+    text: 'Ведёте ли вы, кроме основной работы, виды деятельности, для которых нужно уведомление о начале деятельности (розничная торговля продуктами или косметикой в магазине, общепит, пошив одежды, полиграфия)? Если да — подано ли по ним уведомление?',
+    hint: `Для ${activity} само по себе уведомление не требуется — этого вида нет в перечне (приложение №1 к ПП РФ №725, действует с 01.09.2025).`,
+    showIf: null,
+    // Порядок «да / не уверен / нет» как у прежнего вопроса -102: ответы
+    // хранятся по индексу, старые сессии должны показывать тот же смысл.
+    answers: [
+      { label: 'Таких видов нет или уведомление подано', points: 1 },
+      { label: 'Не уверен', points: 0.5 },
+      { label: 'Есть, но уведомление не подано', points: 0 },
+    ],
+  };
+}
+
 // -102/-103/-104 (блок 1) — 8 ниш, кроме cleaning-basic.
-function legalBasisCoreQuestions(prefix) {
+// notificationActivity — для ниш вне перечня ПП №725: вопрос -102
+// заменяется на notificationNotRequiredQuestion.
+function legalBasisCoreQuestions(prefix, { notificationActivity = null, notificationHint = null } = {}) {
   return [
-    {
+    notificationActivity ? notificationNotRequiredQuestion(prefix, { activity: notificationActivity }) : {
       code: `${prefix}-102`,
       block: 1,
       text: 'Подано ли уведомление о начале деятельности в Роспотребнадзор?',
-      hint: null,
+      hint: notificationHint,
       showIf: null,
       answers: [
         { label: 'Да', points: 1 },
@@ -341,6 +362,7 @@ function financialSecurityQuestions(prefix) {
 }
 
 module.exports = {
+  notificationNotRequiredQuestion,
   personnelReportingQuestion,
   legalBasisCoreQuestions,
   laborMisrepresentationQuestion,

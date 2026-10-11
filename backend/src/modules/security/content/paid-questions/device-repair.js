@@ -5,7 +5,7 @@
 // контент под специфику ниши.
 
 const {
-  personnelReportingQuestion,
+  notificationNotRequiredQuestion, personnelReportingQuestion,
   laborMisrepresentationQuestion,
   medicalBooksQuestion,
   personalDataCoreQuestions,
@@ -29,18 +29,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  {
-    code: 'DR-102',
-    block: 1,
-    text: 'Подано ли уведомление о начале деятельности в Роспотребнадзор?',
-    hint: null,
-    showIf: null,
-    answers: [
-      { label: 'Да', points: 1 },
-      { label: 'Не уверен', points: 0.5 },
-      { label: 'Нет', points: 0 },
-    ],
-  },
+  notificationNotRequiredQuestion('DR', { activity: 'ремонта компьютеров и телефонов' }),
   {
     code: 'DR-103',
     block: 1,

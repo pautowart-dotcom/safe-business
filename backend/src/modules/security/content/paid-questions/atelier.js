@@ -31,7 +31,18 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('ATL'),
+  // ATL-102: уведомление нужно только за пошив (ПП РФ №725, см. violations/atelier.js).
+  ...legalBasisCoreQuestions('ATL').map((q) => (q.code !== 'ATL-102' ? q : {
+    ...q,
+    hint: 'Уведомление нужно, если вы шьёте одежду. Для одного ремонта и подгонки одежды оно не требуется.',
+    answers: [
+      { label: 'Да', points: 1 },
+      { label: 'Не уверен', points: 0.5 },
+      { label: 'Нет', points: 0 },
+      // В конце — чтобы индексы прежних ответов не сдвинулись.
+      { label: 'Только ремонт — не нужно', points: 1 },
+    ],
+  })),
   {
     code: 'ATL-105',
     block: 1,

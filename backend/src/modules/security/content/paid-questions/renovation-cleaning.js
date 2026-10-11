@@ -6,7 +6,7 @@
 // violations/renovation-cleaning.js) — реклама занимает код -405, не -406.
 
 const {
-  personnelReportingQuestion,
+  notificationNotRequiredQuestion, personnelReportingQuestion,
   laborMisrepresentationQuestion,
   premisesOperationQuestions,
   financialSecurityQuestions,
@@ -26,18 +26,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  {
-    code: 'RC-102',
-    block: 1,
-    text: 'Подано ли уведомление о начале деятельности в Роспотребнадзор?',
-    hint: null,
-    showIf: null,
-    answers: [
-      { label: 'Да', points: 1 },
-      { label: 'Не уверен', points: 0.5 },
-      { label: 'Нет', points: 0 },
-    ],
-  },
+  notificationNotRequiredQuestion('RC', { activity: 'уборки после ремонта' }),
   {
     code: 'RC-103',
     block: 1,

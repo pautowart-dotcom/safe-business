@@ -10,7 +10,7 @@
 // DP-803 в paid-questions/depilation.js: формулировка вопроса не описывает
 // требования к самим услугам, только фиксирует, что они вне охвата теста.
 
-const { personnelReportingQuestion, marketingConsentQuestion, financialSecurityQuestions } = require('../sharedQuestionBlocks');
+const { notificationNotRequiredQuestion, personnelReportingQuestion, marketingConsentQuestion, financialSecurityQuestions } = require('../sharedQuestionBlocks');
 
 const QUESTIONS = [
   // --- Блок 1. Юридическая база (всегда) ---
@@ -27,18 +27,7 @@ const QUESTIONS = [
       { label: 'Есть, но не подтверждено', points: 0 },
     ],
   },
-  {
-    code: 'CL-102',
-    block: 1,
-    text: 'Подано ли уведомление о начале деятельности в Роспотребнадзор?',
-    hint: 'Для клининга (ОКВЭД 81.2) сам факт обязательности уведомления не подтверждён однозначно — если не уверены, выберите «Не уверен», это не создаёт нарушения выше уровня «требует проверки».',
-    showIf: null,
-    answers: [
-      { label: 'Да', points: 1 },
-      { label: 'Не уверен', points: 0.5 },
-      { label: 'Нет', points: 0 },
-    ],
-  },
+  notificationNotRequiredQuestion('CL', { activity: 'уборки помещений' }),
   {
     code: 'CL-103',
     block: 1,

@@ -5,7 +5,7 @@
 // DT-202, DT-506, DT-801 — новый контент под специфику ниши.
 
 const {
-  personnelReportingQuestion,
+  notificationNotRequiredQuestion, personnelReportingQuestion,
   laborMisrepresentationQuestion,
   personalDataCoreQuestions,
   ofertaQuestion,
@@ -28,18 +28,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  {
-    code: 'DT-102',
-    block: 1,
-    text: 'Подано ли уведомление о начале деятельности в Роспотребнадзор?',
-    hint: null,
-    showIf: null,
-    answers: [
-      { label: 'Да', points: 1 },
-      { label: 'Не уверен', points: 0.5 },
-      { label: 'Нет', points: 0 },
-    ],
-  },
+  notificationNotRequiredQuestion('DT', { activity: 'дрессировки собак' }),
   {
     code: 'DT-103',
     block: 1,

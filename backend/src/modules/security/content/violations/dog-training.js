@@ -35,7 +35,7 @@
 //   ОПУЩЕН (не хеджирован «на всякий случай»), тот же подход, что у
 //   facade_cleaning.js.
 
-const { personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
+const { notificationNotRequiredViolation, personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -57,26 +57,7 @@ const VIOLATIONS = [
     costMin: 0, costMax: 5000, free: true,
     daysMin: 1, daysMax: 7,
   },
-  {
-    code: 'DT-102',
-    block: 1,
-    title: 'Уведомление о начале деятельности',
-    description: 'Не подано уведомление о начале деятельности (ОКВЭД 96.09 «Предоставление прочих персональных услуг»).',
-    risk: 4,
-    // Та же честная неопределённость, что у PB-102 (pet_boarding.js) —
-    // переиспользована без изменений по существу.
-    fineText: 'если требование применимо — должностные лица 7 000–12 000 ₽, юрлица 24 000–48 000 ₽ (ч.1 ст.19.7.5-1 КоАП РФ, ред. с 27.06.2025; к какой ставке относится ИП — уточнить у юриста); однозначного подтверждения, что ОКВЭД 96.09 в части дрессировки животных входит в перечень ПП №584, в открытых источниках не найдено — требует проверки',
-    fineMax: 48000,
-    normBase: 'ст. 19.7.5-1 КоАП РФ; применимость к Постановлению Правительства РФ №584 от 16.07.2009 не подтверждена однозначно, требует проверки юристом',
-    solution: 'Уточнить у юриста или в территориальном Роспотребнадзоре, требуется ли уведомление для вашего ОКВЭД. Если да — подать через Госуслуги.',
-    howTo: [
-      'Уточнить у юриста или в территориальном Роспотребнадзоре, входит ли ОКВЭД 96.09 (в части дрессировки животных) в перечень видов деятельности, требующих уведомления.',
-      'Если подтвердится — авторизоваться на Госуслугах и подать уведомление.',
-      'Сохранить электронную квитанцию о подаче.',
-    ],
-    costMin: 0, costMax: 0, free: true,
-    daysMin: 1, daysMax: 1,
-  },
+  notificationNotRequiredViolation('DT', { activity: 'дрессировки собак' }),
   {
     code: 'DT-103',
     block: 1,

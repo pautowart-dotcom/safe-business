@@ -30,7 +30,7 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
-  ...legalBasisCoreQuestions('SR'),
+  ...legalBasisCoreQuestions('SR', { notificationActivity: 'ремонта обуви' }),
   {
     code: 'SR-105',
     block: 1,
