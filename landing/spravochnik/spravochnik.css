@@ -1,0 +1,23 @@
+:root{--bg:#fff;--surface:#f5f7fa;--border:#e3e7ee;--text:#0b1220;--muted:#5b6577;--faint:#8b94a5;--accent:#2563eb;--accent-soft:#e8f0fe;--radius:16px}
+@media (prefers-color-scheme:dark){:root{--bg:#0a1020;--surface:#111a2e;--border:#22304b;--text:#f1f4fa;--muted:#98a4bb;--faint:#6c7893;--accent:#5b8def;--accent-soft:#14264a}}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:var(--bg);color:var(--text);font-family:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:17px;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}a{color:var(--accent)}
+.top{border-bottom:1px solid var(--border)}.top .wrap{display:flex;justify-content:space-between;align-items:center;height:60px}
+.brand{display:flex;gap:8px;align-items:center;font-weight:700;color:var(--text);text-decoration:none}
+.top-cta{font-size:15px;font-weight:600;text-decoration:none}
+.crumbs{margin:24px 0 8px;font-size:14px;color:var(--muted)}.crumbs a{color:var(--muted)}
+h1{font-size:30px;line-height:1.25;margin:8px 0 20px}h2{font-size:21px;margin:32px 0 10px}h3{font-size:17px;margin:20px 0 8px}
+.lead{color:var(--muted)}
+.short{background:var(--accent-soft);border-radius:var(--radius);padding:18px 20px}
+ul,ol{padding-left:22px}li{margin:6px 0}
+.cta{margin:36px 0;padding:22px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+.cta p{margin:0 0 14px}.cta-primary{display:inline-block;background:var(--accent);color:#fff;padding:12px 20px;border-radius:12px;font-weight:700;text-decoration:none}
+.cta-secondary{display:inline-block;margin:12px 0 0 0;font-weight:600}
+@media (min-width:560px){.cta-secondary{margin-left:16px}}
+.sources{font-size:15px;color:var(--muted)}.sources h2{color:var(--text)}.checked{color:var(--faint)}
+.cards{list-style:none;padding:0}.cards li{margin:10px 0}
+.cards a{display:block;padding:14px 16px;border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text)}
+.cards a span{display:block;color:var(--muted);font-size:15px;margin-top:4px}
+footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:var(--muted)}footer .wrap{padding-top:16px;padding-bottom:32px}footer a{color:var(--muted)}
+.bb-integrity{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+@media (max-width:480px){h1{font-size:25px}body{font-size:16px}}

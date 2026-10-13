@@ -1,6 +1,7 @@
 // Черновик для владельца — docs/knowledge/kartochki/KN-registraciya-001-okved.md.
 module.exports = {
   id: 'KN-registraciya-001',
+  slug: 'okved',
   topic: 'registration',
   niches: null,
   question: 'Какие ОКВЭД нужны и что будет, если указан не тот?',

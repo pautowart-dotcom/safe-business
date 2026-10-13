@@ -1,6 +1,7 @@
 // Черновик для владельца — docs/knowledge/kartochki/KN-kassa-001-chek-korrekcii.md.
 module.exports = {
   id: 'KN-kassa-001',
+  slug: 'chek-korrekcii',
   topic: 'cash',
   niches: null,
   question: 'Выбил чек не на ту сумму или забыл выбить — как исправить?',
