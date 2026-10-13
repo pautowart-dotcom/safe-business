@@ -11,6 +11,7 @@
 // Поиск сознательно простой (совпадение основ слов), без эмбеддингов: пунктов
 // на нишу ~40, работает без внешних вызовов и предсказуемо. Решение «вызвать
 // ли инструмент» модели не доверяем — подбираем справку всегда, сами.
+const pool = require('../../db/pool');
 const repository = require('../security/content/repository');
 const { computeSecurityStatus } = require('../security/status');
 const { NICHE_LABELS } = require('../roadmap/content/buildRoadmap');
@@ -178,6 +179,45 @@ async function pickByTitles(items, question) {
   return picked;
 }
 
+// Строка «О компании» (13.10.2026, docs/knowledge/b1-chto-znaet-ii.md): без
+// неё ИИ на «работаю одна — нужна ли медкнижка» отвечал как для студии с
+// сотрудниками. Форма и модель работы — из профиля теста (ответ владельца),
+// регион, режим и флаг сотрудников — из карточки компании. Чего нет — не
+// пишем вовсе, модель по правилам не додумывает.
+const LEGAL_FORM_LABELS = { self_employed: 'самозанятый', ip: 'ИП', ooo: 'ООО' };
+const WORK_MODEL_LABELS = {
+  alone: 'работает один, без сотрудников',
+  employees: 'есть сотрудники',
+  sublet: 'сдаёт рабочие места мастерам',
+  mixed: 'есть сотрудники и сдаёт рабочие места',
+};
+const TAX_REGIME_LABELS = {
+  patent: 'патент',
+  usn_income: 'УСН «доходы»',
+  usn_income_expense: 'УСН «доходы минус расходы»',
+  osn: 'общая система',
+  self_employed: 'налог для самозанятых (НПД)',
+};
+
+async function buildCompanyLine(companyId, profile) {
+  const { rows } = await pool.query(
+    `SELECT c.legal_form, c.tax_regime, c.has_employees, r.name AS region_name
+     FROM companies c LEFT JOIN regions r ON r.region_code = c.region_code
+     WHERE c.id = $1`,
+    [companyId]
+  );
+  const company = rows[0] || {};
+  const parts = [];
+  const legalForm = LEGAL_FORM_LABELS[profile?.legalForm || company.legal_form];
+  if (legalForm) parts.push(legalForm);
+  if (WORK_MODEL_LABELS[profile?.workModel]) parts.push(WORK_MODEL_LABELS[profile.workModel]);
+  else if (company.has_employees === true) parts.push('есть сотрудники');
+  else if (company.has_employees === false) parts.push('без сотрудников');
+  if (company.region_name) parts.push(`регион: ${company.region_name}`);
+  if (TAX_REGIME_LABELS[company.tax_regime]) parts.push(`налоговый режим: ${TAX_REGIME_LABELS[company.tax_regime]}`);
+  return parts.length ? parts.join(', ') : null;
+}
+
 // Возвращает текст справки для системного сообщения или null, если тест
 // не пройден / ничего подходящего не нашлось (тогда модель по правилам
 // говорит, что пункта в базе нет). previousQuestion — предыдущий вопрос
@@ -185,8 +225,9 @@ async function pickByTitles(items, question) {
 // находит, ищем ещё раз вместе с ним.
 async function buildKnowledgeContext(companyId, question, previousQuestion = null) {
   const status = await computeSecurityStatus(companyId);
+  const companyLine = await buildCompanyLine(companyId, status.profile);
   const niches = (status.profile?.niches || []).filter(Boolean);
-  if (niches.length === 0) return { niches: [], text: null };
+  if (niches.length === 0) return { niches: [], companyLine, text: null };
 
   const seen = new Set();
   const items = [];
@@ -211,12 +252,13 @@ async function buildKnowledgeContext(companyId, question, previousQuestion = nul
     }
   }
   const nicheNames = niches.map((n) => NICHE_LABELS[n] || n).join(', ');
-  if (found.length === 0) return { niches, nicheNames, text: null };
+  if (found.length === 0) return { niches, nicheNames, companyLine, text: null };
 
   const statusByCode = new Map((status.violations || []).map((v) => [v.code, v.status]));
   return {
     niches,
     nicheNames,
+    companyLine,
     text: found.map((item) => (item.card ? formatCard(item.card) : formatItem(item, statusByCode))).join('\n\n'),
   };
 }

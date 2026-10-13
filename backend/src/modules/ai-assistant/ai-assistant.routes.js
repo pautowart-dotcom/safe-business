@@ -118,6 +118,7 @@ router.post(
     } else {
       knowledgeNote = `Справка из базы сервиса (ниша компании: ${knowledge.nicheNames}). Пункты теста и карточки базы знаний, подобранные по вопросу:\n\n${knowledge.text}`;
     }
+    if (knowledge?.companyLine) knowledgeNote = `О компании (из профиля): ${knowledge.companyLine}.\n\n${knowledgeNote}`;
 
     const messages = [
       // Одним системным сообщением: несколько system подряд OpenAI-совместимый
