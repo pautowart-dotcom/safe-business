@@ -5,6 +5,8 @@
 // Теперь перед каждым ответом сервер сам находит 2–3 подходящих пункта теста
 // по нишам компании и кладёт их в контекст модели — модель только
 // пересказывает их человеческим языком (правила — в systemPrompt.js).
+// С 13.10.2026 в тот же поиск идут карточки знаний «как сделать правильно»
+// (modules/knowledge-cards) — только проверенные по первоисточнику.
 //
 // Поиск сознательно простой (совпадение основ слов), без эмбеддингов: пунктов
 // на нишу ~40, работает без внешних вызовов и предсказуемо. Решение «вызвать
@@ -13,6 +15,7 @@ const repository = require('../security/content/repository');
 const { computeSecurityStatus } = require('../security/status');
 const { NICHE_LABELS } = require('../roadmap/content/buildRoadmap');
 const yandexAgent = require('../../core/yandexAgent');
+const cardsRepository = require('../knowledge-cards/repository');
 
 const STOP_WORDS = new Set([
   'нужно', 'нужен', 'нужна', 'нужны', 'можно', 'надо', 'какой', 'какие', 'какая', 'какое', 'если', 'чтобы',
@@ -64,6 +67,8 @@ function norm(text) {
 function scoreItem(item, stems) {
   const fields = [
     [norm(item.title), 4],
+    // Только у карточек знаний: другие формулировки вопроса весят как название.
+    [norm((item.aliases || []).join(' ')), 4],
     [norm(item.description), 2],
     [norm(item.solution), 1],
     [norm((item.howTo || []).join(' ')), 1],
@@ -115,6 +120,28 @@ function formatItem(item, statusByCode) {
   const cost = item.free ? 'без затрат' : item.costMin ? `от ${item.costMin} ₽` : null;
   if (cost) lines.push(`Затраты: ${cost}.`);
   return lines.join('\n');
+}
+
+// Карточка знаний (13.10.2026, docs/knowledge/format-kartochki.md) в поиске
+// выглядит как пункт теста: вопрос — название, ответ — описание, шаги — шаги.
+function cardAsSearchItem(card) {
+  return { title: card.question, aliases: card.aliases, description: card.answer, howTo: card.steps, card };
+}
+
+function formatCard(card) {
+  const list = (title, items) => (items && items.length ? [title, ...items.map((s) => `- ${s}`)] : []);
+  return [
+    `### ${card.question} (карточка базы знаний)`,
+    `Коротко: ${card.answer}`,
+    ...list('От чего зависит:', card.dependsOn),
+    ...list('Шаги:', card.steps),
+    ...list('Частые ошибки:', card.mistakes),
+    card.consequences ? `Ответственность: ${card.consequences}` : null,
+    card.sources && card.sources.length ? `Основание: ${card.sources.join('; ')}` : null,
+    ...list('Не проверено — передай как «это лучше уточнить у юриста», не как факт:', card.unverified),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 // Запасной подбор (08.10.2026): владелец называет вещи своими словами
@@ -171,6 +198,7 @@ async function buildKnowledgeContext(companyId, question, previousQuestion = nul
       items.push(v);
     }
   }
+  for (const card of await cardsRepository.getCardsForAi(niches)) items.push(cardAsSearchItem(card));
 
   const fullQuestion = previousQuestion ? `${previousQuestion} ${question}` : question;
   let found = searchItems(items, question);
@@ -189,7 +217,7 @@ async function buildKnowledgeContext(companyId, question, previousQuestion = nul
   return {
     niches,
     nicheNames,
-    text: found.map((item) => formatItem(item, statusByCode)).join('\n\n'),
+    text: found.map((item) => (item.card ? formatCard(item.card) : formatItem(item, statusByCode))).join('\n\n'),
   };
 }
 

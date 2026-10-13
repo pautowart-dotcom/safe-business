@@ -116,7 +116,7 @@ router.post(
     } else if (!knowledge.text) {
       knowledgeNote = `Справка из базы сервиса (ниша компании: ${knowledge.nicheNames}): по этому вопросу подходящих пунктов не найдено.`;
     } else {
-      knowledgeNote = `Справка из базы сервиса (ниша компании: ${knowledge.nicheNames}). Пункты теста, подобранные по вопросу:\n\n${knowledge.text}`;
+      knowledgeNote = `Справка из базы сервиса (ниша компании: ${knowledge.nicheNames}). Пункты теста и карточки базы знаний, подобранные по вопросу:\n\n${knowledge.text}`;
     }
 
     const messages = [
