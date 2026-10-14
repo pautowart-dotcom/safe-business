@@ -1,6 +1,6 @@
 require('dotenv').config();
 const pool = require('../db/pool');
-const { syncTaxDeadlines, currentTaxYear } = require('../core/taxDeadlines');
+const { syncTaxDeadlines, syncEmployerMonthly, currentTaxYear } = require('../core/taxDeadlines');
 const { sendPushToCompany } = require('../core/pushNotify');
 
 // Налоговые сроки нового года (14.10.2026, В1а плана этапа 2). Раньше сроки
@@ -52,13 +52,26 @@ async function run() {
     }).catch((err) => console.error('taxDeadlinesRollover: sendPushToCompany failed', c.id, err));
   }
 
+  // Ежемесячные дела работодателя (В2а) — у компаний, которые отметили
+  // сотрудников до появления этих сроков. syncEmployerMonthly не трогает уже
+  // заведённые, так что ежедневный прогон безопасен. Без push: два срока
+  // просто появляются в списке.
+  const { rows: employers } = await pool.query(
+    `SELECT c.id FROM companies c
+     WHERE c.has_employees
+       AND NOT EXISTS (
+         SELECT 1 FROM deadlines d WHERE d.company_id = c.id AND d.related_entity_type = 'tax:emp_monthly_main'
+       )`
+  );
+  for (const e of employers) await syncEmployerMonthly(e.id, true, false);
+
   await pool.query(
     `INSERT INTO cron_heartbeats (job_key, last_run_at, note) VALUES ('taxDeadlinesRollover', now(), $1)
      ON CONFLICT (job_key) DO UPDATE SET last_run_at = now(), note = $1`,
-    [`год ${year}: проверено ${companies.length}, добавлены сроки ${rolled}`]
+    [`год ${year}: проверено ${companies.length}, добавлены сроки ${rolled}; ежемесячные работодателя — ${employers.length}`]
   );
 
-  console.log(`taxDeadlinesRollover: год ${year}, без сроков ${companies.length}, добавлены ${rolled}`);
+  console.log(`taxDeadlinesRollover: год ${year}, без сроков ${companies.length}, добавлены ${rolled}; ежемесячные работодателя — ${employers.length}`);
   await pool.end();
 }
 

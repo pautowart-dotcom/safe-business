@@ -104,11 +104,14 @@ router.patch(
     // замере изоляции и т.п.) отметка "Готово" не должна убирать срок навсегда —
     // вместо этого дата сдвигается на следующий период и статус возвращается
     // в pending, чтобы напоминание пришло снова к следующему разу.
+    // last_reminded_days_before сбрасываем (14.10.2026): без этого
+    // scripts/deadlineReminders.js считал, что по сроку уже напомнили «за 0
+    // дней», и к следующему периоду не напоминал вовсе.
     let result = rows[0];
     if (status === 'done' && result.kind === 'deadline' && result.recurrence && result.due_date) {
       const due = nextDueDate(result.due_date, result.recurrence);
       const { rows: advanced } = await pool.query(
-        `UPDATE deadlines SET due_date = $1, status = 'pending' WHERE id = $2
+        `UPDATE deadlines SET due_date = $1, status = 'pending', last_reminded_days_before = NULL WHERE id = $2
          RETURNING id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
                    related_entity_type, related_entity_id, recurrence, note, created_at`,
         [due, result.id]

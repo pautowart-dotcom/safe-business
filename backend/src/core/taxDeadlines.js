@@ -138,6 +138,65 @@ function currentTaxYear() {
   return Number(moscowDateStr().slice(0, 4));
 }
 
+// Ежемесячные дела работодателя (В2а, 14.10.2026; источник — налоговый
+// календарь ФНС, docs/knowledge/v2-otchety-po-rezhimam.md). У ФНС их пять в
+// месяц; чтобы список сроков не разрастался на 60 строк в год, — два
+// повторяющихся срока: «Готово» сдвигает дату на месяц
+// (deadlines.routes.js, recurrence 'monthly'). Ключ без года — это не
+// годовой слот. Перенос с выходных не считаем, как и у остальных сроков.
+// Особый порядок в январе (НДФЛ за конец декабря) не сверен.
+const EMPLOYER_MONTHLY = [
+  {
+    key: 'tax:emp_monthly_ndfl_end',
+    day: 3,
+    title: 'НДФЛ с зарплат за конец прошлого месяца: уведомление — до 3-го, уплата — до 5-го',
+    note: 'Касается НДФЛ, удержанного с 23-го по последний день прошлого месяца. Отметьте «Готово» — срок перенесётся на следующий месяц.',
+  },
+  {
+    key: 'tax:emp_monthly_main',
+    day: 25,
+    title: 'Зарплатные налоги: уведомление и сведения о сотрудниках — до 25-го, уплата — до 28-го',
+    note: 'До 25-го: уведомление по взносам за прошлый месяц и НДФЛ с 1-го по 22-е, персонифицированные сведения о сотрудниках. До 28-го: уплата. Отметьте «Готово» — срок перенесётся на следующий месяц.',
+  },
+];
+
+// Ближайшая дата с этим числом месяца, не раньше сегодняшней (по Москве).
+function nextMonthlyDate(day, today = moscowDateStr()) {
+  const [y, m, d] = today.split('-').map(Number);
+  const pad = (n) => String(n).padStart(2, '0');
+  if (d <= day) return `${y}-${pad(m)}-${pad(day)}`;
+  return m === 12 ? `${y + 1}-01-${pad(day)}` : `${y}-${pad(m + 1)}-${pad(day)}`;
+}
+
+async function syncEmployerMonthly(companyId, hasEmployees, notify) {
+  for (const item of EMPLOYER_MONTHLY) {
+    if (!hasEmployees) {
+      await pool.query('DELETE FROM deadlines WHERE company_id = $1 AND related_entity_type = $2 AND related_entity_id = $3', [
+        companyId, item.key, companyId,
+      ]);
+      continue;
+    }
+    // Уже заведённый срок не трогаем: повторное сохранение настроек
+    // сбросило бы его дату и отметку «Готово».
+    const { rows } = await pool.query(
+      'SELECT 1 FROM deadlines WHERE company_id = $1 AND related_entity_type = $2 AND related_entity_id = $3',
+      [companyId, item.key, companyId]
+    );
+    if (rows.length) continue;
+    await registerDeadline({
+      companyId,
+      category: 'tax',
+      title: item.title,
+      dueDate: nextMonthlyDate(item.day),
+      relatedEntityType: item.key,
+      relatedEntityId: companyId,
+      note: item.note,
+      recurrence: 'monthly',
+      notify,
+    });
+  }
+}
+
 // Пересчитывает налоговые дедлайны компании за один календарный год (по
 // умолчанию — текущий по Москве) под режим/исходные данные. Сроки других
 // лет не трогает. Вызывается при сохранении налоговых настроек на вкладке
@@ -167,6 +226,7 @@ async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasE
       ]);
     }
   }
+  await syncEmployerMonthly(companyId, hasEmployees, notify);
   return Object.keys(desired).length;
 }
 
@@ -266,4 +326,4 @@ function computePatentSchedule(startAt, endAt, amount) {
   ];
 }
 
-module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, taxRelatedType, currentTaxYear, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };
+module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, syncEmployerMonthly, taxRelatedType, currentTaxYear, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };
