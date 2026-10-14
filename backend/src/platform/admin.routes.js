@@ -1516,7 +1516,9 @@ router.post(
       `INSERT INTO company_notifications (company_id, kind, title, body, dedupe_key)
        SELECT id, 'law', 'Изменение в законах', $1, $2 FROM companies
        ON CONFLICT (company_id, dedupe_key) DO UPDATE
-         SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(), read_at = NULL`,
+         SET title = EXCLUDED.title, body = EXCLUDED.body,
+             created_at = CASE WHEN company_notifications.body IS DISTINCT FROM EXCLUDED.body THEN now() ELSE company_notifications.created_at END,
+             read_at = CASE WHEN company_notifications.body IS DISTINCT FROM EXCLUDED.body THEN NULL ELSE company_notifications.read_at END`,
       [explanation, `law:${rows[0].id}`]
     );
 
