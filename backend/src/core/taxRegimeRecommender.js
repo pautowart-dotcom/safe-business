@@ -49,6 +49,27 @@ const VAT_WARNING_TEXT =
   '(5% или 7% без вычетов, либо 20/22% с вычетами — на выбор). Мы это не считаем — ' +
   'обязательно уточните у бухгалтера, применяется ли НДС к вам.';
 
+// Лимит дохода на патенте (В2в, 14.10.2026): с 2026 года — 20 млн ₽, выше
+// него право на ПСН теряется. Источник — официальный налоговый календарь
+// УФНС по Республике Карелия на июнь 2026 («уведомление о переходе с ПСН на
+// УСН ИП, доход которых в 2025 году превысил 20 миллионов рублей»), см.
+// docs/knowledge/v2-otchety-po-rezhimam.md. Сама статья НК (п. 6 ст. 346.45)
+// не сверена: как считается доход при совмещении ПСН и УСН и меняется ли
+// лимит дальше — уточнить. Доход здесь — с начала года по данным компании,
+// не прогноз; поэтому при 80% только предупреждаем.
+const PATENT_INCOME_LIMIT_RUB = 20_000_000;
+const PATENT_LIMIT_WARNING_RATIO = 0.8;
+
+function patentLimitNote(revenue) {
+  if (revenue >= PATENT_INCOME_LIMIT_RUB) {
+    return 'Доход с начала года уже больше 20 млн ₽ — на патенте с таким доходом работать нельзя. Если вы сейчас на патенте, не откладывая обсудите с бухгалтером переход на УСН.';
+  }
+  if (revenue >= PATENT_INCOME_LIMIT_RUB * PATENT_LIMIT_WARNING_RATIO) {
+    return 'Доход с начала года приближается к лимиту патента — 20 млн ₽ в год. Выше него право на патент теряется, придётся переходить на УСН.';
+  }
+  return null;
+}
+
 async function computeYearToDateFinance(companyId, year) {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
@@ -140,10 +161,12 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
     {
       regime: 'patent',
       label: 'Патент (ПСН)',
-      estimatedTaxRub: patentRate.status === 'found' ? patentRate.amount : null,
-      note: patentRate.status === 'found'
+      // Доход выше лимита — патент недоступен: не считаем и не даём ему
+      // стать «самым выгодным».
+      estimatedTaxRub: patentRate.status === 'found' && revenue < PATENT_INCOME_LIMIT_RUB ? patentRate.amount : null,
+      note: patentLimitNote(revenue) || (patentRate.status === 'found'
         ? (patentRate.reviewed ? null : 'Ставка ещё не проверена юристом — сверьте перед решением.')
-        : 'Ставка для вашего региона/ниши пока не найдена в базе — уточните на сайте ФНС (patent.nalog.ru/info/).',
+        : 'Ставка для вашего региона/ниши пока не найдена в базе — уточните на сайте ФНС (patent.nalog.ru/info/).'),
     },
     {
       regime: 'osn',
@@ -170,4 +193,4 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
   };
 }
 
-module.exports = { recommendTaxRegime, computeInsuranceContribution, FIXED_INSURANCE_CONTRIBUTION_RUB };
+module.exports = { recommendTaxRegime, computeInsuranceContribution, FIXED_INSURANCE_CONTRIBUTION_RUB, PATENT_INCOME_LIMIT_RUB };
