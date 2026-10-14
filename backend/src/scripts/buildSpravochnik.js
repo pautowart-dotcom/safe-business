@@ -13,8 +13,11 @@
 const fs = require('fs');
 const path = require('path');
 const cardsRepository = require('../modules/knowledge-cards/repository');
+const securityContent = require('../modules/security/content/repository');
 
-const OUT_DIR = path.join(__dirname, '../../../landing/spravochnik');
+const LANDING_DIR = path.join(__dirname, '../../../landing');
+const OUT_DIR = path.join(LANDING_DIR, 'spravochnik');
+const NICHE_OUT_DIR = path.join(LANDING_DIR, 'proverki');
 const SITE = 'https://business-safe.ru';
 
 const TOPICS = {
@@ -142,11 +145,104 @@ function topicPage(topicKey, cards) {
   return { url, html: page({ title: topic.title, description: `${topic.title}: короткие ответы для владельцев студий и малого бизнеса.`, canonical: url, body }) };
 }
 
+// Страница ниши «Что проверяют у …» (Д5). Правило Д3 (besplatno-platno.md):
+// одна пилотная ниша — маникюр; на сайте только названия пунктов теста, без
+// описаний нарушений, штрафов и решений — это остаётся в тесте. Пункт ведёт
+// на статью, если в карточке есть его код в related.
+const NICHE_PAGES = [
+  { niche: 'manicure', slug: 'manikyur', title: 'Что проверяют у студии маникюра и педикюра' },
+];
+
+// Подписи блоков — как в отчёте (security/report/build.js) и в тесте.
+// Блок 8 у маникюра — информированное согласие; своей подписи в отчёте нет.
+const BLOCKS = [
+  { block: 1, label: 'Документы и статус' },
+  { block: 2, label: 'Санитария' },
+  { block: 3, label: 'Оборудование и материалы' },
+  { block: 4, label: 'Сотрудники', note: 'если есть мастера в штате или по договору' },
+  { block: 5, label: 'Данные и документы клиентов' },
+  { block: 8, label: 'Согласие клиента на процедуру' },
+  { block: 6, label: 'Помещение и пожарная безопасность' },
+  { block: 7, label: 'Дополнительно' },
+  { block: 9, label: 'Банк и деньги на счёте', note: 'это не проверка, а то, на что смотрит банк' },
+];
+
+// В тесте название пункта часто звучит как нарушение («Отсутствует
+// рециркулятор») — так оно и показывается в отчёте. На открытой странице это
+// читается как обвинение, поэтому здесь — нейтральное «что смотрят».
+const PUBLIC_TITLES = {
+  'MN-101-доп': 'Если принимаете клиентов в квартире',
+  'MN-103': 'Оплата картой',
+  'MN-104': '«Уголок потребителя»',
+  'MN-206-доп': 'Рециркулятор воздуха',
+  'MN-502': 'Как оформлены мастера',
+  'MN-505': 'Отчёты в Социальный фонд о приёме и увольнении',
+  'MN-301': 'Сертификаты на оборудование (ЕАС)',
+  'MN-401': 'Уведомление в Роскомнадзор об обработке данных клиентов',
+  'MN-403': 'Согласие клиентов на обработку персональных данных',
+  'MN-601': 'Договор на вывоз мусора',
+  'MN-404':'Фото и видео клиентов в соцсетях',
+  'MN-405': 'Документ на услугу для клиента (договор или квитанция)',
+  'MN-406': 'Рассылки клиентам об акциях',
+  'MN-604': 'Журнал огнетушителей',
+  'MN-605': 'Проверка и перезарядка огнетушителей',
+  'MN-607': 'Вывеска',
+  'MN-608': 'Документы на отделку: пожарная безопасность материалов',
+  'MN-701': 'Музыка в студии',
+  'MN-702': 'Название студии и товарный знак',
+  'MN-703': 'Договоры с подрядчиками',
+  'MN-901': 'Переводы на карты физлиц',
+  'MN-902': 'Снятие наличных',
+  'MN-903': 'Проверка новых контрагентов',
+  'MN-904': 'Остаток на счёте и как быстро уходят деньги',
+};
+
+async function nichePage({ niche, slug, title }, cards) {
+  const url = `/proverki/${slug}/`;
+  const violations = await securityContent.getViolationMatrix(niche);
+  const { GUIDES } = await securityContent.getInspectionGuides();
+  // Ссылка только по первому коду в related: он и есть пункт, на который
+  // отвечает статья; остальные коды — «связано», статья на них не отвечает.
+  const articleByCode = {};
+  for (const c of cards) {
+    const code = (c.related || [])[0];
+    if (code) articleByCode[code] ||= `/spravochnik/${TOPICS[c.topic].slug}/${c.slug}/`;
+  }
+  const item = (v) => {
+    const href = articleByCode[v.code];
+    const label = PUBLIC_TITLES[v.code] || v.title;
+    return `<li>${href ? `<a href="${href}">${esc(label)}</a>` : esc(label)}</li>`;
+  };
+  const known = new Set(BLOCKS.map((b) => b.block));
+  const unknown = violations.filter((v) => !known.has(v.block));
+  if (unknown.length) throw new Error(`Ниша ${niche}: нет подписи для блоков ${[...new Set(unknown.map((v) => v.block))].join(', ')}`);
+  const blocks = BLOCKS.map((b) => ({ ...b, items: violations.filter((v) => v.block === b.block) })).filter((b) => b.items.length);
+  const body = `
+<nav class="crumbs"><a href="/spravochnik/">Справочник</a></nav>
+<h1>${esc(title)}</h1>
+<p class="lead">Это список того, на что смотрят при проверке студии. Ваш набор зависит от того, есть ли у вас сотрудники, делаете ли педикюр и где принимаете клиентов, поэтому что-то из списка может вас не касаться. Что из этого нужно именно вам и что уже в порядке, покажет бесплатный тест.</p>
+<section><h2>Кто может прийти</h2>
+<ul class="authorities">${GUIDES.map((g) => `<li><b>${esc(g.authority)}</b><span>${esc(g.whatTheyCheck)}</span></li>`).join('')}</ul>
+</section>
+${blocks
+    .map((b) => `<section><h2>${esc(b.label)}</h2>${b.note ? `<p class="note">${esc(b.note)}</p>` : ''}<ul>${b.items.map(item).join('')}</ul></section>`)
+    .join('\n')}
+<aside class="cta">
+  <p><b>Что из этого касается вас?</b> Бесплатный тест покажет, что уже в порядке, а что стоит оформить. Без регистрации.</p>
+  <a class="cta-primary" href="/lk/audit">Пройти бесплатный тест</a>
+</aside>
+<p class="checked">Список собран из пунктов нашего теста для этой ниши. Это общая информация, а не юридическая консультация.</p>`;
+  return { url, html: page({ title, description: `${title}: кто может прийти и на что смотрят. Короткий список без запугивания.`, canonical: url, body }) };
+}
+
 function indexPage(byTopic) {
   const url = '/spravochnik/';
   const body = `
 <h1>Справочник владельца</h1>
 <p class="lead">Короткие честные ответы на вопросы, которые задают владельцы студий: касса, вывеска, сотрудники, документы. Каждый ответ — с указанием, от чего он зависит и на чём основан.</p>
+<section><h2>Что проверяют у вас</h2><ul class="cards">${NICHE_PAGES
+    .map((n) => `<li><a href="/proverki/${n.slug}/"><b>${esc(n.title)}</b><span>Кто может прийти и на что смотрят.</span></a></li>`)
+    .join('')}</ul></section>
 ${Object.entries(byTopic)
     .map(([key, cards]) => `<section><h2><a href="/spravochnik/${TOPICS[key].slug}/">${esc(TOPICS[key].title)}</a></h2><ul class="cards">${cards
       .map((c) => `<li><a href="/spravochnik/${TOPICS[key].slug}/${c.slug}/"><b>${esc(c.question)}</b></a></li>`)
@@ -175,6 +271,8 @@ ul,ol{padding-left:22px}li{margin:6px 0}
 .cards{list-style:none;padding:0}.cards li{margin:10px 0}
 .cards a{display:block;padding:14px 16px;border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text)}
 .cards a span{display:block;color:var(--muted);font-size:15px;margin-top:4px}
+.authorities{list-style:none;padding:0}.authorities li{margin:12px 0}.authorities span{display:block;color:var(--muted);font-size:15px}
+.note{margin:-4px 0 8px;color:var(--muted);font-size:15px}
 footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:var(--muted)}footer .wrap{padding-top:16px;padding-bottom:32px}footer a{color:var(--muted)}
 .bb-integrity{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:480px){h1{font-size:25px}body{font-size:16px}}
@@ -189,18 +287,20 @@ async function main() {
   }
   // Пересобираем папку целиком — удалённая карточка не должна остаться на сайте.
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
+  fs.rmSync(NICHE_OUT_DIR, { recursive: true, force: true });
   const pages = [indexPage(byTopic)];
   for (const [key, list] of Object.entries(byTopic)) {
     pages.push(topicPage(key, list));
     for (const c of list) pages.push(articlePage(c));
   }
+  for (const n of NICHE_PAGES) pages.push(await nichePage(n, cards));
   for (const p of pages) {
-    const dir = path.join(OUT_DIR, p.url.replace(/^\/spravochnik\/?/, ''));
+    const dir = path.join(LANDING_DIR, p.url);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'index.html'), p.html);
   }
   fs.writeFileSync(path.join(OUT_DIR, 'spravochnik.css'), CSS);
-  console.log(`Справочник: ${pages.length} страниц → ${OUT_DIR}`);
+  console.log(`Справочник и страницы ниш: ${pages.length} страниц → ${OUT_DIR}, ${NICHE_OUT_DIR}`);
 }
 
 main().catch((err) => {
