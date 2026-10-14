@@ -230,14 +230,32 @@ async function fulfillGuestReport({ companyId, reportId }) {
   );
   const claimUrl = `${process.env.FRONTEND_URL}/reset-password/${claimToken}`;
 
+  // Подарочный месяц к заключению (14.10.2026, миграция 0132) — вебхук
+  // ставит gift до вызова этой функции; если его нет (купили не из триала),
+  // письмо остаётся прежним, без обещания месяца.
+  const { rows: giftRows } = await pool.query(
+    `SELECT subscription_current_period_end FROM companies WHERE id = $1 AND subscription_status = 'gift'`,
+    [companyId]
+  );
+  const giftUntil = giftRows[0]
+    ? new Date(giftRows[0].subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    : null;
+  const nextStepHtml = giftUntil
+    ? `<p>В подарок к заключению мы открыли вам полный доступ к кабинету — до ${giftUntil}. Ваши нарушения уже ` +
+      `лежат там списком дел: отмечайте, что устранили, и смотрите, как растёт индекс; приложение напомнит о сроках ` +
+      `документов. Карта не сохранена — сами мы ничего не спишем.</p>` +
+      `<p>Чтобы войти, установите пароль по ссылке — проходить тест заново не нужно:</p>`
+    : `<p>Все ваши ответы уже сохранены. Если захотите продолжить пользоваться платформой (следить за сроками ` +
+      `медкнижек, огнетушителей, СОУТ и другими документами) — установите пароль по ссылке, вводить тест заново ` +
+      `не понадобится:</p>`;
+
   await sendMail({
     to: owner.email,
-    subject: 'Ваш отчёт по тесту безопасности готов — «Безопасный бизнес»',
+    subject: 'Ваше заключение по тесту безопасности готово — «Безопасный бизнес»',
     html:
-      `<p>Спасибо за оплату! Полный отчёт по тесту безопасности — во вложении (${reportRow.report_number}.pdf).</p>` +
-      `<p>Все ваши ответы уже сохранены. Если захотите продолжить пользоваться платформой (следить за сроками ` +
-      `медкнижек, огнетушителей, СОУТ и другими документами) — установите пароль по ссылке, вводить тест заново ` +
-      `не понадобится:</p><p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
+      `<p>Спасибо за оплату! Заключение по тесту безопасности — во вложении (${reportRow.report_number}.pdf).</p>` +
+      nextStepHtml +
+      `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
     attachments: [{ filename: `${reportRow.report_number}.pdf`, content: pdfBuffer }],
     meta: { purpose: 'report_purchase', refTable: 'security_reports', refId: reportRow.id },
   });

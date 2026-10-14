@@ -24,6 +24,8 @@ async function isSubscriptionActive(companyId) {
   if (!row || !row.subscription_status || row.subscription_status === 'trial') return false;
   if (row.subscription_status === 'active') return true;
   if (!row.subscription_current_period_end) return false;
+  // gift (миграция 0132) — месяц к купленному заключению, ровно до
+  // period_end, как cancelled: продлевать нечем, карты нет.
   const periodEnd = new Date(row.subscription_current_period_end);
   // cancelled — доступ ровно до конца уже оплаченного периода, без бонусных
   // дней (человек сам решил не продлевать, ждать тут нечего).

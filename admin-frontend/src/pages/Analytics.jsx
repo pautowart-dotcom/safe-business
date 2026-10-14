@@ -12,8 +12,8 @@ const NICHE_LABELS = {
   solarium: 'Солярий',
 };
 
-const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
-const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
+const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено', gift: 'Подарок к заключению' };
+const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle, gift: C.primary };
 
 function riskColor(risk) {
   if (risk >= 9) return C.red;

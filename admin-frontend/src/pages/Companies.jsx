@@ -3,8 +3,8 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import api from '../api/client.js';
 import { Card, Badge, BackBtn, C } from '../ui/components.jsx';
 
-const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
-const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
+const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено', gift: 'Подарок к заключению' };
+const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle, gift: C.primary };
 const MODULE_LABELS = { visits: 'Визиты', clients: 'Клиенты', finance: 'Финансы', security: 'Безопасность', supplies: 'Склад', checklists: 'Чек-листы', knowledge: 'База знаний', platform: 'Платформа (вход, команда)', other: 'Прочее' };
 const ROLE_LABELS = { owner: 'владелец', admin: 'администратор', master: 'мастер' };
 

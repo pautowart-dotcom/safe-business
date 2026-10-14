@@ -10,6 +10,7 @@ const STATUS_LABELS = {
   active: 'Подписка активна',
   past_due: 'Проблема с оплатой',
   cancelled: 'Подписка отменена',
+  gift: 'Месяц в подарок к заключению',
 };
 
 export default function Subscription() {
@@ -132,6 +133,7 @@ export default function Subscription() {
         Статус: {STATUS_LABELS[company?.subscription_status] || '—'}
         {company?.subscription_status === 'trial' && trialDaysLeft != null && ` · осталось ${trialDaysLeft} дн.`}
         {company?.subscription_status === 'active' && periodEnd && ` · продлится ${periodEnd}`}
+        {company?.subscription_status === 'gift' && periodEnd && ` · до ${periodEnd}`}
       </div>
 
       {searchParams.get('payment') === 'done' && company?.subscription_status === 'trial' && (
@@ -176,6 +178,17 @@ export default function Subscription() {
             <Btn variant="secondary" onClick={cancelSubscription} disabled={cancelling}>
               {cancelling ? 'Отменяем...' : 'Отменить подписку'}
             </Btn>
+          </>
+        ) : company?.subscription_status === 'gift' && accessStillOpen ? (
+          // Подарочный месяц к заключению (миграция 0132) — карты нет,
+          // ничего не спишется само; продолжить можно только явно.
+          <>
+            <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14, lineHeight: 1.6 }}>
+              Полный доступ открыт до {periodEnd} — в подарок к заключению. Карта не сохранена, сами мы ничего не
+              спишем. Если захотите продолжить — оформите подписку: оставшиеся дни подарка не сгорят, оплаченный
+              месяц начнётся после них.
+            </div>
+            <Btn onClick={startCheckout} disabled={starting}>{starting ? 'Переходим к оплате...' : 'Оформить подписку'}</Btn>
           </>
         ) : accessStillOpen ? (
           // Подписка отменена/не удалось списать, но оплаченный период ещё не

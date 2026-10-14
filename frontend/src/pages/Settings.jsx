@@ -10,6 +10,7 @@ const SUBSCRIPTION_STATUS_LABELS = {
   active: 'Подписка активна',
   past_due: 'Проблема с оплатой',
   cancelled: 'Подписка отменена',
+  gift: 'Месяц в подарок к заключению',
 };
 const DOC_TYPE_LABELS = {
   certificate: 'Сертификат',

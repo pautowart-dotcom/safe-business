@@ -4,8 +4,8 @@ import api from '../api/client.js';
 import { Card, Btn, C } from '../ui/components.jsx';
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
-const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено' };
-const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle };
+const STATUS_LABELS = { trial: 'Пробный период', active: 'Оплачено', past_due: 'Просрочено', cancelled: 'Отменено', gift: 'Подарок к заключению' };
+const STATUS_COLORS = { trial: C.orange, active: C.green, past_due: C.red, cancelled: C.subtle, gift: C.primary };
 
 // onNavigate (12.09.2026, прямой запрос владельца: "чтобы при нажатии на
 // каждый из разделов я мог переходить в этот раздел") — карточки на

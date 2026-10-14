@@ -6,6 +6,7 @@ const { requireRole } = require('../../core/middleware/role');
 const { requireTestCompany } = require('../../core/middleware/testCompany');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
+const { sendPushToSuperAdmins } = require('../../core/pushNotify');
 const { encrypt, decrypt } = require('../../core/crypto');
 const { uploadDocument } = require('../../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl, bareFileUrl } = require('../../core/fileStorage');
@@ -599,21 +600,57 @@ router.get(
   })
 );
 
+// Общий вопрос на экране результата (14.10.2026) — один для всех ниш,
+// в отличие от нишевых feedbackOptions. Последние два варианта — чтобы
+// понять, почему не покупают заключение, а не только что думают о тесте.
+// Каждая строка ≤ 50 символов (security_feedback.selected_option VARCHAR(50)).
+const POST_TEST_FEEDBACK_OPTIONS = [
+  'Всё понятно, буду исправлять',
+  'Это не про мой бизнес',
+  'Непонятные вопросы или формулировки',
+  'Заключение дорого',
+  'Пока не готов(а) платить',
+  'Другое',
+];
+
+router.get('/feedback-options', (req, res) => res.json({ options: POST_TEST_FEEDBACK_OPTIONS }));
+
 router.post(
   '/sessions/:id/feedback',
   asyncHandler(async (req, res) => {
     const session = await loadOwnedSession(req);
     if (!session) return res.status(404).json({ error: 'Сессия не найдена' });
 
-    const options = await repository.getFeedbackOptions(session.niche);
-    if (!options.includes(req.body.selectedOption)) {
+    const option = req.body.selectedOption;
+    const nicheOptions = await repository.getFeedbackOptions(session.niche);
+    if (!POST_TEST_FEEDBACK_OPTIONS.includes(option) && !nicheOptions.includes(option)) {
       return res.status(400).json({ error: 'Некорректный вариант ответа' });
     }
+    const comment = typeof req.body.comment === 'string' ? req.body.comment.trim().slice(0, 1000) || null : null;
 
-    await pool.query(
-      `INSERT INTO security_feedback (session_id, company_id, selected_option) VALUES ($1, $2, $3)`,
-      [session.id, req.tenant.companyId, req.body.selectedOption]
+    // Один отзыв на сессию: повторное нажатие (передумал, дописал
+    // комментарий) обновляет запись, а не плодит дубли.
+    const updated = await pool.query(
+      `UPDATE security_feedback SET selected_option = $3, comment = $4, created_at = now()
+       WHERE session_id = $1 AND company_id = $2`,
+      [session.id, req.tenant.companyId, option, comment]
     );
+    if (updated.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO security_feedback (session_id, company_id, selected_option, comment) VALUES ($1, $2, $3, $4)`,
+        [session.id, req.tenant.companyId, option, comment]
+      );
+    }
+
+    // Push владельцу платформы только когда написали своими словами — после
+    // залетевшего рилса push на каждое нажатие был бы шумом.
+    if (comment) {
+      sendPushToSuperAdmins({
+        title: `Отзыв после теста: ${option}`,
+        body: comment.slice(0, 180),
+        url: '/office/companies',
+      }).catch((err) => console.error('sendPushToSuperAdmins (test feedback) failed:', err));
+    }
     res.status(201).json({ ok: true });
   })
 );

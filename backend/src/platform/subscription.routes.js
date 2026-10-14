@@ -340,16 +340,33 @@ router.post(
     } = rows[0];
 
     if (payment.status === 'succeeded') {
-      await pool.query(
-        `UPDATE subscription_payments SET status = 'succeeded', confirmed_at = now() WHERE yookassa_payment_id = $1`,
+      // ЮKassa может прислать одно и то же уведомление повторно — второй раз
+      // ничего не пересчитываем (иначе period_end сдвигался бы от нового
+      // "сейчас", а дни подарочного месяца сгорали).
+      const firstTime = await pool.query(
+        `UPDATE subscription_payments SET status = 'succeeded', confirmed_at = now()
+         WHERE yookassa_payment_id = $1 AND status <> 'succeeded'`,
         [paymentId]
       );
+      if (firstTime.rowCount === 0) return res.status(200).end();
 
       if (reportId) {
         // Разовая покупка ОДНОГО отчёта (миграция 0091) — НЕ трогает
         // subscription_status компании вообще, см. комментарий у
         // /checkout-one-time выше.
         await pool.query(`UPDATE security_reports SET unlocked_without_subscription = true WHERE id = $1`, [reportId]);
+
+        // 14.10.2026 (решение владельца): к заключению — месяц полного
+        // доступа в кабинете, чтобы вести по нему план устранения. Только из
+        // триала: настоящую подписку (active/past_due) не трогаем, повторная
+        // покупка не продлевает подарок. Статус gift, без карты —
+        // автосписания нет (chargeRecurringSubscriptions берёт только
+        // active/past_due с сохранённым способом оплаты).
+        await pool.query(
+          `UPDATE companies SET subscription_status = 'gift', subscription_current_period_end = now() + interval '1 month'
+           WHERE id = $1 AND subscription_status = 'trial'`,
+          [companyId]
+        );
 
         // Гость анонимного аудита (19.08.2026) не может зайти и скачать
         // PDF сам (нет пароля) — no-op для обычных (не гостевых) покупателей,
@@ -365,7 +382,14 @@ router.post(
         // auth.routes.js), а оплата — что с этой кнопки в PdfPaywallNotice,
         // что со страницы /subscription — всегда обычный один оплаченный
         // месяц, без специальных случаев.
-        const nextPeriodEnd = new Date();
+        // Оформил подписку посреди подарочного месяца (gift) — оставшиеся
+        // дни подарка не сгорают: месяц считается от конца подарка.
+        const { rows: giftRows } = await pool.query(
+          `SELECT subscription_current_period_end FROM companies
+           WHERE id = $1 AND subscription_status = 'gift' AND subscription_current_period_end > now()`,
+          [companyId]
+        );
+        const nextPeriodEnd = giftRows[0] ? new Date(giftRows[0].subscription_current_period_end) : new Date();
         nextPeriodEnd.setMonth(nextPeriodEnd.getMonth() + 1);
         if (payment.payment_method?.saved && payment.payment_method?.id) {
           await pool.query(

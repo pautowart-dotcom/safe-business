@@ -99,6 +99,92 @@ function ViolationPreview({ violations }) {
   );
 }
 
+// Обратная связь после теста (14.10.2026) — бэкенд принимал её с самого
+// начала (security_feedback), но ни один экран не спрашивал. Вариант в одно
+// нажатие + необязательный комментарий. Варианты берём с сервера, чтобы
+// список был в одном месте (POST_TEST_FEEDBACK_OPTIONS в security.routes.js).
+function FeedbackCard({ sessionId }) {
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [comment, setComment] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    guestApi.get('/modules/security/feedback-options').then((res) => setOptions(res.data.options)).catch(() => {});
+  }, []);
+
+  if (!sessionId || options.length === 0) return null;
+
+  async function send(option, withComment) {
+    setSending(true);
+    try {
+      await guestApi.post(`/modules/security/sessions/${sessionId}/feedback`, {
+        selectedOption: option,
+        comment: withComment ? comment : undefined,
+      });
+      if (withComment) setSent(true);
+    } catch (err) {
+      // Тихо — необязательный блок, не мешает результату и оплате.
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function choose(option) {
+    setSelected(option);
+    send(option, false);
+  }
+
+  if (sent) {
+    return (
+      <Card>
+        <div style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>Спасибо, прочитаем.</div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Как вам результат?</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {options.map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => choose(o)}
+            style={{
+              border: `1px solid ${selected === o ? C.primary : C.border}`,
+              background: selected === o ? C.primary : 'transparent',
+              color: selected === o ? '#FFF' : C.secondary,
+              borderRadius: 999, padding: '6px 12px', fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+      {selected && (
+        <div style={{ marginTop: 12 }}>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="Если хотите, напишите подробнее — что не так или чего не хватило (необязательно)"
+            style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }}
+          />
+          {comment.trim() && (
+            <Btn small onClick={() => send(selected, true)} disabled={sending} style={{ marginTop: 8 }}>
+              {sending ? 'Отправляем…' : 'Отправить'}
+            </Btn>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWorkModel, onStart, starting, error }) {
   return (
     <Card>
@@ -396,6 +482,8 @@ function ResultStep({
 
       <ViolationPreview violations={result.violations} />
 
+      <FeedbackCard sessionId={result.anchorSessionId} />
+
       {/* 24.08.2026, живой разбор воронки: раньше после теста был только
           выбор "заплати за PDF сейчас или уходи" — ничего не говорило о
           том, что "Безопасный бизнес" вообще не сводится к разовому тесту
@@ -420,6 +508,8 @@ function ResultStep({
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
           PDF по каждому найденному нарушению: штраф и статья закона, на чём основано требование, план
           устранения и список обязательных документов — пришлём на почту. Разовая оплата, без подписки.
+          В подарок — месяц полного доступа к кабинету: план устранения списком дел и напоминания о сроках.
+          Карту не сохраняем, ничего не спишется само.
         </div>
         {/* Ссылка на уже существующий пример (backend/src/scripts/
             generateSampleReport.js, 13.08.2026) — 2 нарушения из 8 раскрыты
@@ -491,6 +581,10 @@ function DoneStep() {
         Обычно это занимает не больше пары минут. Как только оплата подтвердится, результат придёт на
         указанную почту (отчёт по тесту или проверка сайта — смотря что оплачивали) — проверьте папку "Спам",
         если письмо не появится в течение 10 минут.
+      </div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 10 }}>
+        Если оплачивали заключение — в письме будет ссылка для входа в кабинет. Там ваш план устранения списком
+        дел и месяц полного доступа в подарок.
       </div>
       {/* 12.09.2026, прямой запрос владельца: способ связаться, если после
           оплаты письмо всё равно не пришло. */}
