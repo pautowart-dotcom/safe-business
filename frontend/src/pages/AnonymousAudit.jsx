@@ -68,36 +68,33 @@ function riskColor(risk) {
 // показывал бесплатно). Название + уровень риска — настоящие, по ИХ тесту,
 // не обобщённый макет; штраф/норма/решение — самое ценное для владельца —
 // намеренно скрыты за блюром, это и есть граница бесплатного/платного.
+// 14.10.2026 (рилс: 36 дошли до результата, 1 оплата; владелец: "ощущение,
+// что обманываем, что пишем бесплатно") — обещали "карту нарушений
+// бесплатно", а показывали 2 названия из N. Теперь бесплатно весь список
+// названий (это и есть честная диагностика), платное — штраф, норма и план
+// по каждому, то есть заключение.
 function ViolationPreview({ violations }) {
   if (!violations || violations.length === 0) return null;
-  const shown = violations.slice(0, 2);
-  const hiddenCount = violations.length - shown.length;
+  const sorted = [...violations].sort((a, b) => (b.risk || 0) - (a.risk || 0));
   return (
     <Card>
       <div style={{ fontSize: 13, fontWeight: 700, color: C.subtle, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-        Что нашли — примеры
+        Что нашли
       </div>
-      {shown.map((v, i) => (
-        <div key={v.code} style={{ marginBottom: i < shown.length - 1 ? 16 : 0, paddingBottom: i < shown.length - 1 ? 16 : 0, borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor(v.risk), flexShrink: 0 }} />
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{v.title}</div>
-          </div>
-          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}>
-            <div style={{ filter: 'blur(5px)', userSelect: 'none', pointerEvents: 'none', fontSize: 12.5, color: C.secondary, lineHeight: 1.5, padding: '8px 10px', background: C.surface, borderRadius: 8 }}>
-              Штраф: размер и статья закона. Норма: на чём основано требование. Как исправить: пошаговый план с документами и сроками.
-            </div>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700, color: C.subtle }}>
-              🔒 штраф, норма закона и план решения — в полном отчёте
-            </div>
-          </div>
+      {sorted.map((v, i) => (
+        <div key={v.code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor(v.risk), flexShrink: 0 }} />
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{v.title}</div>
         </div>
       ))}
-      {hiddenCount > 0 && (
-        <div style={{ fontSize: 12.5, color: C.subtle, marginTop: 14, textAlign: 'center' }}>
-          + ещё {hiddenCount} {hiddenCount === 1 ? 'нарушение' : hiddenCount < 5 ? 'нарушения' : 'нарушений'} в полном отчёте
+      <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
+        <div style={{ filter: 'blur(5px)', userSelect: 'none', pointerEvents: 'none', fontSize: 12.5, color: C.secondary, lineHeight: 1.5, padding: '8px 10px', background: C.surface, borderRadius: 8 }}>
+          Штраф: размер и статья закона. Норма: на чём основано требование. Как исправить: пошаговый план с документами и сроками.
         </div>
-      )}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 8px', fontSize: 11.5, fontWeight: 700, color: C.subtle }}>
+          Штраф, норма закона и план решения по каждому пункту — в заключении
+        </div>
+      </div>
     </Card>
   );
 }
@@ -107,9 +104,9 @@ function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWor
     <Card>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Разовый аудит безопасности бизнеса</div>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16, lineHeight: 1.5 }}>
-        Полный тест по вашей нише — бесплатно, сразу видно индекс безопасности и карту нарушений. Захотите
-        подробный PDF-отчёт с планом устранения — {PRICE_RUB} ₽ разово, без подписки. Регистрация не нужна,
-        только email в конце, если решите скачать отчёт.
+        Тест по вашей нише — бесплатно: сразу увидите индекс безопасности и список найденных нарушений.
+        Штрафы, нормы закона и план устранения по каждому пункту — в заключении, {PRICE_RUB} ₽ разово, без
+        подписки. Регистрация не нужна, только email в конце, если решите получить заключение.
       </div>
       {/* 07.09.2026, живой разбор воронки маркетолога: "переходят из
           Instagram, видят 30 вопросов и просто не проходят" — честно
@@ -419,10 +416,10 @@ function ResultStep({
       />
 
       <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Полный отчёт — {PRICE_RUB} ₽</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Заключение — {PRICE_RUB} ₽</div>
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
-          PDF со всеми найденными нарушениями, штрафами, планом устранения и списком обязательных документов —
-          пришлём на почту. Разовая оплата, без подписки.
+          PDF по каждому найденному нарушению: штраф и статья закона, на чём основано требование, план
+          устранения и список обязательных документов — пришлём на почту. Разовая оплата, без подписки.
         </div>
         {/* Ссылка на уже существующий пример (backend/src/scripts/
             generateSampleReport.js, 13.08.2026) — 2 нарушения из 8 раскрыты
@@ -457,7 +454,7 @@ function ResultStep({
         {error && <div className="alert alert-error">{error}</div>}
       </Card>
       <StickyFooterButton onClick={onPay} disabled={paying}>
-        {paying ? 'Переходим к оплате…' : `Оплатить и получить отчёт — ${promo ? promo.finalRub : PRICE_RUB} ₽`}
+        {paying ? 'Переходим к оплате…' : `Оплатить и получить заключение — ${promo ? promo.finalRub : PRICE_RUB} ₽`}
       </StickyFooterButton>
       {/* 02.09.2026, живой разбор воронки: раньше эта ссылка стояла прямо
           над платной кнопкой, тем же цветом и весом (C.primary, стрелка →),
