@@ -225,7 +225,7 @@ export default function Subscription() {
             ) : promoOpen ? (
               <form onSubmit={applyPromo} style={{ display: 'flex', gap: 8, marginBottom: promoError ? 6 : 14 }}>
                 <TextInput value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="Промокод" autoFocus style={{ flex: 1, minWidth: 0 }} />
-                <Btn type="submit" variant="secondary" disabled={promoChecking || !promoInput.trim()}>{promoChecking ? '...' : 'Применить'}</Btn>
+                <Btn type="submit" variant="secondary" disabled={promoChecking || !promoInput.trim()} style={{ width: 'auto', flexShrink: 0 }}>{promoChecking ? '...' : 'Применить'}</Btn>
               </form>
             ) : (
               <button onClick={() => setPromoOpen(true)} style={{ display: 'block', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 14 }}>

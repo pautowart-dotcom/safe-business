@@ -454,7 +454,7 @@ function PromoField({ input, setInput, promo, error, checking, onApply, onRemove
           autoFocus
           style={{ flex: 1, minWidth: 0 }}
         />
-        <Btn variant="secondary" onClick={onApply} disabled={checking || !input.trim()}>{checking ? '…' : 'Применить'}</Btn>
+        <Btn variant="secondary" onClick={onApply} disabled={checking || !input.trim()} style={{ width: 'auto', flexShrink: 0 }}>{checking ? '…' : 'Применить'}</Btn>
       </div>
       {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
     </div>
