@@ -13,8 +13,11 @@ const { sendPushToCompany } = require('./pushNotify');
 // например, каждое сохранение налогового режима в Настройках (Этап 4,
 // syncTaxDeadlines пересобирает все слоты) заново слало бы уведомления по
 // уже существующим срокам.
+//
+// notify=false — не слать push о новом сроке (налоговые сроки нового года
+// заводятся пачкой, scripts/taxDeadlinesRollover.js шлёт один общий push).
 async function registerDeadline({
-  companyId, category, title, dueDate, relatedEntityType = null, relatedEntityId = null, note = null, recurrence = null, fileUrl = null,
+  companyId, category, title, dueDate, relatedEntityType = null, relatedEntityId = null, note = null, recurrence = null, fileUrl = null, notify = true,
 }) {
   let id;
   let inserted;
@@ -54,7 +57,7 @@ async function registerDeadline({
   // бизнес / <суть>", много лишнего текста сверху. Имя приложения ("from
   // ...") рисует сама ОС из имени PWA, дублировать его в заголовке не
   // нужно — поэтому в заголовок идёт сама суть, а не обёртка.
-  if (inserted) {
+  if (inserted && notify) {
     sendPushToCompany({
       companyId,
       category,

@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const { registerDeadline } = require('./deadlines');
+const { moscowDateStr } = require('../utils/moscowDate');
 
 // ВАЖНО — даты и сама применимость правил ниже реализованы по общим
 // ориентирам для ИП на популярных режимах и МОГУТ БЫТЬ НЕТОЧНЫМИ для
@@ -124,18 +125,30 @@ const ALL_SLOT_KEYS = [
   'emp_q1', 'emp_q2', 'emp_q3', 'emp_annual', 'emp_annual_6ndfl',
 ];
 
-// Пересчитывает налоговые дедлайны компании под текущий режим/исходные
-// данные и текущий календарный год. Вызывается при сохранении налоговых
-// настроек на вкладке "Мои сроки". Смены года без повторного захода в
-// настройки не отслеживаются — тут нет плановой задачи (cron), которая
-// перегенерировала бы сроки на новый год автоматически; это ограничение
-// MVP, а не намеренное решение.
-async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasEmployees = false } = {}) {
-  const year = new Date().getFullYear();
+// Год — часть ключа срока (14.10.2026, В1). Раньше ключ был `tax:<слот>`
+// без года, и пересохранение настроек в январе перезаписывало ещё не
+// наступившие сроки прошлого года (декларация УСН за год — до 25.04,
+// доплата 1% — до 01.07, годовые РСВ/6-НДФЛ) сроками следующего года.
+// Старые строки перевела миграция 0129.
+function taxRelatedType(year, slotKey) {
+  return `tax:${year}:${slotKey}`;
+}
+
+function currentTaxYear() {
+  return Number(moscowDateStr().slice(0, 4));
+}
+
+// Пересчитывает налоговые дедлайны компании за один календарный год (по
+// умолчанию — текущий по Москве) под режим/исходные данные. Сроки других
+// лет не трогает. Вызывается при сохранении налоговых настроек на вкладке
+// "Мои сроки" и ежедневным scripts/taxDeadlinesRollover.js, который
+// заводит сроки нового года. notify=false — без push на каждый срок
+// (rollover шлёт один общий). Возвращает число сроков за этот год.
+async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasEmployees = false } = {}, { year = currentTaxYear(), notify = true } = {}) {
   const desired = computeSlots(regime, year, { ipRegisteredAt, hasEmployees });
 
   for (const slotKey of ALL_SLOT_KEYS) {
-    const relatedEntityType = `tax:${slotKey}`;
+    const relatedEntityType = taxRelatedType(year, slotKey);
     if (desired[slotKey]) {
       await registerDeadline({
         companyId,
@@ -144,6 +157,7 @@ async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasE
         dueDate: desired[slotKey].dueDate,
         relatedEntityType,
         relatedEntityId: companyId,
+        notify,
       });
     } else {
       await pool.query('DELETE FROM deadlines WHERE company_id = $1 AND related_entity_type = $2 AND related_entity_id = $3', [
@@ -153,6 +167,7 @@ async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasE
       ]);
     }
   }
+  return Object.keys(desired).length;
 }
 
 // "Резерв на налоги" — ориентировочная сумма к отложенному конкретному
@@ -251,4 +266,4 @@ function computePatentSchedule(startAt, endAt, amount) {
   ];
 }
 
-module.exports = { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };
+module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, taxRelatedType, currentTaxYear, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };

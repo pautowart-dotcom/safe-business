@@ -102,6 +102,14 @@ echo "== Cron: повторные напоминания о приближающ
 DEADLINE_REMINDERS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/deadlineReminders.js >> /var/log/safe-business-deadline-reminders.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "deadlineReminders.js" ; echo "5 7 * * * $DEADLINE_REMINDERS_CRON_CMD" ) | crontab -
 
+# Добавлено 14.10.2026 — налоговые сроки нового года. Раньше они заводились
+# только при сохранении настроек, и с 1 января у компаний не было сроков на
+# новый год. Запуск до напоминаний (7:05), чтобы новые сроки попали в тот же
+# прогон.
+echo "== Cron: налоговые сроки нового года =="
+TAX_ROLLOVER_CRON_CMD="cd $APP_DIR/backend && node src/scripts/taxDeadlinesRollover.js >> /var/log/safe-business-tax-rollover.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "taxDeadlinesRollover.js" ; echo "0 7 * * * $TAX_ROLLOVER_CRON_CMD" ) | crontab -
+
 # Добавлено 06.09.2026 — вопрос владельца: "как быть клиенту, который уже
 # всё купил?" Раньше при добавлении нового вопроса/нарушения в матрицу
 # (например -505 в этой же сессии) уже вовлечённые компании не узнавали об
