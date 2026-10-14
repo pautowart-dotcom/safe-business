@@ -6,6 +6,7 @@ import Icon from '../ui/Icon.jsx';
 import OnboardingModal from './OnboardingModal.jsx';
 import AiAssistantWidget from './AiAssistantWidget.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
+import api from '../api/client.js';
 import { C, F, MAX_WIDTH, PAGE_BG, SH } from '../ui/theme.js';
 
 // 23.08.2026: первая версия просто сажала весь контент на 1200px — на
@@ -200,8 +201,60 @@ const TITLES = {
   '/subscription': 'Подписка',
   '/support': 'Поддержка',
   '/deadlines': 'Дедлайны',
+  '/notifications': 'Уведомления',
   '/more': 'Ещё',
 };
+
+// Колокольчик раздела «Уведомления» (Ж3, 14.10.2026) со счётчиком
+// непрочитанных. Счётчик обновляется при смене страницы и по событию
+// 'notifications:changed' (его шлёт Notifications.jsx при «прочитано»).
+// Только владельцу и администратору — уведомления про сроки и законы
+// компании, мастеру они не нужны.
+function useUnreadNotifications(enabled, pathname) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    const load = () =>
+      api.get('/platform/notifications')
+        .then(({ data }) => { if (!cancelled) setCount(data.unreadCount || 0); })
+        .catch(() => {});
+    load();
+    window.addEventListener('notifications:changed', load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('notifications:changed', load);
+    };
+  }, [enabled, pathname]);
+  return count;
+}
+
+function NotificationsBell({ count, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      aria-label={count > 0 ? `Уведомления, непрочитанных: ${count}` : 'Уведомления'}
+      role="button"
+      style={{
+        position: 'relative', width: 34, height: 34, minWidth: 34, minHeight: 34, borderRadius: '50%', boxSizing: 'border-box',
+        background: C.surface, border: `1px solid ${C.border}`, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+      }}
+    >
+      <Icon name="bell" size={16} color={C.primary} sw={1.8} />
+      {count > 0 && (
+        <span
+          style={{
+            position: 'absolute', top: -3, right: -3, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 9,
+            background: C.red, color: '#FFF', fontSize: 10, fontWeight: 800, lineHeight: '17px', textAlign: 'center', boxSizing: 'border-box',
+          }}
+        >
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function Layout() {
   const { user, currentCompany, isManagement, isOwner, hasModule } = useAuth();
@@ -214,6 +267,7 @@ export default function Layout() {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const isDesktop = useIsDesktop();
+  const unreadNotifications = useUnreadNotifications(isOwner || isManagement, location.pathname);
 
   // 04.09.2026: раньше Финансы не имела moduleKey и всегда была видна,
   // независимо от того, включён ли модуль company_modules.finance — из-за
@@ -397,7 +451,10 @@ export default function Layout() {
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ height: 56, flexShrink: 0, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', gap: 20 }}>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: C.primary, flexShrink: 0 }}>{isHome ? 'Главная' : TITLES[location.pathname] || ''}</div>
-            <CommandPalette desktopNav={desktopNav} navigate={navigate} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <CommandPalette desktopNav={desktopNav} navigate={navigate} />
+              {(isOwner || isManagement) && <NotificationsBell count={unreadNotifications} onClick={() => navigate('/notifications')} />}
+            </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
             <div style={{ maxWidth: desktopContentWidth(location.pathname), margin: '0 auto' }}>
@@ -444,6 +501,7 @@ export default function Layout() {
             узкой шапке (длинное название компании) круг личного кабинета
             сжимался по ширине и становился овальным — это и был баг. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {(isOwner || isManagement) && <NotificationsBell count={unreadNotifications} onClick={() => navigate('/notifications')} />}
           <div
             onClick={() => navigate('/deadlines')}
             style={{

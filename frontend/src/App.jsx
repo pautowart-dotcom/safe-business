@@ -28,6 +28,7 @@ import More from './pages/More.jsx';
 import Subscription from './pages/Subscription.jsx';
 import Support from './pages/Support.jsx';
 import Deadlines from './pages/Deadlines.jsx';
+import Notifications from './pages/Notifications.jsx';
 import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
@@ -143,6 +144,7 @@ export default function App() {
         <Route path="subscription" element={<Subscription />} />
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route
           path="business-status/:transitionKey"
           element={
