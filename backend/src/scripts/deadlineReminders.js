@@ -1,6 +1,6 @@
 require('dotenv').config();
 const pool = require('../db/pool');
-const { sendPushToCompany } = require('../core/pushNotify');
+const { notifyCompany } = require('../core/notifications');
 const { moscowDateStr } = require('../utils/moscowDate');
 
 // Повторные напоминания о приближающихся сроках (05.09.2026) — closes a real
@@ -43,8 +43,12 @@ async function run() {
 
     // Побочный эффект (push) не должен ронять весь прогон из-за одной
     // недоступной подписки — тот же принцип, что в core/deadlines.js.
-    await sendPushToCompany({ companyId: row.company_id, category: row.category, title: row.title, body, url: '/deadlines' })
-      .catch((err) => console.error('deadlineReminders: sendPushToCompany failed', row.id, err));
+    // dedupeKey по сроку: в разделе «Уведомления» одна запись на срок,
+    // каждое следующее напоминание поднимает её наверх с новым «осталось N дн.».
+    await notifyCompany({
+      companyId: row.company_id, kind: 'deadline', category: row.category, title: row.title, body, url: '/deadlines',
+      dedupeKey: `deadline:${row.id}`,
+    }).catch((err) => console.error('deadlineReminders: notifyCompany failed', row.id, err));
     sent++;
   }
 

@@ -1,5 +1,5 @@
 const pool = require('../db/pool');
-const { sendPushToCompany } = require('./pushNotify');
+const { notifyCompany } = require('./notifications');
 
 // Единая точка регистрации сроков для любого модуля (Пакет 3, Этап 2).
 // upsert по (relatedEntityType, relatedEntityId, category) — повторный вызов
@@ -58,13 +58,15 @@ async function registerDeadline({
   // ...") рисует сама ОС из имени PWA, дублировать его в заголовке не
   // нужно — поэтому в заголовок идёт сама суть, а не обёртка.
   if (inserted && notify) {
-    sendPushToCompany({
+    notifyCompany({
       companyId,
+      kind: 'deadline',
       category,
       title,
       body: 'Новый срок — подробности в «Дедлайнах»',
       url: '/deadlines',
-    }).catch((err) => console.error('sendPushToCompany failed:', err));
+      dedupeKey: `deadline:${id}`,
+    }).catch((err) => console.error('notifyCompany failed:', err));
   }
 
   return id;
@@ -101,14 +103,19 @@ async function registerAction({ companyId, category, title, relatedEntityType = 
     inserted = true;
   }
 
+  // dedupeKey по related-сущности: ежедневные действия (businessStatus-
+  // Triggers, dailyOperationsNudges снимают и заново ставят карточку каждый
+  // день) обновляют одну запись в разделе, а не копят по штуке в день.
   if (inserted) {
-    sendPushToCompany({
+    notifyCompany({
       companyId,
+      kind: 'deadline',
       category,
       title,
       body: 'Подробности — в «Дедлайнах»',
       url: '/deadlines',
-    }).catch((err) => console.error('sendPushToCompany failed:', err));
+      dedupeKey: relatedEntityType && relatedEntityId ? `action:${relatedEntityType}:${relatedEntityId}` : null,
+    }).catch((err) => console.error('notifyCompany failed:', err));
   }
 
   return id;

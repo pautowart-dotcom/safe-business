@@ -1,7 +1,7 @@
 require('dotenv').config();
 const pool = require('../db/pool');
 const { syncTaxDeadlines, syncEmployerMonthly, currentTaxYear } = require('../core/taxDeadlines');
-const { sendPushToCompany } = require('../core/pushNotify');
+const { notifyCompany } = require('../core/notifications');
 
 // Налоговые сроки нового года (14.10.2026, В1а плана этапа 2). Раньше сроки
 // заводились только при сохранении налоговых настроек — с 1 января у всех,
@@ -43,13 +43,15 @@ async function run() {
     );
     if (count === 0) continue; // самозанятость: сроков нет, это нормально
     rolled++;
-    await sendPushToCompany({
+    await notifyCompany({
       companyId: c.id,
+      kind: 'deadline',
       category: 'tax',
       title: `Налоговые сроки на ${year} год добавлены`,
       body: 'Напомним заранее о каждом — список в «Дедлайнах»',
       url: '/deadlines',
-    }).catch((err) => console.error('taxDeadlinesRollover: sendPushToCompany failed', c.id, err));
+      dedupeKey: `tax_rollover:${year}`,
+    }).catch((err) => console.error('taxDeadlinesRollover: notifyCompany failed', c.id, err));
   }
 
   // Ежемесячные дела работодателя (В2а) — у компаний, которые отметили

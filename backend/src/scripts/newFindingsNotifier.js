@@ -2,7 +2,7 @@ require('dotenv').config();
 const pool = require('../db/pool');
 const { loadProfile } = require('../modules/security/profile');
 const { visiblePaidQuestions } = require('../modules/security/status');
-const { sendPushToCompany } = require('../core/pushNotify');
+const { notifyCompany } = require('../core/notifications');
 
 // Уведомление о новых пунктах теста для уже вовлечённых компаний
 // (06.09.2026, вопрос владельца: "как быть клиенту, который уже всё
@@ -60,13 +60,14 @@ async function run() {
     // принцип, что в core/deadlines.js: push best-effort, а "не спамить
     // повторно" важнее, чем гарантированная доставка одного конкретного
     // уведомления.
-    await sendPushToCompany({
+    await notifyCompany({
       companyId,
+      kind: 'test',
       category: 'compliance',
       title: newCodes.length === 1 ? 'В тесте появился новый пункт' : `В тесте появилось ${newCodes.length} новых пунктов`,
       body: 'Мы обновили список нарушений — стоит пройти тест ещё раз, чтобы проверить актуальность.',
       url: '/security',
-    }).catch((err) => console.error('newFindingsNotifier: sendPushToCompany failed', companyId, err));
+    }).catch((err) => console.error('newFindingsNotifier: notifyCompany failed', companyId, err));
 
     for (const code of newCodes) {
       await pool.query(

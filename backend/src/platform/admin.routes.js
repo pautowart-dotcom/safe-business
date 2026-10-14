@@ -1506,6 +1506,20 @@ router.post(
       );
     }
 
+    // Раздел «Уведомления» (Ж2, 14.10.2026; решение владельца — изменения
+    // законов всем подписчикам, не только ИИ-тарифу): копия каждой компании.
+    // Пока текст один на всех; в Ж4 здесь же будет выбираться вариант
+    // «как касается вас» по данным компании. Повторная публикация того же
+    // изменения обновляет запись (dedupe_key), без копий. Без push — как и
+    // до раздела; решить отдельно.
+    await pool.query(
+      `INSERT INTO company_notifications (company_id, kind, title, body, dedupe_key)
+       SELECT id, 'law', 'Изменение в законах', $1, $2 FROM companies
+       ON CONFLICT (company_id, dedupe_key) DO UPDATE
+         SET title = EXCLUDED.title, body = EXCLUDED.body, created_at = now(), read_at = NULL`,
+      [explanation, `law:${rows[0].id}`]
+    );
+
     res.status(201).json(rows[0]);
   })
 );
