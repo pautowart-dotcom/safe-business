@@ -50,6 +50,9 @@ const NICHE_PREFIX = {
   lashes_brows: 'LB',
   hair: 'HR',
   massage: 'MS',
+  // cosmetology (15.10.2026) — стандартная нумерация 402-406 (ofertaViolation/
+  // marketingConsentViolation), см. violations/cosmetology.js.
+  cosmetology: 'CS',
   tattoo: 'TT',
   depilation: 'DP',
   solarium: 'SL',
@@ -173,7 +176,7 @@ for (const [niche, prefix] of Object.entries(NICHE_PREFIX)) {
 // auto_service включена сюда же — код -405 у неё существует (заказ-наряд по
 // ПП №780 вместо общего ofertaViolation), формат кода/вопроса совпадает с
 // остальными, поэтому связка {niche}_oferta → AS-405 работает тем же циклом.
-const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash', 'tire_service', 'auto_service', 'kids_club', 'facade_cleaning', 'bakery_confectionery', 'device_repair', 'dog_training'];
+const OFERTA_NICHES = ['manicure', 'lashes_brows', 'hair', 'massage', 'cosmetology', 'tattoo', 'depilation', 'solarium', 'barbershop', 'fitness_gym', 'dance', 'yoga', 'pilates', 'martial_arts', 'atelier', 'shoe_repair', 'photo_studio', 'dry_cleaning', 'pet_grooming', 'pet_boarding', 'appliance_repair', 'watch_jewelry_repair', 'car_wash', 'tire_service', 'auto_service', 'kids_club', 'facade_cleaning', 'bakery_confectionery', 'device_repair', 'dog_training'];
 for (const niche of OFERTA_NICHES) {
   const prefix = NICHE_PREFIX[niche];
   LINKS[niche].push({

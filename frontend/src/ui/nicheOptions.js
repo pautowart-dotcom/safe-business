@@ -11,6 +11,7 @@ export const NICHE_OPTIONS = [
   ['lashes_brows', 'Ресницы и брови', 'beauty'],
   ['hair', 'Волосы (парикмахерские услуги)', 'beauty'],
   ['massage', 'Массаж (без медицинской лицензии)', 'beauty'],
+  ['cosmetology', 'Косметология: уход за лицом (без медицинской лицензии)', 'beauty'],
   ['tattoo', 'Тату, пирсинг и перманентный макияж', 'beauty'],
   ['depilation', 'Депиляция (шугаринг, воск, нить)', 'beauty'],
   ['solarium', 'Солярий', 'beauty'],

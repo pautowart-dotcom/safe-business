@@ -8,6 +8,7 @@ export const NICHE_LABELS = {
   lashes_brows: 'Ресницы и брови',
   hair: 'Волосы',
   massage: 'Массаж',
+  cosmetology: 'Косметология',
   tattoo: 'Тату, пирсинг и ПМ',
   depilation: 'Депиляция',
   solarium: 'Солярий',

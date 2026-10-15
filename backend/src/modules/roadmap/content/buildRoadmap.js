@@ -23,6 +23,7 @@ const VIOLATIONS_BY_NICHE = {
   lashes_brows: require('../../security/content/violations/lashes-brows'),
   hair: require('../../security/content/violations/hair'),
   massage: require('../../security/content/violations/massage'),
+  cosmetology: require('../../security/content/violations/cosmetology'),
   tattoo: require('../../security/content/violations/tattoo'),
   depilation: require('../../security/content/violations/depilation'),
   solarium: require('../../security/content/violations/solarium'),

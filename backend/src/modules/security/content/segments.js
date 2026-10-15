@@ -23,6 +23,9 @@ const SEGMENTS = [
       { key: 'lashes_brows', label: 'Ресницы и брови', paidAudit: true },
       { key: 'hair', label: 'Волосы (парикмахерские услуги)', paidAudit: true },
       { key: 'massage', label: 'Массаж (без медицинской лицензии)', paidAudit: true },
+      // cosmetology (15.10.2026) — уход за лицом без медлицензии; граница с
+      // медициной и источники — в шапке violations/cosmetology.js.
+      { key: 'cosmetology', label: 'Косметология: уход за лицом (без медицинской лицензии)', paidAudit: true },
       { key: 'tattoo', label: 'Тату, пирсинг и перманентный макияж', paidAudit: true },
       { key: 'depilation', label: 'Депиляция (шугаринг, воск, нить)', paidAudit: true },
       { key: 'solarium', label: 'Солярий', paidAudit: true },

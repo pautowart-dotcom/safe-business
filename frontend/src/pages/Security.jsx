@@ -34,6 +34,7 @@ const SEGMENTS = [
       { key: 'lashes_brows', label: 'Ресницы и брови' },
       { key: 'hair', label: 'Волосы' },
       { key: 'massage', label: 'Массаж' },
+      { key: 'cosmetology', label: 'Косметология (уход за лицом)' },
       { key: 'tattoo', label: 'Тату, пирсинг и ПМ' },
       { key: 'depilation', label: 'Депиляция' },
       { key: 'solarium', label: 'Солярий' },

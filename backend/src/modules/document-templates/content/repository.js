@@ -42,6 +42,13 @@ const TEMPLATES_BY_NICHE = {
     require('./templates/massage-marketing-consent'),
     require('./templates/massage-privacy-policy'),
   ],
+  cosmetology: [
+    require('./templates/cosmetology'),
+    require('./templates/cosmetology-pd-consent'),
+    require('./templates/cosmetology-pd-distribution'),
+    require('./templates/cosmetology-marketing-consent'),
+    require('./templates/cosmetology-privacy-policy'),
+  ],
   tattoo: [
     require('./templates/tattoo'),
     require('./templates/tattoo-pd-consent'),
