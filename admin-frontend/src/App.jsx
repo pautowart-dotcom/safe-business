@@ -18,6 +18,7 @@ import RoadmapLeads from './pages/RoadmapLeads.jsx';
 import AiUnanswered from './pages/AiUnanswered.jsx';
 import PromoCodes from './pages/PromoCodes.jsx';
 import Finance from './pages/Finance.jsx';
+import TestFeedback from './pages/TestFeedback.jsx';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="companies" element={<Companies />} />
         <Route path="companies/:id" element={<Companies />} />
         <Route path="roadmap-leads" element={<RoadmapLeads />} />
+        <Route path="test-feedback" element={<TestFeedback />} />
         <Route path="ai-unanswered" element={<AiUnanswered />} />
         <Route path="ai-manager" element={<AiManager />} />
         <Route path="compliance" element={<Compliance />} />

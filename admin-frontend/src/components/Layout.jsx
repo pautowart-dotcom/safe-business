@@ -28,6 +28,7 @@ const NAV_GROUPS = [
     title: 'Обращения',
     items: [
       { to: '/support', label: 'Поддержка', icon: 'msg', countKey: 'support' },
+      { to: '/test-feedback', label: 'Отзывы после теста', icon: 'star', countKey: 'testFeedback' },
       { to: '/ai-unanswered', label: 'Вопросы без ответа', icon: 'help', countKey: 'aiUnanswered' },
       // Монограмма "Б" вместо Icon (21.08.2026) — тот же фирменный знак, что
       // уже принят для клиентского ассистента (AiAssistantWidget.jsx).

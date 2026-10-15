@@ -47,10 +47,11 @@ router.get(
       `SELECT
          (SELECT COUNT(*) FROM support_requests WHERE status = 'open') AS support,
          (SELECT COUNT(*) FROM law_change_candidates WHERE status = 'pending') AS law,
-         (SELECT COUNT(*) FROM ai_unanswered_questions WHERE created_at > now() - interval '7 days') AS ai_unanswered`
+         (SELECT COUNT(*) FROM ai_unanswered_questions WHERE created_at > now() - interval '7 days') AS ai_unanswered,
+         (SELECT COUNT(*) FROM security_feedback WHERE created_at > now() - interval '7 days') AS test_feedback`
     );
     const r = rows[0];
-    res.json({ support: Number(r.support), law: Number(r.law), aiUnanswered: Number(r.ai_unanswered) });
+    res.json({ support: Number(r.support), law: Number(r.law), aiUnanswered: Number(r.ai_unanswered), testFeedback: Number(r.test_feedback) });
   })
 );
 
@@ -1242,6 +1243,55 @@ router.get(
     const segments = await securityRepository.getSegments();
     const niches = segments.flatMap((s) => s.niches || []).map((n) => ({ key: n.key, label: n.label }));
     res.json(niches);
+  })
+);
+
+// Отзывы после теста (15.10.2026) — блок «Как вам результат?» на экране
+// результата пишет в security_feedback с 14.10, но ни один экран админки
+// их не показывал: владелец узнавал о комментарии только из push. Здесь все
+// отзывы подряд, новые сверху; почта — только у тех, кто её оставил (у
+// гостя до оплаты плейсхолдер guest-…@guest.business-safe.internal).
+router.get(
+  '/test-feedback',
+  asyncHandler(async (req, res) => {
+    const [{ rows }, segments] = await Promise.all([
+      pool.query(
+        `SELECT f.id, f.selected_option, f.comment, f.created_at, f.company_id,
+                c.name AS company_name, c.is_test,
+                s.niche, s.zone, s.index_percent,
+                owner.email AS owner_email, COALESCE(owner.is_guest, false) AS is_guest
+         FROM security_feedback f
+         JOIN companies c ON c.id = f.company_id
+         JOIN security_sessions s ON s.id = f.session_id
+         LEFT JOIN LATERAL (
+           SELECT u.email, u.is_guest
+           FROM memberships m JOIN users u ON u.id = m.user_id
+           WHERE m.company_id = c.id AND m.role = 'owner'
+           ORDER BY m.id ASC LIMIT 1
+         ) owner ON true
+         ORDER BY f.created_at DESC
+         LIMIT 500`
+      ),
+      securityRepository.getSegments(),
+    ]);
+    const nicheLabels = Object.fromEntries(segments.flatMap((s) => s.niches || []).map((n) => [n.key, n.label]));
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        option: r.selected_option,
+        comment: r.comment || null,
+        createdAt: r.created_at,
+        companyId: r.company_id,
+        companyName: r.company_name,
+        isTest: r.is_test,
+        isGuest: r.is_guest,
+        email: r.owner_email && !r.owner_email.endsWith('@guest.business-safe.internal') ? r.owner_email : null,
+        niche: r.niche,
+        nicheLabel: nicheLabels[r.niche] || r.niche,
+        zone: r.zone,
+        indexPercent: r.index_percent === null ? null : Number(r.index_percent),
+      }))
+    );
   })
 );
 
