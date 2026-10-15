@@ -8,8 +8,11 @@ import { Card, Badge, C } from '../ui/components.jsx';
 // отличать «всё понятно» от «не про меня / непонятно / дорого».
 const OPTION_COLORS = {
   'Всё понятно, буду исправлять': [C.green, C.greenBg],
+  'Узнал(а) то, чего не знал(а)': [C.green, C.greenBg],
+  'Полезно, сохраню список': [C.green, C.greenBg],
   'Это не про мой бизнес': [C.red, C.redBg],
   'Непонятные вопросы или формулировки': [C.orange, C.orangeBg],
+  'Слишком длинный тест': [C.orange, C.orangeBg],
   'Заключение дорого': [C.purple, C.purpleBg],
   'Пока не готов(а) платить': [C.purple, C.purpleBg],
 };
