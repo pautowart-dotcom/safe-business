@@ -260,6 +260,18 @@ const QUESTIONS = [
       { label: 'Нет', points: 0 },
     ],
   },
+  {
+    code: 'KC-507',
+    block: 4,
+    text: 'Проходят ли сотрудники, работающие с детьми, психиатрическое освидетельствование (раз в 5 лет)?',
+    hint: 'Это отдельно от ежегодного медосмотра: решение выносит врачебная комиссия.',
+    showIf: 'has_employees',
+    answers: [
+      { label: 'Да, у всех', points: 1 },
+      { label: 'Не у всех', points: 0.5 },
+      { label: 'Нет', points: 0 },
+    ],
+  },
   personnelReportingQuestion('KC'),
   {
     code: 'KC-506',
