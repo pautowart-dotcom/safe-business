@@ -43,7 +43,7 @@ function PointRow({ m, canManage, onRemove }) {
         <div style={{ fontSize: 14, fontWeight: 700, minWidth: 0 }}>{m.companyName}</div>
         {m.opening ? (
           <Badge color={C.blue} bg={C.blueBg}>Открытие · {m.opening.done} из {m.opening.total}</Badge>
-        ) : m.indexPercent != null ? (
+        ) : m.indexPercent === undefined ? null : m.indexPercent != null ? (
           <Badge color={ZONE_COLOR[m.zone]} bg={ZONE_BG[m.zone]}>{ZONE_LABELS[m.zone]} · {m.indexPercent}%</Badge>
         ) : (
           <Badge color={C.subtle} bg={C.surface}>Без теста</Badge>
@@ -52,7 +52,9 @@ function PointRow({ m, canManage, onRemove }) {
       <div style={{ fontSize: 12, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>
         {m.opening
           ? `Сейчас: ${m.opening.currentStage || 'все пункты отмечены'}`
-          : `Нарушений: ${m.violationsCount || 0}, исправлено: ${m.resolvedCount || 0} · подошло сроков: ${m.overdueDeadlines}`}
+          : m.indexPercent === undefined
+            ? `Подошло сроков: ${m.overdueDeadlines}`
+            : `Нарушений: ${m.violationsCount || 0}, исправлено: ${m.resolvedCount || 0} · подошло сроков: ${m.overdueDeadlines}`}
         {' · '}{activityText(m.lastActiveAt)}
       </div>
       {m.riskReasons.length > 0 && (
@@ -328,12 +330,12 @@ export default function Network() {
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>{network.name}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Stat value={network.pointsTotal} label="точек в сети" />
-          <Stat value={network.averageIndexPercent != null ? `${network.averageIndexPercent}%` : '—'} label="средний индекс" />
-          <Stat value={network.pointsAtRisk} label="требуют внимания" color={network.pointsAtRisk > 0 ? C.red : C.green} />
+          {canManage && <Stat value={network.averageIndexPercent != null ? `${network.averageIndexPercent}%` : '—'} label="средний индекс" />}
+          <Stat value={atRisk.length} label="требуют внимания" color={atRisk.length > 0 ? C.red : C.green} />
           <Stat value={network.pointsPreparing} label="готовятся к открытию" />
-          <Stat value={network.pointsUntested} label="без теста" />
+          {canManage && <Stat value={network.pointsUntested} label="без теста" />}
         </div>
-        {network.pointsTested > 0 && (
+        {canManage && network.pointsTested > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
             {['green', 'yellow', 'red'].map((z) => network.zoneCounts[z] > 0 && (
               <Badge key={z} color={ZONE_COLOR[z]} bg={ZONE_BG[z]}>{ZONE_LABELS[z]} зона: {network.zoneCounts[z]}</Badge>
@@ -342,10 +344,10 @@ export default function Network() {
         )}
       </Card>
 
-      <Card onClick={() => navigate('/network-report')} style={{ cursor: 'pointer' }}>
+      {canManage && <Card onClick={() => navigate('/network-report')} style={{ cursor: 'pointer' }}>
         <div style={{ fontSize: 15, fontWeight: 800 }}>Отчёт за месяц</div>
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Что стало лучше, где горит, открытия, задачи — страница и PDF →</div>
-      </Card>
+      </Card>}
 
       {atRisk.length > 0 && (
         <Card>

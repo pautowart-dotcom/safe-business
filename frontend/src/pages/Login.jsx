@@ -413,7 +413,11 @@ export default function Login() {
     // после входа или регистрации возвращаем на экран вступления.
     let pendingJoinCode = null;
     try { pendingJoinCode = localStorage.getItem('pendingJoinCode'); } catch { /* приватный режим */ }
-    if (pendingJoinCode) return <Navigate to={`/join-network/${pendingJoinCode}`} replace />;
+    // Только формат кода сети (franchise.routes.js generateJoinCode: hex) —
+    // иначе «../» или «?» в сохранённой строке увели бы на другой путь.
+    if (pendingJoinCode && /^[A-Za-z0-9]{4,16}$/.test(pendingJoinCode)) {
+      return <Navigate to={`/join-network/${pendingJoinCode}`} replace />;
+    }
     // Ещё не открылись — сразу на чек-лист открытия, а не на тест.
     if (justCreatedCompany === 'preparing') return <Navigate to="/opening" replace />;
     return <Navigate to={justCreatedCompany ? '/security' : (location.state?.from || '/')} replace />;

@@ -1742,7 +1742,7 @@ function FranchiseCard({ isManagement }) {
       {data.memberOf && (
         <div>
           <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
-            Вы в сети «{data.memberOf.name}». Сеть видит сводку по точке: индекс, нарушения, число сроков, шаг открытия — без имён сотрудников, клиентов и денег.
+            Вы в сети «{data.memberOf.name}». Сеть видит сводку по точке: индекс, нарушения, число сроков, шаг открытия, давно ли заходили в кабинет, ваши комментарии к задачам сети — без имён сотрудников, клиентов и денег.
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Btn small variant="secondary" onClick={() => navigate('/opening')}>Точка ещё не открылась</Btn>

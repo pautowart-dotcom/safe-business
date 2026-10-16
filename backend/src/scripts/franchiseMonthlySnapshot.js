@@ -31,14 +31,17 @@ async function run() {
   let saved = 0;
   for (const group of groups) {
     try {
-      const summary = await saveSnapshot(group, today);
+      await saveSnapshot(group, today);
       saved++;
-      const n = summary.network;
+      // Без цифр сети в тексте: раздел «Уведомления» и push видят ВСЕ
+      // сотрудники компании-владельца сети (в т.ч. мастера и администраторы
+      // без доступа к пульту), а индекс точек — только для пульта
+      // (core/franchiseAccess.js). Цифры — в самом отчёте.
       await notifyCompany({
         companyId: group.owner_company_id,
         kind: 'network',
         title: `Отчёт по сети за ${label} готов`,
-        body: `Точек: ${n.pointsTotal}, средний индекс: ${n.averageIndexPercent != null ? `${n.averageIndexPercent}%` : '—'}, требуют внимания: ${n.pointsAtRisk}.`,
+        body: 'Откройте пульт сети, чтобы посмотреть отчёт.',
         url: `/network-report?month=${prevMonth}`,
         dedupeKey: `franchise_report:${group.id}:${prevMonth}`,
       });

@@ -70,6 +70,7 @@ async function buildMonthlyReport(group, month = currentMonth()) {
     pool.query(
       `SELECT c.name, jr.decided_at FROM franchise_join_requests jr JOIN companies c ON c.id = jr.requesting_company_id
        WHERE jr.franchise_group_id = $1 AND jr.status = 'approved' AND jr.decided_at >= $2 AND jr.decided_at < $3
+         AND c.franchise_group_id = $1 -- вышедшие из сети точки в отчётах не называем
        ORDER BY jr.decided_at`,
       [group.id, start, end]
     ),
@@ -91,7 +92,9 @@ async function buildMonthlyReport(group, month = currentMonth()) {
       const b = beforeById.get(p.companyId);
       if (!b || b.indexPercent == null || p.indexPercent == null) continue;
       const delta = p.indexPercent - b.indexPercent;
-      if (Math.abs(delta) >= 5) changes.push({ companyName: names.get(p.companyId) || 'Точка вышла из сети', from: b.indexPercent, to: p.indexPercent, delta });
+      // Вышедшие из сети точки не показываем вовсе (выход = отзыв согласия).
+      if (!names.has(p.companyId)) continue;
+      if (Math.abs(delta) >= 5) changes.push({ companyName: names.get(p.companyId), from: b.indexPercent, to: p.indexPercent, delta });
     }
     changes.sort((a, b) => b.delta - a.delta);
   }
