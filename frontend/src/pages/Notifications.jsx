@@ -18,6 +18,7 @@ const KIND = {
   deadline: { label: 'Срок', icon: 'bell' },
   law: { label: 'Изменение в законах', icon: 'book' },
   test: { label: 'Тест', icon: 'shield' },
+  network: { label: 'От сети', icon: 'team' },
   other: { label: 'Сообщение', icon: 'inbox' },
 };
 

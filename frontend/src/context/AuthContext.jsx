@@ -144,9 +144,9 @@ export function AuthProvider({ children }) {
   // (backend/platform/auth.routes.js: loginOrRequireVerification) — первый
   // вход всегда с "неподтверждённого" устройства, поэтому регистрация и
   // подтверждение нового устройства при входе технически одно и то же.
-  async function register({ name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo }) {
+  async function register({ name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo, notYetOpen }) {
     const captchaToken = await getCaptchaToken();
-    const res = await api.post('/auth/register', { captchaToken, name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo });
+    const res = await api.post('/auth/register', { captchaToken, name, email, password, companyName, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo, notYetOpen: !!notYetOpen });
     reachGoal('register_done');
     return res.data; // { requiresDeviceVerification: true, email }
   }

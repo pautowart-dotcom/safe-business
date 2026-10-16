@@ -130,7 +130,7 @@ router.get(
                 ai_advisor_subscription_price_rub, free_addons,
                 to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees,
                 to_char(sout_last_at, 'YYYY-MM-DD') AS sout_last_at, created_at, is_test, default_daily_hours,
-                legal_form, region_code, is_franchise, franchise_registered_to
+                legal_form, region_code, is_franchise, franchise_registered_to, opening_status
          FROM companies WHERE id = $1`,
         [req.tenant.companyId]
       ),
@@ -148,7 +148,17 @@ router.get(
     // подписка или ручной бесплатный доступ (та же формула, что в
     // requireAiAdvisorSubscription, core/middleware/subscription.js).
     const hasAiAccess = company.free_addons || (await isSubscriptionActive(req.tenant.companyId));
-    res.json({ ...company, hasAiAccess, niches: nichesRes.rows.map((r) => r.niche) });
+    // Пункт меню «Пульт сети» (16.10.2026) — та же логика доступа, что
+    // networkAccess() в franchise.routes.js: владелец сети или администратор
+    // его компании с выданным доступом.
+    const { rows: networkRows } = await pool.query(
+      `SELECT 1 FROM franchise_groups fg
+       WHERE fg.owner_company_id = $1
+         AND ($2 = 'owner' OR ($2 = 'admin' AND EXISTS (
+           SELECT 1 FROM franchise_group_viewers v WHERE v.franchise_group_id = fg.id AND v.membership_id = $3)))`,
+      [req.tenant.companyId, req.tenant.role, req.tenant.membershipId]
+    );
+    res.json({ ...company, hasAiAccess, hasNetworkCabinet: networkRows.length > 0, niches: nichesRes.rows.map((r) => r.niche) });
   })
 );
 

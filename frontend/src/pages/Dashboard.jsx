@@ -8,6 +8,8 @@ import { FM, SH } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import InstallAppBanner from '../components/InstallAppBanner.jsx';
 import FranchiseNotice from '../components/FranchiseNotice.jsx';
+import OpeningBanner from '../components/OpeningBanner.jsx';
+import NetworkTasksBanner from '../components/NetworkTasksBanner.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
@@ -181,6 +183,8 @@ export default function Dashboard() {
     <div>
       <IosPushBanner />
       <InstallAppBanner />
+      {isManagement && <OpeningBanner />}
+      {isManagement && <NetworkTasksBanner />}
       {isOwner ? <OwnerDashboard /> : isManagement ? <ManagementDashboard /> : <MasterDashboard />}
     </div>
   );

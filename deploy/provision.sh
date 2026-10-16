@@ -120,4 +120,11 @@ echo "== Cron: уведомления о новых пунктах теста д
 NEW_FINDINGS_CRON_CMD="cd $APP_DIR/backend && node src/scripts/newFindingsNotifier.js >> /var/log/safe-business-new-findings.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "newFindingsNotifier.js" ; echo "10 7 * * * $NEW_FINDINGS_CRON_CMD" ) | crontab -
 
+# Добавлено 16.10.2026 — этап 4 франшизы: снимок сводки каждой сети на 1-е
+# число и уведомление франчайзеру «отчёт за месяц готов». Запускается
+# ежедневно, сам пропускает все дни, кроме 1-го (по Москве).
+echo "== Cron: ежемесячный снимок сетей для отчёта франчайзеру =="
+FRANCHISE_SNAPSHOT_CRON_CMD="cd $APP_DIR/backend && node src/scripts/franchiseMonthlySnapshot.js >> /var/log/safe-business-franchise-snapshot.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "franchiseMonthlySnapshot.js" ; echo "30 5 * * * $FRANCHISE_SNAPSHOT_CRON_CMD" ) | crontab -
+
 echo "Провижининг сервера завершён."

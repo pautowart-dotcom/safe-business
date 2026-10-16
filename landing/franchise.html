@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- noindex — пока страницу показываем адресно (сеть «Бэби-клуб»), см.
+     docs/franchise-funkcional.md §11, этап 6. Снять, когда раздел для
+     франшиз станет публичным. -->
+<meta name="robots" content="noindex, nofollow" />
+<title>Для сетей и франшиз — Безопасный бизнес</title>
+<meta name="description" content="Порядок в документах и сроках в каждой точке сети: франчайзи ведут своё, франчайзер видит всю сеть на одном экране." />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=2" />
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=2" />
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=2" />
+<style>
+  /* Та же система переменных, что landing/index.html и start.html. */
+  :root {
+    --bg: #ffffff; --surface: #f6f6f8; --surface-2: #eeeef2; --border: #e6e6ec;
+    --text: #0b1220; --text-muted: #64646f; --accent: #2563eb; --accent-contrast: #ffffff;
+    --accent-soft: #e8f0fe; --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
+    --shadow-sm: 0 1px 2px rgba(14,14,20,.06), 0 1px 1px rgba(14,14,20,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a1020; --surface: #16161c; --surface-2: #1d1d24; --border: #26262f;
+      --text: #f1f4fa; --text-muted: #96969f; --accent: #5b8def; --accent-contrast: #0a1020;
+      --accent-soft: #14264a; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  main { max-width: 760px; margin: 0 auto; padding: 0 20px 60px; }
+  header { padding: 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .logo { font-weight: 800; font-size: 16px; letter-spacing: -.3px; text-decoration: none; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .logo img { width: 22px; height: 26px; }
+  .header-link { font-size: 14px; color: var(--text-muted); text-decoration: none; }
+  h1 { font-size: clamp(28px, 5.4vw, 44px); font-weight: 800; letter-spacing: -1px; line-height: 1.08; margin: 24px 0 14px; text-wrap: balance; }
+  h2 { font-size: clamp(22px, 3.6vw, 28px); font-weight: 800; letter-spacing: -.5px; line-height: 1.15; margin: 56px 0 14px; text-wrap: balance; }
+  .lead { font-size: 17px; color: var(--text-muted); margin: 0 0 26px; max-width: 58ch; }
+  p { margin: 0 0 12px; }
+  .muted { color: var(--text-muted); }
+  .btn { display: inline-block; padding: 14px 22px; border-radius: 12px; font-weight: 700; font-size: 15px; text-align: center; text-decoration: none; background: var(--accent); color: var(--accent-contrast); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: step; }
+  .steps li { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px 16px 58px; }
+  .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 16px; top: 16px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .steps b { display: block; margin-bottom: 4px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  .card h3 { margin: 0 0 8px; font-size: 16px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card li { margin: 4px 0; }
+
+  /* Мини-макет пульта сети — статичная иллюстрация, не живые данные. */
+  .mock { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; box-shadow: var(--shadow-sm); }
+  .mock-title { font-weight: 800; margin-bottom: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { font-size: 12px; color: var(--text-muted); }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .row small { display: block; color: var(--text-muted); font-size: 12px; }
+  .pill { flex-shrink: 0; align-self: flex-start; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--bg); }
+  .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); } .pill.open { color: var(--accent); }
+  .mock-note { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+
+  .note { font-size: 13px; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 48px; padding-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="logo" href="/"><img src="/brand/mark-on-light.svg" alt="" />Безопасный бизнес</a>
+    <a class="header-link" href="/lk/login">Войти</a>
+  </header>
+
+  <h1>Порядок в документах и сроках — в каждой точке сети</h1>
+  <p class="lead">Франчайзи ведут свои сроки, сотрудников и документы в приложении. Вы видите всю сеть на одном экране: где всё в порядке, где горит и кто сейчас открывается.</p>
+  <div class="cta-row">
+    <a class="btn" href="https://t.me/safe_business_ru">Обсудить пилот в Telegram</a>
+    <a class="btn btn-secondary" href="https://wa.me/message/6KDRP3KLEXT3I1">Написать в WhatsApp</a>
+  </div>
+
+  <h2>Успех франчайзи — успех сети</h2>
+  <p>У одной точки проверка или просроченный документ случаются редко. У сети из ста точек — каждую неделю. Жалоба родителя, предписание или штраф в одной точке бьёт по бренду всей сети.</p>
+  <p>Есть и юридическая сторона: по статье 1034 ГК РФ требования о качестве услуг франчайзи могут быть предъявлены и правообладателю. Поэтому порядок в точках — это не только забота франчайзи.</p>
+  <p class="muted">Большинство владельцев точек ведут бизнес сами, без юриста и бухгалтера. Они не нарушают правила специально, просто не успевают следить за всеми сроками.</p>
+
+  <h2>Как это работает</h2>
+  <ol class="steps">
+    <li><b>Вы отправляете точкам ссылку-приглашение</b>Владелец точки видит, что именно будет видно сети, соглашается и вступает. Вы подтверждаете заявку.</li>
+    <li><b>Каждая точка проходит тест по своей нише</b>Около 40 вопросов о документах, санитарии, пожарной безопасности, сотрудниках и персональных данных. На выходе — план: что исправить, как и сколько это стоит.</li>
+    <li><b>Новые точки открываются по чек-листу</b>Пошаговый план открытия для их ниши, с отметками «сделано». Вы видите, на каком шаге каждая новая точка и где она застряла.</li>
+    <li><b>Приложение напоминает о сроках</b>Документы сотрудников, договоры, огнетушители, налоги. Точка получает «что сделать», а не только «что нарушено».</li>
+    <li><b>Вы видите пульт сети</b>Средний индекс, зоны, точки, которым нужно внимание: красная зона, подошли сроки, давно не заходили.</li>
+    <li><b>Отправляете задачу всей сети</b>«В одной точке проверяли пожарную безопасность — проверьте у себя». Видно, кто уже сделал.</li>
+    <li><b>Раз в месяц — отчёт по сети</b>Что стало лучше, где горит, новые открытия, выполнение задач. Страница и PDF, заходить в систему для этого не обязательно.</li>
+  </ol>
+
+  <h2>Так выглядит пульт сети</h2>
+  <div class="mock" aria-label="Пример пульта сети">
+    <div class="mock-title">Сеть детских клубов · пример</div>
+    <div class="stats">
+      <div class="stat"><b>5</b><span>точек в сети</span></div>
+      <div class="stat"><b>67%</b><span>средний индекс</span></div>
+      <div class="stat"><b style="color: var(--bad)">1</b><span>требует внимания</span></div>
+      <div class="stat"><b>1</b><span>готовится к открытию</span></div>
+    </div>
+    <div class="row"><div>Казань, Победы<small>Нарушений: 4, исправлено: 3 · заходили сегодня</small></div><span class="pill ok">Зелёная · 91%</span></div>
+    <div class="row"><div>Казань, Чистопольская<small>Нарушений: 9, исправлено: 2 · заходили вчера</small></div><span class="pill warn">Жёлтая · 77%</span></div>
+    <div class="row"><div>Уфа<small>Подошло сроков: 3 · не заходили больше 30 дней</small></div><span class="pill bad">Красная · 40%</span></div>
+    <div class="row"><div>Пермь<small>Сейчас: санитария</small></div><span class="pill open">Открытие · 14 из 38</span></div>
+    <div class="mock-note">Иллюстрация с вымышленными данными.</div>
+  </div>
+
+  <h2>Что сеть видит, а что нет</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Видит</h3>
+      <ul>
+        <li>индекс и зону каждой точки</li>
+        <li>сколько нарушений найдено и исправлено</li>
+        <li>сколько сроков подошло</li>
+        <li>шаг подготовки к открытию</li>
+        <li>выполнение задач сети</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Не видит</h3>
+      <ul>
+        <li>имена и документы сотрудников точки</li>
+        <li>клиентов и записи</li>
+        <li>деньги и выручку точки</li>
+        <li>тексты документов точки</li>
+      </ul>
+    </div>
+  </div>
+  <p class="muted" style="margin-top: 12px;">Точка вступает в сеть только со своего согласия и может выйти в любой момент.</p>
+
+  <h2>Для каких сетей</h2>
+  <p>Детские клубы и секции, студии красоты, барбершопы, фитнес, химчистки, автомойки и другие сервисные ниши — всего 37. Требования для каждой ниши свои и собраны по действующим нормам.</p>
+  <p>Сотрудники управляющей компании (менеджер по открытиям, отдел качества) получают доступ к пульту только на просмотр. Управляющий, который ведёт несколько точек, видит их все в одном месте.</p>
+
+  <h2>Начнём с пилота</h2>
+  <p>Подключаем несколько точек сети на один-два месяца и заранее договариваемся, по каким признакам поймём, что это работает. После пилота решаете, подключать ли всю сеть.</p>
+  <div class="cta-row" style="margin-top: 16px;">
+    <a class="btn" href="https://t.me/safe_business_ru">Обсудить пилот в Telegram</a>
+    <a class="btn btn-secondary" href="https://wa.me/message/6KDRP3KLEXT3I1">Написать в WhatsApp</a>
+  </div>
+
+  <p class="note">Сервис помогает не пропускать сроки и держать документы в порядке. Он не заменяет юриста и не гарантирует отсутствие претензий проверяющих органов. Сводки строятся по данным, которые точки вносят сами, и по их ответам в тесте.<br />ИП, ИНН 760202346200, ОГРНИП 324762700039592</p>
+</main>
+</body>
+</html>

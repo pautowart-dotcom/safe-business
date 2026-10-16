@@ -42,6 +42,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
   const [updatingTestFlag, setUpdatingTestFlag] = useState(false);
   const [grantingAddon, setGrantingAddon] = useState(null);
   const [updatingFreeAddons, setUpdatingFreeAddons] = useState(false);
+  const [updatingFranchise, setUpdatingFranchise] = useState(false);
 
   function load() {
     setLoadError('');
@@ -123,6 +124,21 @@ function CompanyDetail({ id, onBack, onDeleted }) {
     }
   }
 
+  // Кабинет сети (16.10.2026) — компания сможет создать сеть и приглашать точки.
+  async function toggleFranchiseEnabled() {
+    const next = !data.company.franchise_enabled;
+    if (!confirm(next
+      ? 'Включить этой компании кабинет сети (создать сеть и приглашать точки)?'
+      : 'Выключить кабинет сети? Уже созданная сеть останется, новую создать будет нельзя.')) return;
+    setUpdatingFranchise(true);
+    try {
+      await api.patch(`/platform/admin/companies/${id}/franchise-enabled`, { enabled: next });
+      load();
+    } finally {
+      setUpdatingFranchise(false);
+    }
+  }
+
   if (loadError) {
     return (
       <div>
@@ -146,6 +162,7 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         <Badge color={STATUS_COLORS[company.subscription_status]} bg={C.surface}>{STATUS_LABELS[company.subscription_status]}</Badge>
         {company.is_test && <Badge color={C.purple} bg={C.purpleBg}>Тестовая</Badge>}
         {company.free_addons && <Badge color={C.green} bg={C.greenBg}>ИИ-советники + надстройки бесплатно</Badge>}
+        {company.franchise_enabled && <Badge color={C.blue} bg={C.blueBg}>Кабинет сети</Badge>}
         {company.is_guest_owner && <Badge color={C.subtle} bg={C.surface}>Гость (анонимный аудит)</Badge>}
       </div>
       <div style={{ fontSize: 12, color: C.subtle, margin: '10px 0 12px' }}>
@@ -177,6 +194,9 @@ function CompanyDetail({ id, onBack, onDeleted }) {
         </ActionBtn>
         <ActionBtn color={C.green} onClick={toggleFreeAddons} disabled={updatingFreeAddons}>
           {company.free_addons ? 'Выключить ИИ-советников бесплатно' : 'Включить ИИ-советников бесплатно'}
+        </ActionBtn>
+        <ActionBtn color={C.blue} onClick={toggleFranchiseEnabled} disabled={updatingFranchise}>
+          {company.franchise_enabled ? 'Выключить кабинет сети' : 'Включить кабинет сети'}
         </ActionBtn>
       </div>
 

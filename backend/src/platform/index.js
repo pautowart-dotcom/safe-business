@@ -34,6 +34,9 @@ const websiteCheckRoutes = require('./website-check.routes');
 const watchFeedRoutes = require('./watch-feed.routes');
 const noticeAuditRoutes = require('./notice-audit.routes');
 const notificationsRoutes = require('./notifications.routes');
+const openingRoutes = require('./opening.routes');
+const franchiseTasksRoutes = require('./franchise-tasks.routes');
+const myPointsRoutes = require('./my-points.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -69,5 +72,8 @@ platformRouter.use('/website-check', websiteCheckRoutes);
 platformRouter.use('/watch-feed', watchFeedRoutes);
 platformRouter.use('/notice-audit', noticeAuditRoutes);
 platformRouter.use('/notifications', notificationsRoutes);
+platformRouter.use('/opening', openingRoutes);
+platformRouter.use('/franchise-tasks', franchiseTasksRoutes);
+platformRouter.use('/my-points', myPointsRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

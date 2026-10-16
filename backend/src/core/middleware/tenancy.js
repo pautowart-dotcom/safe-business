@@ -67,6 +67,17 @@ const requireTenant = asyncHandler(async (req, res, next) => {
     branchId: membershipRes.rows[0].branch_id || null,
   };
 
+  // Последняя активность компании — для пульта сети («давно не заходили»,
+  // 16.10.2026). Пишем не чаще раза в час и не ждём ответа: запрос клиента
+  // от этого не должен замедляться или падать.
+  pool
+    .query(
+      `UPDATE companies SET last_active_at = now()
+       WHERE id = $1 AND (last_active_at IS NULL OR last_active_at < now() - interval '1 hour')`,
+      [req.tenant.companyId]
+    )
+    .catch(() => {});
+
   if (!isExempt(req)) {
     const { rows } = await pool.query(
       'SELECT subscription_status, trial_ends_at, created_at FROM companies WHERE id = $1',

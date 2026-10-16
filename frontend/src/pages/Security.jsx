@@ -1366,6 +1366,7 @@ function InspectionGuidesTab() {
 }
 
 function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport, onResolveViolation, onDocumentsChange }) {
+  const navigate = useNavigate();
   const hasResult = status?.indexPercent != null;
   const outstanding = status?.outstandingNiches || [];
 
@@ -1428,7 +1429,13 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
 
       <OpeningRoadmapCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} />
       <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
-      <FranchiseCard isManagement={isManagement} isTestCompany={isTestCompany} />
+      <FranchiseCard isManagement={isManagement} />
+      {isManagement && isTestCompany && (
+        <Card onClick={() => navigate('/opening')} style={{ cursor: 'pointer' }}>
+          <ST>Точка ещё не открылась?</ST>
+          <div style={{ fontSize: 13, color: C.secondary }}>Ведите подготовку в кабинете: чек-лист вашей ниши с отметками и кнопка «Открылись» →</div>
+        </Card>
+      )}
 
       <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
       <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
@@ -1650,17 +1657,14 @@ function SharePassportCard({ isManagement, isTestCompany }) {
   );
 }
 
-// "Франшиза" — 11.08.2026, тихая обкатка за is_test (и у владеющей компании,
-// и у каждой точки-партнёра — обе стороны сидят за requireTestCompany на
-// backend). Франшиза принадлежит КОМПАНИИ, не пользователю — "свой аккаунт"
-// у владельца франшизы это его обычный владельческий аккаунт, без нового
-// типа входа. Партнёр сам подаёт заявку по коду, франшизер подтверждает —
-// см. backend/src/platform/franchise.routes.js.
-function FranchiseCard({ isManagement, isTestCompany }) {
+// "Сеть" (франшиза) — 11.08.2026; с 16.10.2026 без флага is_test: создать
+// сеть может компания с кабинетом сети (включается в /office), вступить —
+// любая, через экран с согласием (JoinNetwork.jsx). Сам пульт — Network.jsx.
+// Франшиза принадлежит КОМПАНИИ, не пользователю — см.
+// backend/src/platform/franchise.routes.js.
+function FranchiseCard({ isManagement }) {
+  const navigate = useNavigate();
   const [data, setData] = useState(undefined);
-  const [summary, setSummary] = useState(null);
-  const [network, setNetwork] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [nameInput, setNameInput] = useState('');
@@ -1674,12 +1678,16 @@ function FranchiseCard({ isManagement, isTestCompany }) {
   }
 
   useEffect(() => {
-    if (!isManagement || !isTestCompany) return;
+    if (!isManagement) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManagement, isTestCompany]);
+  }, [isManagement]);
 
-  if (!isManagement || !isTestCompany) return null;
+  // 16.10.2026: карточка видна, только если компании есть что здесь делать —
+  // она в сети, ждёт ответа, владеет сетью или ей включили кабинет сети.
+  // Обычной студии без сети карточка не показывается вовсе.
+  if (!isManagement || !data) return null;
+  if (!data.owned && !data.memberOf && !data.pendingRequestSent && !data.canCreate) return null;
 
   async function createFranchise() {
     setLoading(true);
@@ -1690,47 +1698,18 @@ function FranchiseCard({ isManagement, isTestCompany }) {
       setMode(null);
       await load();
     } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось создать франшизу');
+      setError(err.response?.data?.error || 'Не удалось создать сеть');
     } finally {
       setLoading(false);
     }
   }
 
-  async function joinByCode() {
-    setLoading(true);
-    setError('');
-    try {
-      await api.post('/platform/franchise/join-requests', { joinCode: codeInput });
-      setCodeInput('');
-      setMode(null);
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось отправить заявку');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function decide(requestId, status) {
-    setLoading(true);
-    setError('');
-    try {
-      await api.patch(`/platform/franchise/join-requests/${requestId}`, { status });
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось обработать заявку');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function leave() {
+  async function leave(confirmText) {
+    if (!window.confirm(confirmText)) return;
     setLoading(true);
     setError('');
     try {
       await api.delete('/platform/franchise/membership');
-      setSummary(null);
-      setNetwork(null);
       await load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось выполнить действие');
@@ -1739,118 +1718,56 @@ function FranchiseCard({ isManagement, isTestCompany }) {
     }
   }
 
-  async function loadSummary() {
-    setSummaryLoading(true);
-    try {
-      const { data } = await api.get('/platform/franchise/summary');
-      setSummary(data.members);
-      setNetwork(data.network);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось загрузить сводку');
-    } finally {
-      setSummaryLoading(false);
-    }
-  }
-
   return (
     <Card>
-      <ST>Франшиза</ST>
+      <ST>Сеть</ST>
 
-      {data === undefined && null}
-
-      {data && data.owned && (
+      {data.owned && (
         <div>
           <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
-            «{data.owned.name}» — код приглашения для партнёров:
+            «{data.owned.name}»{data.owned.canManage ? ` · точек: ${data.owned.membersCount}` : ''}
+            {data.owned.pendingRequests?.length > 0 ? ` · новых заявок: ${data.owned.pendingRequests.length}` : ''}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
-            <input readOnly value={data.owned.joinCode} onClick={(e) => e.target.select()} style={{ flex: 1, maxWidth: 160, fontSize: 14, fontWeight: 700, letterSpacing: '1px', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, color: C.primary }} />
-            <Btn small variant="secondary" onClick={() => navigator.clipboard?.writeText(data.owned.joinCode)}>Копировать</Btn>
-          </div>
-
-          {data.owned.pendingRequests.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>Заявки на вступление</div>
-              {data.owned.pendingRequests.map((r) => (
-                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                  <span style={{ fontSize: 13 }}>{r.companyName}</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Btn small onClick={() => decide(r.id, 'approved')} disabled={loading}>Принять</Btn>
-                    <Btn small variant="secondary" onClick={() => decide(r.id, 'rejected')} disabled={loading}>Отклонить</Btn>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 8 }}>
-            Точки франшизы {data.owned.members.length > 0 ? `(${data.owned.members.length})` : ''}
-          </div>
-          {data.owned.members.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.secondary, marginBottom: 10 }}>Пока никто не вступил.</div>
-          ) : !summary ? (
-            <Btn small variant="secondary" onClick={loadSummary} disabled={summaryLoading}>{summaryLoading ? 'Считаем…' : 'Показать сводку по безопасности'}</Btn>
-          ) : (
-            <div style={{ marginBottom: 10 }}>
-              {network && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 10, borderRadius: 10, background: C.surface }}>
-                  <div>
-                    <div style={{ fontSize: 20, fontWeight: 800 }}>{network.averageIndexPercent != null ? `${network.averageIndexPercent}%` : '—'}</div>
-                    <div style={{ fontSize: 11, color: C.subtle }}>средний индекс по сети{network.pointsUntested > 0 ? ` · ${network.pointsUntested} без теста` : ''}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {network.zoneCounts.green > 0 && <Badge color={ZONE_COLOR.green} bg={ZONE_BG.green}>{network.zoneCounts.green}</Badge>}
-                    {network.zoneCounts.yellow > 0 && <Badge color={ZONE_COLOR.yellow} bg={ZONE_BG.yellow}>{network.zoneCounts.yellow}</Badge>}
-                    {network.zoneCounts.red > 0 && <Badge color={ZONE_COLOR.red} bg={ZONE_BG.red}>{network.zoneCounts.red}</Badge>}
-                  </div>
-                </div>
-              )}
-              {summary.map((m) => (
-                <div key={m.companyId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
-                  <span style={{ fontSize: 13 }}>{m.companyName}</span>
-                  {m.indexPercent != null ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Badge color={ZONE_COLOR[m.zone]} bg={ZONE_BG[m.zone]}>{ZONE_LABELS[m.zone]}</Badge>
-                      <span style={{ fontSize: 13, fontWeight: 700 }}>{m.indexPercent}%</span>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 12, color: C.subtle }}>ещё не проходили тест</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ marginTop: 14 }}>
-            <Btn small variant="secondary" onClick={leave} disabled={loading}>Расформировать франшизу</Btn>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Btn small onClick={() => navigate('/network')}>Открыть пульт сети</Btn>
+            {data.owned.canManage && (
+              <Btn small variant="secondary" onClick={() => leave('Расформировать сеть? Все точки выйдут из неё, их собственные данные останутся.')} disabled={loading}>
+                Расформировать сеть
+              </Btn>
+            )}
           </div>
         </div>
       )}
 
-      {data && data.memberOf && (
+      {data.memberOf && (
         <div>
-          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Вы состоите во франшизе «{data.memberOf.name}».</div>
-          <Btn small variant="secondary" onClick={leave} disabled={loading}>Выйти из франшизы</Btn>
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
+            Вы в сети «{data.memberOf.name}». Сеть видит сводку по точке: индекс, нарушения, число сроков, шаг открытия — без имён сотрудников, клиентов и денег.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Btn small variant="secondary" onClick={() => navigate('/opening')}>Точка ещё не открылась</Btn>
+            <Btn small variant="secondary" onClick={() => leave('Выйти из сети? Сеть перестанет видеть вашу точку.')} disabled={loading}>Выйти из сети</Btn>
+          </div>
         </div>
       )}
 
-      {data && data.pendingRequestSent && (
+      {data.pendingRequestSent && (
         <div style={{ fontSize: 13, color: C.secondary }}>
-          Заявка на вступление во франшизу «{data.pendingRequestSent.name}» отправлена, ждём подтверждения.
+          Заявка на вступление в сеть «{data.pendingRequestSent.name}» отправлена, ждём подтверждения.
         </div>
       )}
 
-      {data && !data.owned && !data.memberOf && !data.pendingRequestSent && (
+      {data.canCreate && (
         <div>
           {!mode && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Btn small variant="secondary" onClick={() => setMode('create')}>Создать франшизу</Btn>
-              <Btn small variant="secondary" onClick={() => setMode('join')}>Подать заявку по коду</Btn>
+              <Btn small variant="secondary" onClick={() => setMode('create')}>Создать сеть</Btn>
+              <Btn small variant="secondary" onClick={() => setMode('join')}>Вступить по коду</Btn>
             </div>
           )}
           {mode === 'create' && (
             <div>
-              <Field label="Название франшизы">
+              <Field label="Название сети">
                 <TextInput value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Например, «Чистые руки»" />
               </Field>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -1861,11 +1778,11 @@ function FranchiseCard({ isManagement, isTestCompany }) {
           )}
           {mode === 'join' && (
             <div>
-              <Field label="Код приглашения от франшизера">
+              <Field label="Код приглашения от сети">
                 <TextInput value={codeInput} onChange={(e) => setCodeInput(e.target.value)} placeholder="Например, A1B2C3D4" />
               </Field>
               <div style={{ display: 'flex', gap: 8 }}>
-                <Btn small onClick={joinByCode} disabled={loading || !codeInput.trim()}>{loading ? 'Секунду…' : 'Подать заявку'}</Btn>
+                <Btn small onClick={() => navigate(`/join-network/${encodeURIComponent(codeInput.trim())}`)} disabled={!codeInput.trim()}>Дальше</Btn>
                 <Btn small variant="secondary" onClick={() => setMode(null)}>Отмена</Btn>
               </div>
             </div>

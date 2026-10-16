@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/client.js';
@@ -73,7 +73,21 @@ function OwnerMore() {
   // теперь отдельное приложение (admin-frontend/, business-safe.ru/office/),
   // не смешан с клиентским кабинетом — раньше всё было свалено в один
   // список здесь, что было невозможно понять.
-  const items = OWNER_ITEMS
+  // «Пульт сети» (16.10.2026) — только у владельца сети и его
+  // администраторов с выданным доступом (hasNetworkCabinet).
+  const [hasNetworkCabinet, setHasNetworkCabinet] = useState(false);
+  // «Мои точки» (этап 5) — когда человек владелец/управляющий в 2+ точках.
+  const [pointsCount, setPointsCount] = useState(0);
+  useEffect(() => {
+    api.get('/platform/companies/current').then(({ data }) => setHasNetworkCabinet(!!data.hasNetworkCabinet)).catch(() => {});
+    api.get('/platform/my-points').then(({ data }) => setPointsCount(data.length)).catch(() => {});
+  }, []);
+
+  const items = [
+    ...(hasNetworkCabinet ? [{ label: 'Пульт сети', sub: 'Все точки сети: что горит, кто открывается', icon: 'team', to: '/network' }] : []),
+    ...(pointsCount >= 2 ? [{ label: 'Мои точки', sub: 'Сроки и открытие всех ваших точек в одном месте', icon: 'home', to: '/my-points' }] : []),
+    ...OWNER_ITEMS,
+  ]
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
     .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/ai-advisor'));
 

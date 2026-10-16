@@ -126,6 +126,8 @@ const TITLE_OVERRIDES = {
 // матрицы нарушений, просто больше не обрезаем их для этого продукта.
 function toItem(v) {
   return {
+    // key — для отметок «сделано» в кабинете (company_opening_items, 16.10.2026).
+    key: v.code,
     title: TITLE_OVERRIDES[v.title] || v.title,
     description: v.description,
     risk: v.risk,
@@ -163,7 +165,10 @@ function buildStages({ niche, legalForm, hasEmployees, includeRegistration = tru
   const rawStages = [
     {
       title: 'Регистрация и адрес',
-      items: [...(includeRegistration ? registrationItems(legalForm) : []), ...selectBlockItems(violations, 1)],
+      items: [
+        ...(includeRegistration ? registrationItems(legalForm).map((item, i) => ({ key: `reg:${legalForm}:${i}`, ...item })) : []),
+        ...selectBlockItems(violations, 1),
+      ],
     },
     {
       title: 'Санитария',

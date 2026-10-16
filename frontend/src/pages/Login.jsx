@@ -172,6 +172,7 @@ function RegisterForm({ onRegister, onBack }) {
   // выше по файлу — большинству эти поля вообще не должны быть видны.
   const [isFranchise, setIsFranchise] = useState(false);
   const [franchiseRegisteredTo, setFranchiseRegisteredTo] = useState('self');
+  const [notYetOpen, setNotYetOpen] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -181,7 +182,7 @@ function RegisterForm({ onRegister, onBack }) {
     setError('');
     setSubmitting(true);
     try {
-      await onRegister({ name, email, password, companyName, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo: isFranchise ? franchiseRegisteredTo : null });
+      await onRegister({ name, email, password, companyName, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo: isFranchise ? franchiseRegisteredTo : null, notYetOpen });
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось зарегистрироваться');
     } finally {
@@ -228,6 +229,12 @@ function RegisterForm({ onRegister, onBack }) {
           <TextInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Например: Студия «Ноготок»" />
         </Field>
 
+        {/* Открытие внутри системы (16.10.2026): ещё не открылись — главная
+            ведёт по чек-листу открытия ниши (pages/Opening.jsx). */}
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
+          <input type="checkbox" checked={notYetOpen} onChange={(e) => setNotYetOpen(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>Мы ещё не открылись — нужен план открытия</span>
+        </label>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: isFranchise ? 10 : 16, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={isFranchise} onChange={(e) => setIsFranchise(e.target.checked)} style={{ marginTop: 2 }} />
           <span>Это точка по франшизе</span>
@@ -402,6 +409,13 @@ export default function Login() {
   // обновление страницы. Теперь как только сессия реально готова, уходим
   // дальше сразу, независимо от того, что ещё показывает verifyEmail.
   if (user && currentCompany) {
+    // Пришли по ссылке-приглашению в сеть без входа (JoinNetwork.jsx) —
+    // после входа или регистрации возвращаем на экран вступления.
+    let pendingJoinCode = null;
+    try { pendingJoinCode = localStorage.getItem('pendingJoinCode'); } catch { /* приватный режим */ }
+    if (pendingJoinCode) return <Navigate to={`/join-network/${pendingJoinCode}`} replace />;
+    // Ещё не открылись — сразу на чек-лист открытия, а не на тест.
+    if (justCreatedCompany === 'preparing') return <Navigate to="/opening" replace />;
     return <Navigate to={justCreatedCompany ? '/security' : (location.state?.from || '/')} replace />;
   }
 
@@ -479,7 +493,7 @@ export default function Login() {
     // /auth/register всегда заводит новую компанию (см. backend) — код с
     // почты идёт следующим шагом, а currentCompany появится только после
     // него (applyAuthResult), поэтому флаг ставим уже тут.
-    setJustCreatedCompany(true);
+    setJustCreatedCompany(data.notYetOpen ? 'preparing' : true);
     if (result?.requiresDeviceVerification) {
       setVerifyEmail(result.email);
       setVerifyPassword(data.password);

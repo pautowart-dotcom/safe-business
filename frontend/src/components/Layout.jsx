@@ -202,6 +202,11 @@ const TITLES = {
   '/support': 'Поддержка',
   '/deadlines': 'Дедлайны',
   '/notifications': 'Уведомления',
+  '/network': 'Пульт сети',
+  '/network-tasks': 'Задачи от сети',
+  '/network-report': 'Отчёт по сети',
+  '/my-points': 'Мои точки',
+  '/opening': 'Открытие',
   '/more': 'Ещё',
 };
 

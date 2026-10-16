@@ -29,6 +29,12 @@ import Subscription from './pages/Subscription.jsx';
 import Support from './pages/Support.jsx';
 import Deadlines from './pages/Deadlines.jsx';
 import Notifications from './pages/Notifications.jsx';
+import Opening from './pages/Opening.jsx';
+import Network from './pages/Network.jsx';
+import JoinNetwork from './pages/JoinNetwork.jsx';
+import NetworkTasks from './pages/NetworkTasks.jsx';
+import NetworkReport from './pages/NetworkReport.jsx';
+import MyPoints from './pages/MyPoints.jsx';
 import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
@@ -44,6 +50,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/invite/:token" element={<AcceptInvite />} />
+      <Route path="/join-network/:code" element={<JoinNetwork />} />
       <Route path="/legal/:key" element={<LegalDocument />} />
       <Route path="/j/:token" element={<JournalVerify />} />
       {/* Разовый аудит без регистрации (19.08.2026) — публичный, вне
@@ -145,6 +152,46 @@ export default function App() {
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route
+          path="network"
+          element={
+            <PrivateRoute managementOnly>
+              <Network />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="my-points"
+          element={
+            <PrivateRoute managementOnly>
+              <MyPoints />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="network-report"
+          element={
+            <PrivateRoute managementOnly>
+              <NetworkReport />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="network-tasks"
+          element={
+            <PrivateRoute managementOnly>
+              <NetworkTasks />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="opening"
+          element={
+            <PrivateRoute managementOnly>
+              <Opening />
+            </PrivateRoute>
+          }
+        />
         <Route
           path="business-status/:transitionKey"
           element={

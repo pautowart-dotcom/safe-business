@@ -112,7 +112,7 @@ router.post(
   '/register',
   requireCaptcha,
   asyncHandler(async (req, res) => {
-    const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo } = req.body;
+    const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo, notYetOpen } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Заполните имя, email и пароль' });
     }
@@ -184,10 +184,12 @@ router.post(
       // core/cohort.js) — дешевле, тот же принцип, что и цена проверки
       // сайта (990→490₽ для тонкого v1).
       const companyResult = await client.query(
-        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at, ai_advisor_subscription_price_rub, is_franchise, franchise_registered_to)
-         VALUES ($1, $2, $3, $4, now() + interval '30 days', $5, $6, $7)
+        // opening_status (16.10.2026) — «ещё не открылись» на регистрации:
+        // главная ведёт по чек-листу открытия ниши (opening.routes.js).
+        `INSERT INTO companies (name, industry_segment, signup_niche, created_by_user_id, trial_ends_at, ai_advisor_subscription_price_rub, is_franchise, franchise_registered_to, opening_status)
+         VALUES ($1, $2, $3, $4, now() + interval '30 days', $5, $6, $7, $8)
          RETURNING id, name`,
-        [companyName, industrySegment || null, niche, user.id, isNewCohortNow() ? 490 : 990, !!isFranchise, isFranchise ? (franchiseRegisteredTo || null) : null]
+        [companyName, industrySegment || null, niche, user.id, isNewCohortNow() ? 490 : 990, !!isFranchise, isFranchise ? (franchiseRegisteredTo || null) : null, notYetOpen === true ? 'preparing' : 'open']
       );
       company = companyResult.rows[0];
 

@@ -405,6 +405,26 @@ router.patch(
 // advisor, ai-advisor-digest) независимо от subscription_status — см.
 // requirePaidPlanOrFreeAddons в core/middleware/subscription.js. Тот же
 // паттерн (Super Admin only, простой boolean UPDATE), что и test-flag выше.
+// Кабинет сети (16.10.2026, этап 2 франшизы) — право создать сеть и
+// приглашать в неё точки. Тот же паттерн, что test-flag/free-addons.
+router.patch(
+  '/companies/:id/franchise-enabled',
+  asyncHandler(async (req, res) => {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled должен быть true/false' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE companies SET franchise_enabled = $1 WHERE id = $2 RETURNING id, franchise_enabled`,
+      [enabled, req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Компания не найдена' });
+    }
+    res.json(rows[0]);
+  })
+);
+
 router.patch(
   '/companies/:id/free-addons',
   asyncHandler(async (req, res) => {
@@ -431,7 +451,7 @@ router.get(
       // (Companies.jsx) показывает "оплачено до", но поле сюда не выбиралось,
       // и дата не появлялась никогда.
       `SELECT c.id, c.name, c.industry_segment, c.subscription_status, c.trial_ends_at, c.created_at, c.is_test, c.free_addons,
-              c.subscription_current_period_end,
+              c.subscription_current_period_end, c.franchise_enabled,
               EXISTS (
                 SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
                 WHERE m.company_id = c.id AND m.role = 'owner' AND u.is_guest = true
