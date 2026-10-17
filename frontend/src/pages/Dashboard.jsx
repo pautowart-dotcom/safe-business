@@ -61,6 +61,7 @@ function buildActionsCenter(deadlines) {
 // зашит в один общий onClick, как раньше.
 function actionTarget(d) {
   if (d.related_entity_type === 'ai_advisor_digest') return '/ai-advisor';
+  if (d.related_entity_type?.startsWith('monthly_check:')) return '/monthly-check';
   return '/deadlines';
 }
 

@@ -205,6 +205,7 @@ const TITLES = {
   '/network': 'Пульт сети',
   '/network-tasks': 'Задачи от сети',
   '/network/standards': 'Стандарты сети',
+  '/monthly-check': 'Проверка месяца',
   '/network-standards': 'Стандарты сети',
   '/network-report': 'Отчёт по сети',
   '/my-points': 'Мои точки',

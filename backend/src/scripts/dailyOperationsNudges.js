@@ -335,6 +335,37 @@ async function nudgeQuarterlyMedicalBooksCheck() {
   return created;
 }
 
+// Проверка месяца (17.10.2026, этап 7, modules/monthly/monthlyCheck.js) —
+// одно действие в месяц каждой компании, прошедшей тест: «5–7 вопросов, 2
+// минуты». registerAction шлёт уведомление только при первой вставке, поэтому
+// ежедневный запуск не спамит. Снимается, когда проверку прошли (complete) или
+// когда начался следующий месяц.
+async function nudgeMonthlyCheck() {
+  const month = moscowDateStr(new Date()).slice(0, 7);
+  const [y, m] = month.split('-').map(Number);
+  const prevMonth = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+  const { rows: companies } = await pool.query(
+    `SELECT DISTINCT c.id FROM companies c
+     JOIN memberships mo ON mo.company_id = c.id AND mo.role = 'owner'
+     JOIN users u ON u.id = mo.user_id AND u.is_guest = false
+     JOIN security_sessions s ON s.company_id = c.id AND s.completed_at IS NOT NULL
+     WHERE c.is_test IS NOT TRUE
+       AND NOT EXISTS (SELECT 1 FROM monthly_checks mc WHERE mc.company_id = c.id AND mc.month = $1)`,
+    [month]
+  );
+  for (const { id } of companies) {
+    await clearAction({ relatedEntityType: `monthly_check:${prevMonth}`, relatedEntityId: id, category: 'documents' });
+    await registerAction({
+      companyId: id,
+      category: 'documents',
+      title: 'Проверка месяца: 5–7 коротких вопросов, 2 минуты — что стало лучше и что сделать дальше',
+      relatedEntityType: `monthly_check:${month}`,
+      relatedEntityId: id,
+    });
+  }
+  return companies.length;
+}
+
 // Файлы, которые миграции поставили в очередь на удаление (SQL не может
 // трогать диск) — например, сканы медкнижек из миграции 0125.
 async function purgePendingFileDeletions() {
@@ -362,6 +393,11 @@ async function main() {
   const aiAdvisorCompanies = await nudgeAiAdvisors();
   const complianceDigestCompanies = await nudgeComplianceDigest();
   const testFindingsCompanies = await nudgeUnresolvedTestFindings(targetDate);
+  try {
+    console.log(`Проверка месяца: напоминаний ${await nudgeMonthlyCheck()}`);
+  } catch (err) {
+    console.error('nudgeMonthlyCheck упал:', err);
+  }
   try {
     const abuse = await watchAbuse();
     console.log(`watchAbuse: гостей за сутки ${abuse.guestsN}, компаний с 8+ запусками ${abuse.heavyN}, пуш ${abuse.alerted ? 'отправлен' : 'не нужен'}`);

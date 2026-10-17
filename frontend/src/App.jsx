@@ -36,6 +36,7 @@ import NetworkTasks from './pages/NetworkTasks.jsx';
 import NetworkReport from './pages/NetworkReport.jsx';
 import NetworkStandards from './pages/NetworkStandards.jsx';
 import PointStandards from './pages/PointStandards.jsx';
+import MonthlyCheck from './pages/MonthlyCheck.jsx';
 import MyPoints from './pages/MyPoints.jsx';
 import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
@@ -178,6 +179,14 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <NetworkReport />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="monthly-check"
+          element={
+            <PrivateRoute managementOnly>
+              <MonthlyCheck />
             </PrivateRoute>
           }
         />

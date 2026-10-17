@@ -54,6 +54,7 @@ async function buildNetworkContext(access) {
     parts.push(`подошло сроков: ${m.overdueDeadlines}`);
     const inactive = daysSince(m.lastActiveAt);
     parts.push(inactive == null ? 'активность не записана' : `заходили ${inactive} дн. назад`);
+    if (!m.opening) parts.push(m.monthlyCheckDone ? 'проверку месяца прошла' : 'проверку месяца в этом месяце не проходила');
     if (m.staffTotal) parts.push(`сотрудников ${m.staffTotal}, оформлены не до конца ${m.staffWithOpenSteps}`);
     const checks = latest.get(m.companyId) || {};
     parts.push(checks.self ? `самопроверка по стандартам ${checks.self.percent}% (${checks.self.date})` : 'самопроверки по стандартам не было');

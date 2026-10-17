@@ -39,6 +39,14 @@ async function computeNetworkSummary(group) {
       )
     : { rows: [] };
   const overdueByCompany = new Map(deadlineRows.map((r) => [r.company_id, r.n]));
+  // Проверка месяца (этап 7, миграция 0140) — прошла ли точка в этом месяце.
+  const { rows: monthlyRows } = ids.length
+    ? await pool.query(
+        `SELECT company_id FROM monthly_checks WHERE company_id = ANY($1) AND month = to_char(now() AT TIME ZONE 'Europe/Moscow', 'YYYY-MM')`,
+        [ids]
+      )
+    : { rows: [] };
+  const monthlyDone = new Set(monthlyRows.map((r) => r.company_id));
 
   const points = await Promise.all(
     members.map(async (m) => {
@@ -62,6 +70,7 @@ async function computeNetworkSummary(group) {
         // Оформление сотрудников (Ф17, 17.10.2026) — только числа, без имён.
         staffTotal: staff.staffTotal,
         staffWithOpenSteps: staff.staffWithOpenSteps,
+        monthlyCheckDone: monthlyDone.has(m.id),
       };
       point.riskReasons = riskReasons(point);
       return point;

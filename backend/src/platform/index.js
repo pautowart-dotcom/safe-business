@@ -40,6 +40,7 @@ const franchiseTasksRoutes = require('./franchise-tasks.routes');
 const franchiseStandardsRoutes = require('./franchise-standards.routes');
 const franchiseAuditPublicRoutes = require('./franchise-audit-public.routes');
 const franchiseAssistantRoutes = require('./franchise-assistant.routes');
+const monthlyCheckRoutes = require('./monthly-check.routes');
 const myPointsRoutes = require('./my-points.routes');
 
 const platformRouter = express.Router();
@@ -82,6 +83,7 @@ platformRouter.use('/franchise-tasks', franchiseTasksRoutes);
 platformRouter.use('/franchise-standards', franchiseStandardsRoutes);
 platformRouter.use('/franchise-audit-public', franchiseAuditPublicRoutes);
 platformRouter.use('/franchise-assistant', franchiseAssistantRoutes);
+platformRouter.use('/monthly-check', monthlyCheckRoutes);
 platformRouter.use('/my-points', myPointsRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

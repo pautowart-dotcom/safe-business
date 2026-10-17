@@ -286,6 +286,10 @@ export default function Deadlines() {
                   Проверить
                 </Btn>
               )}
+              {/* Проверка месяца (17.10.2026) — снимается сама, когда проверку прошли. */}
+              {isManagement && item.related_entity_type?.startsWith('monthly_check:') && (
+                <Btn small onClick={() => navigate('/monthly-check')}>Пройти</Btn>
+              )}
               {isManagement && isInspectionOrder && (
                 <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'inspection' } })}>
                   Открыть

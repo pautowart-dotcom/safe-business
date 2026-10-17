@@ -57,6 +57,7 @@ function PointRow({ m, canManage, onRemove }) {
             ? `Подошло сроков: ${m.overdueDeadlines}`
             : `Нарушений: ${m.violationsCount || 0}, исправлено: ${m.resolvedCount || 0} · подошло сроков: ${m.overdueDeadlines}`}
         {' · '}{activityText(m.lastActiveAt)}
+        {!m.opening && m.monthlyCheckDone !== undefined && (m.monthlyCheckDone ? ' · проверка месяца пройдена' : ' · проверку месяца не проходили')}
       </div>
       {/* Оформление сотрудников (Ф17, 17.10.2026) — только числа, имён сеть не видит. */}
       {m.staffTotal > 0 && (
