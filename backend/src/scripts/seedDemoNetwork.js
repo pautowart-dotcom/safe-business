@@ -6,6 +6,7 @@ const { signCompanyToken } = require('../core/jwt');
 const repository = require('../modules/security/content/repository');
 const { minCompletionSeconds } = require('../modules/security/sessionPacing');
 const { buildRoadmap } = require('../modules/roadmap/content/buildRoadmap');
+const { NEW_COHORT_MODULES } = require('../core/cohort');
 
 // Демо-сеть для показа франчайзеру (16.10.2026, docs/franchise-funkcional.md
 // §11, этап 6: Ф54). Запускается вручную на сервере, где работает API:
@@ -55,6 +56,14 @@ async function createCompany(name, ownerId, { franchiseEnabled = false } = {}) {
     [name, NICHE, ownerId, franchiseEnabled]
   );
   const companyId = rows[0].id;
+  // Модули — как у нового клиента при регистрации (auth.routes.js), иначе
+  // тест через API отвечает 403 «Модуль не подключён» (первый запуск 17.10).
+  for (const moduleKey of NEW_COHORT_MODULES) {
+    await pool.query(
+      'INSERT INTO company_modules (company_id, module_key, enabled) VALUES ($1, $2, true) ON CONFLICT (company_id, module_key) DO NOTHING',
+      [companyId, moduleKey]
+    );
+  }
   const { rows: m } = await pool.query(
     `INSERT INTO memberships (user_id, company_id, role, invite_status) VALUES ($1, $2, 'owner', 'active') RETURNING id`,
     [ownerId, companyId]
@@ -96,19 +105,36 @@ async function run() {
     console.error('Укажите email демо-владельца: node src/scripts/seedDemoNetwork.js demo@example.ru');
     process.exit(1);
   }
-  const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
-  if (exists.rows.length > 0) {
-    console.error(`Пользователь ${email} уже есть — демо-сеть, похоже, уже создана. Ничего не меняю.`);
-    await pool.end();
-    process.exit(1);
-  }
-
   const password = crypto.randomBytes(9).toString('base64url');
-  const { rows: userRows } = await pool.query(
-    `INSERT INTO users (name, email, password_hash, accepted_terms_at) VALUES ($1, $2, $3, now()) RETURNING id`,
-    ['Демо: владелец сети', email, await bcrypt.hash(password, 10)]
-  );
-  const userId = userRows[0].id;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  // Повторный запуск (17.10.2026: первый упал на середине) — демо-владелец
+  // уже есть. Пересоздаём сеть, только если у него ВСЕ компании — тестовые и
+  // созданы им самим, то есть это наш демо-аккаунт, а не живой клиент.
+  let userId;
+  const exists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (exists.rows.length > 0) {
+    userId = exists.rows[0].id;
+    const { rows: foreign } = await pool.query(
+      `SELECT c.id FROM memberships m JOIN companies c ON c.id = m.company_id
+       WHERE m.user_id = $1 AND (c.is_test IS NOT TRUE OR c.created_by_user_id IS DISTINCT FROM $1)`,
+      [userId]
+    );
+    if (foreign.rows.length > 0) {
+      console.error(`У ${email} есть настоящие компании — это не демо-аккаунт. Ничего не меняю.`);
+      await pool.end();
+      process.exit(1);
+    }
+    const { rowCount } = await pool.query('DELETE FROM companies WHERE created_by_user_id = $1 AND is_test = true', [userId]);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+    console.log(`Демо-аккаунт уже был — удалено старых демо-компаний: ${rowCount}, создаю заново.`);
+  } else {
+    const { rows: userRows } = await pool.query(
+      `INSERT INTO users (name, email, password_hash, accepted_terms_at) VALUES ($1, $2, $3, now()) RETURNING id`,
+      ['Демо: владелец сети', email, passwordHash]
+    );
+    userId = userRows[0].id;
+  }
 
   const network = await createCompany('Демо-сеть детских клубов (управляющая компания)', userId, { franchiseEnabled: true });
   const { rows: groupRows } = await pool.query(
