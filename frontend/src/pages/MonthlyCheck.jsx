@@ -19,7 +19,7 @@ const REACTION = {
   violation: {
     yes: 'Отлично — отметим как исправленное.',
     no: 'Добавим в план на месяц.',
-    skip: 'Понятно, так бывает. Не будем спрашивать полгода — риск остаётся, он виден в разделе «Безопасность».',
+    skip: 'Хорошо, вернёмся к этому через полгода. Риск пока остаётся — он виден в разделе «Безопасность».',
   },
   deadline: { yes: 'Закроем срок. Если он повторяется — поставим следующий.', no: 'Оставим в сроках, напомним ещё.' },
   task: { yes: 'Отметим сети, что сделано.', no: 'Сеть увидит, что задача ещё в работе.' },
@@ -52,7 +52,7 @@ function Summary({ state }) {
       <List title="Стало лучше" items={s.better} color={C.green} />
       <List title="Горит" items={s.burning} color={C.red} />
       <List title="План на месяц" items={s.plan} color={C.orange} />
-      <List title="Не спрашиваем полгода — риск остаётся" items={s.accepted || []} color={C.secondary} />
+      <List title="Отложено на полгода — риск пока остаётся" items={s.accepted || []} color={C.secondary} />
       {!s.plan.length && !s.burning.length && <div style={{ fontSize: 13, color: C.green, marginTop: 12 }}>В этом месяце всё отмечено — спасибо, что держите порядок.</div>}
       <div style={{ fontSize: 12, color: C.subtle, marginTop: 12 }}>Следующая проверка — в начале следующего месяца, мы напомним.</div>
       <div style={{ marginTop: 12 }}><Btn small variant="secondary" onClick={() => navigate('/')}>На главную</Btn></div>
@@ -115,7 +115,7 @@ export default function MonthlyCheck() {
               <Btn small variant={a === 'yes' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'yes' })}>Да</Btn>
               <Btn small variant={a === 'no' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'no' })}>Ещё нет</Btn>
               {item.type === 'violation' && (
-                <Btn small variant={a === 'skip' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'skip' })}>Не получится</Btn>
+                <Btn small variant={a === 'skip' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'skip' })}>Позже</Btn>
               )}
             </div>
             {a && <div style={{ fontSize: 12, color: a === 'yes' ? C.green : a === 'skip' ? C.secondary : C.orange, marginTop: 8, lineHeight: 1.5 }}>{REACTION[item.type][a]}</div>}
