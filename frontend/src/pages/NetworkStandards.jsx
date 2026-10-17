@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Btn, Badge, Field, TextInput, TextArea, Select, C } from '../ui/components.jsx';
+import StandardsAnswerList, { RESULT_OPTIONS, percentColor } from '../components/StandardsAnswerList.jsx';
+import { copyToClipboard } from '../utils/clipboard.js';
 
 // Стандарты сети — сторона франчайзера (17.10.2026, docs/franchisor-
 // compliance.md §2). Свой список требований к точкам, проверка точки
@@ -9,19 +11,6 @@ import { Card, ST, Btn, Badge, Field, TextInput, TextArea, Select, C } from '../
 // сравнение «как точка оценила себя» и «что увидел проверяющий».
 // Бэкенд — platform/franchise-standards.routes.js (/network).
 
-export const RESULT_OPTIONS = [
-  { value: 'yes', label: 'Да', color: C.green, bg: C.greenBg },
-  { value: 'partial', label: 'Частично', color: C.orange, bg: C.orangeBg },
-  { value: 'no', label: 'Нет', color: C.red, bg: C.redBg },
-  { value: 'na', label: 'Не применимо', color: C.subtle, bg: C.surface },
-];
-
-export function percentColor(p) {
-  if (p == null) return C.subtle;
-  if (p >= 85) return C.green;
-  if (p >= 60) return C.orange;
-  return C.red;
-}
 
 function formatDate(d) {
   return d ? new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '';
@@ -116,46 +105,54 @@ function AuditForm({ data, initialCompanyId, onDone, onCancel }) {
   );
 }
 
-// Общий список «пункт → Да / Частично / Нет / Не применимо + заметка» —
-// и для проверки от сети, и для самопроверки точки (PointStandards.jsx).
-export function StandardsAnswerList({ standards, answers, onChange }) {
-  function set(id, patch) {
-    onChange({ ...answers, [id]: { ...(answers[id] || {}), ...patch } });
+// Ссылка проверяющему без аккаунта (миграция 0139): одна точка, один раз,
+// 14 дней. Проверяющий открывает её с телефона — PublicAuditForm.jsx.
+function AuditLinkCard({ point, onClose }) {
+  const [auditorLabel, setAuditorLabel] = useState('Тайный покупатель');
+  const [link, setLink] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+
+  async function create() {
+    setError('');
+    try {
+      const { data } = await api.post('/platform/franchise-standards/network/audit-links', { companyId: point.companyId, auditorLabel });
+      setLink(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось создать ссылку');
+    }
   }
+
   return (
-    <div style={{ marginBottom: 12 }}>
-      {standards.map((s, i) => {
-        const a = answers[s.id] || {};
-        return (
-          <div key={s.id} style={{ padding: '10px 0', borderTop: i > 0 ? `1px solid ${C.border}` : 'none' }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</div>
-            {s.hint && <div style={{ fontSize: 12, color: C.secondary, marginTop: 2, lineHeight: 1.5 }}>{s.hint}</div>}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-              {RESULT_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => set(s.id, { result: o.value })}
-                  style={{
-                    padding: '6px 10px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-                    border: `1px solid ${a.result === o.value ? o.color : C.border}`,
-                    background: a.result === o.value ? o.bg : 'transparent',
-                    color: a.result === o.value ? o.color : C.secondary,
-                  }}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            {a.result && a.result !== 'yes' && a.result !== 'na' && (
-              <div style={{ marginTop: 8 }}>
-                <TextInput value={a.note || ''} onChange={(e) => set(s.id, { note: e.target.value })} placeholder="Что увидели (необязательно)" maxLength={500} />
-              </div>
-            )}
+    <Card>
+      <ST>Ссылка проверяющему · {point.companyName}</ST>
+      <div style={{ fontSize: 12.5, color: C.secondary, marginBottom: 12, lineHeight: 1.5 }}>
+        Проверяющий откроет форму с телефона без регистрации, отметит пункты на месте и отправит. Результат сразу появится здесь, точка получит уведомление. Ссылка одноразовая и действует 14 дней. Проверяющий увидит только название сети, точки и список стандартов.
+      </div>
+      {!link ? (
+        <>
+          <Field label="Кто будет проверять">
+            <TextInput value={auditorLabel} onChange={(e) => setAuditorLabel(e.target.value)} maxLength={120} placeholder="Тайный покупатель, супервайзер…" />
+          </Field>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Btn small onClick={create}>Создать ссылку</Btn>
+            <Btn small variant="secondary" onClick={onClose}>Назад</Btn>
           </div>
-        );
-      })}
-    </div>
+        </>
+      ) : (
+        <>
+          <input readOnly value={link.url} onClick={(e) => e.target.select()} style={{ width: '100%', boxSizing: 'border-box', fontSize: 12.5, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, color: C.primary, marginBottom: 10 }} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Btn small onClick={async () => setCopied(await copyToClipboard(link.url))}>{copied ? 'Скопировано' : 'Скопировать'}</Btn>
+            {typeof navigator.share === 'function' && (
+              <Btn small variant="secondary" onClick={() => navigator.share({ title: 'Проверка точки', url: link.url }).catch(() => {})}>Поделиться</Btn>
+            )}
+            <Btn small variant="secondary" onClick={onClose}>Готово</Btn>
+          </div>
+        </>
+      )}
+      {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+    </Card>
   );
 }
 
@@ -203,6 +200,7 @@ export default function NetworkStandards() {
   const [data, setData] = useState(undefined);
   const [audit, setAudit] = useState(null); // null | { companyId }
   const [detail, setDetail] = useState(null);
+  const [linkFor, setLinkFor] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [newHint, setNewHint] = useState('');
   const [error, setError] = useState('');
@@ -230,6 +228,7 @@ export default function NetworkStandards() {
     return <AuditForm data={data} initialCompanyId={audit.companyId} onCancel={() => setAudit(null)} onDone={() => { setAudit(null); load(); }} />;
   }
   if (detail) return <CheckDetail checkId={detail} onClose={() => setDetail(null)} />;
+  if (linkFor) return <AuditLinkCard point={linkFor} onClose={() => setLinkFor(null)} />;
 
   const hasStandards = data.standards.length > 0;
 
@@ -263,7 +262,8 @@ export default function NetworkStandards() {
                   <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>Точка оценивает себя на {gap} п. выше, чем увидел проверяющий</div>
                 )}
                 <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setAudit({ companyId: p.companyId })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.primary, fontWeight: 700, cursor: 'pointer' }}>Проверить</button>
+                  <button type="button" onClick={() => setAudit({ companyId: p.companyId })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.primary, fontWeight: 700, cursor: 'pointer' }}>Проверить сам</button>
+                  <button type="button" onClick={() => setLinkFor(p)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.primary, fontWeight: 700, cursor: 'pointer' }}>Ссылка проверяющему</button>
                   {p.audit && <button type="button" onClick={() => setDetail(p.audit.checkId)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.secondary, cursor: 'pointer' }}>Последняя проверка</button>}
                   {p.self && <button type="button" onClick={() => setDetail(p.self.checkId)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.secondary, cursor: 'pointer' }}>Самопроверка</button>}
                 </div>

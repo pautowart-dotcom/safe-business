@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Btn, Badge, C } from '../ui/components.jsx';
-import { RESULT_OPTIONS, StandardsAnswerList, percentColor } from './NetworkStandards.jsx';
+import StandardsAnswerList, { RESULT_OPTIONS, percentColor } from '../components/StandardsAnswerList.jsx';
 
 // Стандарты сети — сторона точки (17.10.2026). Самопроверка и результат
 // последней проверки от сети. Бэкенд — platform/franchise-standards.routes.js (/mine).

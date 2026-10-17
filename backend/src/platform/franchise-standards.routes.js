@@ -3,6 +3,7 @@
 // список стандартов (правит только владелец сети), проверки от сети —
 // владелец и сотрудники сети с доступом к пульту (это и есть проверяющие).
 // /mine/* — сторона точки: самопроверка и результаты проверок от сети.
+const crypto = require('crypto');
 const express = require('express');
 const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
@@ -168,6 +169,44 @@ router.post(
     }).catch((err) => console.error('franchise audit notify failed', saved.checkId, err));
 
     res.status(201).json(saved);
+  })
+);
+
+// Ссылка для проверяющего без аккаунта (миграция 0139): одна точка, один
+// раз, 14 дней. Публичная форма — franchise-audit-public.routes.js.
+const AUDIT_LINK_DAYS = 14;
+
+function publicBaseUrl(req) {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  const proto = req.get('x-forwarded-proto') || req.protocol;
+  return `${proto}://${req.get('host')}/lk`;
+}
+
+router.post(
+  '/network/audit-links',
+  asyncHandler(async (req, res) => {
+    const access = await networkAccess(req);
+    if (!access) return res.status(404).json({ error: 'Нет доступа к пульту сети' });
+    const { companyId, auditorLabel } = req.body || {};
+    const { rows: point } = await pool.query('SELECT id FROM companies WHERE id = $1 AND franchise_group_id = $2', [companyId, access.group.id]);
+    if (point.length === 0) return res.status(400).json({ error: 'Выберите точку своей сети' });
+    if ((await listStandards(access.group.id)).length === 0) return res.status(400).json({ error: 'Сначала добавьте стандарты сети' });
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const { rows } = await pool.query(
+      `INSERT INTO franchise_audit_links (token, franchise_group_id, company_id, auditor_label, created_by_user_id, expires_at)
+       VALUES ($1, $2, $3, $4, $5, now() + ($6 || ' days')::interval) RETURNING expires_at`,
+      [token, access.group.id, point[0].id, typeof auditorLabel === 'string' ? auditorLabel.trim().slice(0, 120) || null : null, req.user.id, String(AUDIT_LINK_DAYS)]
+    );
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'platform',
+      userId: req.user.id,
+      entityType: 'franchise_audit_link',
+      entityId: point[0].id,
+      action: 'franchise_standard.audit_link_created',
+    });
+    res.status(201).json({ url: `${publicBaseUrl(req)}/a/${token}`, expiresAt: rows[0].expires_at });
   })
 );
 
