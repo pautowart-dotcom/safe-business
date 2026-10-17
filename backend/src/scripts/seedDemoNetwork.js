@@ -120,7 +120,7 @@ async function run() {
        WHERE m.user_id = $1 AND (c.is_test IS NOT TRUE OR c.created_by_user_id IS DISTINCT FROM $1)`,
       [userId]
     );
-    if (foreign.rows.length > 0) {
+    if (foreign.length > 0) {
       console.error(`У ${email} есть настоящие компании — это не демо-аккаунт. Ничего не меняю.`);
       await pool.end();
       process.exit(1);
