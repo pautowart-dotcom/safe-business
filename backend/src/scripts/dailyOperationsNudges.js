@@ -340,8 +340,13 @@ async function nudgeQuarterlyMedicalBooksCheck() {
 // минуты». registerAction шлёт уведомление только при первой вставке, поэтому
 // ежедневный запуск не спамит. Снимается, когда проверку прошли (complete) или
 // когда начался следующий месяц.
+// Клиентам — с ноября 2026 (решение владельца 17.10: сначала сам проходит
+// проверку на своих студиях по ссылке /lk/monthly-check, потом рассылка).
+const MONTHLY_CHECK_START = '2026-11';
+
 async function nudgeMonthlyCheck() {
   const month = moscowDateStr(new Date()).slice(0, 7);
+  if (month < MONTHLY_CHECK_START) return 0;
   const [y, m] = month.split('-').map(Number);
   const prevMonth = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
   const { rows: companies } = await pool.query(
@@ -358,9 +363,11 @@ async function nudgeMonthlyCheck() {
     await registerAction({
       companyId: id,
       category: 'documents',
-      title: 'Проверка месяца: 5–7 коротких вопросов, 2 минуты — что стало лучше и что сделать дальше',
+      title: 'Проверка месяца — 5–7 вопросов, 2 минуты',
       relatedEntityType: `monthly_check:${month}`,
       relatedEntityId: id,
+      notifyBody: 'Отметьте, что уже сделано, — соберём план на месяц',
+      notifyUrl: '/monthly-check',
     });
   }
   return companies.length;

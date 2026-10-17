@@ -1,6 +1,6 @@
 // Проверка месяца (17.10.2026, этап 7, миграция 0140). Вопросы собираются
 // из данных самой точки — новый контент под 37 ниш не нужен:
-//   1) до 3 самых рискованных открытых нарушений — «исправили?»;
+//   1) до 3 самых рискованных открытых нарушений — «„…“ — исправили?»;
 //   2) до 2 сроков на ближайшие 30 дней (или подошедших) — «сделали?»;
 //   3) до 2 невыполненных задач сети, если точка в сети;
 //   4) 2 регулярные вещи, общие для всех (меняются по месяцам).
@@ -62,7 +62,7 @@ async function buildItems(companyId, month = currentMonth()) {
   detailed.sort((a, b) => b.risk - a.risk);
 
   const items = [
-    ...detailed.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `Исправили: ${v.title}?`, hint: v.solution || null, risk: v.risk })),
+    ...detailed.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `«${v.title}» — исправили?`, hint: v.solution || null, risk: v.risk })),
     ...deadlines.map((d) => ({ key: `d:${d.id}`, type: 'deadline', title: `${d.title} — сделано?`, hint: d.due_date < today ? `Срок был ${d.due_date}` : `Срок ${d.due_date}`, overdue: d.due_date < today })),
     ...tasks.map((t) => ({ key: `t:${t.id}`, type: 'task', title: `Задача сети: ${t.title} — выполнена?`, hint: null })),
     ...regularFor(month).map((r) => ({ key: `r:${r.key}`, type: 'regular', title: r.title, hint: null })),
@@ -103,7 +103,7 @@ async function applyYes(item, { companyId, membershipId, userId }) {
 
 // Итог: что стало лучше, что горит, план на месяц.
 function bare(item) {
-  return item.title.replace(/^Исправили: |^Задача сети: | — (сделано|выполнена)\?$|\?$/g, '').replace(/ \(Только посмотрите — сюда не вносим\.\)$/, '');
+  return item.title.replace(/^«|» — исправили\?$|^Задача сети: | — (сделано|выполнена)\?$|\?$/g, '').replace(/ \(Только посмотрите — сюда не вносим\.\)$/, '');
 }
 
 const DONE_PREFIX = { violation: 'Исправлено', deadline: 'Сделано', task: 'Выполнена задача сети', regular: 'Проверено' };

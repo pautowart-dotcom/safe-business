@@ -78,7 +78,9 @@ async function registerDeadline({
 // миграции 0036) — конкретные модули, которые начнут вызывать эту функцию
 // в следующих этапах, сами решают, когда условие снято (и тогда чистят
 // запись через clearAction, а не оставляют её висеть вечно).
-async function registerAction({ companyId, category, title, relatedEntityType = null, relatedEntityId = null }) {
+// notifyBody/notifyUrl (17.10.2026) — для действий со своим экраном (проверка
+// месяца): уведомление сразу ведёт туда, а не в общий список сроков.
+async function registerAction({ companyId, category, title, relatedEntityType = null, relatedEntityId = null, notifyBody = null, notifyUrl = null }) {
   let id;
   let inserted;
 
@@ -112,8 +114,8 @@ async function registerAction({ companyId, category, title, relatedEntityType = 
       kind: 'deadline',
       category,
       title,
-      body: 'Подробности — в «Дедлайнах»',
-      url: '/deadlines',
+      body: notifyBody || 'Подробности — в «Дедлайнах»',
+      url: notifyUrl || '/deadlines',
       dedupeKey: relatedEntityType && relatedEntityId ? `action:${relatedEntityType}:${relatedEntityId}` : null,
     }).catch((err) => console.error('notifyCompany failed:', err));
   }
