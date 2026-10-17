@@ -11,6 +11,7 @@ const securityRepository = require('../modules/security/content/repository');
 const { logEvent } = require('../core/eventLog');
 const { AUTHORITY_LABELS } = require('../modules/security/inspections.routes');
 const { isOverDailyAiLimit } = require('../core/aiUsageLimit');
+const { listStandards, latestChecksByPoint, checkDetail } = require('../modules/franchise/standards');
 
 // Единая подписка (06.09.2026) — /checkout, /cancel, /reactivate ИИ-советника
 // как отдельного продукта УДАЛЕНЫ (см. git-историю): теперь это часть одной
@@ -174,7 +175,42 @@ async function buildBusinessContext(companyId) {
     fine: r.fine_amount === null ? null : Number(r.fine_amount),
   }));
 
-  return { niches: nicheRows.map((r) => r.niche), company: companyRows[0] || {}, violationDetails, deadlines, inspections };
+  return { niches: nicheRows.map((r) => r.niche), company: companyRows[0] || {}, violationDetails, deadlines, inspections, network: await buildNetworkPart(companyId) };
+}
+
+// Если точка в сети (17.10.2026) — ИИ видит и то, что от неё ждёт сеть:
+// невыполненные задачи, замечания последней проверки по стандартам сети,
+// результат самопроверки. Те же данные, что точка видит в «Задачах от сети»
+// и «Стандартах сети».
+async function buildNetworkPart(companyId) {
+  const { rows: groupRows } = await pool.query(
+    'SELECT fg.id, fg.name FROM companies c JOIN franchise_groups fg ON fg.id = c.franchise_group_id WHERE c.id = $1',
+    [companyId]
+  );
+  const group = groupRows[0];
+  if (!group) return null;
+  const [{ rows: tasks }, standards, latest] = await Promise.all([
+    pool.query(
+      `SELECT t.title, to_char(t.due_date, 'YYYY-MM-DD') AS due_date
+       FROM franchise_task_points tp JOIN franchise_tasks t ON t.id = tp.task_id
+       WHERE tp.company_id = $1 AND t.franchise_group_id = $2 AND t.archived_at IS NULL AND tp.done_at IS NULL
+       ORDER BY t.due_date NULLS LAST LIMIT 10`,
+      [companyId, group.id]
+    ),
+    listStandards(group.id),
+    latestChecksByPoint(group.id),
+  ]);
+  const mine = latest.get(companyId) || {};
+  const auditGaps = mine.audit
+    ? (await checkDetail(mine.audit.checkId)).filter((a) => a.result === 'no' || a.result === 'partial').map((a) => a.title)
+    : [];
+  return {
+    name: group.name,
+    openTasks: tasks.map((t) => ({ title: t.title, dueDate: t.due_date })),
+    standardsCount: standards.length,
+    selfPercent: mine.self?.percent ?? null,
+    audit: mine.audit ? { percent: mine.audit.percent, date: mine.audit.date, gaps: auditGaps } : null,
+  };
 }
 
 const INSPECTION_OUTCOME_LABELS = {
@@ -220,6 +256,20 @@ function formatContextForPrompt(ctx) {
     }
   }
 
+  if (ctx.network) {
+    const n = ctx.network;
+    lines.push(`Бизнес состоит в сети (франшизе) «${n.name}». Требования сети — это стандарты самой сети, не закон.`);
+    if (n.openTasks.length > 0) {
+      lines.push('Невыполненные задачи от сети:');
+      for (const t of n.openTasks) lines.push(`- ${t.title}${t.dueDate ? ` (срок ${t.dueDate})` : ''}`);
+    }
+    if (n.audit) {
+      lines.push(`Последняя проверка от сети по стандартам: ${n.audit.percent}% (${n.audit.date}).`);
+      if (n.audit.gaps.length > 0) lines.push(`Замечания проверки: ${n.audit.gaps.join('; ')}.`);
+    }
+    if (n.standardsCount > 0 && n.selfPercent == null) lines.push('Самопроверку по стандартам сети точка ещё не проходила.');
+  }
+
   if (ctx.deadlines.length === 0) {
     lines.push('Ближайших сроков в разделе "Мои сроки"/"Дедлайны" не внесено.');
   } else {
@@ -243,6 +293,7 @@ function formatContextForPrompt(ctx) {
 // решение "разумный горизонт", как и пороги там, можно пересмотреть.
 function hasNotableComplianceFindings(ctx) {
   if (ctx.violationDetails.length > 0) return true;
+  if (ctx.network && (ctx.network.openTasks.length > 0 || ctx.network.audit?.gaps.length > 0)) return true;
   const horizon = new Date();
   horizon.setDate(horizon.getDate() + 30);
   const horizonStr = horizon.toISOString().slice(0, 10);
@@ -257,7 +308,8 @@ const DIGEST_SYSTEM_PROMPT =
   'О прошлых проверках тебе известны только орган, дата, итог, области и штраф — не приписывай предписанию содержание. ' +
   'срочное и что стоит сделать в первую очередь. Не перечисляй всё подряд, выдели главное. Не обещай гарантированный ' +
   'результат и не пугай проверками, тон честный и простой. Если и нарушений, и близких сроков нет — не должен был вызываться ' +
-  'вовсе, но если так вышло, коротко скажи, что срочного сейчас нет.';
+  'вовсе, но если так вышло, коротко скажи, что срочного сейчас нет. Если бизнес в сети (франшизе) и есть невыполненные ' +
+  'задачи или замечания проверки сети — упомяни их отдельно от закона.';
 
 async function buildComplianceDigest(ctx) {
   return yandexAssist.draftText({ system: DIGEST_SYSTEM_PROMPT, prompt: formatContextForPrompt(ctx), maxTokens: 400 });
@@ -296,6 +348,8 @@ const CHAT_SYSTEM_PROMPT =
   'бухгалтерской оценки конкретной ситуации — прямо скажи об этом и посоветуй обратиться к юристу/бухгалтеру, не изображай ' +
   'уверенность, которой нет. О прошлых проверках тебе известны только орган, дата, итог, области и штраф: не утверждай, ' +
   'что именно написано в предписании или акте, и не выдавай пункты из теста безопасности за содержание предписания. ' +
+  'Если бизнес состоит в сети (франшизе) — учитывай невыполненные задачи и замечания проверок сети, но всегда отделяй ' +
+  'требования сети от требований закона. ' +
   'Отвечай кратко и по делу — 3-6 предложений, если вопрос явно не требует большего.';
 
 router.post(
