@@ -7,6 +7,7 @@ const repository = require('../modules/security/content/repository');
 const { minCompletionSeconds } = require('../modules/security/sessionPacing');
 const { buildRoadmap } = require('../modules/roadmap/content/buildRoadmap');
 const { NEW_COHORT_MODULES } = require('../core/cohort');
+const { TEMPLATES, listStandards, saveCheck } = require('../modules/franchise/standards');
 
 // Демо-сеть для показа франчайзеру (16.10.2026, docs/franchise-funkcional.md
 // §11, этап 6: Ф54). Запускается вручную на сервере, где работает API:
@@ -195,6 +196,34 @@ async function run() {
       `INSERT INTO franchise_task_points (task_id, company_id, done_at, done_by_user_id) VALUES ($1, $2, $3, $4)`,
       [taskRows[0].id, open[i].companyId, i < 2 ? new Date() : null, i < 2 ? userId : null]
     );
+  }
+
+  // Стандарты сети (17.10.2026, миграция 0138): набор для детских клубов,
+  // самопроверки работающих точек и проверка тайным покупателем.
+  // Уфа оценивает себя высоко, а проверяющий видит другое — главный сигнал.
+  for (const [i, t] of TEMPLATES.kids_club.entries()) {
+    await pool.query(
+      'INSERT INTO franchise_standards (franchise_group_id, title, hint, position) VALUES ($1, $2, $3, $4)',
+      [groupId, t.title, t.hint || null, i]
+    );
+  }
+  const standards = await listStandards(groupId);
+  const pattern = (share) => standards.map((s, i) => ({
+    standardId: s.id,
+    result: Math.floor((i + 1) * share) > Math.floor(i * share) ? 'yes' : i % 2 ? 'partial' : 'no',
+  }));
+  for (const p of open) {
+    await saveCheck({ groupId, companyId: p.companyId, kind: 'self', answers: pattern(p.share < 0.5 ? 0.85 : Math.min(p.share + 0.1, 1)), userId });
+    await saveCheck({
+      groupId,
+      companyId: p.companyId,
+      kind: 'audit',
+      auditorLabel: 'Тайный покупатель',
+      visitedOn: new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10),
+      comment: p.share < 0.5 ? 'На сообщение ответили через 2 часа, пробное занятие без обратной связи родителю.' : null,
+      answers: pattern(p.share < 0.5 ? 0.35 : p.share),
+      userId,
+    });
   }
 
   console.log('\nДемо-сеть создана.');

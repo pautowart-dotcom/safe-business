@@ -34,6 +34,8 @@ import Network from './pages/Network.jsx';
 import JoinNetwork from './pages/JoinNetwork.jsx';
 import NetworkTasks from './pages/NetworkTasks.jsx';
 import NetworkReport from './pages/NetworkReport.jsx';
+import NetworkStandards from './pages/NetworkStandards.jsx';
+import PointStandards from './pages/PointStandards.jsx';
 import MyPoints from './pages/MyPoints.jsx';
 import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
@@ -173,6 +175,22 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <NetworkReport />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="network/standards"
+          element={
+            <PrivateRoute managementOnly>
+              <NetworkStandards />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="network-standards"
+          element={
+            <PrivateRoute managementOnly>
+              <PointStandards />
             </PrivateRoute>
           }
         />

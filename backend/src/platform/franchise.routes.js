@@ -39,6 +39,9 @@ async function forgetPoint(groupId, companyId) {
      WHERE franchise_group_id = $1`,
     [groupId, companyId]
   );
+  // Стандарты сети (миграция 0138): самопроверки и проверки от сети этой
+  // точки сеть тоже больше не хранит.
+  await pool.query('DELETE FROM franchise_standard_checks WHERE franchise_group_id = $1 AND company_id = $2', [groupId, companyId]);
 }
 
 async function generateJoinCode() {

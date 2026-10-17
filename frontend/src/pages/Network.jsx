@@ -360,6 +360,11 @@ export default function Network() {
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Что стало лучше, где горит, открытия, задачи — страница и PDF →</div>
       </Card>}
 
+      <Card onClick={() => navigate('/network/standards')} style={{ cursor: 'pointer' }}>
+        <div style={{ fontSize: 15, fontWeight: 800 }}>Стандарты сети и проверки</div>
+        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Ваши требования к точкам, проверка тайным покупателем, бланк для печати →</div>
+      </Card>
+
       {atRisk.length > 0 && (
         <Card>
           <ST>Требуют внимания</ST>
@@ -382,7 +387,7 @@ export default function Network() {
           members.map((m) => <PointRow key={m.companyId} m={m} canManage={canManage} onRemove={removePoint} />)
         )}
         <div style={{ fontSize: 11, color: C.subtle, marginTop: 10, lineHeight: 1.5 }}>
-          Сеть видит только сводку по точке: индекс, нарушения, число сроков, шаг открытия. Имена сотрудников и клиентов, документы и деньги точки сюда не попадают.
+          Сеть видит только сводку по точке: индекс, нарушения, число сроков, шаг открытия, число сотрудников и сколько из них оформлены не до конца, отметки по стандартам сети. Имена сотрудников и клиентов, документы и деньги точки сюда не попадают.
         </div>
       </Card>
 

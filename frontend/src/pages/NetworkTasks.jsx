@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Btn, Badge, TextInput, C } from '../ui/components.jsx';
@@ -58,6 +59,7 @@ function TaskCard({ task, onSaved }) {
 }
 
 export default function NetworkTasks() {
+  const navigate = useNavigate();
   const [data, setData] = useState(undefined);
 
   function load() {
@@ -70,18 +72,31 @@ export default function NetworkTasks() {
   usePullToRefresh(load);
 
   if (data === undefined) return <div className="page-loading">Загрузка...</div>;
+
+  // Стандарты сети (17.10.2026) — самопроверка и проверки от сети, PointStandards.jsx.
+  const standardsLink = (
+    <Card onClick={() => navigate('/network-standards')} style={{ cursor: 'pointer' }}>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>Стандарты сети</div>
+      <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Самопроверка и результаты проверок от сети →</div>
+    </Card>
+  );
+
   if (!data || data.tasks.length === 0) {
     return (
-      <Card>
-        <ST>Задачи от сети</ST>
-        <div style={{ fontSize: 13, color: C.subtle }}>Задач от сети пока нет.</div>
-      </Card>
+      <div>
+        <Card>
+          <ST>Задачи от сети</ST>
+          <div style={{ fontSize: 13, color: C.subtle }}>Задач от сети пока нет.</div>
+        </Card>
+        {standardsLink}
+      </div>
     );
   }
 
   return (
     <div>
       {data.tasks.map((t) => <TaskCard key={t.id} task={t} onSaved={load} />)}
+      {standardsLink}
     </div>
   );
 }
