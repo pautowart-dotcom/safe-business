@@ -50,6 +50,10 @@ async function run() {
     }
   }
 
+  // Срок хранения снимков — 2 года (17.10.2026: так написано в согласии
+  // точки при вступлении в сеть, JoinNetwork.jsx).
+  await pool.query("DELETE FROM franchise_network_snapshots WHERE snapshot_date < CURRENT_DATE - interval '2 years'");
+
   await pool.query(
     `INSERT INTO cron_heartbeats (job_key, last_run_at, note) VALUES ('franchiseMonthlySnapshot', now(), $1)
      ON CONFLICT (job_key) DO UPDATE SET last_run_at = now(), note = $1`,

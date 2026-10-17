@@ -112,6 +112,12 @@ function JoinForm({ code }) {
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 2 }} />
         Согласен, чтобы сеть видела эту сводку. Выйти из сети можно в любой момент.
       </label>
+      {/* 17.10.2026 — состав согласия по ст. 9 152-ФЗ: кто, что, кому, зачем,
+          как долго и как отозвать (вопрос А2 в docs/kids-club-voprosy-yuristu.md).
+          Название ИП совпадает с ФИО, поэтому это персональные данные. */}
+      <div style={{ fontSize: 11.5, color: C.subtle, marginTop: -6, marginBottom: 14, lineHeight: 1.5 }}>
+        Обрабатывает данные ИП Паутов Артём Вячеславович (сервис «Безопасный бизнес»). Цель — показать владельцу сети «{preview.name}» и сотрудникам, которым он открыл доступ, сводку по вашей точке. Срок — пока точка в сети; ежемесячные отчёты сети хранятся до 2 лет. Отозвать согласие — кнопкой «Выйти из сети» в разделе «Безопасность»: точка сразу исчезнет из пульта и из всех отчётов сети.
+      </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Btn small onClick={submit} disabled={!consent || sending}>{sending ? 'Секунду…' : 'Подать заявку'}</Btn>
         <Btn small variant="secondary" onClick={cancel}>Не сейчас</Btn>
