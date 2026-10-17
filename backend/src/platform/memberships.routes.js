@@ -228,6 +228,13 @@ router.delete(
     if (rowCount === 0) {
       return res.status(404).json({ error: 'Участник не найден' });
     }
+    // Сроки оформления уволенного (СФР, МВД — staff-onboarding.routes.js)
+    // больше не нужны: иначе висели бы в «Сроках» без карточки, где их снять.
+    await pool.query(
+      `DELETE FROM deadlines WHERE company_id = $1 AND related_entity_id = $2
+         AND related_entity_type IN ('staff_onboarding_sfr', 'staff_onboarding_mvd')`,
+      [req.tenant.companyId, req.params.id]
+    );
 
     await logEvent({
       companyId: req.tenant.companyId,

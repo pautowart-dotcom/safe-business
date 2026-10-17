@@ -4,6 +4,7 @@
 const pool = require('../../db/pool');
 const { computeSecurityStatus } = require('../security/status');
 const { getOpening } = require('../roadmap/opening');
+const { onboardingCounts } = require('../staff/onboarding');
 
 const INACTIVE_DAYS = 30;
 const DEADLINES_RISK_THRESHOLD = 3;
@@ -41,7 +42,7 @@ async function computeNetworkSummary(group) {
 
   const points = await Promise.all(
     members.map(async (m) => {
-      const [status, opening] = await Promise.all([computeSecurityStatus(m.id), getOpening(m.id)]);
+      const [status, opening, staff] = await Promise.all([computeSecurityStatus(m.id), getOpening(m.id), onboardingCounts(m.id)]);
       const point = {
         companyId: m.id,
         companyName: m.name,
@@ -58,6 +59,9 @@ async function computeNetworkSummary(group) {
         resolvedCount: status.violations.filter((v) => v.status === 'resolved').length,
         overdueDeadlines: overdueByCompany.get(m.id) || 0,
         lastActiveAt: m.last_active_at,
+        // Оформление сотрудников (Ф17, 17.10.2026) — только числа, без имён.
+        staffTotal: staff.staffTotal,
+        staffWithOpenSteps: staff.staffWithOpenSteps,
       };
       point.riskReasons = riskReasons(point);
       return point;
@@ -79,6 +83,7 @@ async function computeNetworkSummary(group) {
     averageIndexPercent: tested.length > 0 ? Math.round(tested.reduce((sum, m) => sum + m.indexPercent, 0) / tested.length) : null,
     violationsOpen: tested.reduce((sum, m) => sum + Math.max((m.violationsCount || 0) - (m.resolvedCount || 0), 0), 0),
     deadlinesDue: points.reduce((sum, m) => sum + m.overdueDeadlines, 0),
+    pointsWithStaffGaps: points.filter((m) => m.staffWithOpenSteps > 0).length,
     zoneCounts,
   };
 

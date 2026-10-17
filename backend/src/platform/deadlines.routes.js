@@ -119,6 +119,23 @@ router.patch(
       result = advanced[0];
     }
 
+    // Срок из оформления сотрудника (17.10.2026, modules/staff/onboarding.js):
+    // «Готово» здесь = шаг сделан в карточке сотрудника, и обратно.
+    const onboardingStep = { staff_onboarding_sfr: 'sfr', staff_onboarding_mvd: 'mvd' }[result.related_entity_type];
+    if (onboardingStep && status === 'done') {
+      await pool.query(
+        `INSERT INTO staff_onboarding_steps (membership_id, company_id, step_key, done_by_user_id)
+         SELECT m.id, m.company_id, $2, $3 FROM memberships m WHERE m.id = $1 AND m.company_id = $4
+         ON CONFLICT (membership_id, step_key) DO NOTHING`,
+        [result.related_entity_id, onboardingStep, req.user.id, req.tenant.companyId]
+      );
+    } else if (onboardingStep && status === 'pending') {
+      await pool.query(
+        'DELETE FROM staff_onboarding_steps WHERE membership_id = $1 AND step_key = $2 AND company_id = $3',
+        [result.related_entity_id, onboardingStep, req.tenant.companyId]
+      );
+    }
+
     res.json(result);
   })
 );

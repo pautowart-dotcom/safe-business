@@ -18,6 +18,71 @@ const EMPTY_DOC_FORM = { docType: 'certificate', title: '', expiresAt: '', issue
 const KIDS_NICHES = ['kids_club'];
 const CRIMINAL_RECORD = 'criminal_record_certificate';
 
+const EMPLOYMENT_OPTIONS = [
+  { value: '', label: 'Не выбрано' },
+  { value: 'labor', label: 'Трудовой договор' },
+  { value: 'gph', label: 'Договор ГПХ' },
+  { value: 'npd', label: 'Самозанятый' },
+  { value: 'none', label: 'Пока не оформлен' },
+];
+
+function formatDay(iso) {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+// Шаги при найме (17.10.2026, Ф17; бэкенд — modules/staff/onboarding.js).
+// Сроки СФР и МВД считаются от даты приёма и сами попадают в «Сроки».
+function OnboardingCard({ item, error, onUpdate, onToggle }) {
+  const done = item.steps.filter((s) => s.done).length;
+  return (
+    <div style={{ marginTop: 24 }}>
+      <ST>Оформление</ST>
+      <Card>
+        <Field label="Как оформлен">
+          <Select value={item.employmentType || ''} onChange={(e) => onUpdate({ employmentType: e.target.value || null })}>
+            {EMPLOYMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </Field>
+        <Field label="Дата приёма (дата договора)">
+          <TextInput type="date" value={item.hiredOn || ''} onChange={(e) => onUpdate({ hiredOn: e.target.value || null })} />
+        </Field>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 14, cursor: 'pointer' }}>
+          <input type="checkbox" checked={item.isForeign} onChange={(e) => onUpdate({ isForeign: e.target.checked })} />
+          Иностранный гражданин
+        </label>
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 6 }}>
+          Сделано {done} из {item.steps.length}
+        </div>
+        {item.steps.map((s, i) => (
+          <div key={s.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: i > 0 ? `1px solid ${C.border}` : 'none' }}>
+            <input
+              type="checkbox"
+              checked={s.done}
+              disabled={s.auto}
+              onChange={(e) => onToggle(s.key, e.target.checked)}
+              style={{ marginTop: 3, flexShrink: 0 }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: s.done ? C.subtle : C.primary, textDecoration: s.done ? 'line-through' : 'none' }}>{s.title}</div>
+              {!s.done && <div style={{ fontSize: 12, color: C.secondary, lineHeight: 1.5, marginTop: 2 }}>{s.hint}</div>}
+              {!s.done && s.dueDate && (
+                <div style={{ fontSize: 12, color: C.orange, fontWeight: 600, marginTop: 2 }}>Срок — до {formatDay(s.dueDate)}</div>
+              )}
+            </div>
+          </div>
+        ))}
+        {!item.hiredOn && item.steps.some((s) => s.key === 'sfr' || s.key === 'mvd') && (
+          <div style={{ fontSize: 12, color: C.subtle, marginTop: 8, lineHeight: 1.5 }}>
+            Укажите дату приёма — посчитаем сроки и напомним о них.
+          </div>
+        )}
+        {error && <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>{error}</div>}
+      </Card>
+    </div>
+  );
+}
+
 function employeeWord(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -46,8 +111,29 @@ export default function Users() {
   const [docForm, setDocForm] = useState(null);
   // Кто из команды уже сдал справку о несудимости — только для детских ниш.
   const [withCriminalRecord, setWithCriminalRecord] = useState(null);
+  // Оформление сотрудников (17.10.2026, Ф17): membershipId → шаги при найме.
+  const [onboarding, setOnboarding] = useState({});
+  const [onboardingError, setOnboardingError] = useState('');
+
+  function loadOnboarding() {
+    return api
+      .get('/platform/staff-onboarding')
+      .then((res) => setOnboarding(Object.fromEntries(res.data.map((i) => [i.membershipId, i]))))
+      .catch(() => setOnboarding({}));
+  }
+
+  async function saveOnboarding(membershipId, request) {
+    setOnboardingError('');
+    try {
+      const { data } = await request;
+      setOnboarding((prev) => ({ ...prev, [membershipId]: data }));
+    } catch (err) {
+      setOnboardingError(err.response?.data?.error || 'Не удалось сохранить');
+    }
+  }
 
   function load() {
+    loadOnboarding();
     if (isKidsNiche && isOwner) {
       api
         .get('/platform/staff-documents')
@@ -197,6 +283,15 @@ export default function Users() {
           </Field>
         )}
         <Btn onClick={handleEditSubmit}>Сохранить</Btn>
+
+        {onboarding[editing.id] && (
+          <OnboardingCard
+            item={onboarding[editing.id]}
+            error={onboardingError}
+            onUpdate={(body) => saveOnboarding(editing.id, api.patch(`/platform/staff-onboarding/${editing.id}`, body))}
+            onToggle={(key, done) => saveOnboarding(editing.id, api.put(`/platform/staff-onboarding/${editing.id}/steps/${key}`, { done }))}
+          />
+        )}
 
         <div style={{ marginTop: 24 }}>
           <ST>Документы</ST>
@@ -366,6 +461,13 @@ export default function Users() {
                 </div>
                 {isKidsNiche && withCriminalRecord && m.role !== 'owner' && m.active !== false && !withCriminalRecord.has(m.id) && (
                   <div style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>Нет справки о несудимости</div>
+                )}
+                {onboarding[m.id]?.openCount > 0 && (
+                  <div style={{ fontSize: 12, color: C.orange, fontWeight: 600 }}>
+                    {onboarding[m.id].employmentType && onboarding[m.id].employmentType !== 'none'
+                      ? `Оформление: осталось шагов — ${onboarding[m.id].openCount}`
+                      : 'Не указано, как оформлен'}
+                  </div>
                 )}
               </div>
             </div>

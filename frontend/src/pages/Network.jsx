@@ -57,6 +57,14 @@ function PointRow({ m, canManage, onRemove }) {
             : `Нарушений: ${m.violationsCount || 0}, исправлено: ${m.resolvedCount || 0} · подошло сроков: ${m.overdueDeadlines}`}
         {' · '}{activityText(m.lastActiveAt)}
       </div>
+      {/* Оформление сотрудников (Ф17, 17.10.2026) — только числа, имён сеть не видит. */}
+      {m.staffTotal > 0 && (
+        <div style={{ fontSize: 12, color: m.staffWithOpenSteps > 0 ? C.orange : C.secondary, marginTop: 2 }}>
+          {m.staffWithOpenSteps > 0
+            ? `Сотрудников: ${m.staffTotal}, оформлены не до конца: ${m.staffWithOpenSteps}`
+            : `Сотрудников: ${m.staffTotal}, все оформлены`}
+        </div>
+      )}
       {m.riskReasons.length > 0 && (
         <div style={{ fontSize: 12, color: C.red, marginTop: 4 }}>{m.riskReasons.join(' · ')}</div>
       )}
@@ -334,6 +342,9 @@ export default function Network() {
           <Stat value={atRisk.length} label="требуют внимания" color={atRisk.length > 0 ? C.red : C.green} />
           <Stat value={network.pointsPreparing} label="готовятся к открытию" />
           {canManage && <Stat value={network.pointsUntested} label="без теста" />}
+          {network.pointsWithStaffGaps != null && (
+            <Stat value={network.pointsWithStaffGaps} label="не всех оформили" color={network.pointsWithStaffGaps > 0 ? C.orange : C.green} />
+          )}
         </div>
         {canManage && network.pointsTested > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
