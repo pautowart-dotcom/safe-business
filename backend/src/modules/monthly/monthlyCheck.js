@@ -13,6 +13,8 @@ const { computeSecurityStatus } = require('../security/status');
 const { moscowDateStr } = require('../../utils/moscowDate');
 
 const MAX_ITEMS = 7;
+const SKIP_MONTHS = 6;
+const ANSWERS = ['yes', 'no', 'skip'];
 
 // Без статей и сумм: это повод посмотреть, а не новое «нарушение».
 const REGULAR = [
@@ -59,10 +61,28 @@ async function buildItems(companyId, month = currentMonth()) {
     const d = await repository.getViolation(v.niche, v.violation_code);
     if (d) detailed.push({ id: v.id, title: d.title, risk: d.risk || 0, solution: d.solution });
   }
-  detailed.sort((a, b) => b.risk - a.risk);
+  // Чередование и «Не получится» (17.10.2026, владелец: «подмену трудовых
+  // отношений малый бизнес до конца не исправит»): нарушение с ответом
+  // «Не получится» не спрашиваем полгода; спрошенное в прошлом месяце
+  // ставим в конец очереди, чтобы не крутить одни и те же три пункта.
+  const { rows: history } = await pool.query(
+    `SELECT month, items FROM monthly_checks WHERE company_id = $1 AND month < $2 ORDER BY month DESC LIMIT ${SKIP_MONTHS}`,
+    [companyId, month]
+  );
+  const skipped = new Set();
+  const askedLastMonth = new Set();
+  history.forEach((h, idx) => {
+    for (const it of h.items || []) {
+      if (it.answer === 'skip') skipped.add(it.key);
+      if (idx === 0) askedLastMonth.add(it.key);
+    }
+  });
+  const queue = detailed
+    .filter((v) => !skipped.has(`v:${v.id}`))
+    .sort((a, b) => (askedLastMonth.has(`v:${a.id}`) - askedLastMonth.has(`v:${b.id}`)) || b.risk - a.risk);
 
   const items = [
-    ...detailed.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `«${v.title}» — исправили?`, hint: v.solution || null, risk: v.risk })),
+    ...queue.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `«${v.title}» — исправили?`, hint: v.solution || null, risk: v.risk })),
     ...deadlines.map((d) => ({ key: `d:${d.id}`, type: 'deadline', title: `${d.title} — сделано?`, hint: d.due_date < today ? `Срок был ${d.due_date}` : `Срок ${d.due_date}`, overdue: d.due_date < today })),
     ...tasks.map((t) => ({ key: `t:${t.id}`, type: 'task', title: `Задача сети: ${t.title} — выполнена?`, hint: null })),
     ...regularFor(month).map((r) => ({ key: `r:${r.key}`, type: 'regular', title: r.title, hint: null })),
@@ -118,6 +138,8 @@ function summarize(items, indexNow, indexPrev) {
     burning: burning.map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
     // «Горит» уже в своём блоке — в плане не повторяем.
     plan: no.filter((i) => !burning.includes(i)).map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
+    // «Не получится» — риск остаётся, просто не спрашиваем полгода.
+    accepted: items.filter((i) => i.answer === 'skip').map((i) => bare(i)),
     indexNow,
     indexPrev,
   };
@@ -141,7 +163,12 @@ async function complete({ companyId, membershipId, userId, answers }) {
   const month = currentMonth();
   const items = await buildItems(companyId, month);
   const byKey = new Map((Array.isArray(answers) ? answers : []).map((a) => [a.key, a.answer]));
-  const answered = items.map((i) => ({ ...i, answer: ['yes', 'no'].includes(byKey.get(i.key)) ? byKey.get(i.key) : 'no' }));
+  // «Не получится» — только для нарушений: у сроков и задач сети есть свои кнопки.
+  const answered = items.map((i) => {
+    const a = byKey.get(i.key);
+    const valid = ANSWERS.includes(a) && (a !== 'skip' || i.type === 'violation');
+    return { ...i, answer: valid ? a : 'no' };
+  });
 
   for (const item of answered) {
     if (item.answer === 'yes') await applyYes(item, { companyId, membershipId, userId });
