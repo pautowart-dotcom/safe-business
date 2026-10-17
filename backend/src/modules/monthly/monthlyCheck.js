@@ -116,7 +116,8 @@ function summarize(items, indexNow, indexPrev) {
   return {
     better: yes.map((i) => `${DONE_PREFIX[i.type]}: ${bare(i)}`),
     burning: burning.map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
-    plan: no.map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
+    // «Горит» уже в своём блоке — в плане не повторяем.
+    plan: no.filter((i) => !burning.includes(i)).map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
     indexNow,
     indexPrev,
   };

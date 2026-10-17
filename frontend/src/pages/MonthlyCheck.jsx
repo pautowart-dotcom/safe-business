@@ -48,7 +48,7 @@ function Summary({ state }) {
       <List title="Стало лучше" items={s.better} color={C.green} />
       <List title="Горит" items={s.burning} color={C.red} />
       <List title="План на месяц" items={s.plan} color={C.orange} />
-      {!s.plan.length && <div style={{ fontSize: 13, color: C.green, marginTop: 12 }}>В этом месяце всё отмечено — спасибо, что держите порядок.</div>}
+      {!s.plan.length && !s.burning.length && <div style={{ fontSize: 13, color: C.green, marginTop: 12 }}>В этом месяце всё отмечено — спасибо, что держите порядок.</div>}
       <div style={{ fontSize: 12, color: C.subtle, marginTop: 12 }}>Следующая проверка — в начале следующего месяца, мы напомним.</div>
       <div style={{ marginTop: 12 }}><Btn small variant="secondary" onClick={() => navigate('/')}>На главную</Btn></div>
     </Card>
