@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Btn, Badge, Field, TextInput, TextArea, C } from '../ui/components.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
+import NetworkAssistantCard from '../components/NetworkAssistantCard.jsx';
 
 // Пульт сети (16.10.2026, docs/franchise-funkcional.md §11, этап 2: Ф27/
 // Ф33/Ф6). Одна страница: что горит в сети, кто открывается, все точки.
@@ -359,6 +360,8 @@ export default function Network() {
         <div style={{ fontSize: 15, fontWeight: 800 }}>Отчёт за месяц</div>
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Что стало лучше, где горит, открытия, задачи — страница и PDF →</div>
       </Card>}
+
+      <NetworkAssistantCard />
 
       <Card onClick={() => navigate('/network/standards')} style={{ cursor: 'pointer' }}>
         <div style={{ fontSize: 15, fontWeight: 800 }}>Стандарты сети и проверки</div>
