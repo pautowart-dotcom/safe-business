@@ -67,6 +67,16 @@ function section(title, body) {
   return body ? `<section><h2>${esc(title)}</h2>${body}</section>` : '';
 }
 
+// Общее меню всех страниц сайта, кроме главной (18.10.2026, сайт вместо
+// одного лендинга — docs/sait/karta-saita.md).
+const MENU = [
+  ['/kak-rabotaet/', 'Как это работает'],
+  ['/dlya-kogo/', 'Для кого'],
+  ['/spravochnik/', 'Справочник'],
+  ['/instrumenty/', 'Инструменты'],
+  ['/#price', 'Тариф'],
+];
+
 function page({ title, description, canonical, body }) {
   return `<!doctype html>
 <html lang="ru">
@@ -88,13 +98,15 @@ function page({ title, description, canonical, body }) {
 <header class="top"><div class="wrap">
   <a class="brand" href="/"><picture><source srcset="/brand/mark-on-dark.svg" media="(prefers-color-scheme: dark)"><img src="/brand/mark-on-light.svg" alt="" width="22" height="26"></picture>Безопасный бизнес</a>
   <a class="top-cta" href="/lk/audit">Бесплатный тест</a>
-</div></header>
+</div>
+<nav class="menu"><div class="wrap">${MENU.map(([href, label]) => `<a href="${href}"${canonical === href ? ' aria-current="page"' : ''}>${label}</a>`).join('')}<a href="/lk/login">Войти</a></div></nav>
+</header>
 <main class="wrap">
 ${body}
 </main>
 <footer><div class="wrap">
   <p>«Безопасный бизнес» — порядок в документах и сроках для владельцев малого сервисного бизнеса. Справочник — общая информация, а не юридическая консультация: ответ для вашего случая зависит от деталей.</p>
-  <p><a href="/">Главная</a> · <a href="/spravochnik/">Справочник</a> · <a href="/lk/legal/privacy_policy">Политика конфиденциальности</a> · <a href="/cookies.html">Cookie</a></p>
+  <p><a href="/">Главная</a> · ${MENU.map(([href, label]) => `<a href="${href}">${label}</a>`).join(' · ')} · <a href="/lk/legal/privacy_policy">Политика конфиденциальности</a> · <a href="/cookies.html">Cookie</a></p>
   <span class="bb-integrity" aria-hidden="true">Материалы «Безопасный бизнес» (business-safe.ru) — оригинальный контент; дословное копирование без указания источника нарушает авторские права правообладателя. Метка целостности: bb-c71fb877af.</span>
 </div></footer>
 <script src="/cookie-notice.js" defer></script>
@@ -235,6 +247,95 @@ ${blocks
   return { url, html: page({ title, description: `${title}: кто может прийти и на что смотрят. Короткий список без запугивания.`, canonical: url, body }) };
 }
 
+// ---------- Страницы сайта (18.10.2026) ----------
+// Правила docs/sait/besplatno-platno.md: ниши не расписываем (только
+// названия), шаблоны не выкладываем, никаких обещаний результата.
+
+const CTA_TEST = `<aside class="cta">
+  <p><b>Начните с теста.</b> Около 10 минут, без регистрации. В конце — что уже в порядке и чего не хватает.</p>
+  <a class="cta-primary" href="/lk/audit">Пройти бесплатный тест</a>
+</aside>`;
+
+// Экраны — настоящее приложение на примерных данных (выдуманная студия).
+const HOW_STEPS = [
+  {
+    img: 'viol', alt: 'Список нарушений после теста',
+    title: 'Пройдите тест по своей нише',
+    text: 'Вопросы про документы, санитарию, сотрудников, помещение и данные клиентов — только то, что относится к вашей сфере. В конце — индекс, что уже в порядке и чего не хватает, с риском и тем, что сделать.',
+  },
+  {
+    img: 'mydl', alt: 'Экран «Мои сроки»',
+    title: 'Впишите даты своих документов',
+    text: 'Огнетушитель, вывоз отходов, электронная подпись, аренда — то, что у вас есть. Всё по желанию: не знаете дату — оставьте пустым. Дату можно взять с фото документа.',
+  },
+  {
+    img: 'home', alt: 'Главный экран со списком дел',
+    title: 'Главный экран показывает, что сделать',
+    text: 'Сверху — то, что уже просрочено или нужно сейчас, ниже — что подходит в ближайший месяц. Напоминаем заранее, а не в последний день.',
+  },
+  {
+    img: 'sheet', alt: 'Карточка срока с кнопками «Готово» и «Напомнить позже»',
+    title: 'Отметьте сделанное или отложите',
+    text: 'Сделали — «Готово». Не сейчас — «Напомнить позже»: дата срока не сдвигается, просто напомним снова через выбранное время.',
+  },
+];
+
+function howPage() {
+  const url = '/kak-rabotaet/';
+  const body = `
+<h1>Как это работает</h1>
+<p class="lead">«Безопасный бизнес» — приложение для владельца небольшой студии или сервиса. Оно помогает не пропустить сроки по документам, санитарии и проверкам и всегда знать, что нужно оформить. Это не CRM для записи клиентов.</p>
+<ol class="steps">${HOW_STEPS.map((s) => `
+  <li>
+    <div class="step-text"><h2>${esc(s.title)}</h2><p>${esc(s.text)}</p></div>
+    <figure class="phone"><img src="/kak-rabotaet/${s.img}.webp" alt="${esc(s.alt)}" width="430" height="860" loading="lazy"></figure>
+  </li>`).join('')}
+</ol>
+<section><h2>Что ещё есть в приложении</h2>
+<ul>
+  <li><b>Разбор бумаги от проверяющего.</b> Загрузите предписание или акт — покажем простыми словами, что там написано.</li>
+  <li><b>Проверка месяца.</b> Раз в месяц 5–7 коротких вопросов по вашим же данным — что стало лучше, что горит, план на месяц.</li>
+  <li><b>ИИ-советник.</b> Отвечает простыми словами на вопросы о требованиях в вашей нише.</li>
+  <li><b>Сотрудники.</b> Что оформить при найме: шаги по типу договора и сроки сами попадают в список.</li>
+</ul></section>
+<p class="checked">Экраны — настоящее приложение на примерных данных выдуманной студии. Это общая информация, а не юридическая консультация.</p>
+${CTA_TEST}`;
+  return { url, html: page({ title: 'Как это работает', description: 'Тест по вашей нише, даты документов, напоминания заранее и список дел на главном экране. Как устроен «Безопасный бизнес».', canonical: url, body }) };
+}
+
+function forWhomPage() {
+  const url = '/dlya-kogo/';
+  const { SEGMENTS } = require('../modules/security/content/segments');
+  const groups = SEGMENTS
+    .map((s) => ({ title: s.label, niches: s.niches.filter((n) => n.paidAudit).map((n) => n.label) }))
+    .filter((g) => g.niches.length && !/^Общие требования/.test(g.niches[0]));
+  const body = `
+<h1>Для кого сервис</h1>
+<p class="lead">Для владельцев небольших студий и сервисного бизнеса, которые ведут дела сами, часто без бухгалтера и юриста. Тест есть для каждой сферы ниже — вопросы в нём свои для каждой ниши.</p>
+${groups.map((g) => `<section><h2>${esc(g.title)}</h2><ul class="chips">${g.niches.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></section>`).join('\n')}
+<section><h2>Не нашли свою сферу</h2><p>Для розницы и любого другого малого бизнеса есть общий тест — без отраслевой специфики: регистрация, касса, сотрудники, помещение, данные клиентов.</p></section>
+<section><h2>Что проверяют у студии маникюра</h2><p>Пример того, на что смотрят при проверке, — <a href="/proverki/manikyur/">список для маникюра и педикюра</a>.</p></section>
+${CTA_TEST}`;
+  return { url, html: page({ title: 'Для кого сервис', description: 'Красота, фитнес, клининг, бытовые услуги, услуги для животных и автомобилей, общепит — для кого есть тест и напоминания о сроках.', canonical: url, body }) };
+}
+
+const TOOLS = [
+  { href: '/lk/audit', title: 'Тест по вашей нише', price: 'Бесплатно, без регистрации', text: 'Около 10 минут. Индекс, что уже в порядке и чего не хватает.' },
+  { href: '/lk/notice-audit', title: 'Разбор бумаги от проверяющего', price: 'Бесплатно, без регистрации', text: 'Загрузите предписание или акт — объясним простыми словами, что там написано.' },
+  { href: '/proverit-sait.html', title: 'Проверка сайта на риски по персональным данным', price: '490 ₽ разово', text: 'Политика конфиденциальности, согласия, формы на сайте — что стоит поправить.' },
+  { href: '/start.html', title: 'План открытия бизнеса', price: '1490 ₽ разово', text: 'Для тех, кто только открывается: что оформить и в каком порядке.' },
+];
+
+function toolsPage() {
+  const url = '/instrumenty/';
+  const body = `
+<h1>Инструменты</h1>
+<p class="lead">Можно пользоваться без подписки. Бесплатное — бесплатно всегда, а разовые проверки оплачиваются один раз, без автосписаний.</p>
+<ul class="cards">${TOOLS.map((t) => `<li><a href="${t.href}"><b>${esc(t.title)}</b><em>${esc(t.price)}</em><span>${esc(t.text)}</span></a></li>`).join('')}</ul>
+<section><h2>Подписка</h2><p>Подписка — за то, что происходит после теста: даты документов, напоминания заранее, список дел, проверка месяца. <a href="/#price">Что входит и сколько стоит</a>.</p></section>`;
+  return { url, html: page({ title: 'Инструменты', description: 'Бесплатный тест по нише, разбор предписания от проверяющего, проверка сайта и план открытия бизнеса.', canonical: url, body }) };
+}
+
 function indexPage(byTopic) {
   const url = '/spravochnik/';
   const body = `
@@ -275,6 +376,16 @@ ul,ol{padding-left:22px}li{margin:6px 0}
 .note{margin:-4px 0 8px;color:var(--muted);font-size:15px}
 footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:var(--muted)}footer .wrap{padding-top:16px;padding-bottom:32px}footer a{color:var(--muted)}
 .bb-integrity{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.menu{border-top:1px solid var(--border)}.menu .wrap{display:flex;gap:18px;overflow-x:auto;white-space:nowrap;height:44px;align-items:center;scrollbar-width:none}
+.menu .wrap::-webkit-scrollbar{display:none}.menu a{color:var(--muted);text-decoration:none;font-size:15px;font-weight:600}.menu a[aria-current]{color:var(--text)}
+.steps{list-style:none;padding:0;counter-reset:s;margin:28px 0}
+.steps li{counter-increment:s;display:grid;grid-template-columns:1fr;gap:16px;margin:0 0 40px;align-items:center}
+@media (min-width:700px){.steps li{grid-template-columns:1fr 260px;gap:32px}}
+.step-text h2{margin-top:0}.step-text h2::before{content:counter(s);display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--text);color:var(--bg);font-size:15px;margin-right:10px;vertical-align:2px}
+.phone{margin:0;justify-self:center;max-width:260px;border-radius:28px;overflow:hidden;box-shadow:0 0 0 1px var(--border),0 18px 40px -18px rgba(11,18,32,.45)}
+.phone img{display:block;width:100%;height:auto}
+.chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}.chips li{margin:0;padding:7px 12px;border:1px solid var(--border);border-radius:999px;font-size:15px;background:var(--surface)}
+.cards a em{display:block;font-style:normal;font-size:14px;font-weight:700;color:var(--accent);margin-top:2px}
 @media (max-width:480px){h1{font-size:25px}body{font-size:16px}}
 `;
 
@@ -294,6 +405,7 @@ async function main() {
     for (const c of list) pages.push(articlePage(c));
   }
   for (const n of NICHE_PAGES) pages.push(await nichePage(n, cards));
+  pages.push(howPage(), forWhomPage(), toolsPage());
   for (const p of pages) {
     const dir = path.join(LANDING_DIR, p.url);
     fs.mkdirSync(dir, { recursive: true });

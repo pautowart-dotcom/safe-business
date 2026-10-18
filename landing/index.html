@@ -122,7 +122,9 @@
   .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 17px; letter-spacing: -.02em; }
   .brand-logo { display: flex; flex: none; }
   .brand-logo img { height: 30px; width: auto; display: block; }
-  .navlinks { display: flex; align-items: center; gap: 34px; font-size: 14.5px; font-weight: 600; color: var(--text-muted); }
+  .navlinks { display: flex; align-items: center; gap: 26px; font-size: 14.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+  /* 18.10.2026: пунктов стало больше (разделы сайта) — на средних экранах меню прячем раньше, чем оно начнёт переноситься; разделы есть в подвале. */
+  @media (max-width: 1140px) { .navlinks { display: none; } }
   .navlinks a:hover { color: var(--text); }
   .nav-cta { display: flex; align-items: center; gap: 20px; font-size: 14px; font-weight: 600; }
 
@@ -409,10 +411,11 @@
       <span class="brand-name">Безопасный бизнес</span>
     </div>
     <div class="navlinks">
-      <a href="#modules">Функции</a>
+      <a href="/kak-rabotaet/">Как это работает</a>
+      <a href="/dlya-kogo/">Для кого</a>
+      <a href="/spravochnik/">Справочник</a>
+      <a href="/instrumenty/">Инструменты</a>
       <a href="#price">Тариф</a>
-      <a href="/start.html">Новичкам</a>
-      <a href="#about">О компании</a>
     </div>
     <div class="nav-cta">
       <a href="/lk/login">Войти</a>
@@ -722,11 +725,12 @@
         <div class="footer-col">
           <b>Продукт</b>
           <ul>
-            <li><a href="#modules">Функции</a></li>
+            <li><a href="/kak-rabotaet/">Как это работает</a></li>
+            <li><a href="/dlya-kogo/">Для кого</a></li>
+            <li><a href="/spravochnik/">Справочник</a></li>
+            <li><a href="/instrumenty/">Инструменты</a></li>
             <li><a href="#price">Тариф</a></li>
-            <li><a href="#fit">Кому подходит</a></li>
             <li><a href="#about">О компании</a></li>
-            <li><a href="/start.html">Новичкам</a></li>
           </ul>
         </div>
         <div class="footer-col">
