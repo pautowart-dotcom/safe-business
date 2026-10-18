@@ -153,7 +153,8 @@ function WatchFeedDashboard() {
   const attention = feed.status === 'attention';
   const today = todayStr();
   const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
-  const todo = buildActionsCenter(deadlines.filter((d) => !d.due_date || d.due_date <= in30));
+  // Отложенное («Напомнить позже») с главной убираем; в «Дедлайнах» оно видно.
+  const todo = buildActionsCenter(deadlines.filter((d) => (!d.due_date || d.due_date <= in30) && !(d.snoozed_until && d.snoozed_until > today)));
   const first = todo.find((d) => !d.due_date || d.due_date <= today) || todo[0];
 
   return (
@@ -167,7 +168,7 @@ function WatchFeedDashboard() {
       />
       <HomeQuick navigate={navigate} />
       <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} />
-      <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} />
+      <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} onSnoozed={(d, until) => setDeadlines((all) => all.map((x) => (x.id === d.id ? { ...x, snoozed_until: until } : x)))} />
 
       <Group title="Что мы проверили">
         {feed.items.length === 0 ? (
@@ -364,7 +365,10 @@ function OwnerDashboard() {
   const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
   const upcoming = complianceDeadlines.filter((d) => d.due_date && d.due_date >= today && d.due_date <= in30);
   const nextUpcoming = complianceDeadlines.find((d) => d.due_date && d.due_date >= today);
-  const todoItems = [...overdueOrNoDate, ...upcoming, ...(aiAdvisorAction ? [aiAdvisorAction] : [])];
+  // Отложенное («Напомнить позже») из списка убираем, но в счётчиках оно
+  // остаётся — риск никуда не делся.
+  const notSnoozed = (d) => !(d.snoozed_until && d.snoozed_until > today);
+  const todoItems = [...overdueOrNoDate, ...upcoming, ...(aiAdvisorAction ? [aiAdvisorAction] : [])].filter(notSnoozed);
 
   // 24.08.2026: владелец прислал референсы (YooKassa/Яндекс Почта) — у
   // настоящих десктопных приложений часто есть третья, правая колонка с
@@ -412,7 +416,7 @@ function OwnerDashboard() {
             onOpen={setOpenItem}
             inOrderCount={inOrderCount}
           />
-          <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} />
+          <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} onSnoozed={(d, until) => setDeadlines((all) => all.map((x) => (x.id === d.id ? { ...x, snoozed_until: until } : x)))} />
         </>
       )}
 

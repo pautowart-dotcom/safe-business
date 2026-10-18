@@ -124,6 +124,7 @@ export default function Deadlines() {
                 const tag = dueTag(item);
                 const isReprint = item.related_entity_type === REPRINT_RELATED_TYPE;
                 const cat = CATEGORY_BY_KEY[item.category] || UNKNOWN_CATEGORY;
+                const snoozedNote = item.snoozed_until && daysLeft(item.snoozed_until) > 0 ? ` · отложено до ${new Date(item.snoozed_until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : '';
                 const hint = isReprint ? (reprinting === item.id ? ' · создаём…' : ' · нажмите, чтобы скачать новый') : '';
                 return (
                   <Row
@@ -131,7 +132,7 @@ export default function Deadlines() {
                     icon={deadlineIcon(item)}
                     tone={tag.tone}
                     title={item.title}
-                    subtitle={`${cat.label}${item.due_date ? ` · ${fullDate(item.due_date)}` : ''}${hint}`}
+                    subtitle={`${cat.label}${item.due_date ? ` · ${fullDate(item.due_date)}` : ''}${hint}${snoozedNote}`}
                     tag={tag.text}
                     onClick={() => (isReprint ? reprintJournal(item) : setOpenItem(item))}
                   />
@@ -139,7 +140,7 @@ export default function Deadlines() {
               })}
             </Group>
           ))}
-          <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={() => load()} />
+          <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={() => load()} onSnoozed={() => load()} />
         </>
       )}
     </div>

@@ -24,12 +24,36 @@ async function run() {
     `SELECT id, company_id, category, title, to_char(due_date, 'YYYY-MM-DD') AS due_date, last_reminded_days_before
      FROM deadlines
      WHERE kind = 'deadline' AND status = 'pending' AND due_date IS NOT NULL AND due_date >= $1::date
+       AND (snoozed_until IS NULL OR snoozed_until <= $1::date)
      ORDER BY due_date ASC`,
     [today]
   );
 
   let sent = 0;
+
+  // «Напомнить позже» (миграция 0142): в назначенный день — одно
+  // напоминание, отметка снимается, дальше срок живёт как обычно.
+  const { rows: snoozed } = await pool.query(
+    `UPDATE deadlines SET snoozed_until = NULL
+     WHERE status = 'pending' AND snoozed_until IS NOT NULL AND snoozed_until <= $1::date
+     RETURNING id, company_id, category, title, to_char(due_date, 'YYYY-MM-DD') AS due_date`,
+    [today]
+  );
+  for (const row of snoozed) {
+    const overdue = row.due_date && row.due_date < today;
+    await notifyCompany({
+      companyId: row.company_id, kind: 'deadline', category: row.category, title: row.title,
+      body: overdue ? 'Вы просили напомнить. Срок уже прошёл — подробности в «Дедлайнах»' : 'Вы просили напомнить — подробности в «Дедлайнах»',
+      url: '/deadlines',
+      dedupeKey: `deadline:${row.id}`,
+    }).catch((err) => console.error('deadlineReminders: snooze notify failed', row.id, err));
+    sent++;
+  }
+  // Сегодня по этим срокам уже напомнили — не шлём второе уведомление подряд.
+  const remindedNow = new Set(snoozed.map((r) => r.id));
+
   for (const row of rows) {
+    if (remindedNow.has(row.id)) continue;
     const daysUntil = Math.round((new Date(`${row.due_date}T00:00:00Z`) - new Date(`${today}T00:00:00Z`)) / 86400000);
     const threshold = THRESHOLDS.find((t) => daysUntil <= t);
     if (threshold === undefined) continue;

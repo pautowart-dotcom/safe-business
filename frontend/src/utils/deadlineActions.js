@@ -49,8 +49,9 @@ export function deadlineActions(item) {
   if (t.startsWith('manual:') && MANUAL_KEYS_WITH_INSTRUCTION.includes(t.slice('manual:'.length))) {
     actions.push({ label: 'Как продлить', to: '/security', state: { tab: 'my_deadlines' } });
   }
-  if (canMarkDone) actions.push({ label: 'Готово, отметить', done: true, primary: actions.length === 0 });
-  return actions;
+  // «Готово» — главная кнопка, если других главных нет; главная всегда сверху.
+  if (canMarkDone) actions.push({ label: 'Готово, отметить', done: true, primary: !actions.some((a) => a.primary) });
+  return [...actions.filter((a) => a.primary), ...actions.filter((a) => !a.primary)];
 }
 
 export function daysLeft(dueDate) {

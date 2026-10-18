@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import Sheet from '../ui/Sheet.jsx';
@@ -11,11 +11,36 @@ const CATEGORY_LABEL = { staff: 'Сотрудники', premises: 'Помеще�
 // Шторка срока (18.10.2026, вид приложения): что это, когда, и кнопки —
 // те же, что в «Дедлайнах» (utils/deadlineActions.js). «Готово» отмечает
 // прямо здесь, без перехода; onDone — убрать строку из списка.
-export default function DeadlineSheet({ item, onClose, onDone }) {
+// «Напомнить позже» (18.10.2026, просьба владельца): срок уходит с главной и
+// из напоминаний на выбранное время; дата срока не меняется.
+const SNOOZE_OPTIONS = [[3, 'Через 3 дня'], [7, 'Через неделю'], [30, 'Через месяц']];
+
+export default function DeadlineSheet({ item, onClose, onDone, onSnoozed }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  useEffect(() => {
+    setSnoozeOpen(false);
+    setError('');
+  }, [item?.id]);
   if (!item) return null;
+
+  async function snooze(days) {
+    setBusy(true);
+    setError('');
+    try {
+      const { data } = await api.patch(`/platform/deadlines/${item.id}/snooze`, { days });
+      toast(`Напомним ${new Date(data.snoozed_until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`);
+      onSnoozed?.(item, data.snoozed_until);
+      setSnoozeOpen(false);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не получилось отложить — попробуйте ещё раз');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const left = item.due_date ? daysLeft(item.due_date) : null;
   const when = item.due_date
@@ -56,6 +81,29 @@ export default function DeadlineSheet({ item, onClose, onDone }) {
               {a.label}
             </Btn>
           )
+        )}
+        {snoozeOpen ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {SNOOZE_OPTIONS.map(([days, label]) => (
+              <Btn key={days} variant="secondary" disabled={busy} onClick={() => snooze(days)} style={{ padding: '12px 4px', fontSize: 13.5 }}>
+                {label}
+              </Btn>
+            ))}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSnoozeOpen(true)}
+            className="ui-btn"
+            style={{ background: 'none', border: 'none', padding: '10px', fontFamily: 'inherit', fontSize: 14.5, fontWeight: 700, color: C.secondary, cursor: 'pointer' }}
+          >
+            Напомнить позже
+          </button>
+        )}
+        {item.snoozed_until && (
+          <div style={{ fontSize: 12.5, color: C.subtle, textAlign: 'center' }}>
+            Сейчас отложено до {new Date(item.snoozed_until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+          </div>
         )}
       </div>
     </Sheet>

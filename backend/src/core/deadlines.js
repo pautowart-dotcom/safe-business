@@ -161,7 +161,8 @@ async function listUpcomingDeadlines(companyId, { role, category, kind, status }
 
   const { rows } = await pool.query(
     `SELECT id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
-            related_entity_type, related_entity_id, note, recurrence, created_at
+            related_entity_type, related_entity_id, note, recurrence, created_at,
+            to_char(snoozed_until, 'YYYY-MM-DD') AS snoozed_until
      FROM deadlines WHERE ${where} ORDER BY due_date ASC NULLS LAST, id ASC`,
     params
   );

@@ -91,7 +91,7 @@ router.patch(
     // напрямую по id.
     const adminGuard = req.tenant.role === 'admin' ? `AND category != 'tax'` : '';
     const { rows } = await pool.query(
-      `UPDATE deadlines SET status = $1 WHERE id = $2 AND company_id = $3 ${adminGuard}
+      `UPDATE deadlines SET status = $1, snoozed_until = NULL WHERE id = $2 AND company_id = $3 ${adminGuard}
        RETURNING id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
                  related_entity_type, related_entity_id, recurrence, note, created_at`,
       [status, req.params.id, req.tenant.companyId]
@@ -137,6 +137,29 @@ router.patch(
     }
 
     res.json(result);
+  })
+);
+
+// «Напомнить позже» (18.10.2026, миграция 0142): прячет срок с главной и из
+// напоминаний на 3 дня / неделю / месяц, дату срока не трогает. days: 0 —
+// снять отметку.
+const SNOOZE_DAYS = [0, 3, 7, 30];
+router.patch(
+  '/:id/snooze',
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const days = Number(req.body?.days);
+    if (!SNOOZE_DAYS.includes(days)) return res.status(400).json({ error: 'Можно отложить на 3, 7 или 30 дней' });
+    const adminGuard = req.tenant.role === 'admin' ? `AND category != 'tax'` : '';
+    const { rows } = await pool.query(
+      `UPDATE deadlines
+       SET snoozed_until = CASE WHEN $1::int = 0 THEN NULL ELSE (now() AT TIME ZONE 'Europe/Moscow')::date + $1::int END
+       WHERE id = $2 AND company_id = $3 AND status = 'pending' ${adminGuard}
+       RETURNING id, to_char(snoozed_until, 'YYYY-MM-DD') AS snoozed_until`,
+      [days, req.params.id, req.tenant.companyId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Срок не найден' });
+    res.json(rows[0]);
   })
 );
 
