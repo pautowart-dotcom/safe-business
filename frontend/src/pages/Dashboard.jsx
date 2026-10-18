@@ -284,7 +284,7 @@ function OwnerDashboard() {
           // дашборд с плашкой "Выручка сегодня" — реальный баг, найденный
           // маркетологом на живом тесте. Свой .catch — 403 остаётся только
           // проблемой самого показателя выручки, не блокирует остальные.
-          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }).catch(() => ({ data: { revenue: 0 } })),
+          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate }, silentPaid: true }).catch(() => ({ data: { revenue: 0 } })),
           api.get('/modules/security/status'),
           api.get('/platform/daily-tasks'),
           api.get('/platform/deadlines'),
@@ -814,7 +814,7 @@ function ManagementDashboard() {
           // company не проставлялся, isNewCohort(null) ошибочно давал
           // false, и вместо WatchFeedDashboard рендерился полный дашборд с
           // плашкой "Выручка сегодня".
-          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate } }).catch(() => ({ data: { revenue: 0 } })),
+          api.get('/modules/finance/summary', { params: { dateFrom: res.data.targetDate, dateTo: res.data.targetDate }, silentPaid: true }).catch(() => ({ data: { revenue: 0 } })),
           // Данные аудита безопасности видит только владелец (политика
           // конфиденциальности §8.4) — админу этот эндпоинт отвечает 403,
           // поэтому не запрашиваем его вовсе, если isOwner=false. Объединённый

@@ -53,7 +53,9 @@ api.interceptors.response.use(
     // Бесплатный уровень (18.10.2026): платный раздел отвечает 402 paidFeature —
     // без перехода на страницу подписки, Layout.jsx показывает шторку
     // «Это входит в подписку».
-    if (error.response?.status === 402 && error.response?.data?.paidFeature) {
+    // silentPaid: true в настройках запроса — фоновый запрос (например, выручка
+    // на главной), его отказ не должен открывать шторку.
+    if (error.response?.status === 402 && error.response?.data?.paidFeature && !error.config?.silentPaid) {
       window.dispatchEvent(new CustomEvent('paid-feature'));
     }
     return Promise.reject(error);
