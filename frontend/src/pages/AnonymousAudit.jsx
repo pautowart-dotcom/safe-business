@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { getCaptchaToken } from '../utils/captcha.js';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { Card, Btn, TextInput, Field, Select, Badge, C, F } from '../ui/components.jsx';
+import { Card, Btn, TextInput, Field, Select, Badge, Icon, C, F } from '../ui/components.jsx';
+import TestQuestion from '../components/TestQuestion.jsx';
 import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 import { ConsentPair } from '../ui/LegalConsents.jsx';
 import { reachGoal } from '../utils/metrika.js';
@@ -263,7 +264,60 @@ function StickyFooterButton({ children, onClick, disabled }) {
   );
 }
 
+// Тест «живее» (18.10.2026, этап 9, идея владельца «не гугл-форма»): один
+// вопрос на экран с реакцией на ответ и автопереходом (TestQuestion), в
+// конце — экран «готово» с итогом. Раньше — все вопросы одним списком
+// (TestStepList ниже — запасной вид, если у вопросов нет отметок tones).
 function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) {
+  const questions = session.questions;
+  const firstUnanswered = questions.findIndex((q) => answers[q.code] == null);
+  const [idx, setIdx] = useState(firstUnanswered === -1 ? questions.length : firstUnanswered);
+
+  if (!questions.every((q) => Array.isArray(q.tones))) {
+    return <TestStepList session={session} answers={answers} setAnswer={setAnswer} onSubmit={onSubmit} submitting={submitting} error={error} />;
+  }
+
+  if (idx >= questions.length) {
+    const ok = questions.filter((q) => q.tones[answers[q.code]] === 'ok').length;
+    return (
+      <>
+        <Card>
+          <div className="ui-view" style={{ textAlign: 'center', padding: '12px 4px 4px' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Icon name="check" size={30} color={C.green} sw={2.4} />
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Готово — все {questions.length} вопросов</div>
+            <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5 }}>
+              Уже в порядке: <b style={{ color: C.green }}>{ok} из {questions.length}</b>. Сейчас посчитаем индекс и покажем, что стоит оформить.
+            </div>
+            <button
+              type="button"
+              onClick={() => setIdx(questions.length - 1)}
+              style={{ marginTop: 14, background: 'none', border: 'none', color: C.subtle, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Вернуться к последнему вопросу
+            </button>
+          </div>
+          {error && <div className="alert alert-error" style={{ marginTop: 12 }}>{error}</div>}
+        </Card>
+        <StickyFooterButton onClick={onSubmit} disabled={submitting}>{submitting ? 'Считаем…' : 'Посмотреть результат'}</StickyFooterButton>
+      </>
+    );
+  }
+
+  return (
+    <TestQuestion
+      questions={questions}
+      index={idx}
+      blockLabels={BLOCK_LABELS}
+      topLine={`Тест: ${session.nicheLabel}`}
+      onAnswer={(i) => { setAnswer(questions[idx].code, i); setIdx(idx + 1); }}
+      onBack={idx > 0 ? () => setIdx(idx - 1) : null}
+    />
+  );
+}
+
+function TestStepList({ session, answers, setAnswer, onSubmit, submitting, error }) {
   const blocks = [...new Set(session.questions.map((q) => q.block))];
   return (
     <>

@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C, SH, Segmented, Ring, Group, Row } from '../ui/components.jsx';
 import Sheet from '../ui/Sheet.jsx';
+import TestQuestion from '../components/TestQuestion.jsx';
 import toast from '../ui/toast.js';
 import { FM } from '../ui/theme.js';
 import MyDeadlinesTab from './MyDeadlines.jsx';
@@ -670,77 +671,23 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
 
 // ---------- Опросник ----------
 
+// Тест «живее» (18.10.2026, этап 9) — общий экран вопроса с реакцией на
+// ответ и автопереходом (components/TestQuestion.jsx), тот же, что у
+// гостевого теста. Стадии по block — как раньше (07.09.2026).
 function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) {
   const { questions, index, nicheLabel: currentNicheLabel, plan, planIndex } = activeAudit;
-  const question = questions[index];
-
-  // Стадии (07.09.2026, живой разбор воронки: "тест ощущается бесконечным
-  // квизом из Instagram") — те же вопросы, просто сгруппированные по block
-  // в порядке появления в ЭТОЙ сессии (не все возможные блоки — только те,
-  // что реально есть у этой ниши/компании, уже отфильтрованные бэкендом по
-  // showIf). Раньше был один сплошной прогресс-бар "вопрос N из M" — теперь
-  // видно, что тест состоит из конечных, названных кусков, а не бесконечен.
-  const stageBlocks = [];
-  for (const q of questions) if (!stageBlocks.includes(q.block)) stageBlocks.push(q.block);
-  const currentStageIndex = stageBlocks.indexOf(question.block);
-  const questionsInStage = questions.filter((q) => q.block === question.block);
-  const indexInStage = questionsInStage.findIndex((q) => q.code === question.code);
-  const stageProgress = Math.round(((indexInStage + 1) / questionsInStage.length) * 100);
-
+  const topLine = currentNicheLabel ? `${currentNicheLabel}${plan && plan.length > 1 ? ` · ниша ${planIndex + 1} из ${plan.length}` : ''}` : null;
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        {onBack ? (
-          <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: C.secondary, fontSize: 13, cursor: 'pointer', padding: 0 }}>
-            <Icon name="arrow" size={14} color={C.secondary} />Назад
-          </button>
-        ) : (
-          <span />
-        )}
-        <span style={{ fontSize: 13, color: C.subtle }}>Вопрос {index + 1} из {questions.length}</span>
-        <button onClick={onCancel} style={{ background: 'none', border: 'none', color: C.subtle, fontSize: 13, cursor: 'pointer' }}>Прервать</button>
-      </div>
-      {currentNicheLabel && (
-        <div style={{ fontSize: 12, color: C.primary, fontWeight: 700, marginBottom: 8 }}>
-          {currentNicheLabel}
-          {plan && plan.length > 1 ? ` · ниша ${planIndex + 1} из ${plan.length}` : ''}
-        </div>
-      )}
-      {/* Сегментированная полоса — один сегмент на стадию, а не один общий
-          бар на все вопросы сразу, чтобы прогресс читался кусками. */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-        {stageBlocks.map((b, i) => (
-          <div key={b} style={{ flex: 1, height: 6, borderRadius: 999, overflow: 'hidden', background: C.border }}>
-            <div
-              style={{
-                height: '100%',
-                borderRadius: 999,
-                background: C.primary,
-                width: i < currentStageIndex ? '100%' : i === currentStageIndex ? `${stageProgress}%` : '0%',
-                transition: 'width 0.2s',
-              }}
-            />
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 12, color: C.subtle, marginBottom: 24 }}>
-        Этап {currentStageIndex + 1} из {stageBlocks.length} · {BLOCK_LABELS[question.block] || 'Прочее'}
-      </div>
-      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 8 }}>{question.text}</div>
-      {question.hint && <div style={{ fontSize: 13, color: C.subtle, marginBottom: 8 }}>{question.hint}</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
-        {question.answers.map((label, i) => (
-          <button
-            key={i}
-            onClick={() => onAnswer(i)}
-            style={{ textAlign: 'left', padding: '14px 16px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.bg, cursor: 'pointer', fontSize: 15 }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {error && <div className="alert alert-error" style={{ marginTop: 16 }}>{error}</div>}
-    </div>
+    <TestQuestion
+      questions={questions}
+      index={index}
+      blockLabels={BLOCK_LABELS}
+      topLine={topLine}
+      onAnswer={onAnswer}
+      onBack={onBack}
+      onCancel={onCancel}
+      error={error}
+    />
   );
 }
 

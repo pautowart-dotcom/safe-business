@@ -97,6 +97,10 @@ function serializeQuestion(question) {
     text: question.text,
     hint: question.hint,
     answers: question.answers.map((a) => a.label),
+    // Тест «живее» (18.10.2026, этап 9): реакция на ответ сразу — только грубая
+    // отметка «в порядке / частично / пробел», без баллов, штрафов и решений
+    // (они — в заключении и в серверном подсчёте).
+    tones: question.answers.map((a) => (a.points >= 1 ? 'ok' : a.points > 0 ? 'partial' : 'gap')),
   };
 }
 
