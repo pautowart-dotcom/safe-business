@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Btn, Badge, Field, TextInput, TextArea, C } from '../ui/components.jsx';
+import { Card, ST, Btn, Badge, Field, TextInput, TextArea, C, SH, Group, Row, Ring } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
+import toast from '../ui/toast.js';
 import { copyToClipboard } from '../utils/clipboard.js';
 import NetworkAssistantCard from '../components/NetworkAssistantCard.jsx';
 
@@ -37,11 +39,41 @@ function Stat({ value, label, color }) {
   );
 }
 
-function PointRow({ m, canManage, onRemove }) {
+// Строка точки в списке (18.10.2026, вид приложения): зона и индекс справа,
+// подробности — в шторке (PointRow ниже рисует её содержимое).
+function pointTag(m) {
+  if (m.opening) return { text: `Открытие ${m.opening.done}/${m.opening.total}`, tone: 'blue' };
+  if (m.indexPercent === undefined) return null;
+  if (m.indexPercent == null) return { text: 'Без теста', tone: 'gray' };
+  return { text: `${m.indexPercent}%`, tone: { green: 'green', yellow: 'orange', red: 'red' }[m.zone] || 'gray' };
+}
+
+function pointSubtitle(m) {
+  if (m.riskReasons.length > 0) return m.riskReasons.join(' · ');
+  if (m.opening) return `Сейчас: ${m.opening.currentStage || 'все пункты отмечены'}`;
+  const text = `${m.overdueDeadlines ? `Подошло сроков: ${m.overdueDeadlines} · ` : ''}${activityText(m.lastActiveAt)}`;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function PointRowLine({ m, onOpen }) {
+  const tag = pointTag(m);
   return (
-    <div style={{ padding: '10px 0', borderTop: `1px solid ${C.border}` }}>
+    <Row
+      icon={m.opening ? 'home' : 'shield'}
+      tone={m.riskReasons.length > 0 ? 'red' : tag?.tone || 'gray'}
+      title={m.companyName}
+      subtitle={pointSubtitle(m)}
+      tag={tag?.text}
+      onClick={() => onOpen(m)}
+    />
+  );
+}
+
+function PointRow({ m, canManage, onRemove }) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div style={{ paddingTop: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, minWidth: 0 }}>{m.companyName}</div>
         {m.opening ? (
           <Badge color={C.blue} bg={C.blueBg}>Открытие · {m.opening.done} из {m.opening.total}</Badge>
         ) : m.indexPercent === undefined ? null : m.indexPercent != null ? (
@@ -50,7 +82,7 @@ function PointRow({ m, canManage, onRemove }) {
           <Badge color={C.subtle} bg={C.surface}>Без теста</Badge>
         )}
       </div>
-      <div style={{ fontSize: 12, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 13.5, color: C.secondary, marginTop: 10, lineHeight: 1.55 }}>
         {m.opening
           ? `Сейчас: ${m.opening.currentStage || 'все пункты отмечены'}`
           : m.indexPercent === undefined
@@ -61,24 +93,34 @@ function PointRow({ m, canManage, onRemove }) {
       </div>
       {/* Оформление сотрудников (Ф17, 17.10.2026) — только числа, имён сеть не видит. */}
       {m.staffTotal > 0 && (
-        <div style={{ fontSize: 12, color: m.staffWithOpenSteps > 0 ? C.orange : C.secondary, marginTop: 2 }}>
+        <div style={{ fontSize: 13.5, color: m.staffWithOpenSteps > 0 ? C.orange : C.secondary, marginTop: 6 }}>
           {m.staffWithOpenSteps > 0
             ? `Сотрудников: ${m.staffTotal}, оформлены не до конца: ${m.staffWithOpenSteps}`
             : `Сотрудников: ${m.staffTotal}, все оформлены`}
         </div>
       )}
       {m.riskReasons.length > 0 && (
-        <div style={{ fontSize: 12, color: C.red, marginTop: 4 }}>{m.riskReasons.join(' · ')}</div>
+        <div style={{ fontSize: 13.5, color: C.red, marginTop: 6 }}>{m.riskReasons.join(' · ')}</div>
       )}
-      {canManage && onRemove && (
+      {canManage && onRemove && (confirming ? (
+        <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: C.redBg }}>
+          <div style={{ fontSize: 13.5, color: C.primary, lineHeight: 1.5, marginBottom: 10 }}>
+            Убрать «{m.companyName}» из сети? Точка продолжит работать сама, сеть перестанет её видеть.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="red" onClick={() => onRemove(m)}>Убрать</Btn>
+            <Btn variant="secondary" onClick={() => setConfirming(false)}>Отмена</Btn>
+          </div>
+        </div>
+      ) : (
         <button
           type="button"
-          onClick={() => onRemove(m)}
-          style={{ background: 'none', border: 'none', padding: 0, marginTop: 6, fontSize: 11.5, color: C.subtle, cursor: 'pointer' }}
+          onClick={() => setConfirming(true)}
+          style={{ background: 'none', border: 'none', padding: '10px 0 0', fontSize: 13, fontWeight: 600, color: C.subtle, cursor: 'pointer', fontFamily: 'inherit' }}
         >
           Убрать из сети
         </button>
-      )}
+      ))}
     </div>
   );
 }
@@ -297,6 +339,7 @@ export default function Network() {
   const [state, setState] = useState(undefined);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
+  const [openPoint, setOpenPoint] = useState(null);
 
   async function load() {
     try {
@@ -315,10 +358,11 @@ export default function Network() {
   useEffect(() => { load(); }, []);
   usePullToRefresh(load);
 
+  // Подтверждение — в шторке точки (PointRow), без системного окна.
   async function removePoint(m) {
-    if (!window.confirm(`Убрать «${m.companyName}» из сети? Точка продолжит работать сама, сеть перестанет её видеть.`)) return;
     try {
       await api.delete(`/platform/franchise/members/${m.companyId}`);
+      toast('Точка убрана из сети');
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось убрать точку');
@@ -334,66 +378,79 @@ export default function Network() {
   const atRisk = members.filter((m) => m.riskReasons.length > 0);
   const preparing = members.filter((m) => m.opening);
 
+  // 18.10.2026, вид приложения: тёмная карточка сети с кольцом, инструменты
+  // и точки строками, подробности точки — в шторке.
+  const others = members.filter((m) => !m.opening && m.riskReasons.length === 0);
   return (
     <div>
-      <Card>
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>{network.name}</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Stat value={network.pointsTotal} label="точек в сети" />
-          {canManage && <Stat value={network.averageIndexPercent != null ? `${network.averageIndexPercent}%` : '—'} label="средний индекс" />}
-          <Stat value={atRisk.length} label="требуют внимания" color={atRisk.length > 0 ? C.red : C.green} />
-          <Stat value={network.pointsPreparing} label="готовятся к открытию" />
-          {canManage && <Stat value={network.pointsUntested} label="без теста" />}
-          {network.pointsWithStaffGaps != null && (
-            <Stat value={network.pointsWithStaffGaps} label="не всех оформили" color={network.pointsWithStaffGaps > 0 ? C.orange : C.green} />
-          )}
+      <div style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 14, boxShadow: SH.raised }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          {canManage && <Ring percent={network.averageIndexPercent} label="средний" />}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', fontWeight: 600 }}>{network.name}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, margin: '2px 0 4px' }}>
+              {atRisk.length > 0 ? `Требуют внимания: ${atRisk.length}` : 'Всё спокойно'}
+            </div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>
+              Точек: {network.pointsTotal}
+              {network.pointsPreparing > 0 && ` · открываются: ${network.pointsPreparing}`}
+              {canManage && network.pointsUntested > 0 && ` · без теста: ${network.pointsUntested}`}
+              {network.pointsWithStaffGaps > 0 && ` · не всех оформили: ${network.pointsWithStaffGaps}`}
+            </div>
+          </div>
         </div>
         {canManage && network.pointsTested > 0 && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
             {['green', 'yellow', 'red'].map((z) => network.zoneCounts[z] > 0 && (
-              <Badge key={z} color={ZONE_COLOR[z]} bg={ZONE_BG[z]}>{ZONE_LABELS[z]} зона: {network.zoneCounts[z]}</Badge>
+              <span key={z} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, background: 'rgba(255,255,255,.1)', borderRadius: 999, padding: '4px 10px' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: ZONE_COLOR[z] }} />
+                {ZONE_LABELS[z]}: {network.zoneCounts[z]}
+              </span>
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
-      {canManage && <Card onClick={() => navigate('/network-report')} style={{ cursor: 'pointer' }}>
-        <div style={{ fontSize: 15, fontWeight: 800 }}>Отчёт за месяц</div>
-        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Что стало лучше, где горит, открытия, задачи — страница и PDF →</div>
-      </Card>}
+      <Group>
+        {canManage && <Row icon="doc" title="Отчёт за месяц" subtitle="Что стало лучше, где горит, открытия, задачи — страница и PDF" onClick={() => navigate('/network-report')} />}
+        <Row icon="check" title="Стандарты сети и проверки" subtitle="Ваши требования, тайный покупатель, бланк для печати" onClick={() => navigate('/network/standards')} />
+      </Group>
 
       <NetworkAssistantCard />
 
-      <Card onClick={() => navigate('/network/standards')} style={{ cursor: 'pointer' }}>
-        <div style={{ fontSize: 15, fontWeight: 800 }}>Стандарты сети и проверки</div>
-        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>Ваши требования к точкам, проверка тайным покупателем, бланк для печати →</div>
-      </Card>
-
       {atRisk.length > 0 && (
-        <Card>
-          <ST>Требуют внимания</ST>
-          {atRisk.map((m) => <PointRow key={m.companyId} m={m} />)}
-        </Card>
+        <Group title="Требуют внимания" aside={String(atRisk.length)}>
+          {atRisk.map((m) => <PointRowLine key={m.companyId} m={m} onOpen={setOpenPoint} />)}
+        </Group>
       )}
-
       {preparing.length > 0 && (
-        <Card>
-          <ST>Открываются</ST>
-          {preparing.map((m) => <PointRow key={m.companyId} m={m} />)}
-        </Card>
+        <Group title="Открываются" aside={String(preparing.length)}>
+          {preparing.map((m) => <PointRowLine key={m.companyId} m={m} onOpen={setOpenPoint} />)}
+        </Group>
       )}
-
-      <Card>
-        <ST>Все точки</ST>
+      <Group title={atRisk.length + preparing.length > 0 ? 'Остальные точки' : 'Все точки'} aside={String(others.length)}>
         {members.length === 0 ? (
-          <div style={{ fontSize: 13, color: C.secondary }}>Пока ни одной точки. Отправьте ссылку-приглашение ниже.</div>
+          <Row icon="plus" tone="blue" title="Пока ни одной точки" subtitle="Отправьте ссылку-приглашение — она ниже" />
+        ) : others.length === 0 ? (
+          <Row icon="check" tone="green" title="Остальных нет" subtitle="Все точки — в списках выше" />
         ) : (
-          members.map((m) => <PointRow key={m.companyId} m={m} canManage={canManage} onRemove={removePoint} />)
+          others.map((m) => <PointRowLine key={m.companyId} m={m} onOpen={setOpenPoint} />)
         )}
-        <div style={{ fontSize: 11, color: C.subtle, marginTop: 10, lineHeight: 1.5 }}>
-          Сеть видит только сводку по точке: индекс, нарушения, число сроков, шаг открытия, число сотрудников и сколько из них оформлены не до конца, отметки по стандартам сети. Имена сотрудников и клиентов, документы и деньги точки сюда не попадают.
-        </div>
-      </Card>
+      </Group>
+      <div style={{ fontSize: 11.5, color: C.subtle, margin: '-8px 4px 18px', lineHeight: 1.5 }}>
+        Сеть видит только сводку по точке: индекс, нарушения, число сроков, шаг открытия, число сотрудников и сколько из них оформлены не до конца, отметки по стандартам сети. Имена сотрудников и клиентов, документы и деньги точки сюда не попадают.
+      </div>
+
+      <Sheet open={!!openPoint} onClose={() => setOpenPoint(null)} title={openPoint?.companyName}>
+        {openPoint && (
+          <PointRow
+            key={openPoint.companyId}
+            m={openPoint}
+            canManage={canManage}
+            onRemove={async (m) => { setOpenPoint(null); await removePoint(m); }}
+          />
+        )}
+      </Sheet>
 
       <TasksCard canManage={canManage} />
       {canManage && <ManageCard owned={state.owned} onChanged={load} />}
