@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Btn, Badge, C } from '../ui/components.jsx';
+import { Card, ST, Btn, C, Group, Row } from '../ui/components.jsx';
 import StandardsAnswerList, { RESULT_OPTIONS, percentColor } from '../components/StandardsAnswerList.jsx';
 
 // Стандарты сети — сторона точки (17.10.2026). Самопроверка и результат
@@ -53,37 +53,39 @@ export default function PointStandards() {
 
   return (
     <div>
-      <Card>
-        <div className="ui-page-title">Стандарты сети «{data.networkName}»</div>
-        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>
-          Это требования вашей сети, а не закона. Отметьте честно, что уже так, — сеть видит ваши отметки и результаты своих проверок.
-        </div>
-      </Card>
+      {/* 18.10.2026, вид приложения: заголовок вне карточки, замечания
+          проверки — строками с цветом. */}
+      <div className="ui-page-title" style={{ marginBottom: 6 }}>Стандарты сети</div>
+      <div style={{ fontSize: 13, color: C.secondary, margin: '0 4px 16px', lineHeight: 1.5 }}>
+        Требования сети «{data.networkName}», а не закона. Отметьте честно, что уже так, — сеть видит ваши отметки и результаты своих проверок.
+      </div>
 
-      {data.audit && (
-        <Card>
-          <ST>Последняя проверка от сети</ST>
-          <div style={{ fontSize: 12, color: C.subtle, marginBottom: 6 }}>
-            {data.audit.auditorLabel ? `${data.audit.auditorLabel} · ` : ''}{formatDate(data.audit.date)} · <b style={{ color: percentColor(data.audit.percent) }}>{data.audit.percent ?? '—'}%</b>
-          </div>
-          {data.audit.answers.filter((a) => a.result === 'no' || a.result === 'partial').map((a) => {
-            const o = RESULT_OPTIONS.find((r) => r.value === a.result);
-            return (
-              <div key={a.standardId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderTop: `1px solid ${C.border}` }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13 }}>{a.title}</div>
-                  {a.note && <div style={{ fontSize: 12, color: C.secondary }}>{a.note}</div>}
-                </div>
-                <Badge color={o.color} bg={o.bg}>{o.label}</Badge>
-              </div>
-            );
-          })}
-          {data.audit.answers.every((a) => a.result !== 'no' && a.result !== 'partial') && (
-            <div style={{ fontSize: 13, color: C.green }}>Замечаний нет.</div>
-          )}
-          {data.audit.comment && <div style={{ fontSize: 13, color: C.secondary, marginTop: 10, whiteSpace: 'pre-wrap' }}>{data.audit.comment}</div>}
-        </Card>
-      )}
+      {data.audit && (() => {
+        const issues = data.audit.answers.filter((a) => a.result === 'no' || a.result === 'partial');
+        return (
+          <>
+            <Group
+              title="Последняя проверка от сети"
+              aside={`${data.audit.percent ?? '—'}%`}
+            >
+              <Row
+                icon="search"
+                tone={data.audit.percent >= 85 ? 'green' : data.audit.percent >= 60 ? 'orange' : 'red'}
+                title={data.audit.auditorLabel || 'Проверка от сети'}
+                subtitle={formatDate(data.audit.date)}
+              />
+              {issues.length === 0 && <Row icon="check" tone="green" title="Замечаний нет" />}
+              {issues.map((a) => {
+                const o = RESULT_OPTIONS.find((r) => r.value === a.result);
+                return <Row key={a.standardId} icon={a.result === 'no' ? 'shield' : 'edit'} tone={a.result === 'no' ? 'red' : 'orange'} title={a.title} subtitle={a.note || undefined} tag={o.label} />;
+              })}
+            </Group>
+            {data.audit.comment && (
+              <div style={{ fontSize: 13, color: C.secondary, margin: '-8px 4px 18px', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>Комментарий проверяющего: {data.audit.comment}</div>
+            )}
+          </>
+        );
+      })()}
 
       <Card>
         <ST>Самопроверка</ST>
