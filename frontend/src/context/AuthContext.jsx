@@ -3,7 +3,7 @@ import { getCaptchaToken } from '../utils/captcha.js';
 import api from '../api/client.js';
 import { masterLabel, masterLabelGenitivePlural, masterLabelGenitiveSingular } from '../ui/roleLabels.js';
 import { reachGoal } from '../utils/metrika.js';
-import { inTelegram, telegramReady, telegramInitData } from '../utils/telegram.js';
+import { inTelegram, telegramReady, telegramInitData, requestBotMessages } from '../utils/telegram.js';
 import toast from '../ui/toast.js';
 
 const AuthContext = createContext(null);
@@ -184,6 +184,8 @@ export function AuthProvider({ children }) {
       if (!initData) return;
       await api.post('/auth/telegram/link', { initData });
       if (announce) toast('Telegram привязан — дальше без пароля');
+      // Чтобы бот мог присылать напоминания о сроках (core/telegramBot.js).
+      requestBotMessages();
     } catch { /* 409/503 — просто не привязали */ }
   }
 

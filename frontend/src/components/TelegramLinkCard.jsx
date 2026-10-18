@@ -29,6 +29,19 @@ export default function TelegramLinkCard() {
     }
   }
 
+  async function toggleNotify(notify) {
+    setBusy(true);
+    try {
+      await api.patch('/auth/telegram/link', { notify });
+      setState({ ...state, notify });
+      toast(notify ? 'Уведомления будут приходить в Telegram' : 'В Telegram больше не присылаем');
+    } catch {
+      toast('Не получилось — попробуйте ещё раз');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -54,6 +67,16 @@ export default function TelegramLinkCard() {
           </button>
         )}
       </div>
+      {/* Уведомления сообщением от бота (18.10.2026, core/telegramBot.js) —
+          сроки, законы, сеть; ежедневные подсказки сюда не приходят. */}
+      {state.linked && (
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}`, cursor: 'pointer' }}>
+          <input type="checkbox" checked={state.notify !== false} onChange={(e) => toggleNotify(e.target.checked)} disabled={busy} style={{ marginTop: 3 }} />
+          <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+            Присылать уведомления в Telegram — о сроках, изменениях закона и задачах сети. Если сообщения не приходят, напишите боту /start.
+          </span>
+        </label>
+      )}
     </Card>
   );
 }

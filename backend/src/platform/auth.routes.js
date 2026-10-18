@@ -712,8 +712,26 @@ router.get(
   '/telegram/link',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const { rows } = await pool.query('SELECT tg_username, linked_at FROM telegram_links WHERE user_id = $1', [req.user.id]);
-    res.json({ configured: telegram.isConfigured(), linked: rows.length > 0, username: rows[0]?.tg_username || null, linkedAt: rows[0]?.linked_at || null });
+    const { rows } = await pool.query('SELECT tg_username, linked_at, notify FROM telegram_links WHERE user_id = $1', [req.user.id]);
+    res.json({
+      configured: telegram.isConfigured(),
+      linked: rows.length > 0,
+      username: rows[0]?.tg_username || null,
+      linkedAt: rows[0]?.linked_at || null,
+      notify: rows[0]?.notify ?? true,
+    });
+  })
+);
+
+// «Присылать уведомления в Telegram» (18.10.2026, миграция 0143).
+router.patch(
+  '/telegram/link',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    if (typeof req.body?.notify !== 'boolean') return res.status(400).json({ error: 'Укажите notify: true или false' });
+    const { rowCount } = await pool.query('UPDATE telegram_links SET notify = $2 WHERE user_id = $1', [req.user.id, req.body.notify]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Telegram не привязан' });
+    res.json({ notify: req.body.notify });
   })
 );
 
@@ -734,7 +752,7 @@ router.post(
     }
     await pool.query(
       `INSERT INTO telegram_links (telegram_user_id, user_id, tg_username) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE SET telegram_user_id = EXCLUDED.telegram_user_id, tg_username = EXCLUDED.tg_username, linked_at = now()`,
+       ON CONFLICT (user_id) DO UPDATE SET telegram_user_id = EXCLUDED.telegram_user_id, tg_username = EXCLUDED.tg_username, linked_at = now(), blocked_at = NULL`,
       [tgUser.id, req.user.id, tgUser.username]
     );
     await logAudit({ userId: req.user.id, action: 'auth.telegram_linked', entityType: 'user', entityId: req.user.id }).catch(() => {});

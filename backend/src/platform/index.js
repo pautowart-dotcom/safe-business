@@ -42,6 +42,7 @@ const franchiseAuditPublicRoutes = require('./franchise-audit-public.routes');
 const franchiseAssistantRoutes = require('./franchise-assistant.routes');
 const monthlyCheckRoutes = require('./monthly-check.routes');
 const myPointsRoutes = require('./my-points.routes');
+const telegramWebhookRoutes = require('./telegram-webhook.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -85,5 +86,6 @@ platformRouter.use('/franchise-audit-public', franchiseAuditPublicRoutes);
 platformRouter.use('/franchise-assistant', franchiseAssistantRoutes);
 platformRouter.use('/monthly-check', monthlyCheckRoutes);
 platformRouter.use('/my-points', myPointsRoutes);
+platformRouter.use('/telegram-webhook', telegramWebhookRoutes);
 
 module.exports = { authRoutes, platformRouter, legalRoutes };

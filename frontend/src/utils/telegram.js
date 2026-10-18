@@ -80,3 +80,18 @@ export function setTelegramBack(visible, onClick) {
   b.show();
   return () => b.offClick(onClick);
 }
+
+// Разрешение боту писать человеку (уведомления о сроках) — штатный запрос
+// Telegram. Без него бот не может написать первым, если человек не нажимал
+// «Старт». Promise<boolean>; в старых версиях Telegram метода нет — false.
+export function requestBotMessages() {
+  const app = window.Telegram?.WebApp;
+  if (!app?.requestWriteAccess) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    try {
+      app.requestWriteAccess((granted) => resolve(!!granted));
+    } catch {
+      resolve(false);
+    }
+  });
+}

@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const { sendPushToCompany } = require('./pushNotify');
+const { sendTelegramToCompany } = require('./telegramBot');
 
 // Раздел «Уведомления» (Ж2, 14.10.2026): одна точка, через которую сервис
 // что-то сообщает компании. Сначала запись в company_notifications (её
@@ -44,6 +45,14 @@ async function notifyCompany({ companyId, kind, category = null, title, body = n
   await sendPushToCompany({ companyId, category, title, body, url }).catch((err) =>
     console.error('notifyCompany: sendPushToCompany failed', companyId, err)
   );
+  // Telegram (18.10.2026, core/telegramBot.js) — только то, что попадает в
+  // раздел «Уведомления»: ежедневные подсказки в мессенджер не шлём, иначе
+  // бот превратится в спам.
+  if (!INBOX_SKIP_CATEGORIES.has(category)) {
+    await sendTelegramToCompany({ companyId, category, title, body, url }).catch((err) =>
+      console.error('notifyCompany: sendTelegramToCompany failed', companyId, err)
+    );
+  }
 }
 
 module.exports = { notifyCompany };
