@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, Btn, C } from '../ui/components.jsx';
+import { Card, Btn, C, Group, Row } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
 import Icon from '../ui/Icon.jsx';
 
 // Раздел «Уведомления» (Ж3, 14.10.2026; идея владельца — одно место, куда
@@ -71,66 +72,80 @@ export default function Notifications() {
   function open(item) {
     markRead(item);
     if (item.url) navigate(item.url);
-    else setOpenId(openId === item.id ? null : item.id);
+    else setOpenId(item.id);
   }
 
   if (error) return <Card><div style={{ fontSize: 13.5, color: C.secondary }}>{error}</div></Card>;
-  if (!items) return <div style={{ fontSize: 13.5, color: C.subtle, padding: '8px 2px' }}>Загружаем…</div>;
+  if (!items) return <div className="page-loading">Загрузка...</div>;
 
   if (items.length === 0) {
     return (
-      <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.primary, marginBottom: 6 }}>Пока ничего нет</div>
-        <div style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.5 }}>
-          Сюда придут напоминания о сроках, изменения в законах, которые касаются вашего бизнеса, и новые пункты теста.
-        </div>
-      </Card>
+      <Group>
+        <Row icon="bell" title="Пока ничего нет" subtitle="Сюда придут напоминания о сроках, изменения в законах, которые касаются вашего бизнеса, и новые пункты теста." />
+      </Group>
     );
   }
 
+  // 18.10.2026, вид приложения: «Новые» и «Раньше» строками, непрочитанное —
+  // синей точкой; изменение закона (без ссылки) — полным текстом в шторке.
+  const fresh = items.filter((i) => !i.readAt);
+  const older = items.filter((i) => i.readAt);
+  const opened = items.find((i) => i.id === openId);
+
+  const row = (item) => {
+    const kind = KIND[item.kind] || KIND.other;
+    const unread = !item.readAt;
+    return (
+      <div
+        key={item.id}
+        onClick={() => open(item)}
+        className="ui-row ui-row-tap"
+        style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px' }}
+      >
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: unread ? C.blueBg : '#F1F3F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name={kind.icon} size={17} color={unread ? C.blue : C.secondary} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.subtle }}>{kind.label}</span>
+            <span style={{ fontSize: 11.5, color: C.subtle, flexShrink: 0 }}>{formatWhen(item.createdAt)}</span>
+          </div>
+          <div style={{ fontSize: 14, fontWeight: unread ? 800 : 600, color: C.primary, lineHeight: 1.35 }}>{item.title}</div>
+          {item.body && (
+            <div style={{ fontSize: 12.5, color: C.secondary, lineHeight: 1.45, marginTop: 3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-line' }}>
+              {item.body}
+            </div>
+          )}
+        </div>
+        {unread && <span aria-label="Не прочитано" style={{ width: 9, height: 9, borderRadius: '50%', background: C.blue, flexShrink: 0, marginTop: 6 }} />}
+      </div>
+    );
+  };
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, minHeight: 32 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>
-          {unreadCount > 0 ? `Непрочитанных: ${unreadCount}` : 'Всё прочитано'}
-        </div>
-        {unreadCount > 0 && <Btn small variant="secondary" onClick={markAllRead}>Прочитать все</Btn>}
-      </div>
+      {fresh.length > 0 && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 8px' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: C.primary }}>Новые</div>
+            <button type="button" onClick={markAllRead} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: C.blue, cursor: 'pointer' }}>
+              Прочитать все
+            </button>
+          </div>
+          <Group>{fresh.map(row)}</Group>
+        </>
+      )}
+      {older.length > 0 && <Group title={fresh.length > 0 ? 'Раньше' : 'Всё прочитано'}>{older.map(row)}</Group>}
 
-      {items.map((item) => {
-        const kind = KIND[item.kind] || KIND.other;
-        const unread = !item.readAt;
-        const expanded = openId === item.id;
-        return (
-          <Card key={item.id} onClick={() => open(item)} style={{ padding: 14, borderLeft: unread ? `3px solid ${C.accent}` : '3px solid transparent' }}>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon name={kind.icon} size={16} color={unread ? C.primary : C.subtle} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: C.subtle }}>{kind.label}</span>
-                  <span style={{ fontSize: 11.5, color: C.subtle, flexShrink: 0 }}>{formatWhen(item.createdAt)}</span>
-                </div>
-                <div style={{ fontSize: 14.5, fontWeight: unread ? 700 : 600, color: C.primary, lineHeight: 1.35 }}>{item.title}</div>
-                {item.body && (
-                  <div
-                    style={{
-                      fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 4, whiteSpace: 'pre-line',
-                      ...(item.url || expanded ? {} : { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }),
-                    }}
-                  >
-                    {item.body}
-                  </div>
-                )}
-                {!item.url && item.body && !expanded && item.body.length > 160 && (
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: C.accent, marginTop: 6 }}>Читать полностью</div>
-                )}
-              </div>
-            </div>
-          </Card>
-        );
-      })}
+      <Sheet open={!!opened} onClose={() => setOpenId(null)} title={opened?.title}>
+        {opened && (
+          <>
+            <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 10 }}>{(KIND[opened.kind] || KIND.other).label} · {formatWhen(opened.createdAt)}</div>
+            <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.55, whiteSpace: 'pre-line', marginBottom: 16 }}>{opened.body}</div>
+            <Btn variant="secondary" onClick={() => setOpenId(null)}>Понятно</Btn>
+          </>
+        )}
+      </Sheet>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Btn, C } from '../ui/components.jsx';
+import { Card, Btn, C, SH, Group, Row, Ring } from '../ui/components.jsx';
 
 // Проверка месяца (17.10.2026, этап 7). Бэкенд — platform/monthly-check.routes.js.
 // Вопросы собраны из данных самой точки; «Да» сразу закрывает нарушение,
@@ -26,13 +26,13 @@ const REACTION = {
   regular: { yes: 'Хорошо, порядок.', no: 'Стоит посмотреть на этой неделе.' },
 };
 
-function List({ title, items, color }) {
+// 18.10.2026, вид приложения: списки итога — строками «как в Настройках».
+function List({ title, items, tone, icon }) {
   if (!items.length) return null;
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color, marginBottom: 4 }}>{title}</div>
-      {items.map((t) => <div key={t} style={{ fontSize: 13, lineHeight: 1.5, padding: '3px 0' }}>{t}</div>)}
-    </div>
+    <Group title={title} aside={String(items.length)}>
+      {items.map((t) => <Row key={t} icon={icon} tone={tone} title={t} />)}
+    </Group>
   );
 }
 
@@ -40,23 +40,27 @@ function Summary({ state }) {
   const navigate = useNavigate();
   const s = state.summary;
   const delta = s.indexNow != null && s.indexPrev != null ? s.indexNow - s.indexPrev : null;
+  const calm = !s.plan.length && !s.burning.length;
   return (
-    <Card>
-      <div style={{ fontSize: 18, fontWeight: 800 }}>Итог за {monthLabel(state.month)}</div>
-      {s.indexNow != null && (
-        <div style={{ fontSize: 13, color: C.secondary, marginTop: 6 }}>
-          Индекс безопасности: <b>{s.indexNow}%</b>
-          {delta != null && delta !== 0 && <span style={{ color: delta > 0 ? C.green : C.red }}> ({delta > 0 ? '+' : ''}{delta} за месяц)</span>}
+    <div>
+      <div className="ui-page-title" style={{ marginBottom: 14 }}>Итог за {monthLabel(state.month)}</div>
+      <div style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 18, display: 'flex', gap: 16, alignItems: 'center', boxShadow: SH.raised }}>
+        {s.indexNow != null && <Ring percent={s.indexNow} label="индекс" />}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>{calm ? 'Всё отмечено' : `В плане на месяц: ${s.plan.length + s.burning.length}`}</div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>
+            {delta != null && delta !== 0 ? `${delta > 0 ? '+' : ''}${delta}% к прошлому месяцу. ` : ''}
+            {calm ? 'Спасибо, что держите порядок.' : 'Мы напомним по каждому пункту.'}
+          </div>
         </div>
-      )}
-      <List title="Стало лучше" items={s.better} color={C.green} />
-      <List title="Горит" items={s.burning} color={C.red} />
-      <List title="План на месяц" items={s.plan} color={C.orange} />
-      <List title="Отложено на полгода — риск пока остаётся" items={s.accepted || []} color={C.secondary} />
-      {!s.plan.length && !s.burning.length && <div style={{ fontSize: 13, color: C.green, marginTop: 12 }}>В этом месяце всё отмечено — спасибо, что держите порядок.</div>}
-      <div style={{ fontSize: 12, color: C.subtle, marginTop: 12 }}>Следующая проверка — в начале следующего месяца, мы напомним.</div>
-      <div style={{ marginTop: 12 }}><Btn small variant="secondary" onClick={() => navigate('/')}>На главную</Btn></div>
-    </Card>
+      </div>
+      <List title="Стало лучше" items={s.better} tone="green" icon="check" />
+      <List title="Горит" items={s.burning} tone="red" icon="bell" />
+      <List title="План на месяц" items={s.plan} tone="orange" icon="edit" />
+      <List title="Отложено на полгода — риск остаётся" items={s.accepted || []} tone="gray" icon="doc" />
+      <div style={{ fontSize: 12.5, color: C.subtle, margin: '0 4px 14px' }}>Следующая проверка — в начале следующего месяца, мы напомним.</div>
+      <Btn variant="secondary" onClick={() => navigate('/')}>На главную</Btn>
+    </div>
   );
 }
 
@@ -95,9 +99,9 @@ export default function MonthlyCheck() {
 
   return (
     <div>
+      <div className="ui-page-title" style={{ marginBottom: 14 }}>Проверка месяца · {monthLabel(state.month)}</div>
       <Card>
-        <div className="ui-page-title">Проверка месяца · {monthLabel(state.month)}</div>
-        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
           {state.items.length} коротких вопросов про ваш бизнес — около 2 минут. Что уже сделано, отметим сами, остальное соберём в план.
         </div>
         <div style={{ height: 6, borderRadius: 3, background: C.surface, marginTop: 12, overflow: 'hidden' }}>
@@ -111,14 +115,25 @@ export default function MonthlyCheck() {
           <Card key={item.key}>
             <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.45 }}>{item.title}</div>
             {item.hint && <div style={{ fontSize: 12, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>{item.hint}</div>}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <Btn small variant={a === 'yes' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'yes' })}>Да</Btn>
-              <Btn small variant={a === 'no' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'no' })}>Ещё нет</Btn>
-              {item.type === 'violation' && (
-                <Btn small variant={a === 'skip' ? undefined : 'secondary'} onClick={() => setAnswers({ ...answers, [item.key]: 'skip' })}>Позже</Btn>
-              )}
+            {/* 18.10.2026, вид приложения: крупные ответы с цветом выбранного. */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              {[['yes', 'Да', C.green, C.greenBg], ['no', 'Ещё нет', C.orange, C.orangeBg], ...(item.type === 'violation' ? [['skip', 'Позже', C.secondary, '#F1F3F6']] : [])].map(([key, label, col, bg]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAnswers({ ...answers, [item.key]: key })}
+                  className="ui-btn"
+                  style={{
+                    flex: 1, padding: '11px 6px', borderRadius: 12, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    background: a === key ? bg : '#F4F5F7', color: a === key ? col : C.secondary,
+                    border: `1.5px solid ${a === key ? col : 'transparent'}`, transition: 'background-color .2s, color .2s, border-color .2s',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            {a && <div style={{ fontSize: 12, color: a === 'yes' ? C.green : a === 'skip' ? C.secondary : C.orange, marginTop: 8, lineHeight: 1.5 }}>{REACTION[item.type][a]}</div>}
+            {a && <div className="ui-view" style={{ fontSize: 12.5, color: a === 'yes' ? C.green : a === 'skip' ? C.secondary : C.orange, marginTop: 8, lineHeight: 1.5 }}>{REACTION[item.type][a]}</div>}
           </Card>
         );
       })}
