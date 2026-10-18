@@ -297,16 +297,18 @@ export function VerifyCodeForm({ email, onVerify, onBack, onResend }) {
     setSubmitting(true);
     try {
       await onVerify(email, code);
+      // Успех — кнопку больше не разблокируем: код одноразовый, повторная
+      // отправка вернула бы «неверный», пока экран меняется на следующий.
+      return;
     } catch (err) {
       if (err.codeAcceptedButFollowupFailed) {
         setError('Код принят, но не удалось войти — обновите страницу, вход уже должен сработать.');
       } else {
         setError(err.response?.data?.error || 'Не удалось подтвердить код');
       }
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
     }
+    submittingRef.current = false;
+    setSubmitting(false);
   }
 
   // Переиспользует тот же login(email, password), которым мы уже вошли на
@@ -423,7 +425,12 @@ export default function Login() {
     return <Navigate to={justCreatedCompany ? '/security' : (location.state?.from || '/')} replace />;
   }
 
-  if (verifyEmail) {
+  // 18.10.2026: код уже принят, но компаний несколько (pendingCompanies) или
+  // ни одной (needsCompany) — показываем выбор/создание компании ниже, а не
+  // снова форму кода. Раньше форма кода оставалась поверх, повторное
+  // «Подтвердить» отправляло уже использованный код → «неверный», помогало
+  // только обновление страницы (живая жалоба владельца, у него 3 компании).
+  if (verifyEmail && !pendingCompanies && !needsCompany) {
     return (
       <VerifyCodeForm
         email={verifyEmail}
