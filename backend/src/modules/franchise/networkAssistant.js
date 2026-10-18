@@ -85,7 +85,17 @@ async function buildNetworkContext(access) {
     }
   }
 
-  return { text: lines.join('\n'), names };
+  // Названия задач и стандартов пишет сама сеть — в них тоже бывают названия
+  // точек, поэтому прячем по всему тексту, а не только в вопросе.
+  const hide = makeHide(names);
+  return { text: hide(lines.join('\n')), names, hide };
+}
+
+// «ИП Иванова» → «Точка 2». Длинные названия первыми — «Клуб 2» не должен
+// заменяться как «Клуб» + «2».
+function makeHide(names) {
+  const byLength = names.map((name, i) => ({ name, label: `Точка ${i + 1}` })).filter((n) => n.name).sort((a, b) => b.name.length - a.name.length);
+  return (text) => byLength.reduce((t, n) => t.split(`«${n.name}»`).join(n.label).split(n.name).join(n.label), text);
 }
 
 // «Точка 3», «Точке 3», «Точку 3»… → «Название точки».

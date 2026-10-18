@@ -78,9 +78,7 @@ router.post(
     if (!access) return;
 
     const ctx = await buildNetworkContext(access);
-    // Длинные названия первыми — «Клуб 2» не должен заменяться как «Клуб» + «2».
-    const byLength = ctx.names.map((name, i) => ({ name, label: `Точка ${i + 1}` })).filter((n) => n.name).sort((a, b) => b.name.length - a.name.length);
-    const hide = (text) => byLength.reduce((t, n) => t.split(`«${n.name}»`).join(n.label).split(n.name).join(n.label), text);
+    const { hide } = ctx;
     const history = (Array.isArray(req.body.history) ? req.body.history : [])
       .slice(-MAX_HISTORY)
       .filter((h) => h && typeof h.text === 'string' && (h.role === 'user' || h.role === 'assistant'))
