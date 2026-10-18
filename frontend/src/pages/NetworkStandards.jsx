@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Btn, Badge, Field, TextInput, TextArea, Select, C } from '../ui/components.jsx';
+import { Card, ST, Btn, Badge, Field, TextInput, TextArea, Select, C, Group, Row } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
+import toast from '../ui/toast.js';
 import StandardsAnswerList, { RESULT_OPTIONS, percentColor } from '../components/StandardsAnswerList.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
 
@@ -201,6 +203,7 @@ export default function NetworkStandards() {
   const [audit, setAudit] = useState(null); // null | { companyId }
   const [detail, setDetail] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
+  const [pointSheet, setPointSheet] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [newHint, setNewHint] = useState('');
   const [error, setError] = useState('');
@@ -231,85 +234,99 @@ export default function NetworkStandards() {
   if (linkFor) return <AuditLinkCard point={linkFor} onClose={() => setLinkFor(null)} />;
 
   const hasStandards = data.standards.length > 0;
+  const point = data.points.find((p) => p.companyId === pointSheet);
 
+  // 18.10.2026, вид приложения: действия, точки и стандарты — строками,
+  // действия по точке — в шторке.
+  const pct = (c) => (c?.percent != null ? `${c.percent}%` : 'не было');
   return (
     <div>
-      <Card>
-        <div className="ui-page-title">Стандарты сети</div>
-        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>
-          Ваши требования к точкам — не закон, а то, как работает ваша сеть. Точки отмечают их сами, а проверяющий или тайный покупатель — при визите. В индекс безопасности это не входит.
-        </div>
-        {hasStandards && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-            <Btn small onClick={() => setAudit({ companyId: '' })} disabled={data.points.length === 0}>Провести проверку</Btn>
-            <Btn small variant="secondary" onClick={() => { if (!printBlank(data.networkName, data.standards)) setError('Браузер не дал открыть окно печати — разрешите всплывающие окна'); }}>Бланк для печати</Btn>
-          </div>
-        )}
-      </Card>
+      <div className="ui-page-title" style={{ marginBottom: 6 }}>Стандарты сети</div>
+      <div style={{ fontSize: 13, color: C.secondary, margin: '0 4px 16px', lineHeight: 1.5 }}>
+        Ваши требования к точкам — не закон, а то, как работает ваша сеть. Точки отмечают их сами, а проверяющий или тайный покупатель — при визите. В индекс безопасности это не входит.
+      </div>
 
       {hasStandards && (
-        <Card>
-          <ST>Точки</ST>
-          {data.points.length === 0 && <div style={{ fontSize: 13, color: C.subtle }}>В сети пока нет точек.</div>}
-          {data.points.map((p, i) => {
-            const gap = p.self?.percent != null && p.audit?.percent != null ? p.self.percent - p.audit.percent : null;
-            return (
-              <div key={p.companyId} style={{ padding: '10px 0', borderTop: i > 0 ? `1px solid ${C.border}` : 'none' }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{p.companyName}</div>
-                <PercentCell check={p.self} label="Сама точка" />
-                <PercentCell check={p.audit} label={p.audit?.auditorLabel ? `Проверка (${p.audit.auditorLabel})` : 'Проверка от сети'} />
-                {gap != null && gap >= 20 && (
-                  <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>Точка оценивает себя на {gap} п. выше, чем увидел проверяющий</div>
-                )}
-                <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setAudit({ companyId: p.companyId })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.primary, fontWeight: 700, cursor: 'pointer' }}>Проверить сам</button>
-                  <button type="button" onClick={() => setLinkFor(p)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.primary, fontWeight: 700, cursor: 'pointer' }}>Ссылка проверяющему</button>
-                  {p.audit && <button type="button" onClick={() => setDetail(p.audit.checkId)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.secondary, cursor: 'pointer' }}>Последняя проверка</button>}
-                  {p.self && <button type="button" onClick={() => setDetail(p.self.checkId)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: C.secondary, cursor: 'pointer' }}>Самопроверка</button>}
-                </div>
-              </div>
-            );
-          })}
-        </Card>
+        <Group>
+          <Row icon="check" tone="blue" title="Провести проверку" subtitle="Отметить пункты самому — с телефона" onClick={() => data.points.length > 0 && setAudit({ companyId: '' })} />
+          <Row icon="doc" title="Бланк для печати" subtitle="Для проверяющего на бумаге" onClick={() => { if (!printBlank(data.networkName, data.standards)) setError('Браузер не дал открыть окно печати — разрешите всплывающие окна'); }} />
+        </Group>
       )}
 
-      <Card>
-        <ST>Список стандартов · {data.standards.length}</ST>
-        {!hasStandards && (
-          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 10, lineHeight: 1.5 }}>
-            Пока пусто. Начните с готового набора и поправьте под себя — или добавьте свои пункты.
-          </div>
-        )}
-        {data.standards.map((s, i) => (
-          <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderTop: i > 0 ? `1px solid ${C.border}` : 'none' }}>
+      {hasStandards && (
+        <Group title="Точки" aside={String(data.points.length)}>
+          {data.points.length === 0 && <Row icon="home" title="В сети пока нет точек" />}
+          {data.points.map((p) => {
+            const gap = p.self?.percent != null && p.audit?.percent != null ? p.self.percent - p.audit.percent : null;
+            const shown = p.audit?.percent ?? p.self?.percent;
+            const tone = gap != null && gap >= 20 ? 'red' : shown == null ? 'gray' : shown >= 80 ? 'green' : shown >= 50 ? 'orange' : 'red';
+            return (
+              <Row
+                key={p.companyId}
+                icon="home"
+                tone={tone}
+                title={p.companyName}
+                subtitle={gap != null && gap >= 20
+                  ? `Сама — ${pct(p.self)}, проверка — ${pct(p.audit)}: расходятся на ${gap} п.`
+                  : `Сама — ${pct(p.self)} · проверка — ${pct(p.audit)}`}
+                tag={shown != null ? `${shown}%` : undefined}
+                onClick={() => setPointSheet(p.companyId)}
+              />
+            );
+          })}
+        </Group>
+      )}
+
+      <Group title="Список стандартов" aside={String(data.standards.length)}>
+        {!hasStandards && <Row icon="doc" title="Пока пусто" subtitle="Начните с готового набора и поправьте под себя — или добавьте свои пункты." />}
+        {data.standards.map((s) => (
+          <div key={s.id} className="ui-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{s.title}</div>
-              {s.hint && <div style={{ fontSize: 12, color: C.secondary }}>{s.hint}</div>}
+              <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>{s.title}</div>
+              {s.hint && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{s.hint}</div>}
             </div>
             {data.canManage && (
-              <button type="button" onClick={() => window.confirm('Убрать пункт? Прошлые ответы останутся в истории.') && act(api.delete(`/platform/franchise-standards/network/${s.id}`))} style={{ background: 'none', border: 'none', fontSize: 12, color: C.subtle, cursor: 'pointer', flexShrink: 0 }}>Убрать</button>
+              <button type="button" onClick={() => window.confirm('Убрать пункт? Прошлые ответы останутся в истории.') && act(api.delete(`/platform/franchise-standards/network/${s.id}`))} style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: C.subtle, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}>Убрать</button>
             )}
           </div>
         ))}
-        {data.canManage && (
-          <div style={{ marginTop: 12 }}>
-            {!hasStandards && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                <Btn small onClick={() => act(api.post('/platform/franchise-standards/network/template', { template: 'kids_club' }))}>Набор для детских клубов</Btn>
-                <Btn small variant="secondary" onClick={() => act(api.post('/platform/franchise-standards/network/template', { template: 'default' }))}>Общий набор</Btn>
-              </div>
-            )}
-            <Field label="Новый пункт">
-              <TextInput value={newTitle} onChange={(e) => setNewTitle(e.target.value)} maxLength={200} placeholder="Например: на ресепшене есть буклеты сети" />
-            </Field>
-            <Field label="Пояснение для проверяющего (необязательно)">
-              <TextInput value={newHint} onChange={(e) => setNewHint(e.target.value)} />
-            </Field>
-            <Btn small variant="secondary" onClick={() => newTitle.trim() && act(api.post('/platform/franchise-standards/network', { title: newTitle, hint: newHint }).then(() => { setNewTitle(''); setNewHint(''); }))}>Добавить пункт</Btn>
+      </Group>
+
+      {data.canManage && (
+        <Card>
+          {!hasStandards && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              <Btn onClick={() => act(api.post('/platform/franchise-standards/network/template', { template: 'kids_club' }))}>Набор для детских клубов</Btn>
+              <Btn variant="secondary" onClick={() => act(api.post('/platform/franchise-standards/network/template', { template: 'default' }))}>Общий набор</Btn>
+            </div>
+          )}
+          <Field label="Новый пункт">
+            <TextInput value={newTitle} onChange={(e) => setNewTitle(e.target.value)} maxLength={200} placeholder="Например: на ресепшене есть буклеты сети" />
+          </Field>
+          <Field label="Пояснение для проверяющего (необязательно)">
+            <TextInput value={newHint} onChange={(e) => setNewHint(e.target.value)} />
+          </Field>
+          <Btn variant="secondary" onClick={() => newTitle.trim() && act(api.post('/platform/franchise-standards/network', { title: newTitle, hint: newHint }).then(() => { setNewTitle(''); setNewHint(''); toast('Пункт добавлен'); }))}>Добавить пункт</Btn>
+        </Card>
+      )}
+      {error && <div className="alert alert-error">{error}</div>}
+
+      <Sheet open={!!point} onClose={() => setPointSheet(null)} title={point?.companyName}>
+        {point && (
+          <div>
+            <div style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.6, marginBottom: 14 }}>
+              Сама точка: <b style={{ color: percentColor(point.self?.percent) }}>{pct(point.self)}</b>{point.self ? ` · ${formatDate(point.self.date)}` : ''}<br />
+              {point.audit?.auditorLabel ? `Проверка (${point.audit.auditorLabel})` : 'Проверка от сети'}: <b style={{ color: percentColor(point.audit?.percent) }}>{pct(point.audit)}</b>{point.audit ? ` · ${formatDate(point.audit.date)}` : ''}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Btn onClick={() => { setPointSheet(null); setLinkFor(point); }}>Ссылка проверяющему</Btn>
+              <Btn variant="secondary" onClick={() => { setPointSheet(null); setAudit({ companyId: point.companyId }); }}>Проверить самому</Btn>
+              {point.audit && <Btn variant="secondary" onClick={() => { setPointSheet(null); setDetail(point.audit.checkId); }}>Последняя проверка</Btn>}
+              {point.self && <Btn variant="secondary" onClick={() => { setPointSheet(null); setDetail(point.self.checkId); }}>Самопроверка точки</Btn>}
+            </div>
           </div>
         )}
-      </Card>
-      {error && <div className="alert alert-error">{error}</div>}
+      </Sheet>
     </div>
   );
 }
