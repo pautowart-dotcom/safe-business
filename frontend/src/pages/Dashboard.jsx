@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Badge, Avatar, Icon, C, Group, Row } from '../ui/components.jsx';
+import { Card, ST, Badge, Avatar, Icon, C, Group, Row, Ring } from '../ui/components.jsx';
 import DeadlineSheet from '../components/DeadlineSheet.jsx';
 import { dueTag, deadlineIcon, inSentence } from '../utils/deadlineActions.js';
 import { FM, SH } from '../ui/theme.js';
@@ -637,8 +637,6 @@ function OwnerDashboard() {
 // самое срочное. Без индекса (тест не пройден) — приглашение пройти тест.
 function HomeHero({ indexPercent, attention, line, onClick, title }) {
   const hasIndex = indexPercent != null;
-  const r = 36;
-  const len = 2 * Math.PI * r;
   const heading = title || (!hasIndex ? 'Пройдите тест безопасности' : attention > 0 ? `Нужно внимание: ${attention}` : 'Всё под контролем');
   return (
     <div
@@ -646,22 +644,7 @@ function HomeHero({ indexPercent, attention, line, onClick, title }) {
       className="ui-press"
       style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 14, display: 'flex', gap: 16, alignItems: 'center', boxShadow: SH.raised, cursor: 'pointer' }}
     >
-      <div style={{ width: 84, height: 84, position: 'relative', flexShrink: 0 }}>
-        <svg width="84" height="84" viewBox="0 0 84 84" style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
-          <circle cx="42" cy="42" r={r} stroke="rgba(255,255,255,.14)" strokeWidth="8" fill="none" />
-          {hasIndex && (
-            <circle
-              cx="42" cy="42" r={r} stroke="#FFF" strokeWidth="8" fill="none" strokeLinecap="round"
-              strokeDasharray={len} strokeDashoffset={len * (1 - indexPercent / 100)}
-              style={{ transition: 'stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)' }}
-            />
-          )}
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{hasIndex ? `${indexPercent}%` : '—'}</div>
-          <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.6, marginTop: 3 }}>{hasIndex ? 'индекс' : title ? '' : 'нет теста'}</div>
-        </div>
-      </div>
+      <Ring percent={indexPercent} label={hasIndex ? 'индекс' : title ? '' : 'нет теста'} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{heading}</div>
         <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>

@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Field, TextInput, Select, Btn, C } from '../ui/components.jsx';
+import { Card, ST, Field, TextInput, Select, Btn, C, Group, Row, SH } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
+import toast from '../ui/toast.js';
+import { dueTag } from '../utils/deadlineActions.js';
 import { localDateStr } from '../utils/localDate.js';
 
 // Пакет 4, Этап 2: "Мои сроки" — вкладка внутри "Безопасности", где владелец
@@ -129,9 +132,10 @@ function SlotCard({ slot, onSave, saving, aiDateDetectionAvailable }) {
 
   const dirty = dueDate !== (slot.dueDate || '') || recurrence !== (slot.recurrence || '') || note !== (slot.note || '') || !!file;
 
+  // 18.10.2026, вид приложения: форма живёт в шторке (заголовок — у шторки),
+  // в списке — только строка с датой.
   return (
-    <Card>
-      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>{slot.label}</div>
+    <div style={{ marginTop: 8 }}>
       <Field label="Дата">
         <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
       </Field>
@@ -188,11 +192,20 @@ function SlotCard({ slot, onSave, saving, aiDateDetectionAvailable }) {
           Открыть прикреплённый файл
         </a>
       )}
-      <Btn small disabled={!dirty || saving} onClick={() => onSave(slot.key, { dueDate: dueDate || null, recurrence: recurrence || null, note: note || null, file })}>
+      <Btn disabled={!dirty || saving} onClick={() => onSave(slot.key, { dueDate: dueDate || null, recurrence: recurrence || null, note: note || null, file })}>
         {saving ? 'Сохраняем...' : 'Сохранить'}
       </Btn>
-    </Card>
+    </div>
   );
+}
+
+// Строка пункта: дата и сколько осталось, или «Внести», если даты нет.
+function slotRow(slot, onOpen) {
+  if (!slot.dueDate) {
+    return <Row key={slot.key} icon="plus" tone="blue" title={slot.label} subtitle="Дата не указана" tag="Внести" onClick={() => onOpen(slot.key)} />;
+  }
+  const tag = dueTag({ due_date: slot.dueDate });
+  return <Row key={slot.key} icon="check" tone={tag.tone === 'gray' ? 'green' : tag.tone} title={slot.label} subtitle={`до ${fmtDate(slot.dueDate)}`} tag={tag.text} onClick={() => onOpen(slot.key)} />;
 }
 
 export default function MyDeadlinesTab() {
@@ -212,6 +225,8 @@ export default function MyDeadlinesTab() {
   const [switchingRegime, setSwitchingRegime] = useState(null);
   const [patentSwitchDate, setPatentSwitchDate] = useState('');
   const [switchMessage, setSwitchMessage] = useState('');
+  // Какой пункт открыт в шторке: ключ слота или 'sout'.
+  const [openKey, setOpenKey] = useState(null);
 
   function load() {
     return api.get('/platform/my-deadlines').then((res) => {
@@ -268,6 +283,8 @@ export default function MyDeadlinesTab() {
       }
       await api.patch(`/platform/my-deadlines/slots/${key}`, body, { headers });
       await load();
+      setOpenKey(null);
+      toast(fields.dueDate ? 'Сохранено — напомним заранее' : 'Сохранено');
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить');
     } finally {
@@ -281,6 +298,8 @@ export default function MyDeadlinesTab() {
     try {
       await api.patch('/platform/my-deadlines/sout', { lastAt: soutLastAt || null });
       await load();
+      setOpenKey(null);
+      toast('Сохранено');
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить');
     } finally {
@@ -338,44 +357,57 @@ export default function MyDeadlinesTab() {
   // чтобы не путать людей без патента.
   const documentsSlots = byCategory.documents.filter((s) => s.key !== 'patent_end' || taxForm.regime === 'patent');
 
+  // 18.10.2026, вид приложения: вместо 11 форм подряд — короткий список
+  // строк, форма пункта открывается шторкой. Сверху — сколько дат внесено.
+  const allSlots = [...byCategory.staff, ...byCategory.premises, ...documentsSlots];
+  const filled = allSlots.filter((s) => s.dueDate).length + (data.sout.lastAt ? 1 : 0);
+  const total = allSlots.length + 1;
+  const openSlot = allSlots.find((s) => s.key === openKey);
+
   return (
     <div>
       {error && <div className="alert alert-error">{error}</div>}
 
-      <ST>Кадровые</ST>
-      <Card>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Медицинские книжки и срочные договоры сотрудников</div>
-        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Вносятся отдельно по каждому сотруднику в разделе «Команда».</div>
-        <Btn small variant="secondary" onClick={() => navigate('/team')}>Перейти в «Команда»</Btn>
-      </Card>
-      <Card>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>СОУТ — спецоценка условий труда</div>
-        <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Повторная — раз в 5 лет, срок посчитаем автоматически по дате последней.</div>
+      <div style={{ background: C.bg, borderRadius: 18, boxShadow: SH.card, padding: '14px 16px', marginBottom: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>Внесено {filled} из {total}</div>
+          <div style={{ fontSize: 12, color: C.subtle }}>всё по желанию</div>
+        </div>
+        <div style={{ height: 6, background: '#EEF0F3', borderRadius: 3, overflow: 'hidden', margin: '10px 0 8px' }}>
+          <div style={{ height: '100%', width: `${Math.round((filled / total) * 100)}%`, background: C.primary, borderRadius: 3, transition: 'width .6s cubic-bezier(.2,.8,.2,1)' }} />
+        </div>
+        <div style={{ fontSize: 12.5, color: C.secondary, lineHeight: 1.45 }}>Укажите даты того, что у вас есть, — напомним заранее. Дату можно взять с фото документа.</div>
+      </div>
+
+      <Group title="Сотрудники">
+        <Row icon="team" title="Медкнижки и договоры сотрудников" subtitle="Отдельно по каждому — в «Команде»" onClick={() => navigate('/team')} />
+        {data.sout.lastAt ? (
+          <Row icon="check" tone="green" title="СОУТ — спецоценка условий труда" subtitle={data.sout.nextDueDate ? `Следующая — ${fmtDate(data.sout.nextDueDate)}` : `Последняя — ${fmtDate(data.sout.lastAt)}`} onClick={() => setOpenKey('sout')} />
+        ) : (
+          <Row icon="plus" tone="blue" title="СОУТ — спецоценка условий труда" subtitle="Дата не указана" tag="Внести" onClick={() => setOpenKey('sout')} />
+        )}
+        {byCategory.staff.map((slot) => slotRow(slot, setOpenKey))}
+      </Group>
+      {byCategory.premises.length > 0 && <Group title="Помещение и оборудование">{byCategory.premises.map((slot) => slotRow(slot, setOpenKey))}</Group>}
+      {documentsSlots.length > 0 && <Group title="Документы">{documentsSlots.map((slot) => slotRow(slot, setOpenKey))}</Group>}
+
+      <Sheet open={openKey === 'sout'} onClose={() => setOpenKey(null)} title="СОУТ — спецоценка условий труда">
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, margin: '4px 0 12px' }}>Повторная — раз в 5 лет, срок посчитаем сами по дате последней.</div>
         <Field label="Дата последней СОУТ">
           <TextInput type="date" value={soutLastAt} onChange={(e) => setSoutLastAt(e.target.value)} />
         </Field>
-        {data.sout.nextDueDate && (
-          <div style={{ fontSize: 12, color: C.secondary, marginBottom: 10 }}>Следующая: {fmtDate(data.sout.nextDueDate)}</div>
-        )}
-        <Btn small disabled={savingSout || soutLastAt === (data.sout.lastAt || '')} onClick={saveSout}>
+        <Btn disabled={savingSout || soutLastAt === (data.sout.lastAt || '')} onClick={saveSout}>
           {savingSout ? 'Сохраняем...' : 'Сохранить'}
         </Btn>
-      </Card>
-      {byCategory.staff.map((slot) => (
-        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
-      ))}
+      </Sheet>
+      <Sheet open={!!openSlot} onClose={() => setOpenKey(null)} title={openSlot?.label}>
+        {error && <div className="alert alert-error">{error}</div>}
+        {openSlot && (
+          <SlotCard key={openSlot.key} slot={openSlot} onSave={saveSlot} saving={savingKey === openSlot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
+        )}
+      </Sheet>
 
-      <div style={{ marginTop: 20 }}><ST>Помещение и оборудование</ST></div>
-      {byCategory.premises.map((slot) => (
-        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
-      ))}
-
-      <div style={{ marginTop: 20 }}><ST>Юридические документы</ST></div>
-      {documentsSlots.map((slot) => (
-        <SlotCard key={slot.key} slot={slot} onSave={saveSlot} saving={savingKey === slot.key} aiDateDetectionAvailable={data.aiDateDetectionAvailable} />
-      ))}
-
-      <div style={{ marginTop: 20 }}><ST>Налоги и финансы</ST></div>
+      <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.01em', padding: '2px 4px 8px' }}>Налоги и финансы</div>
       <Card>
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
           Укажите один раз — дальше сроки взносов/отчётности посчитаются сами. Даты — общий ориентир, сверьте с бухгалтером/юристом.

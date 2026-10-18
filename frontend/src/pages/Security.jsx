@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C, SH } from '../ui/components.jsx';
+import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C, SH, Segmented, Ring, Group, Row } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
+import toast from '../ui/toast.js';
 import { FM } from '../ui/theme.js';
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
@@ -430,7 +432,7 @@ export default function Security() {
 
   async function joinWaitlist(productKey) {
     await api.post('/modules/security/waitlist', { productKey });
-    alert('Записали вас в лист ожидания — уведомим о запуске.');
+    toast('Записали в лист ожидания — сообщим о запуске');
   }
 
   if (loading) return <div className="page-loading">Загрузка...</div>;
@@ -483,17 +485,7 @@ export default function Security() {
       <div className="ui-page-title" style={{ marginBottom: 4 }}>Безопасность</div>
 
       {isManagement && (
-        <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, margin: '12px 0 16px' }}>
-          {[['test', 'Тест'], ['my_deadlines', 'Мои сроки']].map(([k, l]) => (
-            <button
-              key={k}
-              onClick={() => setTopTab(k)}
-              style={{ flex: 1, padding: '9px 4px', borderRadius: 10, border: 'none', cursor: 'pointer', background: topTab === k ? C.bg : 'transparent', color: topTab === k ? C.primary : C.subtle, fontSize: 13, fontWeight: topTab === k ? 700 : 500, boxShadow: topTab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
+        <Segmented options={[['test', 'Тест'], ['my_deadlines', 'Мои сроки']]} value={topTab} onChange={setTopTab} style={{ margin: '12px 0 16px' }} />
       )}
 
       {topTab === 'my_deadlines' && isManagement ? (
@@ -754,15 +746,17 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) 
 
 // ---------- Результаты ----------
 
+// 18.10.2026, вид приложения: кольцо, как на главной, вместо полоски.
 function IndexHero({ percent, zone, subtitle, note }) {
   return (
-    <div style={{ background: C.primary, borderRadius: 10, padding: 20, marginBottom: 12, color: '#FFF', boxShadow: SH.raised }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>Индекс безопасности</div>
-      <div style={{ fontSize: 44, fontWeight: 600, fontFamily: FM, fontVariantNumeric: 'tabular-nums', letterSpacing: '-1px', marginBottom: 4 }}>{percent}%</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: note ? 4 : 14 }}>{subtitle}</div>
-      {note && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>{note}</div>}
-      <div style={{ height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${percent}%`, background: '#FFF', borderRadius: 2 }} />
+    <div style={{ background: C.primary, borderRadius: 22, padding: 18, marginBottom: 12, color: '#FFF', boxShadow: SH.raised, display: 'flex', gap: 16, alignItems: 'center' }}>
+      <Ring percent={percent} label="индекс" />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: ZONE_COLOR[zone] || '#FFF', flexShrink: 0 }} />
+          <span style={{ fontSize: 16, fontWeight: 800 }}>{subtitle}</span>
+        </div>
+        {note && <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>{note}</div>}
       </div>
     </div>
   );
@@ -934,17 +928,11 @@ function SecurityDashboard({
         </div>
       )}
 
-      <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
-        {[['overview', 'Обзор'], ['violations', `Нарушения (${openCount})`], ['documents', 'Документы'], ['inspection', 'Проверки']].map(([k, l]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: 'none', cursor: 'pointer', background: tab === k ? C.bg : 'transparent', color: tab === k ? C.primary : C.subtle, fontSize: 12, fontWeight: tab === k ? 700 : 400, boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        options={[['overview', 'Обзор'], ['violations', `Нарушения ${openCount}`], ['documents', 'Документы'], ['inspection', 'Проверки']]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {tab === 'overview' && (
         <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
@@ -2554,34 +2542,60 @@ function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates })
     return <div className="empty-hint">Нарушений не найдено. Пройдите тест безопасности, чтобы увидеть карту уязвимостей.</div>;
   }
 
+  // 18.10.2026, вид приложения: строки с риском справа, подробности и
+  // кнопки — в шторке (ViolationCard ниже рисует её содержимое).
+  const [openId, setOpenId] = useState(null);
+  const current = violations.find((v) => v.id === openId);
+  const row = (v) => {
+    const resolvedV = v.status === 'resolved';
+    return (
+      <Row
+        key={v.id}
+        icon={resolvedV ? 'check' : 'shield'}
+        tone={resolvedV ? 'green' : v.risk >= 9 ? 'red' : v.risk >= 7 ? 'orange' : 'gray'}
+        title={v.title}
+        subtitle={resolvedV ? 'Устранено' : `Штраф: ${v.fineText}`}
+        tag={resolvedV ? undefined : `${v.risk}/10`}
+        onClick={() => setOpenId(v.id)}
+      />
+    );
+  };
+
   return (
     <div>
-      <ST>Открытые ({open.length})</ST>
-      {open.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} onGoToTemplates={onGoToTemplates} />)}
-      {open.length === 0 && <div className="empty-hint">Открытых нарушений нет.</div>}
-
-      {resolved.length > 0 && (
-        <>
-          <div style={{ marginTop: 20 }}><ST>Устранено ({resolved.length})</ST></div>
-          {resolved.map((v) => <ViolationCard key={v.id} violation={v} isManagement={isManagement} onResolve={onResolve} onGoToTemplates={onGoToTemplates} />)}
-        </>
+      {open.length > 0 ? (
+        <Group title="Открытые" aside={String(open.length)}>{open.map(row)}</Group>
+      ) : (
+        <Group><Row icon="check" tone="green" title="Открытых нарушений нет" subtitle="Всё найденное в тесте отмечено устранённым." /></Group>
       )}
+      {resolved.length > 0 && <Group title="Устранено" aside={String(resolved.length)}>{resolved.map(row)}</Group>}
+
+      <Sheet open={!!current} onClose={() => setOpenId(null)} title={current?.title}>
+        {current && (
+          <ViolationCard
+            violation={current}
+            isManagement={isManagement}
+            onResolve={async (id) => { await onResolve(id); setOpenId(null); toast('Отмечено устранённым'); }}
+            onGoToTemplates={onGoToTemplates && (() => { setOpenId(null); onGoToTemplates(); })}
+          />
+        )}
+      </Sheet>
     </div>
   );
 }
 
+// Содержимое шторки нарушения (до 18.10.2026 — отдельная карточка в списке).
 function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) {
   const navigate = useNavigate();
   const color = riskColor(violation.risk);
   return (
-    <Card style={{ borderLeft: `3px solid ${violation.status === 'resolved' ? C.green : color}`, opacity: violation.status === 'resolved' ? 0.7 : 1 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, textDecoration: violation.status === 'resolved' ? 'line-through' : 'none' }}>{violation.title}</div>
+    <div>
+      <div style={{ marginBottom: 10 }}>
         <Badge color={violation.status === 'resolved' ? C.green : color} bg={violation.status === 'resolved' ? C.greenBg : `${color}1A`}>
-          {violation.status === 'resolved' ? '✓' : `${violation.risk}/10`}
+          {violation.status === 'resolved' ? 'Устранено' : `Риск ${violation.risk} из 10`}
         </Badge>
       </div>
-      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 8 }}>{violation.description}</div>
+      <div style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}>{violation.description}</div>
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 4 }}><strong>Штраф:</strong> {violation.fineText}</div>
       {/* 05.09.2026: normBase уже показывается в PDF-отчёте (report/pdf.js,
           "Основание:") — там же живут оговорки вида "не сверено с
@@ -2615,14 +2629,13 @@ function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) 
         </div>
       )}
       {isManagement && violation.status === 'open' && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Btn small variant="green" onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          <Btn onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>
           {/* 18.09.2026 — та же связка, что уже есть в Дедлайнах для
               критических нарушений (risk>=8), но здесь она видна в
               "Нарушениях" всем открытым нарушениям, не только критическим —
               это основное место, где владелец вообще их читает. */}
           <Btn
-            small
             variant="secondary"
             onClick={() => navigate('/ai-advisor', { state: { prefillQuestion: `Что мне делать с нарушением «${violation.title}»?` } })}
           >
@@ -2633,7 +2646,7 @@ function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) 
       {isManagement && violation.status === 'open' && partnerServiceForViolation(violation.code) && (
         <PartnerRequestButton serviceKey={partnerServiceForViolation(violation.code)} context={`нарушение «${violation.title}» (${violation.code})`} />
       )}
-    </Card>
+    </div>
   );
 }
 

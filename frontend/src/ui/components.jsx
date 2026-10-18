@@ -67,31 +67,67 @@ export function Btn({ children, onClick, type = 'button', variant = 'primary', s
   );
 }
 
-export function PeriodFilter({ value, onChange, includeToday = true }) {
-  const opts = includeToday ? [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц']] : [['week', 'Неделя'], ['month', 'Месяц']];
+// Переключатель как в iOS (18.10.2026, вид приложения): белая плашка
+// плавно переезжает под выбранный вариант. options — [[key, label], …].
+export function Segmented({ options, value, onChange, style = {} }) {
+  const index = Math.max(0, options.findIndex(([k]) => k === value));
+  const n = options.length;
   return (
-    <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
-      {opts.map(([k, l]) => (
+    <div style={cs({ position: 'relative', display: 'flex', background: 'rgba(15,27,45,.07)', borderRadius: 12, padding: 3, marginBottom: 16 }, style)}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute', top: 3, bottom: 3, left: 3, width: `calc((100% - 6px) / ${n})`,
+          transform: `translateX(${index * 100}%)`, transition: 'transform .3s cubic-bezier(.2,.8,.2,1)',
+          background: C.bg, borderRadius: 10, boxShadow: '0 1px 3px rgba(15,27,45,.12), 0 0 0 .5px rgba(15,27,45,.06)',
+        }}
+      />
+      {options.map(([k, l]) => (
         <button
           key={k}
+          type="button"
           onClick={() => onChange(k)}
+          className="ui-tab"
           style={{
-            flex: 1,
-            padding: '8px',
-            borderRadius: 10,
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: F,
-            background: value === k ? C.bg : 'transparent',
-            color: value === k ? C.primary : C.subtle,
-            fontSize: 13,
-            fontWeight: value === k ? 700 : 400,
-            boxShadow: value === k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            position: 'relative', flex: 1, minWidth: 0, padding: '8px 4px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: F,
+            color: value === k ? C.primary : C.secondary, fontSize: 12.5, fontWeight: value === k ? 700 : 500, transition: 'color .2s',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}
         >
           {l}
         </button>
       ))}
+    </div>
+  );
+}
+
+export function PeriodFilter({ value, onChange, includeToday = true }) {
+  const opts = includeToday ? [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц']] : [['week', 'Неделя'], ['month', 'Месяц']];
+  return <Segmented options={opts} value={value} onChange={onChange} />;
+}
+
+// Кольцо индекса (главная, «Безопасность»): светлое на тёмной карточке.
+// percent == null — пустое кольцо с прочерком.
+export function Ring({ percent, size = 84, label }) {
+  const r = size / 2 - 6;
+  const len = 2 * Math.PI * r;
+  const has = percent != null;
+  return (
+    <div style={{ width: size, height: size, position: 'relative', flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,.14)" strokeWidth="8" fill="none" />
+        {has && (
+          <circle
+            cx={size / 2} cy={size / 2} r={r} stroke="#FFF" strokeWidth="8" fill="none" strokeLinecap="round"
+            strokeDasharray={len} strokeDashoffset={len * (1 - Math.min(100, Math.max(0, percent)) / 100)}
+            style={{ transition: 'stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)' }}
+          />
+        )}
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#FFF' }}>
+        <div style={{ fontSize: size * 0.26, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{has ? `${percent}%` : '—'}</div>
+        {label && <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.6, marginTop: 3 }}>{label}</div>}
+      </div>
     </div>
   );
 }
