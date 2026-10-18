@@ -91,22 +91,57 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
       slots.usn_q2 = { title: `УСН: авансовый платёж за полугодие ${year}`, dueDate: `${year}-07-28`, quarterStart: QUARTER_START.q2(year), quarterEnd: QUARTER_END.q2(year) };
       slots.usn_q3 = { title: `УСН: авансовый платёж за 9 месяцев ${year}`, dueDate: `${year}-10-28`, quarterStart: QUARTER_START.q3(year), quarterEnd: QUARTER_END.q3(year) };
       slots.usn_annual = { title: `УСН: итоговый налог и декларация за ${year} год`, dueDate: `${year + 1}-04-25`, quarterStart: QUARTER_START.q4(year), quarterEnd: QUARTER_END.q4(year) };
+      // Уведомление об исчисленном авансе (18.10.2026, этап 8; сверено на
+      // nalog.gov.ru — новости УФНС: «не позднее 25 апреля / июля / октября»,
+      // п. 9 ст. 58 НК). Отдельно от самого платежа 28-го. Не нужно, если к
+      // уплате ноль — в том числе после уменьшения на страховые взносы.
+      const USN_NOTICE_NOTE = 'Уведомление об исчисленном авансе по УСН — в личном кабинете ИП на сайте ФНС. Если к уплате ноль (например, взносы уменьшили аванс до нуля), уведомление не нужно. Срок на выходном переносится на следующий рабочий день.';
+      slots.usn_notice_q1 = { title: `УСН: уведомление об авансе за 1 квартал ${year}`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year), note: USN_NOTICE_NOTE };
+      slots.usn_notice_q2 = { title: `УСН: уведомление об авансе за полугодие ${year}`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year), note: USN_NOTICE_NOTE };
+      slots.usn_notice_q3 = { title: `УСН: уведомление об авансе за 9 месяцев ${year}`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year), note: USN_NOTICE_NOTE };
+    }
+
+    // ОСН для ИП (18.10.2026, этап 8): раньше режим был в списке, но ни
+    // одного срока не создавал. Сверено по вторичным источникам, сходятся
+    // между собой (Консультант — подборка «авансовые платежи ИП на ОСНО»,
+    // Главкнига, Моё дело): авансы НДФЛ — 28-го (п. 8 ст. 227, с 08.08.2024),
+    // уведомление — до 25-го; 3-НДФЛ — до 30 апреля, налог за год — до 15
+    // июля; НДС — декларация до 25-го после квартала, уплата тремя частями
+    // до 28-го. Первоисточник (текст НК на Консультанте) не открылся — помечено
+    // в docs/knowledge/v2-otchety-po-rezhimam.md.
+    if (regime === 'osn') {
+      const NDFL_NOTE = 'Аванс по НДФЛ ИП: до 25-го — уведомление об исчисленной сумме в личном кабинете ФНС, до 28-го — уплата на единый налоговый счёт. Срок на выходном переносится на следующий рабочий день. Сумму сверьте с бухгалтером.';
+      slots.osn_ndfl_q1 = { title: `ОСН: аванс по НДФЛ за 1 квартал ${year} — уведомление до 25-го, уплата до 28-го`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year), note: NDFL_NOTE };
+      slots.osn_ndfl_q2 = { title: `ОСН: аванс по НДФЛ за полугодие ${year} — уведомление до 25-го, уплата до 28-го`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year), note: NDFL_NOTE };
+      slots.osn_ndfl_q3 = { title: `ОСН: аванс по НДФЛ за 9 месяцев ${year} — уведомление до 25-го, уплата до 28-го`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year), note: NDFL_NOTE };
+      slots.osn_3ndfl = { title: `ОСН: декларация 3-НДФЛ за ${year} год`, dueDate: `${year + 1}-04-30`, quarterEnd: QUARTER_END.q4(year), note: 'Декларация ИП по доходам за год. Налог по ней платится отдельно — до 15 июля.' };
+      slots.osn_ndfl_annual = { title: `ОСН: НДФЛ за ${year} год — уплата`, dueDate: `${year + 1}-07-15`, quarterEnd: QUARTER_END.q4(year), note: 'Доплата по декларации 3-НДФЛ за вычетом уплаченных авансов.' };
+      const VAT_NOTE = 'Если выручка за три месяца подряд не больше 2 млн ₽, можно получить освобождение от НДС (ст. 145 НК) — тогда декларацию не сдают. Иначе: декларация электронно до 25-го, налог тремя равными частями до 28-го числа каждого из трёх следующих месяцев. Сверьте с бухгалтером.';
+      slots.osn_vat_q1 = { title: `ОСН: НДС за 1 квартал ${year} — декларация до 25 апреля`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year), note: VAT_NOTE };
+      slots.osn_vat_q2 = { title: `ОСН: НДС за 2 квартал ${year} — декларация до 25 июля`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year), note: VAT_NOTE };
+      slots.osn_vat_q3 = { title: `ОСН: НДС за 3 квартал ${year} — декларация до 25 октября`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year), note: VAT_NOTE };
+      slots.osn_vat_q4 = { title: `ОСН: НДС за 4 квартал ${year} — декларация до 25 января`, dueDate: `${year + 1}-01-25`, quarterEnd: QUARTER_END.q4(year), note: VAT_NOTE };
     }
   }
 
   // Отчётность за сотрудников — обязанность работодателя, не зависит от
   // налогового режима, поэтому генерируется отдельно по одному hasEmployees.
   if (hasEmployees) {
-    slots.emp_q1 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за 1 квартал ${year}`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year) };
-    slots.emp_q2 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за полугодие ${year}`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year) };
-    slots.emp_q3 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ) за 9 месяцев ${year}`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year) };
+    // ЕФС-1 раздел 2 (взносы на травматизм) — 18.10.2026, сверено на
+    // sfr.gov.ru: «не позднее 25-го числа месяца, следующего за отчётным
+    // периодом (квартал, полугодие, 9 месяцев, год)» — тот же день, что РСВ
+    // и 6-НДФЛ, поэтому в той же карточке. Сдаётся даже без начислений.
+    const EMP_NOTE = 'РСВ и 6-НДФЛ — в налоговую, ЕФС-1 раздел 2 (взносы на травматизм) — в Соцфонд; сдаётся даже с нулями. Срок на выходном переносится на следующий рабочий день.';
+    slots.emp_q1 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ, ЕФС-1 раздел 2) за 1 квартал ${year}`, dueDate: `${year}-04-25`, quarterEnd: QUARTER_END.q1(year), note: EMP_NOTE };
+    slots.emp_q2 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ, ЕФС-1 раздел 2) за полугодие ${year}`, dueDate: `${year}-07-25`, quarterEnd: QUARTER_END.q2(year), note: EMP_NOTE };
+    slots.emp_q3 = { title: `Отчётность за сотрудников (РСВ, 6-НДФЛ, ЕФС-1 раздел 2) за 9 месяцев ${year}`, dueDate: `${year}-10-25`, quarterEnd: QUARTER_END.q3(year), note: EMP_NOTE };
     // Годовые РСВ и 6-НДФЛ актуализированы 04.08.2026 — раньше были слиты в
     // один слот с одной датой (25 февраля), но у них разные сроки: РСВ за
     // год — до 25 января следующего года, 6-НДФЛ за год — до 25 февраля.
     // emp_annual сохранил старый ключ (без изменения related_entity_type,
     // чтобы не плодить осиротевшие записи в deadlines у уже настроивших
     // сроки компаний) и стал более ранним, РСВ-сроком; 6-НДФЛ — новый слот.
-    slots.emp_annual = { title: `Отчётность за сотрудников (РСВ) за ${year} год`, dueDate: `${year + 1}-01-25`, quarterEnd: QUARTER_END.q4(year) };
+    slots.emp_annual = { title: `Отчётность за сотрудников (РСВ, ЕФС-1 раздел 2) за ${year} год`, dueDate: `${year + 1}-01-25`, quarterEnd: QUARTER_END.q4(year), note: EMP_NOTE };
     slots.emp_annual_6ndfl = { title: `Отчётность за сотрудников (6-НДФЛ) за ${year} год`, dueDate: `${year + 1}-02-25`, quarterEnd: QUARTER_END.q4(year) };
   }
 
@@ -122,6 +157,9 @@ function computeSlots(regime, year, { ipRegisteredAt = null, hasEmployees = fals
 const ALL_SLOT_KEYS = [
   'insurance_fixed', 'insurance_extra',
   'usn_q1', 'usn_q2', 'usn_q3', 'usn_annual',
+  'usn_notice_q1', 'usn_notice_q2', 'usn_notice_q3',
+  'osn_ndfl_q1', 'osn_ndfl_q2', 'osn_ndfl_q3', 'osn_3ndfl', 'osn_ndfl_annual',
+  'osn_vat_q1', 'osn_vat_q2', 'osn_vat_q3', 'osn_vat_q4',
   'emp_q1', 'emp_q2', 'emp_q3', 'emp_annual', 'emp_annual_6ndfl',
 ];
 
@@ -151,6 +189,15 @@ const EMPLOYER_MONTHLY = [
     day: 3,
     title: 'НДФЛ с зарплат за конец прошлого месяца: уведомление — до 3-го, уплата — до 5-го',
     note: 'Касается НДФЛ, удержанного с 23-го по последний день прошлого месяца. Отметьте «Готово» — срок перенесётся на следующий месяц.',
+  },
+  // Взносы на травматизм (18.10.2026, этап 8; сверено на sfr.gov.ru и в
+  // новостях Гаранта «уплатить до 15-го») — платятся в Соцфонд, не на ЕНС,
+  // поэтому отдельной строкой.
+  {
+    key: 'tax:emp_monthly_injury',
+    day: 15,
+    title: 'Взносы на травматизм за прошлый месяц — уплата в Соцфонд до 15-го',
+    note: 'Платятся отдельно от единого налогового счёта — по реквизитам Соцфонда. Отметьте «Готово» — срок перенесётся на следующий месяц.',
   },
   {
     key: 'tax:emp_monthly_main',
@@ -216,6 +263,7 @@ async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasE
         dueDate: desired[slotKey].dueDate,
         relatedEntityType,
         relatedEntityId: companyId,
+        note: desired[slotKey].note || null,
         notify,
       });
     } else {
@@ -228,6 +276,37 @@ async function syncTaxDeadlines(companyId, regime, { ipRegisteredAt = null, hasE
   }
   await syncEmployerMonthly(companyId, hasEmployees, notify);
   return Object.keys(desired).length;
+}
+
+// Дозаполнение новых видов сроков у компаний, которые уже настроили налоги
+// (18.10.2026, этап 8: уведомления по УСН, ОСН, ЕФС-1). Только недостающие
+// ключи и только будущие даты — иначе человек получил бы пачку «просрочено»
+// за прошедшие кварталы, о которых мы раньше не напоминали. Существующие
+// сроки и отметки «Готово» не трогает. Возвращает число добавленных.
+async function addMissingFutureSlots(companyId, regime, { ipRegisteredAt = null, hasEmployees = false } = {}, { year = currentTaxYear(), today = moscowDateStr() } = {}) {
+  const desired = computeSlots(regime, year, { ipRegisteredAt, hasEmployees });
+  const { rows } = await pool.query(
+    'SELECT related_entity_type FROM deadlines WHERE company_id = $1 AND related_entity_type LIKE $2',
+    [companyId, `tax:${year}:%`]
+  );
+  const have = new Set(rows.map((r) => r.related_entity_type));
+  let added = 0;
+  for (const [slotKey, slot] of Object.entries(desired)) {
+    const relatedEntityType = taxRelatedType(year, slotKey);
+    if (have.has(relatedEntityType) || slot.dueDate < today) continue;
+    await registerDeadline({
+      companyId,
+      category: 'tax',
+      title: slot.title,
+      dueDate: slot.dueDate,
+      relatedEntityType,
+      relatedEntityId: companyId,
+      note: slot.note || null,
+      notify: false,
+    });
+    added++;
+  }
+  return added;
 }
 
 // "Резерв на налоги" — ориентировочная сумма к отложенному конкретному
@@ -326,4 +405,4 @@ function computePatentSchedule(startAt, endAt, amount) {
   ];
 }
 
-module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, syncEmployerMonthly, taxRelatedType, currentTaxYear, syncTaxDeadlines, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };
+module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, EMPLOYER_MONTHLY, syncEmployerMonthly, taxRelatedType, currentTaxYear, syncTaxDeadlines, addMissingFutureSlots, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };

@@ -43,11 +43,24 @@ function computeInsuranceContribution(revenue) {
 // перехода нарастающим итогом) сознательно НЕ считаем — слишком зависит
 // от бухгалтерских данных, которых у агента нет; только честно
 // предупреждаем, см. VAT_WARNING_TEXT ниже.
-const VAT_THRESHOLD_RUB = 20_000_000;
-const VAT_WARNING_TEXT =
-  'При выручке от ~20 млн ₽/год на УСН обычно уже возникает обязанность платить НДС ' +
-  '(5% или 7% без вычетов, либо 20/22% с вычетами — на выбор). Мы это не считаем — ' +
-  'обязательно уточните у бухгалтера, применяется ли НДС к вам.';
+// 18.10.2026 (этап 8): порог по году, а не одно число — иначе с 01.01.2027
+// подсказки молча стали бы неверными. Тот же график у лимита патента ниже
+// (425-ФЗ; сверено: nalog.gov.ru — УФНС «С 1 января 2026 года изменен
+// лимит доходов для ПСН», garant.ru/consult/nalog/2260296 «Ограничения по
+// патенту на 2026 и 2027 год»).
+function smbThresholdRub(year) {
+  if (year <= 2025) return 60_000_000;
+  if (year === 2026) return 20_000_000;
+  if (year === 2027) return 15_000_000;
+  return 10_000_000;
+}
+const VAT_THRESHOLD_RUB = smbThresholdRub(new Date().getFullYear());
+function vatWarningText(year) {
+  const mln = smbThresholdRub(year) / 1_000_000;
+  return `При выручке от ~${mln} млн ₽/год на УСН обычно уже возникает обязанность платить НДС ` +
+    '(5% или 7% без вычетов, либо 22% с вычетами — на выбор). Мы это не считаем — ' +
+    'обязательно уточните у бухгалтера, применяется ли НДС к вам.';
+}
 
 // Лимит дохода на патенте (В2в, 14.10.2026): с 2026 года — 20 млн ₽, выше
 // него право на ПСН теряется. Источник — официальный налоговый календарь
@@ -57,15 +70,19 @@ const VAT_WARNING_TEXT =
 // не сверена: как считается доход при совмещении ПСН и УСН и меняется ли
 // лимит дальше — уточнить. Доход здесь — с начала года по данным компании,
 // не прогноз; поэтому при 80% только предупреждаем.
-const PATENT_INCOME_LIMIT_RUB = 20_000_000;
+// Лимит по году (18.10.2026): 2026 — 20 млн, 2027 — 15, с 2028 — 10. При
+// совмещении патента и УСН доходы считаются вместе (ФНС).
+const PATENT_INCOME_LIMIT_RUB = smbThresholdRub(new Date().getFullYear());
 const PATENT_LIMIT_WARNING_RATIO = 0.8;
 
-function patentLimitNote(revenue) {
-  if (revenue >= PATENT_INCOME_LIMIT_RUB) {
-    return 'Доход с начала года уже больше 20 млн ₽ — на патенте с таким доходом работать нельзя. Если вы сейчас на патенте, не откладывая обсудите с бухгалтером переход на УСН.';
+function patentLimitNote(revenue, year = new Date().getFullYear()) {
+  const limit = smbThresholdRub(year);
+  const mln = limit / 1_000_000;
+  if (revenue >= limit) {
+    return `Доход с начала года уже больше ${mln} млн ₽ — на патенте с таким доходом работать нельзя. Если вы сейчас на патенте, не откладывая обсудите с бухгалтером переход на УСН.`;
   }
-  if (revenue >= PATENT_INCOME_LIMIT_RUB * PATENT_LIMIT_WARNING_RATIO) {
-    return 'Доход с начала года приближается к лимиту патента — 20 млн ₽ в год. Выше него право на патент теряется, придётся переходить на УСН.';
+  if (revenue >= limit * PATENT_LIMIT_WARNING_RATIO) {
+    return `Доход с начала года приближается к лимиту патента — ${mln} млн ₽ в ${year} году (доходы на патенте и УСН считаются вместе). Выше него право на патент теряется, придётся переходить на УСН.`;
   }
   return null;
 }
@@ -163,8 +180,8 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
       label: 'Патент (ПСН)',
       // Доход выше лимита — патент недоступен: не считаем и не даём ему
       // стать «самым выгодным».
-      estimatedTaxRub: patentRate.status === 'found' && revenue < PATENT_INCOME_LIMIT_RUB ? patentRate.amount : null,
-      note: patentLimitNote(revenue) || (patentRate.status === 'found'
+      estimatedTaxRub: patentRate.status === 'found' && revenue < smbThresholdRub(year) ? patentRate.amount : null,
+      note: patentLimitNote(revenue, year) || (patentRate.status === 'found'
         ? (patentRate.reviewed ? null : 'Ставка ещё не проверена юристом — сверьте перед решением.')
         : 'Ставка для вашего региона/ниши пока не найдена в базе — уточните на сайте ФНС (patent.nalog.ru/info/).'),
     },
@@ -189,8 +206,8 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
     // Не привязано к конкретному regime — НДС актуален и для "Доходы", и
     // для "Доходы минус расходы" одинаково, поэтому отдельное поле, а не
     // note у одного из options.
-    vatWarning: revenue >= VAT_THRESHOLD_RUB ? VAT_WARNING_TEXT : null,
+    vatWarning: revenue >= smbThresholdRub(year) ? vatWarningText(year) : null,
   };
 }
 
-module.exports = { recommendTaxRegime, computeInsuranceContribution, FIXED_INSURANCE_CONTRIBUTION_RUB, PATENT_INCOME_LIMIT_RUB };
+module.exports = { recommendTaxRegime, computeInsuranceContribution, FIXED_INSURANCE_CONTRIBUTION_RUB, PATENT_INCOME_LIMIT_RUB, smbThresholdRub, patentLimitNote };

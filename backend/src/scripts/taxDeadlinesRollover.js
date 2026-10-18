@@ -1,6 +1,6 @@
 require('dotenv').config();
 const pool = require('../db/pool');
-const { syncTaxDeadlines, syncEmployerMonthly, currentTaxYear } = require('../core/taxDeadlines');
+const { syncTaxDeadlines, syncEmployerMonthly, addMissingFutureSlots, EMPLOYER_MONTHLY, currentTaxYear } = require('../core/taxDeadlines');
 const { notifyCompany } = require('../core/notifications');
 
 // Налоговые сроки нового года (14.10.2026, В1а плана этапа 2). Раньше сроки
@@ -58,22 +58,42 @@ async function run() {
   // сотрудников до появления этих сроков. syncEmployerMonthly не трогает уже
   // заведённые, так что ежедневный прогон безопасен. Без push: два срока
   // просто появляются в списке.
+  // 18.10.2026: проверяем все ежемесячные ключи, не только emp_monthly_main —
+  // иначе новый вид (взносы на травматизм) не дошёл бы до компаний, у
+  // которых остальные ежемесячные сроки уже заведены.
+  const monthlyKeys = EMPLOYER_MONTHLY.map((m) => m.key);
   const { rows: employers } = await pool.query(
     `SELECT c.id FROM companies c
      WHERE c.has_employees
-       AND NOT EXISTS (
-         SELECT 1 FROM deadlines d WHERE d.company_id = c.id AND d.related_entity_type = 'tax:emp_monthly_main'
-       )`
+       AND EXISTS (
+         SELECT 1 FROM unnest($1::text[]) k
+         WHERE NOT EXISTS (SELECT 1 FROM deadlines d WHERE d.company_id = c.id AND d.related_entity_type = k)
+       )`,
+    [monthlyKeys]
   );
   for (const e of employers) await syncEmployerMonthly(e.id, true, false);
+
+  // Новые виды годовых сроков (18.10.2026: уведомления по УСН, ОСН, ЕФС-1) —
+  // компаниям, у которых налоги уже настроены: только недостающие и будущие.
+  const { rows: configured } = await pool.query(
+    `SELECT c.id, c.tax_regime, to_char(c.ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, c.has_employees
+     FROM companies c
+     WHERE (c.tax_regime IS NOT NULL OR c.has_employees)
+       AND EXISTS (SELECT 1 FROM deadlines d WHERE d.company_id = c.id AND d.category = 'tax' AND d.related_entity_type LIKE $1)`,
+    [`tax:${year}:%`]
+  );
+  let backfilled = 0;
+  for (const c of configured) {
+    backfilled += await addMissingFutureSlots(c.id, c.tax_regime, { ipRegisteredAt: c.ip_registered_at, hasEmployees: c.has_employees }, { year });
+  }
 
   await pool.query(
     `INSERT INTO cron_heartbeats (job_key, last_run_at, note) VALUES ('taxDeadlinesRollover', now(), $1)
      ON CONFLICT (job_key) DO UPDATE SET last_run_at = now(), note = $1`,
-    [`год ${year}: проверено ${companies.length}, добавлены сроки ${rolled}; ежемесячные работодателя — ${employers.length}`]
+    [`год ${year}: проверено ${companies.length}, добавлены сроки ${rolled}; ежемесячные работодателя — ${employers.length}; дозаполнено новых — ${backfilled}`]
   );
 
-  console.log(`taxDeadlinesRollover: год ${year}, без сроков ${companies.length}, добавлены ${rolled}; ежемесячные работодателя — ${employers.length}`);
+  console.log(`taxDeadlinesRollover: год ${year}, без сроков ${companies.length}, добавлены ${rolled}; ежемесячные работодателя — ${employers.length}; дозаполнено новых — ${backfilled}`);
   await pool.end();
 }
 
