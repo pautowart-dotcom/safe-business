@@ -1322,23 +1322,22 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
 
   return (
     <div>
+      {/* 18.10.2026, вид приложения: индекс и зона уже в тёмной карточке
+          выше — здесь только действия, строками. */}
+      {hasResult ? (
+        <>
+          {isManagement && (
+            <Group>
+              <Row icon="check" title={continueLabel} subtitle="Индекс обновится по новым ответам" onClick={continueAction} />
+              <Row icon="doc" title="Скачать PDF-отчёт" subtitle="Для печати и для проверяющего" tag={hasPaidPlan ? undefined : 'По подписке'} tone={hasPaidPlan ? 'gray' : 'blue'} onClick={() => onDownloadReport(status.anchorSessionId)} />
+            </Group>
+          )}
+          {pdfPaywall && <div style={{ marginBottom: 12 }}><PdfPaywallNotice /></div>}
+        </>
+      ) : (
       <Card>
         <ST>Тест безопасности</ST>
-        {hasResult ? (
-          <div>
-            <Badge color={ZONE_COLOR[status.zone]} bg={ZONE_BG[status.zone]}>{ZONE_LABELS[status.zone]}</Badge>
-            <div style={{ fontSize: 13, color: C.secondary, margin: '10px 0' }}>Индекс безопасности: {status.indexPercent}%</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {isManagement && <Btn small variant="secondary" onClick={continueAction}>{continueLabel}</Btn>}
-              {isManagement && (
-                <Btn small onClick={() => onDownloadReport(status.anchorSessionId)}>
-                  {hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF · по подписке'}
-                </Btn>
-              )}
-            </div>
-            {pdfPaywall && <div style={{ marginTop: 10 }}><PdfPaywallNotice /></div>}
-          </div>
-        ) : products?.audit.available ? (
+        {products?.audit.available ? (
           <div>
             <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
               {/* 07.09.2026, живой разбор воронки: захардкоженное "34 вопроса"
@@ -1361,15 +1360,17 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
           </div>
         )}
       </Card>
+      )}
 
       <OpeningRoadmapCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} />
       <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
       <FranchiseCard isManagement={isManagement} />
-      {isManagement && isTestCompany && (
-        <Card onClick={() => navigate('/opening')} style={{ cursor: 'pointer' }}>
-          <ST>Точка ещё не открылась?</ST>
-          <div style={{ fontSize: 13, color: C.secondary }}>Ведите подготовку в кабинете: чек-лист вашей ниши с отметками и кнопка «Открылись» →</div>
-        </Card>
+      {/* Открытие внутри системы — для всех с 16.10.2026 (раньше было только
+          у тестовых компаний, условие осталось по ошибке). */}
+      {isManagement && (
+        <Group>
+          <Row icon="home" title="Точка ещё не открылась?" subtitle="Чек-лист вашей ниши с отметками и кнопка «Открылись»" onClick={() => navigate('/opening')} />
+        </Group>
       )}
 
       <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
