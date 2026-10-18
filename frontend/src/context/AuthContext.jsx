@@ -59,6 +59,9 @@ export function AuthProvider({ children }) {
   // модулю "Безопасность" в нав-баре (owner-only там — только видимость
   // пункта меню), сам роут открыт любой роли компании.
   const [niches, setNiches] = useState([]);
+  // Бесплатный уровень (18.10.2026, backend core/freeTier.js): 'full' |
+  // 'free' | 'locked'. Приходит вместе с /platform/companies/current.
+  const [accessLevel, setAccessLevel] = useState('full');
 
   function loadModules() {
     return api.get('/platform/modules').then((res) => {
@@ -76,6 +79,7 @@ export function AuthProvider({ children }) {
     return api
       .get('/platform/companies/current')
       .then((res) => {
+        setAccessLevel(res.data?.accessLevel || 'full');
         const real = res.data?.niches || [];
         setNiches(real.length > 0 ? real : (res.data?.signup_niche ? [res.data.signup_niche] : []));
       })
@@ -346,6 +350,8 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         user,
+        accessLevel,
+        isFreeTier: accessLevel === 'free',
         currentCompany,
         pendingCompanies,
         needsCompany,

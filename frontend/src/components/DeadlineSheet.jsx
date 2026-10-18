@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import Sheet from '../ui/Sheet.jsx';
 import toast from '../ui/toast.js';
-import { Btn, C } from '../ui/components.jsx';
+import { Btn, C, Icon } from '../ui/components.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { deadlineActions, daysLeft } from '../utils/deadlineActions.js';
 
 const CATEGORY_LABEL = { staff: 'Сотрудники', premises: 'Помещение', documents: 'Документы', tax: 'Налоги', financial: 'Финансы', operations: 'Работа студии' };
@@ -17,6 +18,7 @@ const SNOOZE_OPTIONS = [[3, 'Через 3 дня'], [7, 'Через неделю
 
 export default function DeadlineSheet({ item, onClose, onDone, onSnoozed }) {
   const navigate = useNavigate();
+  const { isFreeTier } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [snoozeOpen, setSnoozeOpen] = useState(false);
@@ -69,6 +71,29 @@ export default function DeadlineSheet({ item, onClose, onDone, onSnoozed }) {
       <div style={{ fontSize: 13, color: left != null && left < 0 ? C.red : C.secondary, fontWeight: 600, marginBottom: 4 }}>{when}</div>
       {CATEGORY_LABEL[item.category] && <div style={{ fontSize: 12, color: C.subtle, marginBottom: 12 }}>{CATEGORY_LABEL[item.category]}</div>}
       {item.note && <div style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.5, marginBottom: 14, whiteSpace: 'pre-wrap' }}>{item.note}</div>}
+      {/* Бесплатный уровень (18.10.2026, макет владельца): в день срока —
+          бесплатно, заранее — по подписке. Только для будущих сроков. */}
+      {isFreeTier && left != null && left > 0 && (
+        <>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.45, color: C.secondary, marginBottom: 12 }}>
+            <Icon name="check" size={17} color={C.green} sw={2.4} />
+            <span>Напомним {new Date(item.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, в день срока. Это бесплатно.</span>
+          </div>
+          <div style={{ background: C.blueBg, borderRadius: 16, padding: '12px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>Хотите напоминание заранее?</div>
+            <div style={{ fontSize: 12.5, color: C.secondary, lineHeight: 1.45, marginBottom: 8 }}>
+              По подписке напомним за 30, 14 и 7 дней — чтобы спокойно успеть продлить, а не в последний день.
+            </div>
+            <button
+              type="button"
+              onClick={() => { onClose(); navigate('/subscription'); }}
+              style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 800, color: C.blue, cursor: 'pointer' }}
+            >
+              Что входит в подписку →
+            </button>
+          </div>
+        </>
+      )}
       {error && <div className="alert alert-error">{error}</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
         {deadlineActions(item).map((a) =>

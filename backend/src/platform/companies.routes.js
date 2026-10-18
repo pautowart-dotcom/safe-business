@@ -10,6 +10,7 @@ const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
 const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
 const { isSubscriptionActive } = require('../core/middleware/subscription');
+const freeTier = require('../core/freeTier');
 
 const router = express.Router();
 
@@ -158,7 +159,10 @@ router.get(
            SELECT 1 FROM franchise_group_viewers v WHERE v.franchise_group_id = fg.id AND v.membership_id = $3)))`,
       [req.tenant.companyId, req.tenant.role, req.tenant.membershipId]
     );
-    res.json({ ...company, hasAiAccess, hasNetworkCabinet: networkRows.length > 0, niches: nichesRes.rows.map((r) => r.niche) });
+    // accessLevel (18.10.2026, core/freeTier.js): 'full' | 'free' | 'locked' —
+    // фронт показывает бесплатному уровню подсказки про подписку.
+    const accessLevel = await freeTier.accessLevel(req.tenant.companyId);
+    res.json({ ...company, hasAiAccess, accessLevel, hasNetworkCabinet: networkRows.length > 0, niches: nichesRes.rows.map((r) => r.niche) });
   })
 );
 

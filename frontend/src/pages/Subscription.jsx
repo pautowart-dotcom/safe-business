@@ -125,13 +125,15 @@ export default function Subscription() {
   const graceEnd = graceEndDate ? graceEndDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
   const accessDeadline = company?.subscription_status === 'past_due' ? graceEndDate : company?.subscription_current_period_end ? new Date(company.subscription_current_period_end) : null;
   const accessStillOpen = accessDeadline && accessDeadline > new Date();
+  // Бесплатный уровень (18.10.2026) — после пробного месяца кабинет открыт бесплатно.
+  const isFreeTier = company?.accessLevel === 'free';
 
   return (
     <div>
       <div className="ui-page-title" style={{ marginBottom: 4 }}>Подписка</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>
-        Статус: {STATUS_LABELS[company?.subscription_status] || '—'}
-        {company?.subscription_status === 'trial' && trialDaysLeft != null && ` · осталось ${trialDaysLeft} дн.`}
+        Статус: {isFreeTier ? 'Бесплатный доступ' : STATUS_LABELS[company?.subscription_status] || '—'}
+        {!isFreeTier && company?.subscription_status === 'trial' && trialDaysLeft != null && ` · осталось ${trialDaysLeft} дн.`}
         {company?.subscription_status === 'active' && periodEnd && ` · продлится ${periodEnd}`}
         {company?.subscription_status === 'gift' && periodEnd && ` · до ${periodEnd}`}
       </div>
@@ -150,7 +152,27 @@ export default function Subscription() {
       )}
       {error && <div className="alert alert-error">{error}</div>}
 
-      <Card>
+      {/* Бесплатный уровень (18.10.2026, backend core/freeTier.js): после
+          пробного месяца кабинет не закрывается — честно показываем, что
+          остаётся бесплатно и что добавляет подписка. */}
+      {isFreeTier && (
+        <Card>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Бесплатно остаётся</div>
+          <ul style={{ fontSize: 13, color: C.secondary, lineHeight: 1.7, margin: '0 0 14px', paddingLeft: 18 }}>
+            <li>Тест, индекс безопасности и список того, что не в порядке</li>
+            <li>«Мои сроки» и главный экран со списком дел</li>
+            <li>Напоминание в день срока</li>
+          </ul>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Подписка добавит</div>
+          <ul style={{ fontSize: 13, color: C.secondary, lineHeight: 1.7, margin: 0, paddingLeft: 18 }}>
+            <li>Напоминания заранее — за 30, 14 и 7 дней до срока</li>
+            <li>Заключение по каждому пункту: штраф, норма, что делать, PDF</li>
+            <li>Проверка месяца, ИИ-советник, дата с фото документа</li>
+          </ul>
+        </Card>
+      )}
+
+      {!isFreeTier && <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Что открывает подписка</div>
         {/* 30.08.2026: раньше здесь была одна размытая фраза "и другие
             платные возможности платформы" — по данным, именно неясность,
@@ -166,7 +188,7 @@ export default function Subscription() {
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.6 }}>
           Сам тест, его результат и индекс безопасности остаются бесплатными и доступны без подписки.
         </div>
-      </Card>
+      </Card>}
 
       <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{company?.subscription_status === 'active' ? (company?.subscription_price_rub || 1990) : 1990} ₽/мес</div>

@@ -133,7 +133,8 @@ router.get(
       // Автоизвлечение дат (30.08.2026) — фронт показывает кнопку
       // "Распознать дату" только если ключ реально настроен, иначе кнопка
       // вела бы в гарантированную ошибку 503.
-      aiDateDetectionAvailable: isAiConfigured(),
+      // Бесплатный уровень (core/freeTier.js): дата с фото — по подписке.
+      aiDateDetectionAvailable: isAiConfigured() && req.accessLevel !== 'free',
       sout: {
         lastAt: company.sout_last_at || null,
         nextDueDate: company.sout_last_at ? addYears(company.sout_last_at, 5) : null,

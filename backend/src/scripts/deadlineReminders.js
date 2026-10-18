@@ -2,6 +2,7 @@ require('dotenv').config();
 const pool = require('../db/pool');
 const { notifyCompany } = require('../core/notifications');
 const { moscowDateStr } = require('../utils/moscowDate');
+const { accessLevel } = require('../core/freeTier');
 
 // Повторные напоминания о приближающихся сроках (05.09.2026) — closes a real
 // gap: core/deadlines.js шлёт push РОВНО ОДИН РАЗ, в момент, когда владелец
@@ -52,11 +53,20 @@ async function run() {
   // Сегодня по этим срокам уже напомнили — не шлём второе уведомление подряд.
   const remindedNow = new Set(snoozed.map((r) => r.id));
 
+  // Бесплатный уровень (core/freeTier.js): напоминание только в день срока,
+  // заранее — по подписке. Уровень считаем один раз на компанию.
+  const levels = new Map();
+  async function levelOf(companyId) {
+    if (!levels.has(companyId)) levels.set(companyId, await accessLevel(companyId));
+    return levels.get(companyId);
+  }
+
   for (const row of rows) {
     if (remindedNow.has(row.id)) continue;
     const daysUntil = Math.round((new Date(`${row.due_date}T00:00:00Z`) - new Date(`${today}T00:00:00Z`)) / 86400000);
     const threshold = THRESHOLDS.find((t) => daysUntil <= t);
     if (threshold === undefined) continue;
+    if (threshold > 0 && (await levelOf(row.company_id)) === 'free') continue;
     if (row.last_reminded_days_before !== null && row.last_reminded_days_before <= threshold) continue;
 
     await pool.query('UPDATE deadlines SET last_reminded_days_before = $1 WHERE id = $2', [threshold, row.id]);

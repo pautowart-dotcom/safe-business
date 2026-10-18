@@ -1,5 +1,6 @@
 const pool = require('../../db/pool');
 const asyncHandler = require('../../utils/asyncHandler');
+const freeTier = require('../freeTier');
 
 // С 27.07.2026 бесплатного пользования после триала больше нет — компания,
 // зарегистрированная ПОСЛЕ этой даты, теряет доступ к платформе, если триал
@@ -80,16 +81,32 @@ const requireTenant = asyncHandler(async (req, res, next) => {
 
   if (!isExempt(req)) {
     const { rows } = await pool.query(
-      'SELECT subscription_status, trial_ends_at, created_at FROM companies WHERE id = $1',
+      'SELECT subscription_status, trial_ends_at, created_at, is_test FROM companies WHERE id = $1',
       [req.tenant.companyId]
     );
     const company = rows[0];
     const trialExpired = company?.subscription_status === 'trial' && company.trial_ends_at && new Date(company.trial_ends_at) < new Date();
-    if (company && company.created_at >= HARD_TRIAL_CUTOFF && trialExpired) {
-      return res.status(402).json({
-        error: 'Бесплатный период закончился. Оформите подписку, чтобы продолжить пользоваться платформой.',
-        requiresSubscription: true,
-      });
+    const trialLocked = company && company.created_at >= HARD_TRIAL_CUTOFF && trialExpired;
+    // Бесплатный уровень (18.10.2026, core/freeTier.js): после пробного
+    // месяца или окончания подписки кабинет не закрывается целиком — открыто
+    // бесплатное, платное отвечает 402 paidFeature (без перехода на страницу
+    // подписки). Уровень выключен для компании — всё как раньше.
+    const lapsed = company && ['cancelled', 'past_due', 'gift'].includes(company.subscription_status) && freeTier.enabledFor(company);
+    if (trialLocked || lapsed) {
+      const level = await freeTier.accessLevel(req.tenant.companyId);
+      req.accessLevel = level;
+      if (level === 'locked') {
+        return res.status(402).json({
+          error: 'Бесплатный период закончился. Оформите подписку, чтобы продолжить пользоваться платформой.',
+          requiresSubscription: true,
+        });
+      }
+      if (level === 'free' && !freeTier.isFreePath(req.originalUrl)) {
+        return res.status(402).json({
+          error: 'Это входит в подписку — оформите её в разделе «Подписка».',
+          paidFeature: true,
+        });
+      }
     }
   }
 

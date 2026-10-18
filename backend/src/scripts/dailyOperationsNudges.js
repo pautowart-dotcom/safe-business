@@ -7,6 +7,7 @@ const { computeMarginByService } = require('../modules/finance/marginAdvisor');
 const { computeDiscountRepeatComparison } = require('../modules/finance/discountAdvisor');
 const { computeMasterDepartureImpact } = require('../modules/finance/masterDepartureAdvisor');
 const { NEW_COHORT_CUTOFF } = require('../core/cohort');
+const { accessLevel } = require('../core/freeTier');
 const { buildBusinessContext, hasNotableComplianceFindings } = require('../platform/ai-advisor-subscription.routes');
 
 // Запускается раз в сутки по cron (см. deploy/provision.sh), утром по
@@ -360,6 +361,9 @@ async function nudgeMonthlyCheck() {
   );
   for (const { id } of companies) {
     await clearAction({ relatedEntityType: `monthly_check:${prevMonth}`, relatedEntityId: id, category: 'documents' });
+    // Бесплатный уровень (core/freeTier.js): проверка месяца — по подписке,
+    // не зовём туда, где её не открыть.
+    if ((await accessLevel(id)) === 'free') continue;
     await registerAction({
       companyId: id,
       category: 'documents',

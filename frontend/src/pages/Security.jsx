@@ -2554,7 +2554,7 @@ function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates })
         icon={resolvedV ? 'check' : 'shield'}
         tone={resolvedV ? 'green' : v.risk >= 9 ? 'red' : v.risk >= 7 ? 'orange' : 'gray'}
         title={v.title}
-        subtitle={resolvedV ? 'Устранено' : `Штраф: ${v.fineText}`}
+        subtitle={resolvedV ? 'Устранено' : v.locked ? 'Штраф и что делать — по подписке' : `Штраф: ${v.fineText}`}
         tag={resolvedV ? undefined : `${v.risk}/10`}
         onClick={() => setOpenId(v.id)}
       />
@@ -2588,6 +2588,31 @@ function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates })
 function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) {
   const navigate = useNavigate();
   const color = riskColor(violation.risk);
+  // Бесплатный уровень (18.10.2026): сервер отдаёт только название и риск —
+  // подробности (штраф, норма, что делать) входят в подписку.
+  if (violation.locked) {
+    return (
+      <div>
+        <div style={{ marginBottom: 10 }}>
+          <Badge color={violation.status === 'resolved' ? C.green : color} bg={C.surface}>
+            {violation.status === 'resolved' ? 'Устранено' : `Риск ${violation.risk} из 10`}
+          </Badge>
+        </div>
+        <div style={{ background: C.blueBg, borderRadius: 16, padding: '12px 14px', marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>Почему это важно и что делать</div>
+          <div style={{ fontSize: 12.5, color: C.secondary, lineHeight: 1.45 }}>
+            Какой может быть штраф, на какой норме это основано и что сделать по шагам — входит в подписку, вместе с напоминаниями заранее.
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Btn onClick={() => navigate('/subscription')}>Что входит в подписку</Btn>
+          {isManagement && violation.status === 'open' && (
+            <Btn variant="secondary" onClick={() => onResolve(violation.id)}>Уже исправили — отметить</Btn>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
     <div>
       <div style={{ marginBottom: 10 }}>

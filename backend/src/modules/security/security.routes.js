@@ -22,6 +22,7 @@ const { isAiConfigured, matchDocumentToDeadlineSlot } = require('../../core/docu
 const { CATALOG: DEADLINE_CATALOG } = require('../../core/deadlineSlotsCatalog');
 const templateViolationLinks = require('../document-templates/content/templateViolationLinks');
 const { alreadyHasDocument } = require('../document-templates/documentSignal');
+const freeTier = require('../../core/freeTier');
 
 // Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
 // точной даты нет) из docs/task-batch-4.txt. category='documents' — тест
@@ -232,15 +233,10 @@ router.get(
     // штраф, норма и план стоят за размытием, но раньше сам текст приходил в
     // ответе и читался через инструменты разработчика (08.10.2026). После
     // успешной оплаты (и для всех обычных пользователей) ответ полный.
-    const { rows: guestRows } = await pool.query('SELECT is_guest FROM users WHERE id = $1', [req.user.id]);
-    if (guestRows[0]?.is_guest && Array.isArray(status.violations)) {
-      const { rows: paidRows } = await pool.query(
-        `SELECT 1 FROM subscription_payments WHERE company_id = $1 AND status = 'succeeded' LIMIT 1`,
-        [req.tenant.companyId]
-      );
-      if (paidRows.length === 0) {
-        status.violations = status.violations.map((v) => ({ code: v.code, block: v.block, title: v.title, risk: v.risk, status: v.status }));
-      }
+    // 18.10.2026: то же правило и для бесплатного уровня (core/freeTier.js) —
+    // заключение видно только с оплатой или в пробный месяц.
+    if (Array.isArray(status.violations) && !(await freeTier.canSeeConclusion({ companyId: req.tenant.companyId, userId: req.user.id }))) {
+      status.violations = status.violations.map(freeTier.namesOnly);
     }
     res.json(status);
   })
@@ -694,7 +690,14 @@ router.get(
       }
     }
 
-    res.json(scoring.sortByRisk(withDetails));
+    // 18.10.2026: штраф, норма и решение — это заключение. Раньше этот
+    // список отдавал их и гостю без оплаты (в /status они уже были урезаны,
+    // здесь — нет). Без права на заключение — только названия и риск.
+    const sorted = scoring.sortByRisk(withDetails);
+    if (!(await freeTier.canSeeConclusion({ companyId: req.tenant.companyId, userId: req.user.id }))) {
+      return res.json(sorted.map(freeTier.namesOnly));
+    }
+    res.json(sorted);
   })
 );
 

@@ -50,6 +50,12 @@ api.interceptors.response.use(
         window.location.href = '/lk/subscription';
       }
     }
+    // Бесплатный уровень (18.10.2026): платный раздел отвечает 402 paidFeature —
+    // без перехода на страницу подписки, Layout.jsx показывает шторку
+    // «Это входит в подписку».
+    if (error.response?.status === 402 && error.response?.data?.paidFeature) {
+      window.dispatchEvent(new CustomEvent('paid-feature'));
+    }
     return Promise.reject(error);
   }
 );

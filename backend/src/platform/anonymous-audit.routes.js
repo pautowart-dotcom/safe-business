@@ -165,6 +165,14 @@ router.post(
       'UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3 WHERE id = $1',
       [req.user.id, email, !!req.body?.analyticsConsent]
     );
+    // Пробный месяц — с момента, когда человек сохранил результат, а не с
+    // начала гостевого теста (18.10.2026): иначе вернувшийся через три недели
+    // получал неделю. Только для ещё не оплаченного триала.
+    await pool.query(
+      `UPDATE companies SET trial_ends_at = now() + interval '30 days'
+       WHERE id = $1 AND subscription_status = 'trial'`,
+      [req.tenant.companyId]
+    );
 
     const claimToken = crypto.randomBytes(32).toString('hex');
     const claimTokenHash = crypto.createHash('sha256').update(claimToken).digest('hex');

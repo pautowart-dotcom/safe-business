@@ -5,6 +5,7 @@ import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx'
 import Icon from '../ui/Icon.jsx';
 import OnboardingModal from './OnboardingModal.jsx';
 import AiAssistantWidget from './AiAssistantWidget.jsx';
+import PaidFeatureSheet from './PaidFeatureSheet.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import api from '../api/client.js';
 import { C, F, MAX_WIDTH, PAGE_BG, SH } from '../ui/theme.js';
@@ -499,6 +500,7 @@ export default function Layout() {
         </div>
 
         {isOwner && hasModule('ai-assistant') && <AiAssistantWidget />}
+        <PaidFeatureSheet />
       </div>
     );
   }
@@ -662,6 +664,7 @@ export default function Layout() {
           раньше была у пункта меню/роута: owner-only + модуль ai-assistant
           включён для компании (company_modules). */}
       {isOwner && hasModule('ai-assistant') && <AiAssistantWidget />}
+        <PaidFeatureSheet />
     </div>
   );
 }
