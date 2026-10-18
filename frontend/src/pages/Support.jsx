@@ -71,7 +71,7 @@ export default function Support() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Помощь и поддержка</div>
+      <div className="ui-page-title" style={{ marginBottom: 20 }}>Помощь и поддержка</div>
 
       {faq && (
         <Card style={{ marginBottom: 12 }}>

@@ -1,78 +1,45 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, Badge, Btn, C } from '../ui/components.jsx';
+import { C, Group, Row } from '../ui/components.jsx';
+import DeadlineSheet from '../components/DeadlineSheet.jsx';
+import { daysLeft, dueTag, deadlineIcon } from '../utils/deadlineActions.js';
 import { downloadPdf } from '../utils/downloadPdf.js';
 
-// Фаза 1 движка бизнес-статуса: карточка триггера ведёт на универсальную
-// страницу перехода (business-status/content), а не отмечается "Готово" —
-// решение (взять в работу/отклонить/выполнено) принимается там же, где
-// показаны шаги, не одним кликом со списка. legal_form_unknown — тот же
-// формат related_entity_type, но без конкретного transitionKey: там просто
-// экран "Мои сроки", где это поле редактируется.
-const BUSINESS_STATUS_PREFIX = 'business_status:';
-
-// Пакет 4, Этап 4: карточка допечатки журнала (related_entity_type ===
-// 'generated_journal_reprint') получает "Сгенерировать новый" вместо
-// обычного "Готово" — это не ручная отметка, а действие, которое реально
-// заводит новый бланк (Этап 3 повторно) и скачивает его.
+// Пакет 4, Этап 4: допечатка журнала (related_entity_type ===
+// 'generated_journal_reprint') — не ручная отметка, а действие, которое
+// заводит новый бланк и скачивает его; запускается сразу по тапу.
 const REPRINT_RELATED_TYPE = 'generated_journal_reprint';
-
-// document_verify (18.09.2026, "связать все точки"): владелец в тесте
-// отметил "документ уже есть" — нарушения нет, значит это действие никогда
-// не попало бы ни в "Нарушения", ни в критические действия (см.
-// backend/security.routes.js syncDocumentVerifyActions). Ведёт не на
-// generic "Готово" (документ мог устареть/потеряться, отметка "готово"
-// здесь была бы неправдой), а во вкладку "Документы" — туда же, где
-// "Проверка документа на риски".
-const DOCUMENT_VERIFY_PREFIX = 'document_verify:';
-
-// 09.09.2026 — пункты каталога "Мои сроки" (core/deadlineSlotsCatalog.js),
-// у которых есть инструкция "как продлить/оформить". Список сознательно
-// маленький и дублируется вручную здесь (не импортируем backend-каталог во
-// фронтенд) — тот же приём, что уже используется в этом файле для
-// REPRINT_RELATED_TYPE/BUSINESS_STATUS_PREFIX. Сама инструкция не
-// дублируется — просто ведём в "Мои сроки", где она уже отрисована рядом
-// с полем даты (InstructionBlock в MyDeadlines.jsx).
-const MANUAL_KEYS_WITH_INSTRUCTION = [
-  'esign', 'briefing_repeat', 'lease_end', 'fire_extinguisher', 'fire_alarm_service',
-  'electrical_resistance', 'disinfection_contract', 'medwaste_contract', 'mswaste_contract',
-  'ofd_contract',
-];
 
 // Пакет 4, Этап 1: 'legal' → 'documents', добавлены 'premises' и 'journals'.
 // 'journals' убрана 05.08.2026 — раздел заморожен, сервер эту категорию
 // теперь всегда отдаёт пустой (deadlines.routes.js), фильтр был бы мёртвым.
 const CATEGORIES = [
-  { key: 'staff', label: 'Кадровые', color: C.red, bg: C.redBg },
-  { key: 'premises', label: 'Помещение', color: C.blue, bg: C.blueBg },
-  { key: 'documents', label: 'Юридические', color: C.primary, bg: C.surface },
-  { key: 'tax', label: 'Налоговые', color: C.orange, bg: C.orangeBg },
-  { key: 'financial', label: 'Финансовые', color: C.green, bg: C.greenBg },
-  { key: 'operations', label: 'Операционные', color: C.subtle, bg: C.surface },
+  { key: 'staff', label: 'Кадровые' },
+  { key: 'premises', label: 'Помещение' },
+  { key: 'documents', label: 'Юридические' },
+  { key: 'tax', label: 'Налоговые' },
+  { key: 'financial', label: 'Финансовые' },
+  { key: 'operations', label: 'Операционные' },
 ];
-// Категория с бэкенда, для которой здесь нет описания (например, добавлена
-// новой миграцией, а этот список забыли обновить, как случилось с
-// 'operations' — deadlines.routes.js её уже отдавал, а тут её не было и
-// cat.color падал с TypeError) — нейтральный бейдж вместо падения страницы.
-const UNKNOWN_CATEGORY = { label: 'Другое', color: C.subtle, bg: C.surface };
+// Категория с бэкенда, для которой здесь нет описания — нейтральная подпись
+// вместо падения страницы.
+const UNKNOWN_CATEGORY = { label: 'Другое' };
 const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
 
-function daysLeft(dueDate) {
-  const ms = new Date(dueDate) - new Date(new Date().toDateString());
-  return Math.round(ms / 86400000);
+function fullDate(d) {
+  return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export default function Deadlines() {
-  const navigate = useNavigate();
   const { isManagement, isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reprinting, setReprinting] = useState(null);
+  const [openItem, setOpenItem] = useState(null);
   // Налоговые дедлайны скрыты от Администратора (Этап 4) — сам фильтр по
   // ней тоже незачем показывать, он бы вёл в пустой список.
   const visibleCategories = isAdmin ? CATEGORIES.filter((c) => c.key !== 'tax') : CATEGORIES;
@@ -86,15 +53,12 @@ export default function Deadlines() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
   usePullToRefresh(load);
 
-  async function markDone(id) {
-    await api.patch(`/platform/deadlines/${id}`, { status: 'done' });
-    load();
-  }
-
   async function reprintJournal(item) {
+    if (reprinting) return;
     setReprinting(item.id);
     setError('');
     try {
@@ -108,31 +72,31 @@ export default function Deadlines() {
     }
   }
 
+  // 18.10.2026, вид приложения: группы по срочности, строки «как в
+  // Настройках», тап — шторка с кнопками (utils/deadlineActions.js — те же
+  // правила, что были здесь карточками). Мастеру — только даты, без
+  // «просрочено» и без действий (решение владельца: без давления).
+  const groups = [
+    ['Горит', items.filter((i) => i.due_date && daysLeft(i.due_date) <= 0)],
+    ['Нужно внимание', items.filter((i) => !i.due_date)],
+    ['Дальше', items.filter((i) => i.due_date && daysLeft(i.due_date) > 0)],
+  ].filter(([, list]) => list.length > 0);
+
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Дедлайны</div>
+      <div className="ui-page-title" style={{ marginBottom: 16 }}>Дедлайны</div>
 
-      {/* Баг №9: overflowX:auto без видимой подсказки о прокрутке выглядел как
-          "обрезано" — категория "Юридические" и дальше были не видны и не
-          воспринимались как доступные для переключения (см. скриншот
-          владельца). flexWrap показывает все категории сразу, без скролла. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-        <button
-          onClick={() => setCategory('')}
-          style={{
-            padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
-            background: category === '' ? C.primary : C.bg, color: category === '' ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
-          }}
-        >
-          Все
-        </button>
-        {visibleCategories.map((c) => (
+      {/* Баг №9: все категории сразу, переносом, без горизонтального скролла. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
+        {[{ key: '', label: 'Все' }, ...visibleCategories].map((c) => (
           <button
-            key={c.key}
+            key={c.key || 'all'}
             onClick={() => setCategory(c.key)}
+            className="ui-btn"
             style={{
-              padding: '7px 14px', borderRadius: 10, border: `1px solid ${C.border}`, cursor: 'pointer',
-              background: category === c.key ? C.primary : C.bg, color: category === c.key ? '#FFF' : C.secondary, fontSize: 13, fontWeight: 600,
+              padding: '7px 14px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: category === c.key ? C.primary : C.bg, color: category === c.key ? '#FFF' : C.secondary,
+              boxShadow: category === c.key ? 'none' : '0 0 0 1px rgba(15,27,45,.08)', fontSize: 13, fontWeight: 600,
             }}
           >
             {c.label}
@@ -145,177 +109,38 @@ export default function Deadlines() {
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : items.length === 0 ? (
-        <div className="empty-hint">Предстоящих сроков нет</div>
+        <Group><Row icon="check" tone="green" title="Предстоящих сроков нет" subtitle="Когда появятся — напомним заранее." /></Group>
+      ) : !isManagement ? (
+        <Group>
+          {items.map((item) => (
+            <Row key={item.id} icon={deadlineIcon(item)} title={item.title} subtitle={item.due_date ? fullDate(item.due_date) : 'Требует внимания'} />
+          ))}
+        </Group>
       ) : (
-        items.map((item) => {
-          const cat = CATEGORY_BY_KEY[item.category] || UNKNOWN_CATEGORY;
-          const isReprint = item.related_entity_type === REPRINT_RELATED_TYPE;
-          // Нарушение из теста безопасности (29.08.2026) — "Готово" здесь
-          // раньше просто прятало бы запись из Дедлайнов (PATCH .../deadlines/:id),
-          // не трогая security_violations.status. Разошлось бы с вкладкой
-          // "Нарушения" (там всё ещё "открыто") и, для администратора, тихо
-          // обходило бы owner-only ограничение на резолюцию нарушений
-          // (политика конфиденциальности §8.4 — Безопасность видна только
-          // владельцу). Вместо "Готово" — ссылка туда, где реально решается.
-          const isSecurityViolation = item.related_entity_type === 'security_violation';
-          // test_findings_followup (22.09.2026) — разовое напоминание на
-          // следующий день после регистрации, если открытые нарушения из
-          // теста так и остались открытыми (dailyOperationsNudges.js). Та же
-          // цель, что у "Открыть" ниже (isSecurityViolation) — вкладка
-          // "Нарушения", а не общий "Обзор".
-          const isTestFindingsFollowup = item.related_entity_type === 'test_findings_followup';
-          const businessStatusKey = item.related_entity_type?.startsWith(BUSINESS_STATUS_PREFIX)
-            ? item.related_entity_type.slice(BUSINESS_STATUS_PREFIX.length)
-            : null;
-          const isBusinessStatusUnknown = businessStatusKey === 'legal_form_unknown';
-          const isBusinessStatusTransition = businessStatusKey && !isBusinessStatusUnknown;
-          const manualKey = item.related_entity_type?.startsWith('manual:') ? item.related_entity_type.slice('manual:'.length) : null;
-          const hasManualInstruction = manualKey && MANUAL_KEYS_WITH_INSTRUCTION.includes(manualKey);
-          const isDocumentVerify = item.related_entity_type?.startsWith(DOCUMENT_VERIFY_PREFIX);
-          // document_risk_check_review (18.09.2026) — та же вкладка
-          // "Документы", что и document_verify выше, но отдельный тип: это
-          // готовая проверка, которую ещё не открывали, а не "документ
-          // отмечен как уже существующий" — разные события-источники,
-          // хотя ведут в одно место.
-          const isRiskCheckReview = item.related_entity_type === 'document_risk_check_review';
-          // inspection_order (19.09.2026) — срок исправления по предписанию,
-          // заведённый из вкладки "Проверки" (inspections.routes.js). "Готово"
-          // здесь уместно (это настоящий дедлайн), поэтому общая кнопка не
-          // скрывается — только добавляется переход туда, где запись живёт.
-          const isInspectionOrder = item.related_entity_type === 'inspection_order';
-          // Пакет 4, Этап 1: "Действия" (kind='action') — условие есть,
-          // точной даты нет ("не пройден тест", "кончаются расходники") —
-          // без due_date, поэтому считать дни/показывать дату для них нельзя.
-          const isAction = item.kind === 'action' || !item.due_date;
-          const left = isAction ? null : daysLeft(item.due_date);
-
-          // Владелец: мастеру не нужны точные сроки/давление ("Просрочено на
-          // X дн.") — только дата в кружке и название, без урджент-бейджей.
-          // Общий календарь для всех ролей — отдельная задача на будущее.
-          if (!isManagement) {
-            return (
-              <Card key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div
-                  style={{
-                    width: 40, height: 40, minWidth: 40, borderRadius: '50%', background: C.surface,
-                    border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, color: C.primary, flexShrink: 0,
-                  }}
-                >
-                  {isAction ? '–' : new Date(item.due_date).getDate()}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div>
-                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                    {isAction ? 'Требует внимания' : new Date(item.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                </div>
-              </Card>
-            );
-          }
-
-          return (
-            <Card key={item.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'center', gap: 10 }}>
-              {/* Текст на всю ширину карточки, кнопки — отдельным рядом под ним
-                  (22.09.2026): раньше две-три кнопки справа забирали почти всю
-                  ширину, название сжималось в узкую колонку и обрезалось. */}
-              <div style={{ minWidth: 0, flex: '1 1 100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Badge color={cat.color} bg={cat.bg}>{cat.label}</Badge>
-                  {isAction ? (
-                    <span style={{ fontSize: 12, color: C.subtle }}>Требует внимания</span>
-                  ) : left < 0 ? (
-                    <span style={{ fontSize: 12, color: C.red, fontWeight: 700 }}>Просрочено на {Math.abs(left)} дн.</span>
-                  ) : left === 0 ? (
-                    <span style={{ fontSize: 12, color: C.orange, fontWeight: 700 }}>Сегодня</span>
-                  ) : (
-                    <span style={{ fontSize: 12, color: C.subtle }}>через {left} дн.</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div>
-                {!isAction && (
-                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
-                    {new Date(item.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                )}
-              </div>
-              {isManagement && isReprint && (
-                <Btn small variant="secondary" disabled={reprinting === item.id} onClick={() => reprintJournal(item)}>
-                  {reprinting === item.id ? 'Создаём...' : 'Сгенерировать новый'}
-                </Btn>
-              )}
-              {isManagement && isBusinessStatusTransition && (
-                <Btn small variant="secondary" onClick={() => navigate(`/business-status/${businessStatusKey}`)}>
-                  Подробнее
-                </Btn>
-              )}
-              {isManagement && isBusinessStatusUnknown && (
-                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })}>
-                  Уточнить
-                </Btn>
-              )}
-              {isManagement && isSecurityViolation && (
-                <Btn small variant="secondary" onClick={() => navigate('/security')}>
-                  Открыть
-                </Btn>
-              )}
-              {isManagement && isTestFindingsFollowup && (
-                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'violations' } })}>
-                  Посмотреть
-                </Btn>
-              )}
-              {/* 18.09.2026 — второй линк с того же критического нарушения: не
-                  только "Открыть" (общий текст решения из матрицы), но и
-                  "Спросить ИИ" с уже подставленным вопросом про ЭТО
-                  нарушение (AiAdvisor.jsx читает location.state.prefillQuestion).
-                  Если ИИ-надбавка не подключена, ведёт на тот же экран, там
-                  просто покажется предложение подключить — само по себе
-                  неплохой момент для допродажи, не отдельный кейс, который
-                  нужно обрабатывать здесь. */}
-              {isManagement && isSecurityViolation && (
-                <Btn
-                  small
-                  variant="secondary"
-                  onClick={() => navigate('/ai-advisor', { state: { prefillQuestion: `Что мне делать с нарушением «${item.title}»?` } })}
-                >
-                  Спросить ИИ
-                </Btn>
-              )}
-              {isManagement && isDocumentVerify && (
-                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'documents' } })}>
-                  Проверить
-                </Btn>
-              )}
-              {/* Проверка месяца (17.10.2026) — снимается сама, когда проверку прошли. */}
-              {isManagement && item.related_entity_type?.startsWith('monthly_check:') && (
-                <Btn small onClick={() => navigate('/monthly-check')}>Пройти</Btn>
-              )}
-              {isManagement && isInspectionOrder && (
-                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'inspection' } })}>
-                  Открыть
-                </Btn>
-              )}
-              {isManagement && isRiskCheckReview && (
-                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { dashboardTab: 'documents' } })}>
-                  Открыть
-                </Btn>
-              )}
-              {isManagement && hasManualInstruction && (
-                <Btn small variant="secondary" onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })}>
-                  Как продлить
-                </Btn>
-              )}
-              {isManagement && !isReprint && !isBusinessStatusTransition && !isBusinessStatusUnknown && !isSecurityViolation && !isDocumentVerify && !isRiskCheckReview && (
-                <button
-                  onClick={() => markDone(item.id)}
-                  style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.secondary }}
-                >
-                  Готово
-                </button>
-              )}
-            </Card>
-          );
-        })
+        <>
+          {groups.map(([title, list]) => (
+            <Group key={title} title={title} aside={String(list.length)}>
+              {list.map((item) => {
+                const tag = dueTag(item);
+                const isReprint = item.related_entity_type === REPRINT_RELATED_TYPE;
+                const cat = CATEGORY_BY_KEY[item.category] || UNKNOWN_CATEGORY;
+                const hint = isReprint ? (reprinting === item.id ? ' · создаём…' : ' · нажмите, чтобы скачать новый') : '';
+                return (
+                  <Row
+                    key={item.id}
+                    icon={deadlineIcon(item)}
+                    tone={tag.tone}
+                    title={item.title}
+                    subtitle={`${cat.label}${item.due_date ? ` · ${fullDate(item.due_date)}` : ''}${hint}`}
+                    tag={tag.text}
+                    onClick={() => (isReprint ? reprintJournal(item) : setOpenItem(item))}
+                  />
+                );
+              })}
+            </Group>
+          ))}
+          <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={() => load()} />
+        </>
       )}
     </div>
   );

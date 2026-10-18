@@ -480,7 +480,7 @@ export default function Security() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Безопасность</div>
+      <div className="ui-page-title" style={{ marginBottom: 4 }}>Безопасность</div>
 
       {isManagement && (
         <div style={{ display: 'flex', background: C.surface, borderRadius: 12, padding: 3, margin: '12px 0 16px' }}>
@@ -614,7 +614,7 @@ function SegmentationForm({ initial, onSaved, onCancel }) {
   return (
     <div>
       {onCancel && <BackBtn onClick={onCancel} />}
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Определим сферу деятельности</div>
+      <div className="ui-page-title" style={{ marginBottom: 6 }}>Определим сферу деятельности</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>Чтобы не задавать нерелевантные вопросы и не показывать нарушения, которые не относятся к вашему бизнесу.</div>
 
       <Field label="Как оформлена деятельность?">
@@ -886,7 +886,7 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, hasPremises, onClose, on
           Что именно нашли — посмотреть нарушения
         </Btn>
       )}
-      <Btn variant="secondary" onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт 🔒 по подписке'}</Btn>
+      <Btn variant="secondary" onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт · по подписке'}</Btn>
     </div>
   );
 }
@@ -906,7 +906,7 @@ function SecurityDashboard({
 
   return (
     <div>
-      {!hideTitle && <div style={{ fontSize: 20, fontWeight: 800 }}>Безопасность</div>}
+      {!hideTitle && <div className="ui-page-title">Безопасность</div>}
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         {nicheLabels.join(', ') || '—'} · {LEGAL_FORM_OPTIONS.find((o) => o.value === profile.legalForm)?.label}
         {isManagement && <span onClick={onEditProfile} style={{ color: C.primary, fontWeight: 600, cursor: 'pointer', marginLeft: 8 }}>Изменить</span>}
@@ -1397,7 +1397,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
               {isManagement && <Btn small variant="secondary" onClick={continueAction}>{continueLabel}</Btn>}
               {isManagement && (
                 <Btn small onClick={() => onDownloadReport(status.anchorSessionId)}>
-                  {hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF 🔒'}
+                  {hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF · по подписке'}
                 </Btn>
               )}
             </div>
@@ -1551,7 +1551,7 @@ function OpeningRoadmapCard({ isManagement, hasPaidPlan, isTestCompany }) {
       {roadmap && (
         <div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            <Btn small onClick={downloadRoadmapPdf}>{hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF 🔒'}</Btn>
+            <Btn small onClick={downloadRoadmapPdf}>{hasPaidPlan ? 'Скачать PDF' : 'Скачать PDF · по подписке'}</Btn>
             <Btn small variant="secondary" onClick={() => { setRoadmap(null); setNicheChoice(null); }}>Свернуть</Btn>
           </div>
           {pdfPaywall && <div style={{ marginBottom: 10 }}><PdfPaywallNotice /></div>}
@@ -2296,7 +2296,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           )}
 
           {!addon || !addon.purchased ? (
-            <Btn small variant="secondary" disabled>Заполнить и сгенерировать 🔒</Btn>
+            <Btn small variant="secondary" disabled>Заполнить и сгенерировать · по подписке</Btn>
           ) : openKey !== t.key ? (
             <Btn
               small

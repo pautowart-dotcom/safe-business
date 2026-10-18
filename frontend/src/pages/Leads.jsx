@@ -181,7 +181,7 @@ export default function Leads() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Заявки</div>
+        <div className="ui-page-title">Заявки</div>
         <div style={{ display: 'flex', gap: 8 }}>
           {leads.length > 0 && (
             <Btn small variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? '…' : 'Скачать CSV'}</Btn>

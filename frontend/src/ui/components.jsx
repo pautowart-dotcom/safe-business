@@ -6,7 +6,7 @@ const cs = (base, ...rest) => Object.assign({}, base, ...rest);
 
 export function Card({ children, style = {}, onClick }) {
   return (
-    <div onClick={onClick} className={onClick ? 'ui-press' : undefined} style={cs({ background: C.bg, borderRadius: 10, padding: 16, marginBottom: 12, boxShadow: SH.card }, style)}>
+    <div onClick={onClick} className={onClick ? 'ui-press' : undefined} style={cs({ background: C.bg, borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: SH.card }, style)}>
       {children}
     </div>
   );
@@ -146,6 +146,71 @@ export function ChevronRow({ children, onClick }) {
     <div onClick={onClick} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       <div style={{ flex: 1 }}>{children}</div>
       <span style={{ fontSize: 20, color: C.border }}>›</span>
+    </div>
+  );
+}
+
+// Сгруппированный список «как в Настройках» (18.10.2026, вид приложения):
+// одна белая плашка, внутри строки с иконкой слева, значением справа и
+// стрелкой, тонкие разделители. <Group><Row …/><Row …/></Group>
+export function Group({ title, aside, children, style = {} }) {
+  return (
+    <div style={cs({ marginBottom: 18 }, style)}>
+      {title && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 8px', gap: 8 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.01em' }}>{title}</div>
+          {aside && <div style={{ fontSize: 12.5, fontWeight: 600, color: C.subtle }}>{aside}</div>}
+        </div>
+      )}
+      <div style={{ background: C.bg, borderRadius: 18, overflow: 'hidden', boxShadow: SH.card }}>{children}</div>
+    </div>
+  );
+}
+
+// tone — цвет иконки и метки справа: 'red' | 'orange' | 'green' | 'blue' | 'gray'.
+const TONES = {
+  red: [C.red, C.redBg],
+  orange: [C.orange, C.orangeBg],
+  green: [C.green, C.greenBg],
+  blue: [C.blue, C.blueBg],
+  purple: [C.purple, C.purpleBg],
+  gray: [C.secondary, '#F1F3F6'],
+};
+
+export function Row({ icon, tone = 'gray', title, subtitle, tag, onClick, chevron = !!onClick }) {
+  const [col, bg] = TONES[tone] || TONES.gray;
+  return (
+    <div
+      onClick={onClick}
+      className={`ui-row${onClick ? ' ui-row-tap' : ''}`}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', minHeight: 58, boxSizing: 'border-box' }}
+    >
+      {icon && (
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name={icon} size={17} color={col} sw={2} />
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.primary, lineHeight: 1.3 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2, lineHeight: 1.35 }}>{subtitle}</div>}
+      </div>
+      {tag && <span style={{ fontSize: 11, fontWeight: 800, color: col, background: bg, padding: '4px 8px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>{tag}</span>}
+      {chevron && (
+        <svg width="8" height="13" viewBox="0 0 8 13" style={{ flexShrink: 0 }} aria-hidden="true">
+          <path d="M1 1l5.5 5.5L1 12" fill="none" stroke="#C2C8D2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+// Серые плашки на месте будущих карточек — вместо текста «Загрузка…».
+export function Skeleton({ rows = 3, height = 64 }) {
+  return (
+    <div aria-busy="true" aria-label="Загрузка">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="ui-skel" style={{ height: i === 0 ? height + 36 : height }} />
+      ))}
     </div>
   );
 }

@@ -222,7 +222,7 @@ export default function Users() {
     return (
       <div>
         <BackBtn onClick={() => setShowInviteForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Пригласить сотрудника</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>Пригласить сотрудника</div>
         <Field label="Роль">
           <Select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
             <option value="master">{masterLabel}</option>
@@ -247,7 +247,7 @@ export default function Users() {
     return (
       <div>
         <BackBtn onClick={() => setEditing(null)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Изменить условия: {editing.user_name || editing.invited_email}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>Изменить условия: {editing.user_name || editing.invited_email}</div>
         {editing.role === 'master' && (
           <Field label="Тип оплаты">
             <Select value={editForm.payoutType} onChange={(e) => setEditForm({ ...editForm, payoutType: e.target.value })}>
@@ -378,7 +378,7 @@ export default function Users() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Команда</div>
+        <div className="ui-page-title">Команда</div>
         <button onClick={() => setShowInviteForm(true)} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Пригласить</button>
       </div>
 

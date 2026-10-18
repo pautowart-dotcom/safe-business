@@ -505,7 +505,7 @@ export default function Visits() {
     if (saved) {
       return (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><Icon name="check" size={30} color={C.green} sw={2.4} /></div>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Визит сохранён</div>
           <div style={{ fontSize: 14, color: C.subtle, marginBottom: 32 }}>Данные добавлены в историю</div>
           <Btn onClick={() => { openedViaDeepLinkRef.current = false; setShowForm(false); }}>Готово</Btn>
@@ -525,7 +525,7 @@ export default function Visits() {
             }
           }}
         />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить визит' : 'Новый визит'}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>{editingId ? 'Изменить визит' : 'Новый визит'}</div>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -554,7 +554,7 @@ export default function Visits() {
 
           {clientMatches.length > 0 && (
             <div style={{ background: C.orangeBg, border: `1px solid ${C.orange}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, marginBottom: 6 }}>⚡ Найден клиент</div>
+              <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, marginBottom: 6 }}>Найден клиент</div>
               {clientMatches.map((c) => (
                 <div key={c.id} style={{ marginBottom: 6 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -870,7 +870,7 @@ export default function Visits() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Визиты</div>
+        <div className="ui-page-title">Визиты</div>
         <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Визит</button>
       </div>
 

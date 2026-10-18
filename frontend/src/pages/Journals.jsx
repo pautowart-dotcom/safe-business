@@ -288,7 +288,7 @@ export default function Journals() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Журналы</div>
+      <div className="ui-page-title" style={{ marginBottom: 6 }}>Журналы</div>
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 16, lineHeight: 1.5 }}>
         Здесь ведутся электронные записи по датам — вкладки ниже соответствуют
         отдельным журналам (кто включал УФ-лампу, кто кому проводил

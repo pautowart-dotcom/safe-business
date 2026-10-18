@@ -96,7 +96,7 @@ export default function MonthlyCheck() {
   return (
     <div>
       <Card>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>Проверка месяца · {monthLabel(state.month)}</div>
+        <div className="ui-page-title">Проверка месяца · {monthLabel(state.month)}</div>
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>
           {state.items.length} коротких вопросов про ваш бизнес — около 2 минут. Что уже сделано, отметим сами, остальное соберём в план.
         </div>

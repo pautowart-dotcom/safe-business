@@ -96,7 +96,7 @@ export default function NetworkReport() {
     <div>
       {nav}
       <Card>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>Отчёт по сети «{n.name}»</div>
+        <div className="ui-page-title">Отчёт по сети «{n.name}»</div>
         <div style={{ fontSize: 12.5, color: C.subtle, marginTop: 2, marginBottom: 10 }}>
           за {report.label}{report.isCurrent ? ' · месяц ещё идёт' : ''}
           {report.afterIsLive && !report.isCurrent ? ' · снимка на конец месяца нет, цифры на сегодня' : ''}

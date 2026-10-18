@@ -101,7 +101,7 @@ export default function Services() {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить услугу' : 'Новая услуга'}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>{editingId ? 'Изменить услугу' : 'Новая услуга'}</div>
         <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Например: маникюр классический" /></Field>
         {companyNiches.length > 1 && (
           <Field label="Ниша">
@@ -157,7 +157,7 @@ export default function Services() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Каталог услуг</div>
+        <div className="ui-page-title">Каталог услуг</div>
         <Btn small onClick={openCreate}>+ Добавить</Btn>
       </div>
       {services.length === 0 ? (

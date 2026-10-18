@@ -94,7 +94,7 @@ export default function Knowledge() {
       <div>
         <BackBtn onClick={() => setSelected(null)} />
         <ST>{sections.find((s) => s.id === selected.section_id)?.name}</ST>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{selected.title}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>{selected.title}</div>
         <Card><div style={{ fontSize: 15, color: C.secondary, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{selected.content}</div></Card>
         {isManagement && (
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -110,7 +110,7 @@ export default function Knowledge() {
     return (
       <div>
         <BackBtn onClick={() => setShowArticleForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingArticleId ? 'Редактировать статью' : 'Новая статья'}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>{editingArticleId ? 'Редактировать статью' : 'Новая статья'}</div>
         <Field label="Раздел">
           <Select value={articleForm.sectionId} onChange={(e) => setArticleForm({ ...articleForm, sectionId: e.target.value })}>
             {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -131,7 +131,7 @@ export default function Knowledge() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>База знаний</div>
+        <div className="ui-page-title">База знаний</div>
         {isManagement && <button onClick={openCreateArticle} disabled={sections.length === 0} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Добавить</button>}
       </div>
       {isManagement && !showSectionForm && <div style={{ marginBottom: 12 }}><Btn small variant="secondary" onClick={() => setShowSectionForm(true)}>+ Новый раздел</Btn></div>}

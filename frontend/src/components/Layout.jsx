@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
 import Icon from '../ui/Icon.jsx';
@@ -213,6 +213,8 @@ const TITLES = {
   '/more': 'Ещё',
 };
 
+const LAYOUT_BIG_TITLE = new Set(['/', '/notifications', '/network', '/network-tasks', '/my-points', '/opening']);
+
 // Колокольчик раздела «Уведомления» (Ж3, 14.10.2026) со счётчиком
 // непрочитанных. Счётчик обновляется при смене страницы и по событию
 // 'notifications:changed' (его шлёт Notifications.jsx при «прочитано»).
@@ -268,12 +270,16 @@ export default function Layout() {
   const { user, currentCompany, isManagement, isOwner, hasModule } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const ptr = usePullToRefreshController();
   const scrollRef = useRef(null);
   const touchStartY = useRef(0);
   const pullingRef = useRef(false);
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Вид приложения (18.10.2026, макет владельца «да, так»): большой заголовок
+  // в начале экрана, при прокрутке уезжает в узкую шапку.
+  const [scrolled, setScrolled] = useState(false);
   const isDesktop = useIsDesktop();
   const unreadNotifications = useUnreadNotifications(isOwner || isManagement, location.pathname);
 
@@ -302,6 +308,19 @@ export default function Layout() {
   // не имели способа вернуться назад кроме свайпа/системной кнопки браузера.
   const navPaths = nav.map((n) => n.to);
   const showBack = !navPaths.includes(location.pathname);
+  const pageTitle = isHome ? currentCompany?.name : TITLES[location.pathname] || '';
+  // Большой заголовок от Layout — только экранам без своего (у остальных
+  // свой заголовок с классом ui-page-title, иначе было бы два подряд).
+  const showBigTitle = !!pageTitle && LAYOUT_BIG_TITLE.has(location.pathname);
+  const todayLabel = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // Новый экран открывается сверху, с большим заголовком. Кнопка «назад»
+  // (POP) прокрутку не сбрасывает.
+  useEffect(() => {
+    if (navigationType !== 'POP' && scrollRef.current) scrollRef.current.scrollTop = 0;
+    setScrolled((scrollRef.current?.scrollTop || 0) > 40);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Pull-to-refresh: жест ловится здесь (единственный скролл-контейнер
   // приложения), но данные грузит страница — см. PullToRefreshContext.
@@ -485,25 +504,26 @@ export default function Layout() {
     // пределы реально видимой области, когда была видна панель браузера.
     <div className="layout-viewport" style={{ maxWidth: MAX_WIDTH, margin: '0 auto', background: PAGE_BG, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
       {!user?.onboarding_seen_at && <OnboardingModal />}
-      <div style={{ padding: '16px 20px 12px', background: PAGE_BG, borderBottom: '1px solid rgba(15,27,45,.06)', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Узкая шапка: название экрана появляется в ней, только когда большой
+          заголовок уехал вверх при прокрутке (ui-bar-title в styles.css). */}
+      <div
+        className={`ui-bar${scrolled ? ' ui-bar-on' : ''}`}
+        style={{ padding: 'calc(10px + env(safe-area-inset-top, 0px)) 20px 10px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          {showBack && (
+          {showBack ? (
             <button
               onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/more'))}
               aria-label="Назад"
+              className="ui-tab"
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, marginLeft: -4, display: 'flex', alignItems: 'center', flexShrink: 0 }}
             >
-              <Icon name="arrow" size={18} color={C.secondary} />
+              <Icon name="arrow" size={18} color={C.primary} />
             </button>
-          )}
-          {isHome ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <img src="/lk/brand/mark-on-light.svg" alt="" width="20" height="23" style={{ flexShrink: 0 }} />
-              <div style={{ fontSize: 15, fontWeight: 800, color: C.primary, letterSpacing: '-0.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCompany?.name}</div>
-            </div>
           ) : (
-            <div style={{ fontSize: 17, fontWeight: 800, color: C.primary, letterSpacing: '-0.3px' }}>{TITLES[location.pathname] || ''}</div>
+            <img src="/lk/brand/mark-on-light.svg" alt="" width="20" height="23" style={{ flexShrink: 0 }} />
           )}
+          <div className="ui-bar-title" style={{ fontSize: 15, fontWeight: 800, color: C.primary, letterSpacing: '-0.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pageTitle}</div>
         </div>
         {/* Оба круга — одинаковый box-sizing/flexShrink: без flexShrink:0 в
             узкой шапке (длинное название компании) круг личного кабинета
@@ -562,7 +582,11 @@ export default function Layout() {
         // прокрутки оставалась). Горизонтальный скролл в этом мобильном
         // однострочном макете нигде не задуман, прятать переполнение, а не
         // прокручивать его, — правильное поведение.
-        style={{ flex: 1, padding: '20px 20px 90px', overflowY: 'auto', overflowX: 'hidden', overscrollBehaviorY: 'none', WebkitOverflowScrolling: 'touch' }}
+        onScroll={(e) => {
+          const next = e.currentTarget.scrollTop > 40;
+          if (next !== scrolled) setScrolled(next);
+        }}
+        style={{ flex: 1, padding: '4px 20px 90px', overflowY: 'auto', overflowX: 'hidden', overscrollBehaviorY: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         <div
           style={{
@@ -582,7 +606,17 @@ export default function Layout() {
             }}
           />
         </div>
-        <Outlet />
+        {/* Большой заголовок экрана; key — чтобы он и экран заново «въезжали»
+            при каждом переходе (ui-view в styles.css). */}
+        <div key={location.pathname} className="ui-view">
+          {showBigTitle && (
+            <div className={`ui-big-title${scrolled ? ' ui-big-title-off' : ''}`} style={{ padding: '6px 0 16px' }}>
+              {isHome && <div style={{ fontSize: 13, fontWeight: 600, color: C.secondary, marginBottom: 2 }}>{todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1)}</div>}
+              <div style={{ fontSize: 30, fontWeight: 800, color: C.primary, letterSpacing: '-0.03em', lineHeight: 1.12, overflowWrap: 'anywhere' }}>{pageTitle}</div>
+            </div>
+          )}
+          <Outlet />
+        </div>
       </div>
 
       {/* Нижняя панель (08.10.2026, вид «Строже 1»): над активной вкладкой
@@ -592,7 +626,7 @@ export default function Layout() {
       {(() => {
         const activeIndex = nav.findIndex((n) => (n.to === '/more' ? location.pathname === '/more' || moreActive : n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)));
         return (
-          <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, background: 'rgba(255,255,255,.97)', borderTop: '1px solid #E1E4E9', boxShadow: SH.nav, display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+          <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: MAX_WIDTH, background: 'rgba(255,255,255,.86)', backdropFilter: 'blur(16px) saturate(1.4)', WebkitBackdropFilter: 'blur(16px) saturate(1.4)', borderTop: '1px solid rgba(15,27,45,.06)', boxShadow: SH.nav, display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             {activeIndex >= 0 && (
               <div
                 className="ui-tab-line"

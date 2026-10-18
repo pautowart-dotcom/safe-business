@@ -508,7 +508,7 @@ function ComplianceAiAdvisor({ company, initialQuestion }) {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>ИИ по законодательству</div>
+      <div className="ui-page-title" style={{ marginBottom: 4 }}>ИИ по законодательству</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         Когда в законе меняется что-то важное для небольшого бизнеса — разбираем простыми словами, без гарантий и без давления.
       </div>
@@ -642,7 +642,7 @@ export default function AiAdvisor() {
   return (
     <div>
       <BackBtn onClick={() => navigate(-1)} />
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>ИИ-советник</div>
+      <div className="ui-page-title" style={{ marginBottom: 4 }}>ИИ-советник</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         На чём бизнес теряет деньги — по вашим же данным, без гарантий и без давления.
       </div>

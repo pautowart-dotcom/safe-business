@@ -129,7 +129,7 @@ export default function Checklists() {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Новый чек-лист</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>Новый чек-лист</div>
         <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Открытие смены" /></Field>
         <Field label="Описание"><TextArea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
         <Field label="Тип (для статуса смены на главной)">
@@ -154,7 +154,7 @@ export default function Checklists() {
     return (
       <div>
         <BackBtn onClick={() => setEditingTemplate(null)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Редактировать чек-лист</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>Редактировать чек-лист</div>
         <Field label="Название">
           <TextInput
             value={editingTemplate.name}
@@ -205,7 +205,7 @@ export default function Checklists() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Чек-листы</div>
+        <div className="ui-page-title">Чек-листы</div>
         {isManagement && <button onClick={() => setShowForm(true)} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Новый</button>}
       </div>
 

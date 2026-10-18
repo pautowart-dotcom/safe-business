@@ -253,7 +253,7 @@ export default function Supplies() {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить расходник' : 'Новый расходник'}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>{editingId ? 'Изменить расходник' : 'Новый расходник'}</div>
         <Field label="Название"><TextInput autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Например: гель-лак Kodi, масло для массажа" /></Field>
         <Field label="Категория">
           <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
@@ -321,7 +321,7 @@ export default function Supplies() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Склад расходников</div>
+        <div className="ui-page-title">Склад расходников</div>
         {/* 05.08.2026: раньше кнопка была только owner/admin (isManagement) —
             владелец попросил разрешить и мастеру заводить новые позиции,
             просто без права редактировать чужие/удалять (см. "Изменить"/

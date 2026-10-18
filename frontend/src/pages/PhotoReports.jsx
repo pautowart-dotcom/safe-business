@@ -59,7 +59,7 @@ export default function PhotoReports() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Фотоотчёты</div>
+      <div className="ui-page-title" style={{ marginBottom: 16 }}>Фотоотчёты</div>
 
       {isManagement && masters.length > 0 && (
         <Select value={masterFilter} onChange={(e) => setMasterFilter(e.target.value)} style={{ marginBottom: 16 }}>

@@ -76,7 +76,7 @@ export default function BusinessStatusTransition() {
   return (
     <div>
       <BackBtn onClick={() => navigate(-1)} />
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{content.title}</div>
+      <div className="ui-page-title" style={{ marginBottom: 4 }}>{content.title}</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         {LEGAL_FORM_LABELS[content.fromLegalForm]} → {LEGAL_FORM_LABELS[content.toLegalForm]}
       </div>

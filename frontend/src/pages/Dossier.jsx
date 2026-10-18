@@ -29,7 +29,7 @@ export default function Dossier() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Сформировать досье</div>
+      <div className="ui-page-title" style={{ marginBottom: 20 }}>Сформировать досье</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 16 }}>
         Собирает визиты, отметки чек-листов и записи журналов в один PDF-документ. Досье по конкретному клиенту — в его карточке в разделе "Клиенты".
       </div>

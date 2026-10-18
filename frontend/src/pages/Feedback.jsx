@@ -30,7 +30,7 @@ export default function Feedback() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Обратная связь</div>
+      <div className="ui-page-title" style={{ marginBottom: 20 }}>Обратная связь</div>
       {messages.length === 0 ? (
         <div style={{ color: C.subtle, textAlign: 'center', marginTop: 40, fontSize: 14 }}>Нет новых сообщений</div>
       ) : (

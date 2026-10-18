@@ -166,7 +166,7 @@ export default function Settings() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>Настройки</div>
+      <div className="ui-page-title" style={{ marginBottom: 20 }}>Настройки</div>
 
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -232,7 +232,7 @@ export default function Settings() {
       {isManagement && company && (
         company.subscription_status === 'trial' ? (
           <Card style={{ background: C.greenBg, borderColor: C.green + '44', cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>🎉 Бесплатный период</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>Бесплатный период</div>
             <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 4 }}>После — 1990 ₽/мес</div>
           </Card>

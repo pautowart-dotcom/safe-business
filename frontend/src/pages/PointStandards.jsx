@@ -54,7 +54,7 @@ export default function PointStandards() {
   return (
     <div>
       <Card>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>Стандарты сети «{data.networkName}»</div>
+        <div className="ui-page-title">Стандарты сети «{data.networkName}»</div>
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>
           Это требования вашей сети, а не закона. Отметьте честно, что уже так, — сеть видит ваши отметки и результаты своих проверок.
         </div>

@@ -235,7 +235,7 @@ export default function NetworkStandards() {
   return (
     <div>
       <Card>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>Стандарты сети</div>
+        <div className="ui-page-title">Стандарты сети</div>
         <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>
           Ваши требования к точкам — не закон, а то, как работает ваша сеть. Точки отмечают их сами, а проверяющий или тайный покупатель — при визите. В индекс безопасности это не входит.
         </div>

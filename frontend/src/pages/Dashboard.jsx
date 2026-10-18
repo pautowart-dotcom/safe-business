@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Badge, Avatar, Icon, C } from '../ui/components.jsx';
+import { Card, ST, Badge, Avatar, Icon, C, Group, Row } from '../ui/components.jsx';
+import DeadlineSheet from '../components/DeadlineSheet.jsx';
+import { dueTag, deadlineIcon, inSentence } from '../utils/deadlineActions.js';
 import { FM, SH } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
 import InstallAppBanner from '../components/InstallAppBanner.jsx';
@@ -116,64 +118,76 @@ const WATCH_FEED_KIND_LABELS = {
   law_notice_locked: { tag: 'Доступно по подписке', color: C.orange, bg: C.orangeBg },
 };
 
+// 18.10.2026, вид приложения: та же раскладка, что на главной владельца —
+// карточка с кольцом, быстрые кнопки, «Что сделать» со шторкой; лента ниже
+// строками «как в Настройках».
+const WATCH_FEED_ICON = { deadline: 'bell', law_check: 'book', website_check: 'link', checklist: 'check', violation_resolved: 'shield', law_notice: 'spark', law_notice_locked: 'spark' };
+const WATCH_FEED_TONE = { deadline: 'orange', law_check: 'gray', website_check: 'blue', checklist: 'green', violation_resolved: 'purple', law_notice: 'purple', law_notice_locked: 'orange' };
+
 function WatchFeedDashboard() {
   const navigate = useNavigate();
+  const { isOwner } = useAuth();
   const [feed, setFeed] = useState(null);
+  const [indexPercent, setIndexPercent] = useState(null);
+  const [deadlines, setDeadlines] = useState([]);
+  const [openItem, setOpenItem] = useState(null);
 
   function load() {
-    return api.get('/platform/watch-feed').then((res) => setFeed(res.data));
+    return Promise.all([
+      api.get('/platform/watch-feed').then((res) => setFeed(res.data)),
+      // Индекс видит только владелец (§8.4 политики) — администратору без кольца.
+      isOwner ? api.get('/modules/security/status').then((res) => setIndexPercent(res.data?.indexPercent ?? null)).catch(() => {}) : null,
+      api.get('/platform/deadlines').then((res) => setDeadlines(res.data)).catch(() => {}),
+    ]);
   }
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   usePullToRefresh(load);
 
   if (!feed) return <div className="page-loading">Загрузка...</div>;
 
   const attention = feed.status === 'attention';
+  const today = todayStr();
+  const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
+  const todo = buildActionsCenter(deadlines.filter((d) => !d.due_date || d.due_date <= in30));
+  const first = todo.find((d) => !d.due_date || d.due_date <= today) || todo[0];
 
   return (
     <div>
-      <Card
-        style={{ background: attention ? C.orangeBg : C.greenBg, borderColor: (attention ? C.orange : C.green) + '44', cursor: attention ? 'pointer' : 'default' }}
-        onClick={attention ? () => navigate('/security', { state: { dashboardTab: 'violations' } }) : undefined}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: attention ? C.orange : C.green, flexShrink: 0 }} />
-          <div style={{ fontSize: 17, fontWeight: 800 }}>
-            {attention ? `Нужно внимание: ${feed.attentionCount}` : 'Всё под контролем'}
-          </div>
-        </div>
-        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 6 }}>
-          {attention ? 'Посмотреть, что именно →' : 'Мы продолжаем следить за сроками, законом и вашими проверками.'}
-        </div>
-      </Card>
+      <HomeHero
+        indexPercent={indexPercent}
+        attention={feed.attentionCount}
+        title={indexPercent == null && isOwner ? undefined : attention ? `Нужно внимание: ${feed.attentionCount}` : 'Всё под контролем'}
+        line={first ? `Ближайшее — ${inSentence(first.title)}, ${dueTag(first).text.toLowerCase()}.` : 'Мы следим за сроками, законом и вашими проверками.'}
+        onClick={() => navigate('/security', attention ? { state: { dashboardTab: 'violations' } } : undefined)}
+      />
+      <HomeQuick navigate={navigate} />
+      <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} />
+      <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} />
 
-      <ST>Лента наблюдения</ST>
-      {feed.items.length === 0 ? (
-        <Card><div style={{ fontSize: 13, color: C.subtle }}>Пока нечего показать — здесь появятся сроки, проверки и изменения закона.</div></Card>
-      ) : (
-        feed.items.map((item, i) => {
-          const meta = WATCH_FEED_KIND_LABELS[item.kind] || { tag: item.kind, color: C.subtle, bg: C.surface };
-          const locked = item.kind === 'law_notice_locked';
-          return (
-            <Card key={i} style={locked ? { cursor: 'pointer' } : undefined} onClick={locked ? () => navigate('/ai-advisor') : undefined}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{item.title}</div>
-                <div style={{ fontSize: 11, color: C.subtle, flexShrink: 0, fontFamily: FM }}>
-                  {new Date(item.occurredAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                </div>
-              </div>
-              <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4 }}>{item.text}</div>
-              <div style={{ marginTop: 8 }}>
-                <Badge color={meta.color} bg={meta.bg}>{meta.tag}</Badge>
-              </div>
-            </Card>
-          );
-        })
-      )}
-
+      <Group title="Что мы проверили">
+        {feed.items.length === 0 ? (
+          <Row icon="search" title="Пока нечего показать" subtitle="Здесь появятся сроки, проверки и изменения закона." />
+        ) : (
+          feed.items.map((item, i) => {
+            const locked = item.kind === 'law_notice_locked';
+            return (
+              <Row
+                key={i}
+                icon={WATCH_FEED_ICON[item.kind] || 'doc'}
+                tone={WATCH_FEED_TONE[item.kind] || 'gray'}
+                title={item.title}
+                subtitle={`${new Date(item.occurredAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} · ${item.text}`}
+                tag={locked ? 'По подписке' : undefined}
+                onClick={locked ? () => navigate('/ai-advisor') : undefined}
+              />
+            );
+          })
+        )}
+      </Group>
     </div>
   );
 }
@@ -249,6 +263,7 @@ function OwnerDashboard() {
   const [deadlines, setDeadlines] = useState([]);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [openItem, setOpenItem] = useState(null);
 
   function load() {
     setLoading(true);
@@ -341,6 +356,14 @@ function OwnerDashboard() {
   // финансовая находка), рендерится только когда действие реально есть.
   const aiAdvisorAction = deadlines.find((d) => d.related_entity_type === 'ai_advisor_digest');
 
+  // Телефон (18.10.2026, вид приложения): «Что сделать» — сначала
+  // просроченное и без даты, потом сроки на ближайшие 30 дней и находка
+  // ИИ-советника; всего не больше ACTIONS_CENTER_VISIBLE строк.
+  const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
+  const upcoming = complianceDeadlines.filter((d) => d.due_date && d.due_date >= today && d.due_date <= in30);
+  const nextUpcoming = complianceDeadlines.find((d) => d.due_date && d.due_date >= today);
+  const todoItems = [...overdueOrNoDate, ...upcoming, ...(aiAdvisorAction ? [aiAdvisorAction] : [])];
+
   // 24.08.2026: владелец прислал референсы (YooKassa/Яндекс Почта) — у
   // настоящих десктопных приложений часто есть третья, правая колонка с
   // контекстными виджетами ("Сегодня" в Почте), не просто сетка карточек в
@@ -355,14 +378,41 @@ function OwnerDashboard() {
           шапке раздела — третье повторение здесь (23.08.2026, живой
           скриншот) только отъедало место без смысла. Дата/приветствие
           остаются — это не дубль, единственное место, где они есть. */}
-      <div style={{ marginBottom: 20 }}>
-        {!isDesktop && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.primary }}>{currentCompany?.name}</div>}
-        <div style={{ fontSize: isDesktop ? 14 : 13, color: C.subtle, marginTop: isDesktop ? 0 : 4 }}>
+      {/* На телефоне название и дата — в большом заголовке Layout.jsx
+          (18.10.2026, вид приложения), здесь только на десктопе. */}
+      {isDesktop && (
+        <div style={{ marginBottom: 20, fontSize: 14, color: C.subtle }}>
           {greeting()} · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
-      </div>
+      )}
 
       <FranchiseNotice company={company} />
+
+      {!isDesktop && (
+        <>
+          <HomeHero
+            indexPercent={security?.indexPercent}
+            attention={criticalCount}
+            line={
+              criticalCount > 0
+                ? `Самое срочное — ${subscriptionProblem ? 'оплата подписки' : inSentence(overdueOrNoDate[0]?.title)}.`
+                : nextUpcoming
+                  ? `Ближайший срок — ${inSentence(nextUpcoming.title)}, ${dueTag(nextUpcoming).text.toLowerCase()}.`
+                  : 'Сроки в порядке. Мы напомним заранее.'
+            }
+            onClick={() => navigate('/security')}
+          />
+          <HomeQuick navigate={navigate} />
+          <TodoGroup
+            items={todoItems}
+            subscriptionProblem={subscriptionProblem}
+            navigate={navigate}
+            onOpen={setOpenItem}
+            inOrderCount={inOrderCount}
+          />
+          <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} />
+        </>
+      )}
 
       {isDesktop && (
         <StatRow
@@ -380,7 +430,7 @@ function OwnerDashboard() {
           справедливо заметил, что так он почти каждый день не меняется и
           превращается в шум. Теперь как "Центр действий" ниже — просто не
           рендерится, если нечего показывать. */}
-      {criticalCount > 0 && (
+      {isDesktop && criticalCount > 0 && (
         <Card style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: C.redBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -418,7 +468,9 @@ function OwnerDashboard() {
           трогали — только контейнер вокруг них. */}
       <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, alignItems: 'start' } : undefined}>
 
-      {/* 2. Статус в целом — просто числа, без индекса/скоринга. */}
+      {/* 2. Статус в целом — просто числа, без индекса/скоринга. На телефоне
+          это теперь в HomeHero / TodoGroup. */}
+      {isDesktop && (
       <Card style={{ marginBottom: 12 }}>
         <ST>Статус документов</ST>
         <div style={{ display: 'flex' }}>
@@ -443,6 +495,7 @@ function OwnerDashboard() {
           </div>
         )}
       </Card>
+      )}
 
       {/* 3. Рекомендации — правила по датам, см. utils/dashboardRecommendations.js. */}
       {recommendations.length > 0 && (
@@ -457,7 +510,7 @@ function OwnerDashboard() {
       {/* 3б. ИИ-советник — см. комментарий у aiAdvisorAction выше. Заголовок
           на карточке намеренно общий (без сумм/имён мастеров) — подробности
           только на самом экране /ai-advisor. */}
-      {aiAdvisorAction && (
+      {isDesktop && aiAdvisorAction && (
         <Card style={{ cursor: 'pointer', marginBottom: 12 }} onClick={() => navigate('/ai-advisor')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 14, color: C.primary, fontWeight: 600 }}>{aiAdvisorAction.title}</span>
@@ -494,7 +547,7 @@ function OwnerDashboard() {
           )}
           {summary.lowStockCount > 0 && (
             <div onClick={() => navigate('/supplies?filter=low')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
-              ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
+              {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
             </div>
           )}
         </Card>
@@ -517,7 +570,7 @@ function OwnerDashboard() {
         <TasksCard tasks={tasks} newTask={newTask} setNewTask={setNewTask} toggleTask={toggleTask} deleteTask={deleteTask} addTask={addTask} />
       )}
 
-      {security ? (
+      {!isDesktop ? null : security ? (
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/security')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Безопасность</span>
@@ -576,6 +629,105 @@ function OwnerDashboard() {
       </div>
     )}
     </div>
+  );
+}
+
+// ---------- Главная на телефоне (18.10.2026, макет «да, так») ----------
+// Тёмная карточка сверху: кольцо индекса безопасности и одна фраза, что
+// самое срочное. Без индекса (тест не пройден) — приглашение пройти тест.
+function HomeHero({ indexPercent, attention, line, onClick, title }) {
+  const hasIndex = indexPercent != null;
+  const r = 36;
+  const len = 2 * Math.PI * r;
+  const heading = title || (!hasIndex ? 'Пройдите тест безопасности' : attention > 0 ? `Нужно внимание: ${attention}` : 'Всё под контролем');
+  return (
+    <div
+      onClick={onClick}
+      className="ui-press"
+      style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 14, display: 'flex', gap: 16, alignItems: 'center', boxShadow: SH.raised, cursor: 'pointer' }}
+    >
+      <div style={{ width: 84, height: 84, position: 'relative', flexShrink: 0 }}>
+        <svg width="84" height="84" viewBox="0 0 84 84" style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+          <circle cx="42" cy="42" r={r} stroke="rgba(255,255,255,.14)" strokeWidth="8" fill="none" />
+          {hasIndex && (
+            <circle
+              cx="42" cy="42" r={r} stroke="#FFF" strokeWidth="8" fill="none" strokeLinecap="round"
+              strokeDasharray={len} strokeDashoffset={len * (1 - indexPercent / 100)}
+              style={{ transition: 'stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)' }}
+            />
+          )}
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{hasIndex ? `${indexPercent}%` : '—'}</div>
+          <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.6, marginTop: 3 }}>{hasIndex ? 'индекс' : title ? '' : 'нет теста'}</div>
+        </div>
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{heading}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>
+          {hasIndex || title ? line : 'Около 10 минут — и увидите, чего не хватает и что исправить в первую очередь.'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Четыре крупные кнопки под карточкой — самые частые действия владельца.
+const HOME_QUICK = [
+  { label: 'Фото документа', icon: 'camera', to: '/security', state: { tab: 'my_deadlines' } },
+  { label: 'Проверка месяца', icon: 'check', to: '/monthly-check' },
+  { label: 'Спросить ИИ', icon: 'spark', to: '/ai-advisor' },
+  { label: 'Все сроки', icon: 'bell', to: '/deadlines' },
+];
+
+function HomeQuick({ navigate }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 20 }}>
+      {HOME_QUICK.map((q) => (
+        <button
+          key={q.label}
+          onClick={() => navigate(q.to, q.state ? { state: q.state } : undefined)}
+          className="ui-press"
+          style={{ background: C.bg, border: 'none', borderRadius: 18, padding: '12px 4px 10px', boxShadow: SH.card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          <Icon name={q.icon} size={21} color={C.primary} sw={1.8} />
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: C.secondary, lineHeight: 1.2, textAlign: 'center' }}>{q.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// «Что сделать»: строки как в «Настройках», тап — шторка срока.
+function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount }) {
+  const visible = items.slice(0, ACTIONS_CENTER_VISIBLE);
+  const total = items.length + (subscriptionProblem ? 1 : 0);
+  if (total === 0) {
+    return (
+      <Group title="Что сделать">
+        <Row icon="check" tone="green" title="Сейчас ничего не горит" subtitle={inOrderCount > 0 ? `В порядке: ${inOrderCount}. Напомним о сроках заранее.` : 'Внесите даты документов — и мы напомним заранее.'} onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })} />
+      </Group>
+    );
+  }
+  return (
+    <Group title="Что сделать" aside={`${total} ${total === 1 ? 'дело' : total < 5 ? 'дела' : 'дел'}`}>
+      {subscriptionProblem && <Row icon="finance" tone="red" title="Проблема с оплатой подписки" subtitle="Без оплаты напоминания остановятся" tag="Срочно" onClick={() => navigate('/subscription')} />}
+      {visible.map((d) => {
+        const tag = dueTag(d);
+        return (
+          <Row
+            key={d.id}
+            icon={deadlineIcon(d)}
+            tone={tag.tone}
+            title={d.title}
+            subtitle={d.due_date ? new Date(d.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : 'Без даты'}
+            tag={tag.text}
+            onClick={() => onOpen(d)}
+          />
+        );
+      })}
+      {items.length > visible.length && <Row title={`Показать все (${items.length})`} onClick={() => navigate('/deadlines')} />}
+    </Group>
   );
 }
 
@@ -750,7 +902,7 @@ function ManagementDashboard() {
         )}
         {summary.lowStockCount > 0 && (
           <div onClick={() => navigate('/supplies?filter=low')} style={{ fontSize: 14, color: C.red, cursor: 'pointer' }}>
-            ⚠️ {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
+            {summary.lowStockCount === 1 ? '1 расходник ниже минимума' : `${summary.lowStockCount} расходников ниже минимума`}
           </div>
         )}
         {/* Индекс безопасности здесь дублировал отдельную карточку "Безопасность"
@@ -891,7 +1043,7 @@ function MasterDashboard() {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Привет, {firstName} 👋</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Привет, {firstName}</div>
         <div style={{ fontSize: 13, color: C.subtle, marginTop: 4 }}>
           {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>

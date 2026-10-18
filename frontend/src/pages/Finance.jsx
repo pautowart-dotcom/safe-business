@@ -408,7 +408,7 @@ function OwnerFinance() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Финансы</div>
+      <div className="ui-page-title" style={{ marginBottom: 16 }}>Финансы</div>
       <PeriodBar {...period} />
 
       <div style={{ display: isDesktop ? 'inline-flex' : 'flex', background: C.surface, borderRadius: 12, padding: 3, marginBottom: 16 }}>
@@ -1529,7 +1529,7 @@ function MasterFinance() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Мои финансы</div>
+      <div className="ui-page-title" style={{ marginBottom: 16 }}>Мои финансы</div>
       <PeriodBar {...period} />
 
       <div style={{ background: C.primary, borderRadius: 10, padding: 20, marginBottom: 12, color: '#FFF', boxShadow: SH.raised }}>

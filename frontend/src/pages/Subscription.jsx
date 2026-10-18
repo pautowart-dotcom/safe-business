@@ -128,7 +128,7 @@ export default function Subscription() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Подписка</div>
+      <div className="ui-page-title" style={{ marginBottom: 4 }}>Подписка</div>
       <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>
         Статус: {STATUS_LABELS[company?.subscription_status] || '—'}
         {company?.subscription_status === 'trial' && trialDaysLeft != null && ` · осталось ${trialDaysLeft} дн.`}

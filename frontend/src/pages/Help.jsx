@@ -339,7 +339,7 @@ export default function Help() {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Как пользоваться</div>
+      <div className="ui-page-title" style={{ marginBottom: 6 }}>Как пользоваться</div>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 4 }}>
         Сервис для управления студией и снижения рисков — учёт визитов и финансов вместе с бесплатным аудитом безопасности бизнеса, чтобы штрафы и проверки не были сюрпризом.
       </div>

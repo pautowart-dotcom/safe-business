@@ -261,7 +261,7 @@ export default function Clients() {
     return (
       <div>
         <BackBtn onClick={() => setShowForm(false)} />
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>{editingId ? 'Изменить клиента' : 'Новый клиент'}</div>
+        <div className="ui-page-title" style={{ marginBottom: 20 }}>{editingId ? 'Изменить клиента' : 'Новый клиент'}</div>
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Фамилия">
@@ -402,7 +402,7 @@ export default function Clients() {
         </Card>
         {selected.allergies && (
           <Card style={{ background: C.redBg, borderColor: `${C.red}33` }}>
-            <div style={{ fontSize: 12, color: C.red, fontWeight: 700, marginBottom: 4 }}>⚠️ Аллергии</div>
+            <div style={{ fontSize: 12, color: C.red, fontWeight: 700, marginBottom: 4 }}>Аллергии</div>
             <div style={{ fontSize: 13, color: C.secondary, whiteSpace: 'pre-wrap' }}>{selected.allergies}</div>
           </Card>
         )}
@@ -425,7 +425,7 @@ export default function Clients() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>Клиенты</div>
+        <div className="ui-page-title">Клиенты</div>
         {tab === 'clients' && (
           <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Клиент</button>
         )}
