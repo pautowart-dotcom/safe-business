@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, Field, TextInput, Select, Btn, Icon, C, SH } from '../ui/components.jsx';
+import TelegramLinkCard from '../components/TelegramLinkCard.jsx';
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
 const SUBSCRIPTION_STATUS_LABELS = {
@@ -321,6 +322,8 @@ export default function Settings() {
           ))}
         </Card>
       )}
+
+      <TelegramLinkCard />
 
       <Card>
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Документы</div>

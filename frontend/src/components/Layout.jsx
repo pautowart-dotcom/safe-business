@@ -8,6 +8,7 @@ import AiAssistantWidget from './AiAssistantWidget.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
 import api from '../api/client.js';
 import { C, F, MAX_WIDTH, PAGE_BG, SH } from '../ui/theme.js';
+import { inTelegram, setTelegramBack } from '../utils/telegram.js';
 
 // 23.08.2026: первая версия просто сажала весь контент на 1200px — на
 // "лёгких" экранах (одна карточка-сводка, форма, список из пары строк) это
@@ -314,6 +315,13 @@ export default function Layout() {
   const showBigTitle = !!pageTitle && LAYOUT_BIG_TITLE.has(location.pathname);
   const todayLabel = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  // Внутри Telegram — его системная кнопка «Назад» вместо нашей стрелки.
+  useEffect(() => {
+    if (!inTelegram) return undefined;
+    return setTelegramBack(showBack, () => (window.history.length > 1 ? navigate(-1) : navigate('/more')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBack, location.pathname]);
+
   // Новый экран открывается сверху, с большим заголовком. Кнопка «назад»
   // (POP) прокрутку не сбрасывает.
   useEffect(() => {
@@ -511,7 +519,7 @@ export default function Layout() {
         style={{ padding: 'calc(10px + env(safe-area-inset-top, 0px)) 20px 10px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          {showBack ? (
+          {showBack && !inTelegram ? (
             <button
               onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/more'))}
               aria-label="Назад"

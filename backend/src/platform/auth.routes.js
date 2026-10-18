@@ -666,4 +666,90 @@ router.post(
   })
 );
 
+// ---------- Telegram Mini App (18.10.2026) ----------
+// initData подписан Telegram токеном нашего бота (core/telegramInitData.js).
+// Вход без пароля — только для Telegram-аккаунта, который этот человек сам
+// привязал после полного входа (почта + пароль + код с почты), поэтому
+// привязка работает как доверенное устройство.
+const telegram = require('../core/telegramInitData');
+
+function telegramNotConfigured(res) {
+  return res.status(503).json({ error: 'Вход через Telegram пока не настроен' });
+}
+
+router.post(
+  '/telegram',
+  asyncHandler(async (req, res) => {
+    if (!telegram.isConfigured()) return telegramNotConfigured(res);
+    if (!(await checkLoginAllowed(req.ip, 'telegram'))) {
+      return res.status(429).json({ error: 'Слишком много попыток. Попробуйте снова через 15 минут.' });
+    }
+    const tgUser = telegram.verifyInitData(req.body?.initData);
+    if (!tgUser) {
+      await recordFailedLogin(req.ip, 'telegram');
+      return res.status(400).json({ error: 'Не удалось проверить данные Telegram — откройте приложение из бота заново' });
+    }
+    const { rows } = await pool.query(
+      `SELECT u.id, u.name, u.email, u.phone, u.is_super_admin, u.analytics_consent, u.avatar_url, u.onboarding_seen_at
+       FROM telegram_links t JOIN users u ON u.id = t.user_id
+       WHERE t.telegram_user_id = $1`,
+      [tgUser.id]
+    );
+    const user = rows[0];
+    // Супер-админ через Telegram не входит — у него отдельный кабинет и
+    // обязательный код с почты (см. loginOrRequireVerification).
+    if (!user || user.is_super_admin) return res.json({ linked: false });
+
+    await pool.query('UPDATE telegram_links SET last_login_at = now(), tg_username = $2 WHERE telegram_user_id = $1', [tgUser.id, tgUser.username]);
+    await logEvent({ userId: user.id, moduleKey: 'platform', entityType: 'user', entityId: user.id, action: 'auth.telegram_login' }).catch(() => {});
+    if (user.avatar_url) user.avatar_url = signAvatarUrl(user.avatar_url);
+    const companies = await activeMembershipsForUser(user.id);
+    res.json({ linked: true, token: signBaseToken(user.id), user, companies });
+  })
+);
+
+router.get(
+  '/telegram/link',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query('SELECT tg_username, linked_at FROM telegram_links WHERE user_id = $1', [req.user.id]);
+    res.json({ configured: telegram.isConfigured(), linked: rows.length > 0, username: rows[0]?.tg_username || null, linkedAt: rows[0]?.linked_at || null });
+  })
+);
+
+// Привязка — только из уже вошедшей сессии и только с настоящим initData.
+// Telegram, привязанный к другому пользователю, не перехватываем молча.
+router.post(
+  '/telegram/link',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    if (!telegram.isConfigured()) return telegramNotConfigured(res);
+    if (req.user.is_super_admin) return res.status(403).json({ error: 'Для этого аккаунта вход через Telegram не используется' });
+    const tgUser = telegram.verifyInitData(req.body?.initData);
+    if (!tgUser) return res.status(400).json({ error: 'Не удалось проверить данные Telegram — откройте приложение из бота заново' });
+
+    const existing = await pool.query('SELECT user_id FROM telegram_links WHERE telegram_user_id = $1', [tgUser.id]);
+    if (existing.rows[0] && existing.rows[0].user_id !== req.user.id) {
+      return res.status(409).json({ error: 'Этот Telegram уже привязан к другому аккаунту. Отвяжите его там в «Настройках».' });
+    }
+    await pool.query(
+      `INSERT INTO telegram_links (telegram_user_id, user_id, tg_username) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET telegram_user_id = EXCLUDED.telegram_user_id, tg_username = EXCLUDED.tg_username, linked_at = now()`,
+      [tgUser.id, req.user.id, tgUser.username]
+    );
+    await logAudit({ userId: req.user.id, action: 'auth.telegram_linked', entityType: 'user', entityId: req.user.id }).catch(() => {});
+    res.json({ linked: true, username: tgUser.username });
+  })
+);
+
+router.delete(
+  '/telegram/link',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    await pool.query('DELETE FROM telegram_links WHERE user_id = $1', [req.user.id]);
+    await logAudit({ userId: req.user.id, action: 'auth.telegram_unlinked', entityType: 'user', entityId: req.user.id }).catch(() => {});
+    res.json({ linked: false });
+  })
+);
+
 module.exports = router;

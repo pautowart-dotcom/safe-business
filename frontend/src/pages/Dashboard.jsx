@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Badge, Avatar, Icon, C, Group, Row, Ring } from '../ui/components.jsx';
 import DeadlineSheet from '../components/DeadlineSheet.jsx';
+import { inTelegram } from '../utils/telegram.js';
 import { dueTag, deadlineIcon, inSentence } from '../utils/deadlineActions.js';
 import { FM, SH } from '../ui/theme.js';
 import IosPushBanner from '../components/IosPushBanner.jsx';
@@ -196,8 +197,9 @@ export default function Dashboard() {
   const { isOwner, isManagement } = useAuth();
   return (
     <div>
-      <IosPushBanner />
-      <InstallAppBanner />
+      {/* В Telegram приложение уже «установлено», уведомления — через бота. */}
+      {!inTelegram && <IosPushBanner />}
+      {!inTelegram && <InstallAppBanner />}
       {isManagement && <OpeningBanner />}
       {isManagement && <NetworkTasksBanner />}
       {isOwner ? <OwnerDashboard /> : isManagement ? <ManagementDashboard /> : <MasterDashboard />}

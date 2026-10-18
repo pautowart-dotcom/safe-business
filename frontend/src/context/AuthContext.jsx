@@ -3,6 +3,8 @@ import { getCaptchaToken } from '../utils/captcha.js';
 import api from '../api/client.js';
 import { masterLabel, masterLabelGenitivePlural, masterLabelGenitiveSingular } from '../ui/roleLabels.js';
 import { reachGoal } from '../utils/metrika.js';
+import { inTelegram, telegramReady, telegramInitData } from '../utils/telegram.js';
+import toast from '../ui/toast.js';
 
 const AuthContext = createContext(null);
 
@@ -83,15 +85,32 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
+      // Telegram Mini App (18.10.2026): привязанный Telegram входит сразу,
+      // без пароля. Не привязан или ошибка — обычная форма входа.
+      if (inTelegram) {
+        telegramReady()
+          .then(() => {
+            const initData = telegramInitData();
+            if (!initData) return null;
+            return api.post('/auth/telegram', { initData }).then((res) => (res.data.linked ? applyAuthResult(res.data) : null));
+          })
+          .catch(() => {})
+          .finally(() => setLoading(false));
+        return;
+      }
       setLoading(false);
       return;
     }
+    if (inTelegram) telegramReady();
     api
       .get('/auth/me')
       .then(async (res) => {
         const { user: u, companies, tenant } = res.data;
         localStorage.setItem('user', JSON.stringify(u));
         setUser(u);
+        // Уже вошли в этом Telegram — привязываем тихо, чтобы следующий
+        // вход был без пароля.
+        if (inTelegram) linkTelegram(false);
 
         if (tenant) {
           applyCompany(tenant.companyId, companies, tenant.role, tenant.branchId);
@@ -151,6 +170,19 @@ export function AuthProvider({ children }) {
     return res.data; // { requiresDeviceVerification: true, email }
   }
 
+  // Привязка Telegram после обычного входа внутри Telegram. Ошибки не
+  // мешают входу: в худшем случае в следующий раз снова спросим пароль.
+  async function linkTelegram(announce = true) {
+    if (!inTelegram) return;
+    try {
+      await telegramReady();
+      const initData = telegramInitData();
+      if (!initData) return;
+      await api.post('/auth/telegram/link', { initData });
+      if (announce) toast('Telegram привязан — дальше без пароля');
+    } catch { /* 409/503 — просто не привязали */ }
+  }
+
   function applyAuthResult(data) {
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
@@ -186,7 +218,9 @@ export function AuthProvider({ children }) {
       // подхватывал уже сохранённый токен). Помечаем ошибку отдельным флагом,
       // чтобы показать правильное сообщение вместо "код неверный".
       try {
-        return await applyAuthResult(res.data);
+        const result = await applyAuthResult(res.data);
+        linkTelegram();
+        return result;
       } catch (err) {
         err.codeAcceptedButFollowupFailed = true;
         throw err;
@@ -250,7 +284,9 @@ export function AuthProvider({ children }) {
     if (res.data.requiresDeviceVerification) {
       return res.data; // { requiresDeviceVerification: true, email } — Login.jsx покажет ввод кода
     }
-    return applyAuthResult(res.data);
+    const result = await applyAuthResult(res.data);
+    linkTelegram();
+    return result;
   }
 
   function logout() {
