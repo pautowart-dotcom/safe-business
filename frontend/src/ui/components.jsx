@@ -106,6 +106,35 @@ export function PeriodFilter({ value, onChange, includeToday = true }) {
   return <Segmented options={opts} value={value} onChange={onChange} />;
 }
 
+// Переключатель как в iOS (18.10.2026) — вместо галочки-квадратика в
+// настройках. role="switch", управляется с клавиатуры как кнопка.
+export function Toggle({ checked, onChange, disabled = false, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={!!checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      style={{
+        position: 'relative', width: 51, height: 31, flexShrink: 0, borderRadius: 999, border: 'none', padding: 0,
+        background: checked ? C.green : 'rgba(15,27,45,.16)', cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.5 : 1, transition: 'background-color .2s',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute', top: 2, left: 2, width: 27, height: 27, borderRadius: '50%', background: '#FFF',
+          boxShadow: '0 2px 4px rgba(0,0,0,.18), 0 0 0 .5px rgba(0,0,0,.04)',
+          transform: checked ? 'translateX(20px)' : 'none', transition: 'transform .25s cubic-bezier(.2,.8,.2,1)',
+        }}
+      />
+    </button>
+  );
+}
+
 // Кольцо индекса (главная, «Безопасность»): светлое на тёмной карточке.
 // percent == null — пустое кольцо с прочерком.
 export function Ring({ percent, size = 84, label }) {

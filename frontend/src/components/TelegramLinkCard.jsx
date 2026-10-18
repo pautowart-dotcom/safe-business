@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client.js';
-import { Card, C } from '../ui/components.jsx';
+import { Card, C, Toggle } from '../ui/components.jsx';
 import toast from '../ui/toast.js';
 import { inTelegram } from '../utils/telegram.js';
 
@@ -70,12 +70,12 @@ export default function TelegramLinkCard() {
       {/* Уведомления сообщением от бота (18.10.2026, core/telegramBot.js) —
           сроки, законы, сеть; ежедневные подсказки сюда не приходят. */}
       {state.linked && (
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}`, cursor: 'pointer' }}>
-          <input type="checkbox" checked={state.notify !== false} onChange={(e) => toggleNotify(e.target.checked)} disabled={busy} style={{ marginTop: 3 }} />
-          <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+          <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, flex: 1 }}>
             Присылать уведомления в Telegram — о сроках, изменениях закона и задачах сети. Если сообщения не приходят, напишите боту /start.
           </span>
-        </label>
+          <Toggle label="Уведомления в Telegram" checked={state.notify !== false} onChange={toggleNotify} disabled={busy} />
+        </div>
       )}
     </Card>
   );

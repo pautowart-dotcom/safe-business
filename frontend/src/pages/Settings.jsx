@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Card, Field, TextInput, Select, Btn, Icon, C, SH } from '../ui/components.jsx';
+import { Card, Field, TextInput, Select, Btn, Icon, C, SH, Toggle } from '../ui/components.jsx';
 import TelegramLinkCard from '../components/TelegramLinkCard.jsx';
 import { isPushSupported, isIos, isStandalone, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '../utils/push.js';
 
@@ -231,7 +231,7 @@ export default function Settings() {
       )}
 
       {isManagement && company && (
-        company.subscription_status === 'trial' ? (
+        company.subscription_status === 'trial' && company.accessLevel !== 'free' ? (
           <Card style={{ background: C.greenBg, borderColor: C.green + '44', cursor: 'pointer' }} onClick={() => navigate('/subscription')}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 4 }}>Бесплатный период</div>
             <div style={{ fontSize: 12, color: C.secondary }}>Безопасный бизнес · Осталось {trialDaysLeft ?? '—'} дней</div>
@@ -241,7 +241,7 @@ export default function Settings() {
           <Card style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={() => navigate('/subscription')}>
             <div>
               <div style={{ fontSize: 12, color: C.subtle, marginBottom: 2 }}>Подписка</div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>{SUBSCRIPTION_STATUS_LABELS[company.subscription_status] || '—'}</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{company.accessLevel === 'free' ? 'Бесплатный доступ' : SUBSCRIPTION_STATUS_LABELS[company.subscription_status] || '—'}</div>
             </div>
             <span style={{ fontSize: 20, color: C.border }}>›</span>
           </Card>
@@ -254,20 +254,16 @@ export default function Settings() {
           {NOTIFICATION_CATEGORIES.map((cat, i) => {
             const setting = notificationSettings.find((s) => s.category === cat.key);
             return (
-              <label
+              <div
                 key={cat.key}
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
-                  padding: '8px 0', borderBottom: i < NOTIFICATION_CATEGORIES.length - 1 ? `1px solid ${C.border}` : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  padding: '9px 0', borderBottom: i < NOTIFICATION_CATEGORIES.length - 1 ? `1px solid ${C.border}` : 'none',
                 }}
               >
                 <span style={{ fontSize: 14 }}>{cat.label}</span>
-                <input
-                  type="checkbox"
-                  checked={setting?.enabled ?? true}
-                  onChange={(e) => toggleNotificationCategory(cat.key, e.target.checked)}
-                />
-              </label>
+                <Toggle label={cat.label} checked={setting?.enabled ?? true} onChange={(v) => toggleNotificationCategory(cat.key, v)} />
+              </div>
             );
           })}
         </Card>
@@ -339,12 +335,12 @@ export default function Settings() {
       </Card>
 
       <Card>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-          <input type="checkbox" checked={analyticsConsent} onChange={(e) => toggleAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
-          <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, flex: 1 }}>
             Разрешить использование обезличенных агрегированных данных для аналитики. Можно включить или отключить в любой момент.
           </span>
-        </label>
+          <Toggle label="Обезличенные данные для аналитики" checked={analyticsConsent} onChange={(v) => toggleAnalyticsConsent(v)} />
+        </div>
       </Card>
 
       <div onClick={handleSwitch} className="ui-press" style={{ background: C.bg, boxShadow: SH.card, borderRadius: 10, padding: '14px 16px', marginBottom: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
