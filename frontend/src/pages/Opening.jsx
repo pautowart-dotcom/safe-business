@@ -3,67 +3,70 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
-import { Card, ST, Btn, Badge, Icon, C } from '../ui/components.jsx';
+import { Card, ST, Btn, Icon, C, SH, Group, Ring } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
+import toast from '../ui/toast.js';
 
 // Открытие внутри системы (16.10.2026, docs/franchise-funkcional.md §11,
 // этап 1: Ф8/Ф9). Тот же роадмап ниши, что и PDF за 1490 ₽, но с галочками;
 // «Открылись» переводит точку в обычный режим. Бэкенд — platform/
 // opening.routes.js (пока только для тестовых компаний).
 
-function StageCard({ stage, openKey, setOpenKey, onToggle, busyKey }) {
+// 18.10.2026, вид приложения: этап — группа строк; круглая отметка слева
+// ставится одним тапом, подробности пункта — в шторке (ItemSheet ниже).
+function StageCard({ stage, setOpenKey, onToggle, busyKey }) {
   const complete = stage.done === stage.total;
   return (
-    <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
-        <div>
-          <div style={{ fontSize: 11, color: C.subtle, fontWeight: 700 }}>{stage.weekLabel}</div>
-          <div style={{ fontSize: 15, fontWeight: 800 }}>{stage.title}</div>
-        </div>
-        <Badge color={complete ? C.green : C.secondary} bg={complete ? C.greenBg : C.surface}>
-          {stage.done} из {stage.total}
-        </Badge>
-      </div>
-      {stage.items.map((item) => {
-        const open = openKey === item.key;
-        return (
-          <div key={item.key} style={{ borderTop: `1px solid ${C.border}`, padding: '10px 0' }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <button
-                type="button"
-                onClick={() => onToggle(item)}
-                disabled={busyKey === item.key}
-                aria-label={item.doneAt ? 'Снять отметку' : 'Отметить сделанным'}
-                style={{
-                  width: 22, height: 22, flexShrink: 0, marginTop: 1, borderRadius: 6, cursor: 'pointer',
-                  border: `1.5px solid ${item.doneAt ? C.green : C.border}`, background: item.doneAt ? C.green : C.bg,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-                }}
-              >
-                {item.doneAt && <Icon name="check" size={14} color="#fff" sw={2.4} />}
-              </button>
-              <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setOpenKey(open ? null : item.key)}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: item.doneAt ? C.subtle : C.primary, textDecoration: item.doneAt ? 'line-through' : 'none' }}>
-                  {item.title}
-                </div>
-                {item.durationNote && <div style={{ fontSize: 11.5, color: C.subtle, marginTop: 2 }}>{item.durationNote}</div>}
-                {open && (
-                  <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 8, lineHeight: 1.5 }}>
-                    {item.description && <div style={{ marginBottom: 6 }}>{item.description}</div>}
-                    {item.solution && <div style={{ marginBottom: 6 }}><b>Что сделать:</b> {item.solution}</div>}
-                    {item.howTo?.length > 0 && (
-                      <ol style={{ margin: '0 0 6px', paddingLeft: 18 }}>
-                        {item.howTo.map((step, i) => <li key={i}>{step}</li>)}
-                      </ol>
-                    )}
-                    {item.normBase && <div style={{ fontSize: 11.5, color: C.subtle }}>Основание: {item.normBase}</div>}
-                  </div>
-                )}
-              </div>
+    <Group title={stage.title} aside={`${stage.weekLabel ? `${stage.weekLabel} · ` : ''}${stage.done} из ${stage.total}${complete ? ' · готово' : ''}`}>
+      {stage.items.map((item) => (
+        <div key={item.key} className="ui-row" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px' }}>
+          <button
+            type="button"
+            onClick={() => onToggle(item)}
+            disabled={busyKey === item.key}
+            className="ui-tab"
+            aria-label={item.doneAt ? 'Снять отметку' : 'Отметить сделанным'}
+            style={{
+              width: 28, height: 28, flexShrink: 0, borderRadius: '50%', cursor: 'pointer', padding: 0,
+              border: `2px solid ${item.doneAt ? C.green : '#CBD1DA'}`, background: item.doneAt ? C.green : C.bg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color .2s, border-color .2s',
+            }}
+          >
+            {item.doneAt && <Icon name="check" size={15} color="#fff" sw={2.6} />}
+          </button>
+          <div className="ui-row-tap" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setOpenKey(item.key)}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, color: item.doneAt ? C.subtle : C.primary, textDecoration: item.doneAt ? 'line-through' : 'none' }}>{item.title}</div>
+              {item.durationNote && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>{item.durationNote}</div>}
             </div>
+            <svg width="8" height="13" viewBox="0 0 8 13" style={{ flexShrink: 0 }} aria-hidden="true"><path d="M1 1l5.5 5.5L1 12" fill="none" stroke="#C2C8D2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </div>
-        );
-      })}
-    </Card>
+        </div>
+      ))}
+    </Group>
+  );
+}
+
+function ItemSheet({ item, onClose, onToggle, busy }) {
+  return (
+    <Sheet open={!!item} onClose={onClose} title={item?.title}>
+      {item && (
+        <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.55 }}>
+          {item.durationNote && <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 10 }}>{item.durationNote}</div>}
+          {item.description && <div style={{ marginBottom: 10 }}>{item.description}</div>}
+          {item.solution && <div style={{ marginBottom: 10 }}><b style={{ color: C.primary }}>Что сделать:</b> {item.solution}</div>}
+          {item.howTo?.length > 0 && (
+            <ol style={{ margin: '0 0 10px', paddingLeft: 20 }}>
+              {item.howTo.map((step, i) => <li key={i} style={{ marginBottom: 4 }}>{step}</li>)}
+            </ol>
+          )}
+          {item.normBase && <div style={{ fontSize: 12, color: C.subtle, marginBottom: 14 }}>Основание: {item.normBase}</div>}
+          <Btn variant={item.doneAt ? 'secondary' : undefined} disabled={busy} onClick={() => onToggle(item)}>
+            {item.doneAt ? 'Снять отметку' : 'Сделано'}
+          </Btn>
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -90,6 +93,7 @@ export default function Opening() {
     try {
       const { data } = await api.put(`/platform/opening/items/${encodeURIComponent(item.key)}`, { done: !item.doneAt });
       setData(data);
+      if (!item.doneAt) toast(`Сделано ${data.done} из ${data.total}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось сохранить отметку');
     } finally {
@@ -142,29 +146,31 @@ export default function Opening() {
 
   return (
     <div>
-      <Card>
-        <ST>Подготовка к открытию</ST>
-        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 10 }}>
-          {data.roadmap.nicheLabel}{data.roadmap.legalFormLabel ? ` · ${data.roadmap.legalFormLabel}` : ''}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div style={{ fontSize: 26, fontWeight: 800 }}>{data.done} из {data.total}</div>
-          <div style={{ fontSize: 12.5, color: C.subtle }}>пунктов сделано</div>
-        </div>
-        <div style={{ height: 6, borderRadius: 3, background: C.surface, marginTop: 8, overflow: 'hidden' }}>
-          <div style={{ width: `${data.percent || 0}%`, height: '100%', background: C.green }} />
-        </div>
-        {data.currentStage && <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 10 }}>Сейчас: {data.currentStage}</div>}
-        {!data.roadmap.legalFormLabel && (
-          <div style={{ fontSize: 12, color: C.subtle, marginTop: 8 }}>
-            Шаги регистрации ИП или ООО появятся, когда укажете форму бизнеса в настройках.
+      <div style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 18, boxShadow: SH.raised, display: 'flex', gap: 16, alignItems: 'center' }}>
+        <Ring percent={data.percent || 0} label="готово" />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.6)', fontWeight: 600 }}>
+            {data.roadmap.nicheLabel}{data.roadmap.legalFormLabel ? ` · ${data.roadmap.legalFormLabel}` : ''}
           </div>
-        )}
-      </Card>
+          <div style={{ fontSize: 17, fontWeight: 800, margin: '2px 0 4px' }}>Сделано {data.done} из {data.total}</div>
+          {data.currentStage && <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>Сейчас: {data.currentStage}</div>}
+        </div>
+      </div>
+      {!data.roadmap.legalFormLabel && (
+        <div style={{ fontSize: 12.5, color: C.subtle, margin: '-6px 4px 14px', lineHeight: 1.45 }}>
+          Шаги регистрации ИП или ООО появятся, когда укажете форму бизнеса в настройках.
+        </div>
+      )}
 
       {data.roadmap.stages.map((stage) => (
-        <StageCard key={stage.title} stage={stage} openKey={openKey} setOpenKey={setOpenKey} onToggle={toggle} busyKey={busyKey} />
+        <StageCard key={stage.title} stage={stage} setOpenKey={setOpenKey} onToggle={toggle} busyKey={busyKey} />
       ))}
+      <ItemSheet
+        item={data.roadmap.stages.flatMap((s) => s.items).find((i) => i.key === openKey)}
+        onClose={() => setOpenKey(null)}
+        onToggle={async (item) => { await toggle(item); setOpenKey(null); }}
+        busy={!!busyKey}
+      />
 
       {isOwner && (
         <Card>
