@@ -15,6 +15,7 @@ const path = require('path');
 const cardsRepository = require('../modules/knowledge-cards/repository');
 const securityContent = require('../modules/security/content/repository');
 const { resolveSource } = require('../modules/knowledge-cards/norms');
+const changes = require('../modules/knowledge-cards/changes');
 
 const LANDING_DIR = path.join(__dirname, '../../../landing');
 const OUT_DIR = path.join(LANDING_DIR, 'spravochnik');
@@ -87,6 +88,7 @@ const MENU = [
   ['/dlya-kogo/', 'Для кого'],
   ['/spravochnik/', 'Справочник'],
   ['/instrumenty/', 'Инструменты'],
+  ['/izmeneniya/', 'Что изменилось'],
   ['/#price', 'Тариф'],
 ];
 
@@ -349,6 +351,33 @@ function toolsPage() {
   return { url, html: page({ title: 'Инструменты', description: 'Бесплатный тест по нише, разбор предписания от проверяющего, проверка сайта и план открытия бизнеса.', canonical: url, body }) };
 }
 
+// Лента «Что изменилось в законах» (19.10.2026) — из knowledge-cards/changes.js.
+// Каждая запись ведёт на статьи, которых изменение касается.
+function changesPage(cards) {
+  const url = '/izmeneniya/';
+  const byId = Object.fromEntries(cards.map((c) => [c.id, c]));
+  const entry = (e) => {
+    const links = (e.cards || []).map((id) => byId[id]).filter(Boolean)
+      .map((c) => `<li><a href="/spravochnik/${TOPICS[c.topic].slug}/${c.slug}/">${esc(c.question)}</a></li>`).join('');
+    return `<article class="change">
+  <p class="change-date">${esc(formatDate(e.date))}</p>
+  <h2>${esc(e.title)}</h2>
+  <p>${esc(e.text)}</p>
+  ${links ? `<p class="note">Статьи по теме:</p><ul>${links}</ul>` : ''}
+  <div class="sources"><p class="note">Источник:</p>${sourcesList(e.sources || [])}</div>
+</article>`;
+  };
+  const upcoming = changes.upcoming || [];
+  const body = `
+<h1>Что изменилось в законах</h1>
+<p class="lead">Изменения, которые касаются студий и малого сервисного бизнеса. Каждая запись сверена с текстом документа и ведёт на статьи справочника, которые мы после неё обновили.</p>
+${upcoming.length ? `<section><h2>Скоро</h2>${upcoming.map(entry).join('\n')}</section>` : ''}
+<section>${changes.map(entry).join('\n')}</section>
+<p class="checked">Это общая информация, а не юридическая консультация.</p>
+${CTA_TEST}`;
+  return { url, html: page({ title: 'Что изменилось в законах', description: 'Новые санитарные правила, проверочные листы, патент, штрафы — что изменилось для студий и малого бизнеса, со ссылками на документы.', canonical: url, body }) };
+}
+
 function indexPage(byTopic) {
   const url = '/spravochnik/';
   const body = `
@@ -399,6 +428,8 @@ footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:v
 .phone img{display:block;width:100%;height:auto}
 .chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}.chips li{margin:0;padding:7px 12px;border:1px solid var(--border);border-radius:999px;font-size:15px;background:var(--surface)}
 .cards a em{display:block;font-style:normal;font-size:14px;font-weight:700;color:var(--accent);margin-top:2px}
+.change{padding:4px 0 8px;border-bottom:1px solid var(--border)}.change h2{margin-top:6px}
+.change-date{margin:20px 0 0;font-size:14px;font-weight:700;color:var(--accent)}
 @media (max-width:480px){h1{font-size:25px}body{font-size:16px}}
 `;
 
@@ -435,7 +466,7 @@ async function main() {
     for (const c of list) pages.push(articlePage(c));
   }
   for (const n of NICHE_PAGES) pages.push(await nichePage(n, cards));
-  pages.push(howPage(), forWhomPage(), toolsPage());
+  pages.push(howPage(), forWhomPage(), toolsPage(), changesPage(cards));
   for (const p of pages) {
     const dir = path.join(LANDING_DIR, p.url);
     fs.mkdirSync(dir, { recursive: true });

@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { NORMS } = require('../modules/knowledge-cards/norms');
 const { getCard } = require('../modules/knowledge-cards/repository');
+const changes = require('../modules/knowledge-cards/changes');
 
 const CARDS_DIR = path.join(__dirname, '../modules/knowledge-cards/cards');
 const VIOLATIONS_DIR = path.join(__dirname, '../modules/security/content/violations');
@@ -50,6 +51,9 @@ async function main() {
     const used = cards.flatMap((c) => (c.sources || [])
       .filter((s) => s.norm === key)
       .map((s) => `${c.id} «${c.question}»${s.points ? ` — ${s.points}` : ''}${c.status === 'source_checked' || c.status === 'lawyer_checked' ? '' : ` [${c.status}]`}`));
+    for (const e of [...changes, ...(changes.upcoming || [])]) {
+      if ((e.sources || []).some((s) => s.norm === key)) used.push(`лента «Что изменилось»: ${e.date} «${e.title}»`);
+    }
     const hits = n.testMatch ? violations.filter((v) => n.testMatch.test(v.text)) : [];
     const byNiche = {};
     for (const h of hits) (byNiche[h.niche] ||= []).push(h.code);

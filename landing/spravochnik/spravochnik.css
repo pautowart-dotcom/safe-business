@@ -32,4 +32,6 @@ footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:v
 .phone img{display:block;width:100%;height:auto}
 .chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}.chips li{margin:0;padding:7px 12px;border:1px solid var(--border);border-radius:999px;font-size:15px;background:var(--surface)}
 .cards a em{display:block;font-style:normal;font-size:14px;font-weight:700;color:var(--accent);margin-top:2px}
+.change{padding:4px 0 8px;border-bottom:1px solid var(--border)}.change h2{margin-top:6px}
+.change-date{margin:20px 0 0;font-size:14px;font-weight:700;color:var(--accent)}
 @media (max-width:480px){h1{font-size:25px}body{font-size:16px}}
