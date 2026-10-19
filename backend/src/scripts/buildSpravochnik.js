@@ -440,6 +440,20 @@ footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:v
 @media (max-width:480px){h1{font-size:25px}body{font-size:16px}}
 `;
 
+// Страница «не найдено» (19.10.2026): nginx отдаёт её с кодом 404 на любой
+// несуществующий адрес (deploy/nginx.conf). В карту сайта не входит.
+function notFoundPage() {
+  const body = `
+<h1>Такой страницы нет</h1>
+<p class="lead">Возможно, адрес набран с ошибкой или страница переехала.</p>
+<ul class="cards">
+  <li><a href="/"><b>Главная</b><span>Что такое «Безопасный бизнес».</span></a></li>
+  <li><a href="/lk/audit"><b>Бесплатный тест</b><span>Около 10 минут, без регистрации.</span></a></li>
+  <li><a href="/spravochnik/"><b>Справочник</b><span>Короткие ответы со ссылками на документы.</span></a></li>
+</ul>`;
+  return { url: '/404.html', html: page({ title: 'Страница не найдена', description: 'Такой страницы нет на сайте «Безопасный бизнес».', canonical: '/404.html', body }).replace('<meta charset="utf-8" />', '<meta charset="utf-8" />\n<meta name="robots" content="noindex" />') };
+}
+
 // Карта сайта для Яндекса и Google (19.10.2026, план docs/plan-2026-10-19.md).
 // Только открытые страницы: франшиза скрыта от поиска, результаты и «спасибо»
 // не нужны. У статьи lastmod — дата сверки карточки, чтобы поисковик видел
@@ -481,6 +495,7 @@ async function main() {
   }
   fs.writeFileSync(path.join(OUT_DIR, 'spravochnik.css'), CSS);
   fs.writeFileSync(path.join(LANDING_DIR, 'sitemap.xml'), sitemap(pages, cards));
+  fs.writeFileSync(path.join(LANDING_DIR, '404.html'), notFoundPage().html);
   console.log(`Справочник и страницы ниш: ${pages.length} страниц → ${OUT_DIR}, ${NICHE_OUT_DIR}`);
 }
 
