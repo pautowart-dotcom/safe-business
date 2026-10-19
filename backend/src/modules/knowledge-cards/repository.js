@@ -12,8 +12,11 @@ const CARDS = [
   require('./cards/kadry-001-medknizhka'),
   require('./cards/pomeshchenie-001-vyveska'),
   require('./cards/pomeshchenie-002-ognetushitel'),
+  require('./cards/sanitariya-001-dezinsekciya'),
+  require('./cards/sanitariya-002-zhurnal-sterilizacii'),
   require('./cards/kassa-001-chek-korrekcii'),
   require('./cards/registraciya-001-okved'),
+  require('./cards/registraciya-002-uvedomlenie'),
 ];
 
 // Статусы, с которыми карточку можно отдавать ИИ как проверенный ответ.
