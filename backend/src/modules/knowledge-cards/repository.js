@@ -11,6 +11,7 @@
 const CARDS = [
   require('./cards/kadry-001-medknizhka'),
   require('./cards/pomeshchenie-001-vyveska'),
+  require('./cards/pomeshchenie-002-ognetushitel'),
   require('./cards/kassa-001-chek-korrekcii'),
   require('./cards/registraciya-001-okved'),
 ];

@@ -17,6 +17,7 @@ const { computeSecurityStatus } = require('../security/status');
 const { NICHE_LABELS } = require('../roadmap/content/buildRoadmap');
 const yandexAgent = require('../../core/yandexAgent');
 const cardsRepository = require('../knowledge-cards/repository');
+const { resolveSource } = require('../knowledge-cards/norms');
 
 const STOP_WORDS = new Set([
   'нужно', 'нужен', 'нужна', 'нужны', 'можно', 'надо', 'какой', 'какие', 'какая', 'какое', 'если', 'чтобы',
@@ -138,7 +139,7 @@ function formatCard(card) {
     ...list('Шаги:', card.steps),
     ...list('Частые ошибки:', card.mistakes),
     card.consequences ? `Ответственность: ${card.consequences}` : null,
-    card.sources && card.sources.length ? `Основание: ${card.sources.join('; ')}` : null,
+    card.sources && card.sources.length ? `Основание: ${card.sources.map((s) => resolveSource(s).title).join('; ')}` : null,
     ...list('Не проверено — передай как «это лучше уточнить у юриста», не как факт:', card.unverified),
   ]
     .filter(Boolean)

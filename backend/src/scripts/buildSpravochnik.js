@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const cardsRepository = require('../modules/knowledge-cards/repository');
 const securityContent = require('../modules/security/content/repository');
+const { resolveSource } = require('../modules/knowledge-cards/norms');
 
 const LANDING_DIR = path.join(__dirname, '../../../landing');
 const OUT_DIR = path.join(LANDING_DIR, 'spravochnik');
@@ -61,6 +62,18 @@ function plain(text) {
 
 function list(items, tag = 'ul', clean = true) {
   return `<${tag}>${items.map((i) => `<li>${esc(clean ? plain(i) : i)}</li>`).join('')}</${tag}>`;
+}
+
+// Источник — строка или норма из реестра knowledge-cards/norms.js
+// (19.10.2026, владелец: «указывать, откуда информация, а то подумают,
+// придумали сами»): со ссылкой человек открывает первоисточник сам.
+function sourcesList(items) {
+  return `<ul>${items
+    .map(resolveSource)
+    .map((s) => (s.url
+      ? `<li><a href="${esc(s.url)}" rel="noopener" target="_blank">${esc(s.title)}</a></li>`
+      : `<li>${esc(s.title)}</li>`))
+    .join('')}</ul>`;
 }
 
 function section(title, body) {
@@ -137,7 +150,7 @@ function articlePage(card) {
   </aside>
   <section class="sources">
     <h2>На чём основано</h2>
-    ${list(card.sources || [], 'ul', false)}
+    ${sourcesList(card.sources || [])}
     ${card.unverified && card.unverified.length ? `<h3>Что мы пока не проверили</h3>${list(card.unverified, 'ul', false)}` : ''}
     <p class="checked">Проверено по первоисточникам ${esc(formatDate(card.checkedAt))}.</p>
   </section>
