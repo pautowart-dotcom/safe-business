@@ -145,8 +145,22 @@ function titleBlock(template, generatedAt) {
   };
 }
 
+// Вычисляемые части шаблона (20.10.2026, content/lawyerPd.js): prepare(data)
+// возвращает { blocks, values }. blocks — многострочные куски, собранные из
+// нашего же текста (приложение с целями, пункт про Метрику): вставляются в
+// шаблон до подстановки полей, без схлопывания переносов. values — обычные
+// значения полей (строка реквизитов и т.п.), идут через fillTemplate как
+// пользовательский ввод.
+function applyPrepare(template, body, data) {
+  if (!template.prepare) return { body, data };
+  const { blocks = {}, values = {} } = template.prepare(data);
+  const withBlocks = body.replace(/{{(\w+)}}/g, (m, key) => (key in blocks ? blocks[key] : m));
+  return { body: withBlocks, data: { ...data, ...values } };
+}
+
 function renderDocumentPdf({ template, data, generatedAt, profile }) {
-  const filledBody = fillTemplate(assembleBody(template, profile || {}), data);
+  const prepared = applyPrepare(template, assembleBody(template, profile || {}), data);
+  const filledBody = fillTemplate(prepared.body, prepared.data);
   const content = [
     titleBlock(template, generatedAt),
     draftNotice(template),
@@ -191,4 +205,4 @@ function renderDocumentPdf({ template, data, generatedAt, profile }) {
   });
 }
 
-module.exports = { fillTemplate, renderDocumentPdf, assembleBody };
+module.exports = { fillTemplate, renderDocumentPdf, assembleBody, applyPrepare };

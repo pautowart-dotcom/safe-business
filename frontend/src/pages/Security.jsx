@@ -2023,6 +2023,41 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
 
 // Тихая обкатка снята 13.08.2026 (решение владельца) — доступно всем
 // компаниям, вместе с backend-гейтом в document-templates.routes.js.
+// Поле анкеты документа (20.10.2026): текст или выбор из списка (options у
+// полей документов юриста — content/lawyerPd.js на бэкенде).
+function TemplateFieldInput({ field, value, onChange }) {
+  if (field.options) {
+    return (
+      <Select value={value || field.default || ''} onChange={(e) => onChange(e.target.value)}>
+        {field.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </Select>
+    );
+  }
+  return <TextInput value={value || ''} onChange={(e) => onChange(e.target.value)} />;
+}
+
+// Начальные значения: сохранённое с прошлого раза, иначе значение по умолчанию.
+function prefillFields(fields, savedDetails) {
+  const out = {};
+  fields.forEach((f) => {
+    if (savedDetails[f.key]) out[f.key] = savedDetails[f.key];
+    else if (f.default) out[f.key] = f.default;
+  });
+  return out;
+}
+
+// Черновик анкеты сохраняется на сервере по ходу заполнения (20.10.2026):
+// оплатил, не дозаполнил — вернулся, всё на месте.
+function useDraftAutosave(formData) {
+  useEffect(() => {
+    if (!formData || Object.keys(formData).length === 0) return undefined;
+    const t = setTimeout(() => {
+      api.put('/modules/document-templates/details', formData, { silent: true }).catch(() => {});
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [formData]);
+}
+
 function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsChange }) {
   const [templates, setTemplates] = useState(null);
   const [savedDetails, setSavedDetails] = useState({});
@@ -2037,6 +2072,8 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
   // Объяснения по ключу шаблона (19.08.2026, п.6 плана) — { loading, text,
   // error } на каждый t.key, запрашивается лениво по клику, не все сразу.
   const [explanations, setExplanations] = useState({});
+  const [promoCode, setPromoCode] = useState('');
+  useDraftAutosave(openKey ? formData : null);
 
   async function explainTemplate(key) {
     if (explanations[key]?.text || explanations[key]?.loading) return;
@@ -2078,7 +2115,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     setPayingAddon(true);
     setError('');
     try {
-      const { data } = await api.post('/platform/addons/document_templates/checkout');
+      const { data } = await api.post('/platform/addons/document_templates/checkout', promoCode.trim() ? { promoCode: promoCode.trim() } : {});
       reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
@@ -2157,6 +2194,12 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
         <div style={{ fontSize: 13, color: C.secondary }}>Для вашей ниши шаблонов пока нет.</div>
       )}
 
+      {addon && !addon.purchased && templates && templates.length > 0 && (
+        <Field label="Промокод (если есть)">
+          <TextInput value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Необязательно" maxLength={32} />
+        </Field>
+      )}
+
       {templates && templates.length > 0 && (
         <SigningPackBlock
           templates={templates}
@@ -2232,7 +2275,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           )}
 
           {!addon || !addon.purchased ? (
-            <Btn small variant="secondary" disabled>Заполнить и сгенерировать · по подписке</Btn>
+            <Btn small variant="secondary" disabled>Заполнить и сгенерировать · после оплаты</Btn>
           ) : openKey !== t.key ? (
             <Btn
               small
@@ -2242,9 +2285,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
                 // Реквизиты (ИНН/адрес и т.п.) — те же самые в каждом
                 // документе, подставляем то, что уже вводили в прошлый раз
                 // (savedDetails), чтобы не набирать заново на каждый шаблон.
-                const prefilled = {};
-                t.fields.forEach((f) => { if (savedDetails[f.key]) prefilled[f.key] = savedDetails[f.key]; });
-                setFormData(prefilled);
+                setFormData(prefillFields(t.fields, savedDetails));
                 setError('');
               }}
             >
@@ -2257,10 +2298,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
               )}
               {t.fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
-                  <TextInput
-                    value={formData[f.key] || ''}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                  />
+                  <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => ({ ...prev, [f.key]: v }))} />
                 </Field>
               ))}
               <div style={{ display: 'flex', gap: 8 }}>
@@ -2350,6 +2388,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
   const [results, setResults] = useState(null);
   const [doneIds, setDoneIds] = useState({});
   const [marking, setMarking] = useState(null);
+  useDraftAutosave(formData);
 
   // Общие поля всех документов пакета: один ключ — одно поле (реквизиты в
   // шаблонах называются одинаково), обязательное, если обязательно хоть где-то.
@@ -2367,9 +2406,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
   const purchased = addon && addon.purchased;
 
   function openForm() {
-    const prefilled = {};
-    fields.forEach((f) => { if (savedDetails[f.key]) prefilled[f.key] = savedDetails[f.key]; });
-    setFormData(prefilled);
+    setFormData(prefillFields(fields, savedDetails));
     setError('');
   }
 
@@ -2441,7 +2478,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
               <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>Реквизиты вводятся один раз — для всех документов сразу.</div>
               {fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
-                  <TextInput value={formData[f.key] || ''} onChange={(e) => setFormData((prev) => ({ ...prev, [f.key]: e.target.value }))} />
+                  <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => ({ ...prev, [f.key]: v }))} />
                 </Field>
               ))}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

@@ -6,6 +6,7 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment } = require('../core/yookassa');
 const { ADDON_CATALOG, getAddon } = require('../core/addons');
+const { evaluatePromo } = require('../core/promoCodes');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 
 const router = express.Router();
@@ -123,8 +124,20 @@ router.post(
       metadata.websiteCheckId = String(checkRows.rows[0].id);
     }
 
+    // Промокод на документы (20.10.2026, миграция 0148): «уже оплачено» выше
+    // гарантирует, что это первая покупка.
+    let promoResult = null;
+    if (req.params.addonKey === 'document_templates' && req.body?.promoCode) {
+      try {
+        promoResult = await evaluatePromo({ code: req.body.promoCode, companyId: req.tenant.companyId, appliesTo: 'templates', priceRub: addon.priceRub });
+      } catch (err) {
+        return res.status(err.status || 400).json({ error: err.message });
+      }
+    }
+    const amountRub = promoResult ? promoResult.finalRub : addon.priceRub;
+
     const payment = await createPayment({
-      amountRub: addon.priceRub,
+      amountRub,
       description: `${addon.label} — ${company.name}`,
       returnUrl,
       savePaymentMethod: false,
@@ -133,9 +146,9 @@ router.post(
     });
 
     await pool.query(
-      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status)
-       VALUES ($1, $2, $3, $4, 'pending')`,
-      [req.tenant.companyId, req.params.addonKey, payment.id, addon.priceRub]
+      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status, promo_code_id, discount_rub)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
+      [req.tenant.companyId, req.params.addonKey, payment.id, amountRub, promoResult?.promo.id || null, promoResult?.discountRub || 0]
     );
 
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });

@@ -9,6 +9,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireSuperAdmin } = require('../core/middleware/role');
 const { normalizeCode, isValidCodeFormat } = require('../core/promoCodes');
+const { getAddon } = require('../core/addons');
 
 const router = express.Router();
 router.use(requireAuth, requireSuperAdmin);
@@ -23,7 +24,12 @@ const SELECT_WITH_STATS = `
          COALESCE(SUM(sp.amount_rub) FILTER (WHERE sp.status = 'succeeded'), 0) AS "paidRub",
          COALESCE(SUM(sp.discount_rub) FILTER (WHERE sp.status = 'succeeded'), 0) AS "discountRub"
   FROM promo_codes pc
-  LEFT JOIN subscription_payments sp ON sp.promo_code_id = pc.id
+  -- Оплаты подписки/отчёта и покупки документов (миграция 0148) — одним списком.
+  LEFT JOIN (
+    SELECT promo_code_id, company_id, id, status, amount_rub, discount_rub FROM subscription_payments
+    UNION ALL
+    SELECT promo_code_id, company_id, id, status, amount_rub, discount_rub FROM addon_purchases
+  ) sp ON sp.promo_code_id = pc.id
 `;
 
 function toNumbers(row) {
@@ -77,7 +83,7 @@ router.post(
       return res.status(400).json({ error: 'Код: 3–32 символа, буквы, цифры, «-» или «_»' });
     }
     const appliesTo = req.body?.appliesTo;
-    if (appliesTo !== 'report' && appliesTo !== 'subscription') {
+    if (appliesTo !== 'report' && appliesTo !== 'subscription' && appliesTo !== 'templates') {
       return res.status(400).json({ error: 'Выберите, на что действует код' });
     }
     const discountType = req.body?.discountType;
@@ -94,8 +100,9 @@ router.post(
     // Цена подписки — SUBSCRIPTION_PRICE_RUB в subscription.routes.js; при её
     // смене поправить и здесь. Без этой проверки скидка 5000 ₽ молча
     // превращала бы первый платёж в 1 ₽ (минимум ЮKassa, core/promoCodes.js).
-    if (discountType === 'fixed' && discountValue >= 1990) {
-      return res.status(400).json({ error: 'Скидка в рублях должна быть меньше цены (1990 ₽)' });
+    const priceForCode = appliesTo === 'templates' ? getAddon('document_templates').priceRub : 1990;
+    if (discountType === 'fixed' && discountValue >= priceForCode) {
+      return res.status(400).json({ error: `Скидка в рублях должна быть меньше цены (${priceForCode} ₽)` });
     }
     let limits;
     try {

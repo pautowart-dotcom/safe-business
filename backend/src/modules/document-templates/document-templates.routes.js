@@ -36,7 +36,15 @@ const explanationCache = new Map();
 // что реально пришло в data при генерации — не отдельная форма настроек,
 // просто "запомнили с прошлого раза" — фронт присылает то же значение
 // снова, только уже предзаполненным.
-const SAVED_DETAIL_KEYS = ['legalName', 'inn', 'ogrnip', 'legalAddress', 'serviceAddress', 'phone', 'email'];
+// 20.10.2026: + поля документов юриста (content/lawyerPd.js) — анкета
+// сохраняется целиком, в том числе черновиком до генерации (PUT /details):
+// оплатил, не дозаполнил — вернулся, всё на месте.
+const SAVED_DETAIL_KEYS = [
+  'legalName', 'inn', 'ogrnip', 'legalAddress', 'serviceAddress', 'phone', 'email',
+  'legalNameGen', 'legalNameDat', 'kpp', 'website', 'activity',
+  'siteFeedback', 'siteBooking', 'siteMailing', 'siteMetrika', 'siteReviews', 'extraPurpose', 'extraPurposeData',
+  'siteData', 'sitePurpose', 'distPurpose', 'photoBasis', 'paperPurpose', 'paperData',
+];
 
 async function loadSavedDetails(companyId) {
   const { rows } = await pool.query('SELECT document_details_enc FROM companies WHERE id = $1', [companyId]);
@@ -149,6 +157,20 @@ router.get(
     const savedDetails = await loadSavedDetails(req.tenant.companyId);
 
     res.json({ templates, savedDetails });
+  })
+);
+
+// Черновик анкеты (20.10.2026): форма шлёт сюда введённое по ходу заполнения.
+// Сохраняются только известные ключи (SAVED_DETAIL_KEYS), пустые не стирают
+// уже сохранённое — черновик может прийти из формы, где поля не было.
+router.put(
+  '/details',
+  asyncHandler(async (req, res) => {
+    const values = req.body && typeof req.body === 'object' ? req.body : {};
+    const shownKeys = SAVED_DETAIL_KEYS.filter((k) => typeof values[k] === 'string' && values[k].trim() && values[k].length <= 500);
+    const existing = await loadSavedDetails(req.tenant.companyId);
+    await saveDetails(req.tenant.companyId, existing, values, shownKeys);
+    res.json({ ok: true });
   })
 );
 

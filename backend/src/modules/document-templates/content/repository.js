@@ -328,6 +328,32 @@ const TEMPLATES_BY_NICHE = {
   ],
 };
 
+// 20.10.2026: документы по персональным данным — версии юриста (lawyerPd.js)
+// вместо наших черновиков. Ключи прежние (связка с тестом не рвётся), плюс
+// согласие на изображение и бумажное согласие в каждой нише. Детский клуб —
+// только политика: его согласия оформлены от имени родителя, у юриста таких
+// шаблонов пока нет.
+const lawyerPd = require('./lawyerPd');
+const KEEP_OWN_CONSENTS = new Set(['kids_club']);
+// окончание прежнего ключа → вид документа юриста
+const REPLACE_BY_SUFFIX = {
+  _privacy_policy: 'privacy_policy',
+  _pd_consent: 'pd_consent',
+  _pd_photo_consent: 'pd_distribution',
+  _marketing_consent: 'marketing_consent',
+};
+for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
+  const own = KEEP_OWN_CONSENTS.has(niche);
+  for (let i = 0; i < list.length; i++) {
+    const suffix = Object.keys(REPLACE_BY_SUFFIX).find((s) => list[i].key.endsWith(s));
+    if (!suffix || (own && suffix !== '_privacy_policy')) continue;
+    list[i] = lawyerPd.build(niche, list[i].key, REPLACE_BY_SUFFIX[suffix]);
+  }
+  if (!own) {
+    for (const kind of lawyerPd.ADDED_KINDS) list.push(lawyerPd.build(niche, `${niche}_${kind}`, kind));
+  }
+}
+
 async function getTemplatesForNiche(niche) {
   return TEMPLATES_BY_NICHE[niche] || [];
 }

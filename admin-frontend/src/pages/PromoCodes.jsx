@@ -11,7 +11,9 @@ import { Card, Badge, Btn, Field, TextInput, C } from '../ui/components.jsx';
 // (владелец, 09.10.2026), подписку через код оформляют реже.
 const EMPTY_FORM = { code: '', appliesTo: 'report', discountType: 'percent', discountValue: '', maxRedemptions: '', validUntil: '', note: '', testOnly: false };
 const PRICE_RUB = 1990;
-const APPLIES_TO_LABELS = { report: 'Отчёт в тесте с сайта', subscription: 'Подписка, первый месяц' };
+const APPLIES_TO_LABELS = { report: 'Отчёт в тесте с сайта', subscription: 'Подписка, первый месяц', templates: 'Документы студии' };
+// Цена документов — core/addons.js (document_templates), только для подсказки в форме.
+const PRICES = { report: PRICE_RUB, subscription: PRICE_RUB, templates: 4990 };
 
 const STATUS_LABELS = { succeeded: 'оплачено', pending: 'не завершено', canceled: 'отменено' };
 
@@ -23,11 +25,11 @@ function discountLabel(c) {
   return c.discountType === 'percent' ? `−${c.discountValue}%` : `−${money(c.discountValue)}`;
 }
 
-function firstPaymentPreview(type, value) {
+function firstPaymentPreview(type, value, price = PRICE_RUB) {
   const v = Number(value);
   if (!v) return null;
-  const discount = Math.min(type === 'percent' ? Math.round((PRICE_RUB * v) / 100) : v, PRICE_RUB - 1);
-  return PRICE_RUB - discount;
+  const discount = Math.min(type === 'percent' ? Math.round((price * v) / 100) : v, price - 1);
+  return price - discount;
 }
 
 export default function PromoCodes() {
@@ -91,7 +93,7 @@ export default function PromoCodes() {
     api.get(`/platform/admin-promo-codes/${id}/payments`).then(({ data: rows }) => setPayments((p) => ({ ...p, [id]: rows })));
   }
 
-  const preview = form ? firstPaymentPreview(form.discountType, form.discountValue) : null;
+  const preview = form ? firstPaymentPreview(form.discountType, form.discountValue, PRICES[form.appliesTo]) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -138,7 +140,7 @@ export default function PromoCodes() {
               </div>
               {preview != null && (
                 <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>
-                  {form.appliesTo === 'report' ? 'Отчёт' : 'Первый месяц'}: {money(preview)} вместо {money(PRICE_RUB)}
+                  {form.appliesTo === 'report' ? 'Отчёт' : form.appliesTo === 'templates' ? 'Документы' : 'Первый месяц'}: {money(preview)} вместо {money(PRICES[form.appliesTo])}
                 </div>
               )}
             </Field>

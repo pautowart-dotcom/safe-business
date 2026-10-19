@@ -57,13 +57,15 @@ async function evaluatePromo({ code: rawCode, companyId, appliesTo, priceRub }) 
   }
 
   if (promo.applies_to !== appliesTo) {
-    throw promoError(promo.applies_to === 'report' ? 'Этот промокод — на отчёт в бесплатном тесте с сайта' : 'Этот промокод — на подписку, а не на разовый отчёт');
+    const WHAT = { report: 'на отчёт в бесплатном тесте с сайта', subscription: 'на подписку', templates: 'на документы студии' };
+    throw promoError(`Этот промокод — ${WHAT[promo.applies_to] || 'на другую покупку'}`);
   }
   if (promo.valid_until && new Date(promo.valid_until) < new Date()) throw promoError('Срок действия промокода закончился');
 
   if (promo.max_redemptions != null) {
     const { rows: usedRows } = await pool.query(
-      `SELECT COUNT(*) AS used FROM subscription_payments WHERE promo_code_id = $1 AND status = 'succeeded'`,
+      `SELECT (SELECT COUNT(*) FROM subscription_payments WHERE promo_code_id = $1 AND status = 'succeeded')
+            + (SELECT COUNT(*) FROM addon_purchases WHERE promo_code_id = $1 AND status = 'succeeded') AS used`,
       [promo.id]
     );
     if (Number(usedRows[0].used) >= promo.max_redemptions) throw promoError('Промокод уже использовали максимальное число раз');
