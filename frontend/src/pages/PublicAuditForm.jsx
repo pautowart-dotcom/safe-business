@@ -115,6 +115,9 @@ export default function PublicAuditForm() {
         <Field label="Общие фото (вход, зал, вывеска — точка их увидит)">
           <PhotoPicker photos={photosFor(null)} limit={limits.general} onUpload={(f) => uploadPhoto(f, null)} onDelete={deletePhoto} />
         </Field>
+        <div style={{ fontSize: 12, color: C.subtle, margin: '4px 0 12px', lineHeight: 1.5 }}>
+          Если проверку не отправить, приложенные фото удалятся автоматически, когда закончится срок ссылки. <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer">Политика конфиденциальности</a>
+        </div>
         <Btn onClick={submit} disabled={sending}>{sending ? 'Отправляем…' : 'Отправить проверку'}</Btn>
         {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
       </Card>

@@ -32,6 +32,20 @@ async function cleanup() {
   }
 
   console.log(`Удалены фото у ${rows.length} визитов старше ${RETENTION_MONTHS} месяцев.`);
+
+  // 19.10.2026: фото проверки точки по ссылке (миграция 0145), которую так и
+  // не отправили, — удаляются, когда срок ссылки (14 дней) закончился. Так
+  // же написано в Политике конфиденциальности (миграция 0146).
+  const { rows: orphanPhotos } = await pool.query(
+    `SELECT p.id, p.file_url FROM franchise_check_photos p
+     JOIN franchise_audit_links l ON l.token = p.link_token
+     WHERE p.check_id IS NULL AND l.expires_at < now()`
+  );
+  for (const p of orphanPhotos) {
+    await deleteFile(filenameFromUrl(p.file_url));
+    await pool.query('DELETE FROM franchise_check_photos WHERE id = $1', [p.id]);
+  }
+  console.log(`Удалены ${orphanPhotos.length} фото неотправленных проверок с истёкшей ссылкой.`);
 }
 
 cleanup()
