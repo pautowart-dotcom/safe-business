@@ -598,7 +598,14 @@ router.post(
     // core/jwt.js) перестают приниматься сразу после смены пароля, а не
     // только когда истекут сами (core/middleware/auth.js сверяет с этим
     // полем). Аудит безопасности 29.07.2026.
-    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = now() WHERE id = $2', [passwordHash, tokenRes.rows[0].user_id]);
+    // is_guest = false (20.10.2026): гость анонимного теста ставит пароль по
+    // ссылке из письма с заключением — с этого момента он обычный
+    // пользователь. Раньше пометка оставалась, и в кабинете покупка
+    // документов/подписки шла по гостевой ветке (addons.routes.js,
+    // subscription.routes.js: требовала email и согласие в теле запроса,
+    // которых форма кабинета не шлёт) — оплатить было нельзя. Для обычного
+    // сброса пароля ничего не меняет.
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = now(), is_guest = false WHERE id = $2', [passwordHash, tokenRes.rows[0].user_id]);
     await pool.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [tokenRes.rows[0].id]);
     res.json({ ok: true });
   })
