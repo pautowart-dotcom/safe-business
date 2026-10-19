@@ -3,6 +3,7 @@ import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, ST, Btn, C, Group, Row } from '../ui/components.jsx';
 import StandardsAnswerList, { RESULT_OPTIONS, percentColor } from '../components/StandardsAnswerList.jsx';
+import { PhotoStrip } from '../components/CheckPhotos.jsx';
 
 // Стандарты сети — сторона точки (17.10.2026). Самопроверка и результат
 // последней проверки от сети. Бэкенд — platform/franchise-standards.routes.js (/mine).
@@ -82,6 +83,24 @@ export default function PointStandards() {
             </Group>
             {data.audit.comment && (
               <div style={{ fontSize: 13, color: C.secondary, margin: '-8px 4px 18px', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>Комментарий проверяющего: {data.audit.comment}</div>
+            )}
+            {/* 19.10.2026: фото проверяющего — по пунктам и общие. */}
+            {(data.audit.photos || []).length > 0 && (
+              <Card>
+                <ST>Фото проверяющего</ST>
+                {data.audit.answers.filter((a) => data.audit.photos.some((p) => p.standardId === a.standardId)).map((a) => (
+                  <div key={a.standardId} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 13 }}>{a.title}</div>
+                    <PhotoStrip photos={data.audit.photos.filter((p) => p.standardId === a.standardId)} />
+                  </div>
+                ))}
+                {data.audit.photos.some((p) => !p.standardId) && (
+                  <div style={{ padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 13 }}>Общие фото</div>
+                    <PhotoStrip photos={data.audit.photos.filter((p) => !p.standardId)} />
+                  </div>
+                )}
+              </Card>
             )}
           </>
         );

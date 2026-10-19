@@ -19,7 +19,9 @@ export function percentColor(p) {
   return C.red;
 }
 
-export default function StandardsAnswerList({ standards, answers, onChange }) {
+// renderExtra(standard) — дополнительный блок под пунктом (19.10.2026: фото
+// у проверяющего по ссылке, PublicAuditForm.jsx).
+export default function StandardsAnswerList({ standards, answers, onChange, renderExtra }) {
   function set(id, patch) {
     onChange({ ...answers, [id]: { ...(answers[id] || {}), ...patch } });
   }
@@ -53,6 +55,7 @@ export default function StandardsAnswerList({ standards, answers, onChange }) {
                 <TextInput value={a.note || ''} onChange={(e) => set(s.id, { note: e.target.value })} placeholder="Что увидели (необязательно)" maxLength={500} />
               </div>
             )}
+            {renderExtra && renderExtra(s)}
           </div>
         );
       })}

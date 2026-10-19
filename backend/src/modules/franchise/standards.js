@@ -2,6 +2,7 @@
 // Шаблоны — стартовый набор, франчайзер правит под себя. Это требования
 // сети, а не закона: формулировки без штрафов и статей.
 const pool = require('../../db/pool');
+const { signFileUrl } = require('../../core/fileStorage');
 
 const TEMPLATES = {
   kids_club: [
@@ -90,6 +91,16 @@ async function checkDetail(checkId) {
   return rows;
 }
 
+// Фото проверки (миграция 0145): у пункта — standardId, общие — null.
+// Ссылки подписываются здесь, на выходе к клиенту.
+async function checkPhotos(checkId) {
+  const { rows } = await pool.query(
+    'SELECT id, standard_id AS "standardId", file_url FROM franchise_check_photos WHERE check_id = $1 ORDER BY id',
+    [checkId]
+  );
+  return rows.map((r) => ({ id: r.id, standardId: r.standardId, url: signFileUrl(r.file_url) }));
+}
+
 // Сохранить проверку целиком. answers — [{ standardId, result, note }],
 // только пункты этой сети; неизвестные id молча отбрасываются.
 async function saveCheck({ groupId, companyId, kind, auditorLabel, visitedOn, comment, answers, userId }) {
@@ -129,4 +140,4 @@ async function saveCheck({ groupId, companyId, kind, auditorLabel, visitedOn, co
   }
 }
 
-module.exports = { TEMPLATES, RESULTS, scorePercent, listStandards, latestChecksByPoint, checkDetail, saveCheck };
+module.exports = { TEMPLATES, RESULTS, scorePercent, listStandards, latestChecksByPoint, checkDetail, checkPhotos, saveCheck };

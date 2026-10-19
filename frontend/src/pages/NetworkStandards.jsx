@@ -5,6 +5,7 @@ import { Card, ST, Btn, Badge, Field, TextInput, TextArea, Select, C, Group, Row
 import Sheet from '../ui/Sheet.jsx';
 import toast from '../ui/toast.js';
 import StandardsAnswerList, { RESULT_OPTIONS, percentColor } from '../components/StandardsAnswerList.jsx';
+import { PhotoStrip } from '../components/CheckPhotos.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
 
 // Стандарты сети — сторона франчайзера (17.10.2026, docs/franchisor-
@@ -178,12 +179,14 @@ function CheckDetail({ checkId, onClose }) {
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13 }}>{a.title}</div>
               {a.note && <div style={{ fontSize: 12, color: C.secondary }}>{a.note}</div>}
+              <PhotoStrip photos={(check.photos || []).filter((p) => p.standardId === a.standardId)} />
             </div>
             <Badge color={o.color} bg={o.bg}>{o.label}</Badge>
           </div>
         );
       })}
       {check.comment && <div style={{ fontSize: 13, color: C.secondary, marginTop: 10, whiteSpace: 'pre-wrap' }}>{check.comment}</div>}
+      <PhotoStrip photos={(check.photos || []).filter((p) => !p.standardId)} />
       <div style={{ marginTop: 10 }}><Btn small variant="secondary" onClick={onClose}>Закрыть</Btn></div>
     </Card>
   );

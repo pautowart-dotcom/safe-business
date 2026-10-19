@@ -9,8 +9,24 @@ const asyncHandler = require('../utils/asyncHandler');
 const { checkLoginAllowed, recordFailedLogin } = require('../core/loginRateLimit');
 const { notifyCompany } = require('../core/notifications');
 const { listStandards, saveCheck } = require('../modules/franchise/standards');
+const { uploadPhoto } = require('../core/uploads');
+const { saveImage, getFileUrl, signFileUrl, filenameFromUrl, deleteFile } = require('../core/fileStorage');
 
 const router = express.Router();
+
+// Фото к проверке (19.10.2026, миграция 0145): до 3 к пункту и до 5 общих,
+// не больше 20 на ссылку — ссылка без аккаунта, лимит держит место на диске.
+const PHOTOS_PER_STANDARD = 3;
+const PHOTOS_GENERAL = 5;
+const PHOTOS_PER_LINK = 20;
+
+async function linkPhotos(token) {
+  const { rows } = await pool.query(
+    'SELECT id, standard_id AS "standardId", file_url FROM franchise_check_photos WHERE link_token = $1 AND check_id IS NULL ORDER BY id',
+    [token]
+  );
+  return rows.map((r) => ({ id: r.id, standardId: r.standardId, url: signFileUrl(r.file_url) }));
+}
 
 function isDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
@@ -49,7 +65,67 @@ router.get(
       pointName: link.point_name,
       auditorLabel: link.auditor_label,
       standards: await listStandards(link.franchise_group_id),
+      photos: await linkPhotos(link.token),
+      photoLimits: { perStandard: PHOTOS_PER_STANDARD, general: PHOTOS_GENERAL },
     });
+  })
+);
+
+// Ссылку проверяем до приёма файла — по чужой или просроченной ссылке файл
+// даже не попадает в память.
+const requireOpenLink = asyncHandler(async (req, res, next) => {
+  const link = await findLink(req.params.token);
+  const problem = linkProblem(link);
+  if (problem) return res.status(404).json({ error: problem });
+  req.auditLink = link;
+  next();
+});
+
+router.post(
+  '/:token/photos',
+  requireOpenLink,
+  uploadPhoto,
+  asyncHandler(async (req, res) => {
+    const link = req.auditLink;
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+
+    let standardId = null;
+    if (req.body?.standardId) {
+      standardId = Number(req.body.standardId);
+      const standards = await listStandards(link.franchise_group_id);
+      if (!standards.some((s) => s.id === standardId)) return res.status(400).json({ error: 'Пункт не найден' });
+    }
+    const { rows: counts } = await pool.query(
+      `SELECT count(*)::int AS total, count(*) FILTER (WHERE standard_id IS NOT DISTINCT FROM $2)::int AS same
+       FROM franchise_check_photos WHERE link_token = $1 AND check_id IS NULL`,
+      [link.token, standardId]
+    );
+    const limit = standardId ? PHOTOS_PER_STANDARD : PHOTOS_GENERAL;
+    if (counts[0].same >= limit) return res.status(400).json({ error: `Можно приложить не больше ${limit} фото` });
+    if (counts[0].total >= PHOTOS_PER_LINK) return res.status(400).json({ error: `Можно приложить не больше ${PHOTOS_PER_LINK} фото к проверке` });
+
+    const url = getFileUrl(await saveImage(req.file.buffer));
+    const { rows } = await pool.query(
+      'INSERT INTO franchise_check_photos (link_token, standard_id, file_url) VALUES ($1, $2, $3) RETURNING id',
+      [link.token, standardId, url]
+    );
+    res.status(201).json({ id: rows[0].id, standardId, url: signFileUrl(url) });
+  })
+);
+
+router.delete(
+  '/:token/photos/:photoId',
+  asyncHandler(async (req, res) => {
+    const link = await findLink(req.params.token);
+    const problem = linkProblem(link);
+    if (problem) return res.status(404).json({ error: problem });
+    const { rows } = await pool.query(
+      'DELETE FROM franchise_check_photos WHERE id = $1 AND link_token = $2 AND check_id IS NULL RETURNING file_url',
+      [Number(req.params.photoId) || 0, link.token]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Фото не найдено' });
+    await deleteFile(filenameFromUrl(rows[0].file_url));
+    res.json({ ok: true });
   })
 );
 
@@ -93,6 +169,7 @@ router.post(
       throw err;
     }
     await pool.query('UPDATE franchise_audit_links SET check_id = $1 WHERE token = $2', [saved.checkId, link.token]);
+    await pool.query('UPDATE franchise_check_photos SET check_id = $1 WHERE link_token = $2 AND check_id IS NULL', [saved.checkId, link.token]);
 
     notifyCompany({
       companyId: link.company_id,

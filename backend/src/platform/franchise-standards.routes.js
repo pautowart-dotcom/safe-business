@@ -13,7 +13,7 @@ const { requireRole } = require('../core/middleware/role');
 const { networkAccess } = require('../core/franchiseAccess');
 const { notifyCompany } = require('../core/notifications');
 const { logEvent } = require('../core/eventLog');
-const { TEMPLATES, listStandards, latestChecksByPoint, checkDetail, saveCheck } = require('../modules/franchise/standards');
+const { TEMPLATES, listStandards, latestChecksByPoint, checkDetail, checkPhotos, saveCheck } = require('../modules/franchise/standards');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant, requireRole('owner', 'admin'));
@@ -222,7 +222,8 @@ router.get(
       [req.params.checkId, access.group.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Проверка не найдена' });
-    res.json({ ...rows[0], answers: await checkDetail(rows[0].id) });
+    const [answers, photos] = await Promise.all([checkDetail(rows[0].id), checkPhotos(rows[0].id)]);
+    res.json({ ...rows[0], answers, photos });
   })
 );
 
@@ -243,16 +244,17 @@ router.get(
     if (!group) return res.json({ networkName: null, standards: [] });
     const [standards, latest] = await Promise.all([listStandards(group.id), latestChecksByPoint(group.id)]);
     const mine = latest.get(req.tenant.companyId) || {};
-    const [selfAnswers, auditAnswers, auditMeta] = await Promise.all([
+    const [selfAnswers, auditAnswers, auditMeta, auditPhotos] = await Promise.all([
       mine.self ? checkDetail(mine.self.checkId) : [],
       mine.audit ? checkDetail(mine.audit.checkId) : [],
       mine.audit ? pool.query('SELECT comment FROM franchise_standard_checks WHERE id = $1', [mine.audit.checkId]) : { rows: [] },
+      mine.audit ? checkPhotos(mine.audit.checkId) : [],
     ]);
     res.json({
       networkName: group.name,
       standards,
       self: mine.self ? { ...mine.self, answers: selfAnswers } : null,
-      audit: mine.audit ? { ...mine.audit, comment: auditMeta.rows[0]?.comment || null, answers: auditAnswers } : null,
+      audit: mine.audit ? { ...mine.audit, comment: auditMeta.rows[0]?.comment || null, answers: auditAnswers, photos: auditPhotos } : null,
     });
   })
 );
