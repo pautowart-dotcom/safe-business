@@ -65,6 +65,26 @@ const NORMS = {
     note: 'Текст — docs/sources/PP-725-2025.txt, первоначальная редакция: изменения от 10.05.2026 не сверены.',
     testMatch: /(№|N) ?725(?!\d)/,
   },
+  '426-fz': {
+    title: 'Федеральный закон №426-ФЗ «О специальной оценке условий труда»',
+    url: 'https://base.garant.ru/70552676/',
+    checkedAt: '2026-10-19',
+    testMatch: /426-ФЗ|СОУТ/,
+  },
+  '63-fz': {
+    title: 'Федеральный закон №63-ФЗ «Об электронной подписи»',
+    url: 'https://base.garant.ru/12184522/',
+    checkedAt: '2026-10-19',
+    note: 'С 01.09.2027 меняются ст. 17.2 и 17.3 (315-ФЗ от 04.08.2026) — сверить, когда вступит.',
+    testMatch: /63-ФЗ/,
+  },
+  'nk-rf': {
+    title: 'Налоговый кодекс РФ',
+    url: 'https://base.garant.ru/10900200/',
+    checkedAt: '2026-10-19',
+    note: 'Лимит дохода на патенте меняется по годам: 2026 — 20 млн, 2027 — 15 млн, дальше 10 млн (п. 6 ст. 346.45).',
+    testMatch: /НК РФ/,
+  },
   '54-fz': {
     title: 'Федеральный закон №54-ФЗ «О применении контрольно-кассовой техники»',
     url: 'https://base.garant.ru/12130951/',
@@ -106,10 +126,12 @@ const NORMS = {
   },
 };
 
-// Источник карточки: строка (разовый документ — письмо, разъяснение) или
-// { norm, points } из реестра. Возвращает { title, url } для сайта и ИИ.
+// Источник карточки: строка или { title, url } (разовый документ — письмо,
+// разъяснение, страница ведомства) или { norm, points } из реестра.
+// Возвращает { title, url } для сайта и ИИ.
 function resolveSource(s) {
   if (typeof s === 'string') return { title: s, url: null };
+  if (!s.norm) return { title: s.title, url: s.url || null };
   const n = NORMS[s.norm];
   if (!n) throw new Error(`Норма «${s.norm}» не найдена в knowledge-cards/norms.js`);
   return { title: s.points ? `${n.title}, ${s.points}` : n.title, url: n.url || null };

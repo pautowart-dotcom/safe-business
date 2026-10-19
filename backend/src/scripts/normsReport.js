@@ -66,7 +66,7 @@ async function main() {
   // Источники-строки (письма, разъяснения) в реестр не входят — их видно здесь,
   // чтобы закон, записанный строкой по ошибке, не выпал из обновлений.
   if (!only) {
-    const loose = cards.flatMap((c) => (c.sources || []).filter((s) => typeof s === 'string').map((s) => `${c.id}: ${s}`));
+    const loose = cards.flatMap((c) => (c.sources || []).filter((s) => !s.norm).map((s) => `${c.id}: ${s.title || s}`));
     if (loose.length) console.log(`Источники вне реестра (разовые документы):\n${loose.map((l) => `  ${l}`).join('\n')}`);
   }
   // Карточка, которая есть в папке, но не подключена в repository.js, на сайт не попадёт.

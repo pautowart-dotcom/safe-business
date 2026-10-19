@@ -10,13 +10,17 @@
 
 const CARDS = [
   require('./cards/kadry-001-medknizhka'),
+  require('./cards/kadry-002-sout'),
+  require('./cards/kadry-003-arenda-kresla'),
   require('./cards/pomeshchenie-001-vyveska'),
   require('./cards/pomeshchenie-002-ognetushitel'),
   require('./cards/sanitariya-001-dezinsekciya'),
   require('./cards/sanitariya-002-zhurnal-sterilizacii'),
   require('./cards/kassa-001-chek-korrekcii'),
+  require('./cards/nalogi-001-patent'),
   require('./cards/registraciya-001-okved'),
   require('./cards/registraciya-002-uvedomlenie'),
+  require('./cards/registraciya-003-ecp'),
 ];
 
 // Статусы, с которыми карточку можно отдавать ИИ как проверенный ответ.

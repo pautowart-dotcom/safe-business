@@ -402,6 +402,23 @@ footer{margin-top:56px;border-top:1px solid var(--border);font-size:14px;color:v
 @media (max-width:480px){h1{font-size:25px}body{font-size:16px}}
 `;
 
+// Карта сайта для Яндекса и Google (19.10.2026, план docs/plan-2026-10-19.md).
+// Только открытые страницы: франшиза скрыта от поиска, результаты и «спасибо»
+// не нужны. У статьи lastmod — дата сверки карточки, чтобы поисковик видел
+// обновление после правки нормы.
+const STATIC_PAGES = ['/', '/start.html', '/proverit-sait.html'];
+
+function sitemap(pages, cards) {
+  const lastmodByUrl = {};
+  for (const c of cards) lastmodByUrl[`/spravochnik/${TOPICS[c.topic].slug}/${c.slug}/`] = c.checkedAt;
+  const urls = [...STATIC_PAGES, ...pages.map((p) => p.url)];
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `  <url><loc>${SITE}${u}</loc>${lastmodByUrl[u] ? `<lastmod>${lastmodByUrl[u]}</lastmod>` : ''}</url>`).join('\n')}
+</urlset>
+`;
+}
+
 async function main() {
   const cards = await cardsRepository.getCardsForAi(null);
   const byTopic = {};
@@ -425,6 +442,7 @@ async function main() {
     fs.writeFileSync(path.join(dir, 'index.html'), p.html);
   }
   fs.writeFileSync(path.join(OUT_DIR, 'spravochnik.css'), CSS);
+  fs.writeFileSync(path.join(LANDING_DIR, 'sitemap.xml'), sitemap(pages, cards));
   console.log(`Справочник и страницы ниш: ${pages.length} страниц → ${OUT_DIR}, ${NICHE_OUT_DIR}`);
 }
 

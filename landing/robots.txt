@@ -2,6 +2,8 @@ User-agent: *
 Allow: /
 Disallow: /office/
 
+Sitemap: https://business-safe.ru/sitemap.xml
+
 User-agent: GPTBot
 Disallow: /
 
