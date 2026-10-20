@@ -25,7 +25,26 @@
     try { window.localStorage.setItem(KEY, v); } catch (e) {}
   }
 
+  // Пиксель VK Рекламы (Top.Mail.Ru, 20.10.2026) — по просьбе таргетолога,
+  // для рекламы во ВКонтакте. Ставит свои cookie, поэтому, как и Метрика,
+  // грузится только после «Согласен». Номер пикселя — не секрет.
+  var VK_PIXEL_ID = '3806647';
+
+  function loadVkPixel() {
+    if (!VK_PIXEL_ID || window.__vkPixelLoaded) return;
+    window.__vkPixelLoaded = true;
+    var _tmr = window._tmr || (window._tmr = []);
+    _tmr.push({ id: VK_PIXEL_ID, type: 'pageView', start: (new Date()).getTime() });
+    if (document.getElementById('tmr-code')) return;
+    var ts = document.createElement('script');
+    ts.type = 'text/javascript'; ts.async = true; ts.id = 'tmr-code';
+    ts.src = 'https://top-fwz1.mail.ru/js/code.js';
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(ts, s);
+  }
+
   function loadMetrika() {
+    loadVkPixel();
     if (!METRIKA_ID || window.__metrikaLoaded) return;
     window.__metrikaLoaded = true;
     (function (m, e, t, r, i, k, a) {
@@ -79,7 +98,8 @@
       return l;
     }
     if (METRIKA_ID) {
-      text.appendChild(document.createTextNode('Продолжая использование сайта, я выражаю согласие на обработку моих персональных данных при помощи сервиса Яндекс.Метрика, подтверждаю, что '));
+      // 20.10.2026: добавлен VK Реклама (пиксель) — без юриста, на проверку позже.
+      text.appendChild(document.createTextNode('Продолжая использование сайта, я выражаю согласие на обработку моих персональных данных при помощи сервисов Яндекс.Метрика и VK Реклама, подтверждаю, что '));
       text.appendChild(a('/lk/legal/privacy_policy', 'ознакомлен с политикой'));
       text.appendChild(document.createTextNode(' в отношении обработки персональных данных и уведомлен об '));
       text.appendChild(a('/cookies.html', 'использовании файлов cookies'));
