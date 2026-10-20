@@ -33,7 +33,7 @@ const F = {
   website: { key: 'website', label: 'Сайт или страница, где будет оферта (сайт, онлайн-запись, соцсеть)', type: 'text', required: true },
   email: { key: 'email', label: 'E-mail для обращений клиентов', type: 'text', required: true },
   phone: { key: 'phone', label: 'Телефон для записи', type: 'text', required: true },
-  serviceAddress: { key: 'serviceAddress', label: 'Адрес оказания услуг (студия, зал, клуб)', type: 'text', required: true },
+  serviceAddress: { key: 'serviceAddress', label: 'Адрес оказания услуг для реквизитов (необязательно: в тексте оферты адрес не пишется — он указан на сайте или в переписке с клиентом)', type: 'text', required: false },
   lateMinutes: { key: 'lateMinutes', label: 'Через сколько минут опоздания можно сократить услугу (в шаблоне юриста — 15)', type: 'text', required: true, default: '15' },
   prepayHours: { key: 'prepayHours', label: 'За сколько часов до записи вносится предоплата, если клиент выбрал её (в шаблоне юриста — 24)', type: 'text', required: true, default: '24' },
   rescheduleDays: { key: 'rescheduleDays', label: 'В течение скольких дней можно перенести запись (в шаблоне юриста — 30)', type: 'text', required: true, default: '30' },
@@ -62,7 +62,7 @@ function requisitesBlock(values, { withService, withLegalAddress }) {
   lines.push('ОГРН/ОГРНИП: {{ogrnip}}', 'ИНН: {{inn}}');
   if (values.kpp && String(values.kpp).trim()) lines.push('КПП: {{kpp}}');
   lines.push('E-mail: {{email}}', 'Номер телефона: {{phone}}');
-  if (withService) lines.push('Место оказания услуг: {{serviceAddress}}');
+  if (withService && values.serviceAddress && String(values.serviceAddress).trim()) lines.push('Место оказания услуг: {{serviceAddress}}');
   const bank = [['bankAccount', 'р/с'], ['bankName', 'Банк'], ['bik', 'БИК'], ['corrAccount', 'к/с']]
     .filter(([k]) => values[k] && String(values[k]).trim());
   if (bank.length) {
@@ -143,7 +143,10 @@ function servicesBody(variantKey) {
 
   const place = v.atClient
     ? 'Место оказания услуг – помещение Заказчика по адресу, согласованному Сторонами при записи.'
-    : 'Место оказания услуг – помещение по адресу: {{serviceAddress}}.';
+    // Ответ юриста 20.10: общая формулировка без конкретного адреса (и без
+    // акцента на жилом помещении) — адрес указан на Сайте или сообщается
+    // Заказчику в мессенджере при записи.
+    : 'Место оказания услуг – помещение, адрес которого указан Исполнителем на Сайте либо сообщен Заказчику непосредственно в онлайн-мессенджере или иным способом при записи на Услугу.';
 
   const inPerson = pick(v, {
     cosmetic: 'Услуги оказываются очно, при личном присутствии Заказчика в Месте оказания услуг, и не могут быть оказаны дистанционно.',
