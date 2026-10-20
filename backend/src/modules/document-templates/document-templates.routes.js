@@ -46,7 +46,7 @@ const SAVED_DETAIL_KEYS = [
   'siteData', 'sitePurpose', 'distPurpose', 'photoBasis', 'paperPurpose', 'paperData',
   // оферты юриста (content/lawyerOferta.js)
   'city', 'lateMinutes', 'prepayHours', 'rescheduleDays', 'lateCancelPercent',
-  'bankAccount', 'bankName', 'bik', 'corrAccount', 'goodsDescription',
+  'bankAccount', 'bankName', 'bik', 'corrAccount', 'goodsDescription', 'consultPayMode', 'consultPrepayPercent',
 ];
 
 async function loadSavedDetails(companyId) {
