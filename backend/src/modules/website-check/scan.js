@@ -150,7 +150,47 @@ const FINDINGS_CATALOG = {
     solution: 'Дополнить политику конфиденциальности: цели обработки, категории обрабатываемых данных, сроки хранения, порядок уничтожения данных.',
     howTo: ['Свериться со ст. 18.1 152-ФЗ или готовым шаблоном политики', 'Дополнить недостающие разделы'],
   },
+  // 20.10.2026 — счётчики на сайте (TRACKERS ниже). Описание дополняется
+  // названиями найденных счётчиков при сканировании. Всё — по запросам
+  // браузера при открытии главной без единого клика, эвристика: формулировки
+  // мягкие («похоже»), сумм штрафов нет — по тому же принципу, что и выше.
+  tracker_before_consent: {
+    code: 'WC-08',
+    title: 'Счётчики, похоже, загружаются до согласия посетителя',
+    description: 'Мы открыли сайт и ничего не нажимали, но счётчики уже загрузились. Счётчики ставят cookie и передают данные о посетителе — по 152-ФЗ на это нужно согласие, а оно даётся действием (кнопкой), а не самим заходом на сайт.',
+    risk: 5,
+    solution: 'Загружать счётчики только после того, как посетитель нажал «Принять» в уведомлении о cookie.',
+    howTo: ['Найти в настройках сайта или конструктора, где подключён код счётчика', 'Включить загрузку счётчиков только после согласия (в большинстве конструкторов есть такая настройка у cookie-баннера)', 'Проверить ещё раз — после правки счётчик не должен грузиться без нажатия кнопки'],
+  },
+  tracker_not_in_policy: {
+    code: 'WC-09',
+    title: 'Счётчики на сайте не упомянуты в политике конфиденциальности',
+    description: 'На сайте стоят счётчики, но в тексте политики конфиденциальности они не названы. По 152-ФЗ политика должна описывать, какие данные и с помощью каких сервисов вы обрабатываете.',
+    risk: 4,
+    solution: 'Дописать в политику конфиденциальности, какие счётчики стоят на сайте, зачем они нужны и какие данные собирают.',
+    howTo: ['Добавить в политику пункт о сервисах аналитики и рекламы с их названиями', 'Добавить цель обработки: сбор статистики посещений (и показ рекламы — если стоит рекламный пиксель)', 'В «Документах студии» политика собирается с этим пунктом по галочке «На сайте стоит Яндекс Метрика»'],
+  },
+  foreign_analytics: {
+    code: 'WC-10',
+    title: 'На сайте стоит иностранный счётчик (Google)',
+    description: 'Google Analytics / Google Tag Manager передают данные посетителей за границу. Это трансграничная передача персональных данных: по 152-ФЗ (ст. 12) о ней нужно заранее уведомить Роскомнадзор, а в политике — указать.',
+    risk: 5,
+    solution: 'Убрать счётчики Google и пользоваться Яндекс Метрикой — либо уведомить Роскомнадзор о трансграничной передаче и указать её в политике.',
+    howTo: ['Проверить, нужен ли вам Google Analytics, если есть Яндекс Метрика', 'Если не нужен — удалить код Google с сайта', 'Если нужен — подать уведомление о трансграничной передаче на сайте Роскомнадзора и дописать политику'],
+  },
 };
+
+// Счётчики, которые ищем среди запросов браузера при открытии главной.
+// policy — как сервис может быть назван в тексте политики.
+const TRACKERS = [
+  { name: 'Яндекс Метрика', url: /mc\.yandex\.(ru|com|by|kz)\/(metrika|watch)/, policy: /метрик|metrika/ },
+  { name: 'пиксель VK Рекламы (Top.Mail.Ru)', url: /top-fwz1\.mail\.ru|top\.mail\.ru\/(js|counter)|vk\.com\/rtrg/, policy: /\bvk\b|вконтакте|top\.mail|mail\.ru|вк реклам/ },
+  { name: 'Google Analytics / Google Tag Manager', url: /google-analytics\.com|googletagmanager\.com|analytics\.google\.com/, policy: /google|гугл/, foreign: true },
+];
+
+function withTrackers(finding, names) {
+  return { ...finding, description: `${finding.description} Найдено: ${names.join(', ')}.` };
+}
 
 function normalizeUrl(input) {
   const trimmed = String(input || '').trim();
@@ -162,6 +202,8 @@ async function scanWebsite(inputUrl) {
   const url = normalizeUrl(inputUrl);
   await assertSafeUrl(url);
   const findingCodes = [];
+  // Находки со списком найденных счётчиков в описании (WC-08…WC-10).
+  const trackerFindings = [];
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -171,6 +213,8 @@ async function scanWebsite(inputUrl) {
 
   try {
     const page = await browser.newPage();
+    const requested = [];
+    page.on('request', (r) => requested.push(r.url()));
     let usedHttps = /^https:\/\//i.test(url);
     let response;
     try {
@@ -237,6 +281,12 @@ async function scanWebsite(inputUrl) {
       findingCodes.push('cookie_passive_consent');
     }
 
+    // Счётчики — только по запросам главной, до перехода на политику.
+    const found = TRACKERS.filter((t) => requested.some((u) => t.url.test(u)));
+    if (found.length) trackerFindings.push(withTrackers(FINDINGS_CATALOG.tracker_before_consent, found.map((t) => t.name)));
+    const foreign = found.filter((t) => t.foreign);
+    if (foreign.length) trackerFindings.push(withTrackers(FINDINGS_CATALOG.foreign_analytics, foreign.map((t) => t.name)));
+
     // Единственное сознательное исключение из "сканируем только главную"
     // (см. комментарий в шапке файла) — открываем уже найденную ссылку на
     // политику конфиденциальности ещё на один уровень вглубь, проверить не
@@ -250,17 +300,20 @@ async function scanWebsite(inputUrl) {
         // тот же SSRF-риск, что и у исходного адреса, проверяем отдельно.
         await assertSafeUrl(pageChecks.privacyPolicyHref);
         await page.goto(pageChecks.privacyPolicyHref, { waitUntil: 'networkidle2', timeout: 15000 });
-        const policyChecks = await page.evaluate(() => {
+        const { mentions, ...policyChecks } = await page.evaluate((trackerPatterns) => {
           const text = document.body ? document.body.innerText.toLowerCase() : '';
           return {
             hasPurpose: /цел[ьи].{0,20}обработ/.test(text),
             hasCategories: /категор.{0,20}(персональных данных|субъект)/.test(text),
             hasRetention: /срок.{0,20}(хранени|обработк)/.test(text),
             hasDestruction: /уничтожен/.test(text),
+            mentions: trackerPatterns.map((p) => new RegExp(p).test(text)),
           };
-        });
+        }, found.map((t) => t.policy.source));
         const presentCount = Object.values(policyChecks).filter(Boolean).length;
         if (presentCount < 2) findingCodes.push('privacy_policy_incomplete');
+        const missing = found.filter((_, i) => !mentions[i]);
+        if (missing.length) trackerFindings.push(withTrackers(FINDINGS_CATALOG.tracker_not_in_policy, missing.map((t) => t.name)));
       } catch (err) {
         // страница политики не открылась — не штрафуем за это здесь,
         // основная находка no_privacy_policy сюда не относится (ссылка
@@ -271,7 +324,7 @@ async function scanWebsite(inputUrl) {
     await browser.close();
   }
 
-  const findings = findingCodes.map((code) => FINDINGS_CATALOG[code]);
+  const findings = [...findingCodes.map((code) => FINDINGS_CATALOG[code]), ...trackerFindings];
   const maxRisk = Object.values(FINDINGS_CATALOG).reduce((sum, f) => sum + f.risk, 0);
   const scoredRisk = findings.reduce((sum, f) => sum + f.risk, 0);
   const score = Math.round((1 - scoredRisk / maxRisk) * 1000) / 10;
