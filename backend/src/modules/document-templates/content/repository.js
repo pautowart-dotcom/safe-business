@@ -354,6 +354,18 @@ for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
   }
 }
 
+// 20.10.2026: оферты юриста (lawyerOferta.js). Ниши из NICHE_VARIANT получают
+// оферту юриста (косметические — как есть, спорт/дети/животные/клининг —
+// адаптация) под прежним ключем {niche}_oferta. Остальным оферта юриста не
+// подходит (подряд, общепит) — остаётся наш черновик. Онлайн-консультации и
+// продажа товаров — дополнительно во всех нишах.
+const lawyerOferta = require('./lawyerOferta');
+for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
+  const i = list.findIndex((t) => t.key === `${niche}_oferta`);
+  if (i !== -1 && lawyerOferta.NICHE_VARIANT[niche]) list[i] = lawyerOferta.servicesTemplate(niche, list[i].key);
+  list.push(lawyerOferta.goodsTemplate(niche), lawyerOferta.consultTemplate(niche));
+}
+
 async function getTemplatesForNiche(niche) {
   return TEMPLATES_BY_NICHE[niche] || [];
 }

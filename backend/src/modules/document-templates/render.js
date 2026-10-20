@@ -114,13 +114,17 @@ function bodyToPdfContent(filledBody) {
     });
 }
 
+// template.notice (20.10.2026, оферты юриста — lawyerOferta.js) — своя сноска:
+// «рекомендуем сделать документ под ваш проект» / «адаптировано, юрист не
+// проверял». Без неё — прежняя логика: у проверенных сноски нет, у черновиков
+// — «бета».
 function draftNotice(template) {
-  if (template.status === 'reviewed') return null;
+  if (!template.notice && template.status === 'reviewed') return null;
   return {
     table: {
       widths: ['*'],
       body: [[{
-        text: 'БЕТА-ВЕРСИЯ ШАБЛОНА. Дорабатывается и уточняется сервисом «Безопасный бизнес». Не является юридической консультацией и не гарантирует прохождение проверки или суда.',
+        text: template.notice || 'БЕТА-ВЕРСИЯ ШАБЛОНА. Дорабатывается и уточняется сервисом «Безопасный бизнес». Не является юридической консультацией и не гарантирует прохождение проверки или суда.',
         style: 'draftNotice',
         border: [false, false, false, false],
       }]],
@@ -138,7 +142,9 @@ function titleBlock(template, generatedAt) {
   return {
     margin: [0, 0, 0, 18],
     stack: [
-      { text: template.title.toUpperCase(), style: 'docTitle', alignment: 'center' },
+      // pdfTitle — заголовок самого документа, когда название в кабинете
+      // длиннее из-за подсказки («если продаёте…», lawyerOferta.js).
+      { text: (template.pdfTitle || template.title).toUpperCase(), style: 'docTitle', alignment: 'center' },
       { text: `Дата составления: ${generatedAt.toLocaleDateString('ru-RU')}`, style: 'docSubtitle', alignment: 'center', margin: [0, 6, 0, 14] },
       { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 595 - PAGE_MARGINS[0] - PAGE_MARGINS[2], y2: 0, lineWidth: 0.75, lineColor: '#BBBBBB' }] },
     ],
@@ -187,7 +193,7 @@ function renderDocumentPdf({ template, data, generatedAt, profile }) {
         { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 595 - PAGE_MARGINS[0] - PAGE_MARGINS[2], y2: 0, lineWidth: 0.5, lineColor: '#DDDDDD' }] },
         {
           columns: [
-            { text: `Сформировано автоматически в сервисе «Безопасный бизнес» по шаблону «${template.title}», версия ${template.version}. Сервис не заменяет юриста.`, font: 'DejaVuSans', fontSize: 7, italics: true, color: '#999999' },
+            { text: `Сформировано автоматически в сервисе «Безопасный бизнес» по шаблону «${template.pdfTitle || template.title}», версия ${template.version}. Сервис не заменяет юриста.`, font: 'DejaVuSans', fontSize: 7, italics: true, color: '#999999' },
             { text: `${currentPage} / ${pageCount}`, font: 'DejaVuSans', fontSize: 7, color: '#999999', alignment: 'right', width: 40 },
           ],
           margin: [0, 4, 0, 0],

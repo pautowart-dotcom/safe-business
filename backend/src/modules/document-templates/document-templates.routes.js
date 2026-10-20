@@ -44,6 +44,9 @@ const SAVED_DETAIL_KEYS = [
   'legalNameGen', 'legalNameDat', 'kpp', 'website', 'activity',
   'siteFeedback', 'siteBooking', 'siteMailing', 'siteMetrika', 'siteReviews', 'extraPurpose', 'extraPurposeData',
   'siteData', 'sitePurpose', 'distPurpose', 'photoBasis', 'paperPurpose', 'paperData',
+  // оферты юриста (content/lawyerOferta.js)
+  'city', 'lateMinutes', 'prepayHours', 'rescheduleDays', 'lateCancelPercent',
+  'bankAccount', 'bankName', 'bik', 'corrAccount', 'goodsDescription',
 ];
 
 async function loadSavedDetails(companyId) {
@@ -141,6 +144,7 @@ router.get(
           status: t.status,
           reviewedBy: t.reviewedBy,
           reviewedAt: t.reviewedAt,
+          notice: t.notice || null,
           lawReference: t.lawReference,
           fields: t.fields,
           closesViolationCode: link ? link.violationCode : null,

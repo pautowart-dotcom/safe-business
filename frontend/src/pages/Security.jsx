@@ -2229,10 +2229,15 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
             <span style={{ fontSize: 14, fontWeight: 600 }}>{t.title}</span>
             {t.status === 'draft' ? (
               <Badge color="#B7950B" bg="#FCF3CF">бета</Badge>
+            ) : t.status === 'adapted' ? (
+              <Badge color="#B7950B" bg="#FCF3CF">на основе шаблона юриста</Badge>
             ) : (
               <Badge color={C.green} bg={C.greenBg}>проверено юристом</Badge>
             )}
           </div>
+          {t.notice && (
+            <div style={{ fontSize: 12, color: t.status === 'adapted' ? '#B7950B' : C.subtle, marginBottom: 6 }}>{t.notice}</div>
+          )}
           {t.status === 'draft' && (
             <div style={{ fontSize: 12, color: '#B7950B', marginBottom: 6 }}>
               Бета-версия — составлен по типовой практике, но пока не проверен профессиональным юристом. Подойдёт как основа для повседневной работы; если ситуация нестандартная или важен результат в суде — стоит показать юристу перед использованием.
