@@ -21,6 +21,7 @@ const CARDS = [
   require('./cards/registraciya-001-okved'),
   require('./cards/registraciya-002-uvedomlenie'),
   require('./cards/registraciya-003-ecp'),
+  require('./cards/klienty-001-ugolok-potrebitelya'),
 ];
 
 // Статусы, с которыми карточку можно отдавать ИИ как проверенный ответ.

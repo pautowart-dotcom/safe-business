@@ -49,7 +49,7 @@
 //   конкретного отдельного КоАП-состава (ответственность наступает по
 //   общим нормам о вреде, причинённом третьим лицам).
 
-const { notificationNotRequiredViolation, personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
+const { notificationNotRequiredViolation, personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations, consumerCornerFields } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -97,18 +97,8 @@ const VIOLATIONS = [
     code: 'FC-104',
     block: 1,
     title: '«Уголок потребителя» — информация для потребителей в офисе',
-    description: 'На видном месте в офисе не размещена обязательная информация для потребителей: сведения об исполнителе (наименование ИП/юрлица, ОГРН/ОГРНИП, адрес, режим работы), извлечения из Закона о защите прав потребителей, контакты территориального Роспотребнадзора, прошитая и пронумерованная книга отзывов и предложений.',
+    ...consumerCornerFields('general'),
     risk: 4,
-    fineText: 'ч.1 ст.14.5 КоАП РФ — граждане 1 500–2 000 ₽, ИП — 3 000–4 000 ₽, юрлица — 30 000–40 000 ₽',
-    fineMax: 40000,
-    normBase: 'ст. 8–11 Закона РФ №2300-1 «О защите прав потребителей»; ч.1 ст.14.5 КоАП РФ',
-    solution: 'Оформить и разместить стенд/папку «уголок потребителя»: копия ОГРН/ОГРНИП, режим работы, прейскурант, контакты территориального Роспотребнадзора, книга отзывов и предложений — актуально при работе с частными заказчиками (не только УК/БЦ).',
-    howTo: [
-      'Подготовить копии ОГРН/ОГРНИП.',
-      'Указать контакты территориального управления Роспотребнадзора своего региона.',
-      'Завести книгу отзывов и предложений: прошить, пронумеровать, заверить подписью руководителя.',
-      'Разместить стенд или папку в офисе на видном для заказчиков месте.',
-    ],
     costMin: 0, costMax: 2000, free: true,
     daysMin: 1, daysMax: 3,
   },

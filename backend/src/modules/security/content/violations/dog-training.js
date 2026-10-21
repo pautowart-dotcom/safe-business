@@ -35,7 +35,7 @@
 //   ОПУЩЕН (не хеджирован «на всякий случай»), тот же подход, что у
 //   facade_cleaning.js.
 
-const { notificationNotRequiredViolation, personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations } = require('../sharedViolationBlocks');
+const { notificationNotRequiredViolation, personnelReportingViolation, ofertaViolation, marketingConsentViolation, financialSecurityViolations, premisesExtraViolations, consumerCornerFields } = require('../sharedViolationBlocks');
 
 const VIOLATIONS = [
   // --- Блок 1. Юридическая база ---
@@ -82,18 +82,8 @@ const VIOLATIONS = [
     code: 'DT-104',
     block: 1,
     title: '«Уголок потребителя» (при наличии помещения приёма)',
-    description: 'На видном месте не размещена обязательная информация для потребителей: сведения об исполнителе, извлечения из Закона о защите прав потребителей, контакты территориального Роспотребнадзора, книга отзывов и предложений.',
+    ...consumerCornerFields('general'),
     risk: 4,
-    fineText: 'ч.1 ст.14.5 КоАП РФ — граждане 1 500–2 000 ₽, ИП — 3 000–4 000 ₽, юрлица — 30 000–40 000 ₽',
-    fineMax: 40000,
-    normBase: 'ст. 8–11 Закона РФ №2300-1 «О защите прав потребителей»; ч.1 ст.14.5 КоАП РФ',
-    solution: 'При наличии помещения приёма — оформить и разместить стенд/папку «уголок потребителя». Для полностью выездного формата — актуальность требует уточнения у юриста.',
-    howTo: [
-      'Подготовить копии ОГРН/ОГРНИП.',
-      'Указать контакты территориального управления Роспотребнадзора своего региона.',
-      'Завести книгу отзывов и предложений: прошить, пронумеровать, заверить подписью руководителя.',
-      'Разместить стенд или папку на видном для клиентов месте (при наличии помещения).',
-    ],
     costMin: 0, costMax: 2000, free: true,
     daysMin: 1, daysMax: 3,
   },
