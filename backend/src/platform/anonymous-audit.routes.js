@@ -269,5 +269,51 @@ async function fulfillGuestReport({ companyId, reportId }) {
   });
 }
 
+// «Документы студии», купленные гостем прямо с экрана результата теста
+// (21.10.2026). PDF сразу не шлём — документы собираются из анкеты (ИНН,
+// адрес, что есть на сайте), а её заполняют в кабинете. Поэтому письмо —
+// ссылка «установить пароль» и куда идти дальше.
+async function fulfillGuestDocuments({ companyId }) {
+  const { rows: ownerRows } = await pool.query(
+    `SELECT u.id AS user_id, u.email, u.is_guest
+     FROM memberships m JOIN users u ON u.id = m.user_id
+     WHERE m.company_id = $1 AND m.role = 'owner' LIMIT 1`,
+    [companyId]
+  );
+  const owner = ownerRows[0];
+  if (!owner || !owner.is_guest) return;
+
+  const claimToken = crypto.randomBytes(32).toString('hex');
+  const claimTokenHash = crypto.createHash('sha256').update(claimToken).digest('hex');
+  const expiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+  await pool.query(
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+    [owner.user_id, claimTokenHash, expiresAt]
+  );
+  const claimUrl = `${process.env.FRONTEND_URL}/reset-password/${claimToken}`;
+
+  const { rows: giftRows } = await pool.query(
+    `SELECT subscription_current_period_end FROM companies WHERE id = $1 AND subscription_status = 'gift'`,
+    [companyId]
+  );
+  const giftHtml = giftRows[0]
+    ? `<p>В подарок к документам — полный доступ к кабинету до ${new Date(giftRows[0].subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}: ` +
+      `напоминания о сроках заранее и план по вашему тесту. Карта не сохранена — сами мы ничего не спишем.</p>`
+    : '';
+
+  await sendMail({
+    to: owner.email,
+    subject: 'Оплата прошла — заполните данные для «Документов студии»',
+    html:
+      `<p>Спасибо за оплату! Документы собираются из данных вашей студии — название, ИНН, адрес, что есть на сайте. ` +
+      `Это одна анкета, заполненное сохраняется само.</p>` +
+      `<p>Установите пароль по ссылке и откройте «Безопасность» → «Обзор» → «Шаблоны документов» — проходить тест заново не нужно:</p>` +
+      `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>` +
+      giftHtml,
+    meta: { purpose: 'documents_purchase' },
+  });
+}
+
 module.exports = router;
 module.exports.fulfillGuestReport = fulfillGuestReport;
+module.exports.fulfillGuestDocuments = fulfillGuestDocuments;

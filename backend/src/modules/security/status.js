@@ -5,6 +5,7 @@ const scoring = require('./content/scoring');
 const { filterVisible } = require('./content/visibility');
 const { loadProfile } = require('./profile');
 const { loadLatestCompletedSessionsByNiche } = require('./testedSessions');
+const templateViolationLinks = require('../document-templates/content/templateViolationLinks');
 
 async function visiblePaidQuestions(niche, profile) {
   const all = await repository.getPaidQuestions(niche);
@@ -119,7 +120,9 @@ async function computeSecurityStatus(companyId) {
     .map((row) => {
       for (const niche of Object.keys(matricesByNiche)) {
         const details = matricesByNiche[niche]?.find((v) => v.code === row.violation_code);
-        if (details) return { ...details, status: row.status };
+        // inDocumentsPack (21.10.2026) — нарушение закрывается документом из
+        // «Документов студии»; по нему экран результата теста предлагает пакет.
+        if (details) return { ...details, status: row.status, inDocumentsPack: !!templateViolationLinks.forViolation(niche, row.violation_code) };
       }
       return null;
     })

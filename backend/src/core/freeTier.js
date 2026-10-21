@@ -110,7 +110,7 @@ async function canSeeConclusion({ companyId, userId }) {
 
 // Только то, что бесплатно: название, риск, статус.
 function namesOnly(v) {
-  return { id: v.id, code: v.code, block: v.block, title: v.title, risk: v.risk, status: v.status, resolvedAt: v.resolvedAt, locked: true };
+  return { id: v.id, code: v.code, block: v.block, title: v.title, risk: v.risk, status: v.status, resolvedAt: v.resolvedAt, inDocumentsPack: v.inDocumentsPack, locked: true };
 }
 
 module.exports = { accessLevel, canSeeConclusion, namesOnly, isFreePath, enabledFor, HARD_TRIAL_CUTOFF };

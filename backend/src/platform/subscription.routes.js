@@ -8,7 +8,7 @@ const { createPayment, getPayment } = require('../core/yookassa');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { notifyAddonPurchase } = require('./addons.routes');
 const { handleAiAdvisorSubscriptionWebhook } = require('./ai-advisor-subscription.routes');
-const { fulfillGuestReport } = require('./anonymous-audit.routes');
+const { fulfillGuestReport, fulfillGuestDocuments } = require('./anonymous-audit.routes');
 const { runScanForPurchase } = require('./website-check.routes');
 const { evaluatePromo } = require('../core/promoCodes');
 const { createRateLimiter } = require('../core/rateLimit');
@@ -434,11 +434,29 @@ async function handleAddonWebhook(paymentId, payment, res) {
   const { company_id: companyId, addon_key: addonKey } = rows[0];
 
   if (payment.status === 'succeeded') {
-    await pool.query(
-      `UPDATE addon_purchases SET status = 'succeeded', confirmed_at = now() WHERE yookassa_payment_id = $1`,
+    // Повторное уведомление ЮKassa — ничего не делаем второй раз (иначе
+    // второй push, второе письмо гостю и второй скан сайта).
+    const firstTime = await pool.query(
+      `UPDATE addon_purchases SET status = 'succeeded', confirmed_at = now()
+       WHERE yookassa_payment_id = $1 AND status <> 'succeeded'`,
       [paymentId]
     );
+    if (firstTime.rowCount === 0) return res.status(200).end();
     await notifyAddonPurchase({ companyId, addonKey });
+
+    if (addonKey === 'document_templates') {
+      // 21.10.2026 (план 20.10, решение владельца 19.10): к пакету — месяц
+      // подписки в подарок, тем же правилом, что и к заключению выше: только
+      // из триала, настоящую подписку не трогаем.
+      await pool.query(
+        `UPDATE companies SET subscription_status = 'gift', subscription_current_period_end = now() + interval '1 month'
+         WHERE id = $1 AND subscription_status = 'trial'`,
+        [companyId]
+      );
+      // Гость с экрана результата теста — без пароля ему не войти и не
+      // заполнить анкету; no-op для обычных покупателей.
+      fulfillGuestDocuments({ companyId }).catch((err) => console.error('fulfillGuestDocuments failed:', err));
+    }
 
     if (addonKey === 'website_check' && payment.metadata?.websiteCheckId) {
       const { rows: checkRows } = await pool.query('SELECT url FROM website_checks WHERE id = $1', [

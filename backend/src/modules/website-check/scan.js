@@ -218,10 +218,15 @@ async function scanWebsite(inputUrl) {
     let usedHttps = /^https:\/\//i.test(url);
     let response;
     try {
-      response = await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+      response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     } catch (err) {
       throw new Error(`Не удалось открыть сайт: ${err.message}`);
     }
+    // 21.10.2026: раньше goto ждал networkidle2 — тяжёлые сайты с постоянными
+    // запросами (yclients.com) не затихают, и проверка падала целиком по
+    // таймауту. Теперь страница открыта по DOM, а затишье сети (счётчики,
+    // формы из скриптов) ждём отдельно и не дольше 8 секунд, без ошибки.
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 8000 }).catch(() => {});
     const finalUrl = page.url();
     usedHttps = /^https:\/\//i.test(finalUrl);
     if (!usedHttps) findingCodes.push('no_https');

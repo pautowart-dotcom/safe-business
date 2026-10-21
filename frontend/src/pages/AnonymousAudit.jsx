@@ -399,6 +399,92 @@ function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcc
   );
 }
 
+// «Документы студии» после теста (21.10.2026, план 20.10). Показываем только
+// если среди найденного есть то, что закрывает пакет (inDocumentsPack из
+// /status) — иначе предлагать нечего. Названия пунктов и так видны выше
+// бесплатно, заключение здесь не раскрывается. Цена — с сервера.
+function pointsLabel(n) {
+  if (n === 1) return 'Один пункт';
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} пункта`;
+  return `${n} пунктов`;
+}
+
+function DocumentsPackOffer({ violations }) {
+  const covered = (violations || []).filter((v) => v.inDocumentsPack && v.status !== 'resolved');
+  const [addon, setAddon] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (covered.length === 0) return;
+    guestApi
+      .get('/platform/addons')
+      .then((res) => setAddon(res.data.find((a) => a.addonKey === 'document_templates') || null))
+      .catch(() => {});
+  }, [covered.length]);
+
+  if (covered.length === 0 || !addon || addon.purchased) return null;
+
+  async function pay() {
+    if (!email || !email.includes('@')) {
+      setError('Укажите email');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
+      return;
+    }
+    setError('');
+    setPaying(true);
+    try {
+      const { data } = await guestApi.post('/platform/addons/document_templates/checkout', { email, acceptedTerms });
+      reachGoal('checkout_start');
+      window.location.href = data.confirmationUrl;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось начать оплату');
+      setPaying(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Документы студии — {addon.priceRub.toLocaleString('ru-RU')} ₽</div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}>
+        {pointsLabel(covered.length)} из списка выше можно закрыть документами из пакета — данные вашей студии
+        подставляются в них из анкеты:
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        {covered.map((v) => (
+          <div key={v.code} style={{ fontSize: 13, padding: '3px 0', display: 'flex', gap: 8 }}>
+            <span style={{ color: C.subtle }}>—</span><span>{v.title}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
+        Разовая оплата. В подарок — месяц полного доступа к кабинету. После оплаты пришлём на почту ссылку для входа:
+        там одна анкета, и документы готовы к скачиванию.
+      </div>
+      {open ? (
+        <>
+          <Field label="Email">
+            <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </Field>
+          <ConsentPair idPrefix="docs" purpose="order" onChange={setAcceptedTerms} />
+          {error && <div className="alert alert-error">{error}</div>}
+          <Btn small onClick={pay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить — ${addon.priceRub.toLocaleString('ru-RU')} ₽`}</Btn>
+        </>
+      ) : (
+        <Btn small variant="secondary" onClick={() => setOpen(true)}>Оформить документы</Btn>
+      )}
+    </Card>
+  );
+}
+
 // 13.09.2026 — та же подсказка "Мои сроки", что уже стоит после теста в
 // самом приложении (Security.jsx, QuickDeadlinesPrompt), но здесь отдельная
 // копия, а не импорт: этот экран нарочно не использует ни общий api-клиент
@@ -550,6 +636,8 @@ function ResultStep({
           сами не пошли выполнять. */}
       <GuestQuickDeadlinePrompt />
 
+      <DocumentsPackOffer violations={result.violations} />
+
       <WebsiteCheckOffer
         url={websiteUrl} setUrl={setWebsiteUrl}
         email={websiteEmail} setEmail={setWebsiteEmail}
@@ -633,7 +721,7 @@ function DoneStep() {
       <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Оплата обрабатывается</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
         Обычно это занимает не больше пары минут. Как только оплата подтвердится, результат придёт на
-        указанную почту (отчёт по тесту или проверка сайта — смотря что оплачивали) — проверьте папку "Спам",
+        указанную почту (отчёт по тесту, проверка сайта или ссылка для входа к документам — смотря что оплачивали) — проверьте папку "Спам",
         если письмо не появится в течение 10 минут.
       </div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 10 }}>
