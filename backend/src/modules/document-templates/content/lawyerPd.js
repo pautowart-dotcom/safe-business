@@ -42,8 +42,17 @@ const POLICY_FIELDS = [
   { key: 'extraPurposeData', label: 'Какие данные для своей цели (необязательно). Пример: фамилия, имя; фотоизображение', type: 'text', required: false },
 ];
 
+// Подпись к номеру по его длине (21.10.2026): ОГРНИП — 15 цифр, ОГРН — 13.
+// Номер с ошибкой — прежняя общая подпись, не угадываем.
+function ogrnLabel(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 15) return 'ОГРНИП';
+  if (digits.length === 13) return 'ОГРН';
+  return 'ОГРН/ОГРНИП';
+}
+
 function requisites(values) {
-  const parts = [`ОГРН/ОГРНИП: ${values.ogrnip || '—'}`, `ИНН: ${values.inn || '—'}`];
+  const parts = [`${ogrnLabel(values.ogrnip)}: ${values.ogrnip || '—'}`, `ИНН: ${values.inn || '—'}`];
   if (values.kpp && String(values.kpp).trim()) parts.push(`КПП: ${String(values.kpp).trim()}`);
   return parts.join(', ');
 }
@@ -508,4 +517,4 @@ function build(niche, key, kind) {
 const REPLACED_KINDS = ['privacy_policy', 'pd_consent', 'pd_distribution', 'marketing_consent'];
 const ADDED_KINDS = ['image_consent', 'pd_paper_consent'];
 
-module.exports = { build, REPLACED_KINDS, ADDED_KINDS, KINDS, purposesBlock };
+module.exports = { build, REPLACED_KINDS, ADDED_KINDS, KINDS, purposesBlock, ogrnLabel };

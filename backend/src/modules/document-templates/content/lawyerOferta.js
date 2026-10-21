@@ -45,11 +45,13 @@ const F = {
   goodsDescription: { key: 'goodsDescription', label: 'Что продаёте — для пункта «Товар». Пример: косметические средства для ухода за ногтями и кожей рук', type: 'text', required: true },
 };
 
+const { ogrnLabel } = require('./lawyerPd');
+
 const OPERATOR = [F.legalName, F.legalNameGen, F.ogrnip, F.inn, F.kpp];
 const BANK = [F.bankAccount, F.bankName, F.bik, F.corrAccount];
 
 function requisites(values) {
-  const parts = [`ОГРН/ОГРНИП: ${values.ogrnip || '—'}`, `ИНН: ${values.inn || '—'}`];
+  const parts = [`${ogrnLabel(values.ogrnip)}: ${values.ogrnip || '—'}`, `ИНН: ${values.inn || '—'}`];
   if (values.kpp && String(values.kpp).trim()) parts.push(`КПП: ${String(values.kpp).trim()}`);
   return parts.join(', ');
 }
@@ -59,7 +61,7 @@ function requisites(values) {
 function requisitesBlock(values, { withService, withLegalAddress }) {
   const lines = ['{{legalName}}'];
   if (withLegalAddress) lines.push('Юридический адрес: {{legalAddress}}');
-  lines.push('ОГРН/ОГРНИП: {{ogrnip}}', 'ИНН: {{inn}}');
+  lines.push(`${ogrnLabel(values.ogrnip)}: {{ogrnip}}`, 'ИНН: {{inn}}');
   if (values.kpp && String(values.kpp).trim()) lines.push('КПП: {{kpp}}');
   lines.push('E-mail: {{email}}', 'Номер телефона: {{phone}}');
   if (withService && values.serviceAddress && String(values.serviceAddress).trim()) lines.push('Место оказания услуг: {{serviceAddress}}');
