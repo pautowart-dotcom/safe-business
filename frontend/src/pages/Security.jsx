@@ -10,6 +10,7 @@ import { FM } from '../ui/theme.js';
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
 import { reachGoal } from '../utils/metrika.js';
+import { withDeclensions } from '../utils/declension.js';
 import { PartnerServicesCard, PartnerRequestButton, partnerServiceForViolation } from '../ui/PartnerServices.jsx';
 
 const LEGAL_FORM_OPTIONS = [
@@ -2308,7 +2309,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
               )}
               {t.fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
-                  <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => ({ ...prev, [f.key]: v }))} />
+                  <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => withDeclensions(prev, f.key, v))} />
                 </Field>
               ))}
               <div style={{ display: 'flex', gap: 8 }}>
@@ -2488,7 +2489,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
               <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>Реквизиты вводятся один раз — для всех документов сразу.</div>
               {fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
-                  <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => ({ ...prev, [f.key]: v }))} />
+                  <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => withDeclensions(prev, f.key, v))} />
                 </Field>
               ))}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

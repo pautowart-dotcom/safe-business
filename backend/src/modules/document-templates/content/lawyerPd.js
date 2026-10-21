@@ -21,8 +21,8 @@ const YES_NO = [
 // Реквизиты — одинаковые ключи во всех документах, вводятся один раз.
 const F = {
   legalName: { key: 'legalName', label: 'ФИО ИП или название ООО (как в выписке)', type: 'text', required: true },
-  legalNameGen: { key: 'legalNameGen', label: 'То же в родительном падеже — кого? чего? Пример: ИП Иванова Ивана Ивановича / ООО «Ромашка»', type: 'text', required: true },
-  legalNameDat: { key: 'legalNameDat', label: 'То же в дательном падеже — кому? чему? Пример: ИП Иванову Ивану Ивановичу / ООО «Ромашка»', type: 'text', required: true },
+  legalNameGen: { key: 'legalNameGen', label: 'То же в родительном падеже — кого? чего? Подставляется само, проверьте. Пример: ИП Иванова Ивана Ивановича / ООО «Ромашка»', type: 'text', required: true },
+  legalNameDat: { key: 'legalNameDat', label: 'То же в дательном падеже — кому? чему? Подставляется само, проверьте. Пример: ИП Иванову Ивану Ивановичу / ООО «Ромашка»', type: 'text', required: true },
   ogrnip: { key: 'ogrnip', label: 'ОГРНИП / ОГРН', type: 'text', required: true },
   inn: { key: 'inn', label: 'ИНН', type: 'text', required: true },
   kpp: { key: 'kpp', label: 'КПП (только для ООО)', type: 'text', required: false },
