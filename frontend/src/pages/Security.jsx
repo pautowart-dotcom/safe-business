@@ -2199,6 +2199,11 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           <TextInput value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Необязательно" maxLength={32} />
         </Field>
       )}
+      {addon && !addon.purchased && addon.networkDiscountPercent > 0 && (
+        <div style={{ fontSize: 13, color: C.green, marginBottom: 12 }}>
+          Вы в сети — скидка {addon.networkDiscountPercent}%: {addon.priceRub.toLocaleString('ru-RU')} ₽ вместо {addon.fullPriceRub.toLocaleString('ru-RU')} ₽.
+        </div>
+      )}
 
       {templates && templates.length > 0 && (
         <SigningPackBlock

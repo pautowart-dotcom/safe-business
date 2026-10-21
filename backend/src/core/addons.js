@@ -41,4 +41,18 @@ function getAddon(addonKey) {
   return ADDON_CATALOG[addonKey] || null;
 }
 
-module.exports = { ADDON_CATALOG, getAddon };
+// Скидка точкам франшизы на «Документы студии» (решение владельца 19.10.2026,
+// docs/plan-2026-10-20.md §1): точка сети (companies.franchise_group_id)
+// платит на 10% меньше. Только этот пакет — проверку сайта не трогаем.
+const NETWORK_DISCOUNT_PERCENT = 10;
+
+function priceForCompany(addonKey, { inNetwork }) {
+  const addon = getAddon(addonKey);
+  if (!addon) return null;
+  if (addonKey === 'document_templates' && inNetwork) {
+    return { priceRub: Math.round(addon.priceRub * (100 - NETWORK_DISCOUNT_PERCENT) / 100), networkDiscountPercent: NETWORK_DISCOUNT_PERCENT };
+  }
+  return { priceRub: addon.priceRub, networkDiscountPercent: 0 };
+}
+
+module.exports = { ADDON_CATALOG, getAddon, priceForCompany, NETWORK_DISCOUNT_PERCENT };

@@ -5,13 +5,18 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment } = require('../core/yookassa');
-const { ADDON_CATALOG, getAddon } = require('../core/addons');
+const { ADDON_CATALOG, getAddon, priceForCompany } = require('../core/addons');
 const { evaluatePromo } = require('../core/promoCodes');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 
 const router = express.Router();
 
 router.use(requireAuth, requireTenant);
+
+async function isNetworkPoint(companyId) {
+  const { rows } = await pool.query('SELECT franchise_group_id FROM companies WHERE id = $1', [companyId]);
+  return !!rows[0]?.franchise_group_id;
+}
 
 // Весь каталог (цена/название берутся из core/addons.js — единственного
 // места с ценой) + отметка, что уже куплено этой компанией. Фронт не
@@ -24,13 +29,21 @@ router.get(
       [req.tenant.companyId]
     );
     const purchased = new Set(rows.map((r) => r.addon_key));
+    const inNetwork = await isNetworkPoint(req.tenant.companyId);
     res.json(
-      Object.entries(ADDON_CATALOG).map(([key, addon]) => ({
-        addonKey: key,
-        label: addon.label,
-        priceRub: addon.priceRub,
-        purchased: purchased.has(key),
-      }))
+      Object.entries(ADDON_CATALOG).map(([key, addon]) => {
+        const price = priceForCompany(key, { inNetwork });
+        return {
+          addonKey: key,
+          label: addon.label,
+          priceRub: price.priceRub,
+          fullPriceRub: addon.priceRub,
+          networkDiscountPercent: price.networkDiscountPercent,
+          // Цена для точки сети — пульт показывает её владельцу сети.
+          networkPriceRub: priceForCompany(key, { inNetwork: true }).priceRub,
+          purchased: purchased.has(key),
+        };
+      })
     );
   })
 );
@@ -124,17 +137,20 @@ router.post(
       metadata.websiteCheckId = String(checkRows.rows[0].id);
     }
 
+    // Цена с учётом скидки точке сети (core/addons.js, 21.10.2026).
+    const basePriceRub = priceForCompany(req.params.addonKey, { inNetwork: await isNetworkPoint(req.tenant.companyId) }).priceRub;
+
     // Промокод на документы (20.10.2026, миграция 0148): «уже оплачено» выше
-    // гарантирует, что это первая покупка.
+    // гарантирует, что это первая покупка. Считается от цены точки сети.
     let promoResult = null;
     if (req.params.addonKey === 'document_templates' && req.body?.promoCode) {
       try {
-        promoResult = await evaluatePromo({ code: req.body.promoCode, companyId: req.tenant.companyId, appliesTo: 'templates', priceRub: addon.priceRub });
+        promoResult = await evaluatePromo({ code: req.body.promoCode, companyId: req.tenant.companyId, appliesTo: 'templates', priceRub: basePriceRub });
       } catch (err) {
         return res.status(err.status || 400).json({ error: err.message });
       }
     }
-    const amountRub = promoResult ? promoResult.finalRub : addon.priceRub;
+    const amountRub = promoResult ? promoResult.finalRub : basePriceRub;
 
     const payment = await createPayment({
       amountRub,
@@ -165,12 +181,13 @@ router.post(
 // Push владельцу платформы о новой addon-оплате — вызывается из webhook
 // в subscription.routes.js, вынесено сюда как отдельная функция, чтобы
 // не плодить SQL-запросы к addon_purchases в чужом файле.
-async function notifyAddonPurchase({ companyId, addonKey }) {
+async function notifyAddonPurchase({ companyId, addonKey, amountRub }) {
   const addon = getAddon(addonKey);
   const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [companyId]);
   await sendPushToSuperAdmins({
     title: 'Оплата надстройки',
-    body: `${rows[0]?.name || 'Компания'} — ${addon?.label || addonKey}, ${addon?.priceRub ?? '?'} ₽`,
+    // amountRub — реально оплаченная сумма (промокод, скидка точке сети).
+    body: `${rows[0]?.name || 'Компания'} — ${addon?.label || addonKey}, ${amountRub ?? addon?.priceRub ?? '?'} ₽`,
     url: '/office/companies',
   }).catch((err) => console.error('sendPushToSuperAdmins (addon) failed:', err));
 }

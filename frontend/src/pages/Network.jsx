@@ -131,8 +131,11 @@ function ManageCard({ owned, onChanged }) {
   const [error, setError] = useState('');
   const joinUrl = `${window.location.origin}/lk/join-network/${owned.joinCode}`;
 
+  const [docsAddon, setDocsAddon] = useState(null);
+
   useEffect(() => {
     api.get('/platform/franchise/viewers').then(({ data }) => setViewers(data)).catch(() => setViewers([]));
+    api.get('/platform/addons').then(({ data }) => setDocsAddon(data.find((a) => a.addonKey === 'document_templates') || null)).catch(() => {});
   }, []);
 
   async function decide(requestId, status) {
@@ -165,6 +168,12 @@ function ManageCard({ owned, onChanged }) {
         <input readOnly value={joinUrl} onClick={(e) => e.target.select()} style={{ flex: '1 1 220px', minWidth: 0, fontSize: 12.5, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, color: C.primary }} />
         <Btn small variant="secondary" onClick={async () => setCopied(await copyToClipboard(joinUrl))}>{copied ? 'Скопировано' : 'Копировать'}</Btn>
       </div>
+      {docsAddon && docsAddon.networkPriceRub < docsAddon.fullPriceRub && (
+        <div style={{ fontSize: 12.5, color: C.secondary, marginBottom: 12, padding: '8px 10px', borderRadius: 8, background: C.surface }}>
+          Точкам сети — «Документы студии» со скидкой: {docsAddon.networkPriceRub.toLocaleString('ru-RU')} ₽ вместо {docsAddon.fullPriceRub.toLocaleString('ru-RU')} ₽.
+          Скидка включается сама, когда точка вступила в сеть.
+        </div>
+      )}
 
       {owned.pendingRequests.length > 0 && (
         <div style={{ marginBottom: 12 }}>

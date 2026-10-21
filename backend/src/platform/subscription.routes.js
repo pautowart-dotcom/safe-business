@@ -427,11 +427,11 @@ router.post(
 // (см. вызов выше), не доверяем повторно телу исходного запроса.
 async function handleAddonWebhook(paymentId, payment, res) {
   const { rows } = await pool.query(
-    `SELECT company_id, addon_key FROM addon_purchases WHERE yookassa_payment_id = $1`,
+    `SELECT company_id, addon_key, amount_rub FROM addon_purchases WHERE yookassa_payment_id = $1`,
     [paymentId]
   );
   if (rows.length === 0) return res.status(200).end();
-  const { company_id: companyId, addon_key: addonKey } = rows[0];
+  const { company_id: companyId, addon_key: addonKey, amount_rub: amountRub } = rows[0];
 
   if (payment.status === 'succeeded') {
     // Повторное уведомление ЮKassa — ничего не делаем второй раз (иначе
@@ -442,7 +442,7 @@ async function handleAddonWebhook(paymentId, payment, res) {
       [paymentId]
     );
     if (firstTime.rowCount === 0) return res.status(200).end();
-    await notifyAddonPurchase({ companyId, addonKey });
+    await notifyAddonPurchase({ companyId, addonKey, amountRub });
 
     if (addonKey === 'document_templates') {
       // 21.10.2026 (план 20.10, решение владельца 19.10): к пакету — месяц
