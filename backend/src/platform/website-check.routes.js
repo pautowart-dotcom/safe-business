@@ -117,6 +117,13 @@ async function notifyGuestIfNeeded(checkId) {
   if (!row || !row.is_guest) return;
   const findings = row.findings || [];
   const list = findings.map((f) => `<li><b>${f.title}</b> — ${f.solution}</li>`).join('');
+  // 21.10.2026: находки про политику, согласие и оферту закрываются пакетом
+  // «Документы студии» (коды — website-check/scan.js).
+  const docsHint = findings.some((f) => ['WC-02', 'WC-03', 'WC-04', 'WC-07', 'WC-09'].includes(f.code))
+    ? `<p>Политику конфиденциальности, согласие для формы на сайте и оферту можно собрать с вашими данными в «Документах студии»: ` +
+      // Страница пакета — на сайте (landing), не в приложении (/lk), куда ведёт FRONTEND_URL.
+      `<a href="https://business-safe.ru/dokumenty/">business-safe.ru/dokumenty</a></p>`
+    : '';
   await sendMail({
     to: row.email,
     subject: `Проверка сайта ${row.url} готова — «Безопасный бизнес»`,
@@ -124,6 +131,7 @@ async function notifyGuestIfNeeded(checkId) {
       `<p>Проверка сайта ${row.url} завершена. Индекс: ${row.score} ` +
       `(${row.zone === 'green' ? 'риски не найдены' : row.zone === 'yellow' ? 'есть замечания' : 'высокий риск'}).</p>` +
       (list ? `<ul>${list}</ul>` : '<p>Замечаний не найдено.</p>') +
+      docsHint +
       `<p>Отчёт не заменяет юридическую консультацию.</p>`,
   });
 }

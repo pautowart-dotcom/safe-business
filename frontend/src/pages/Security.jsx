@@ -1860,6 +1860,23 @@ function RiskCheckHistoryCard({ isManagement, refreshSignal }) {
 // websiteCheck.js — без него подписка давала бы неограниченные бесплатные
 // проверки чужих сайтов), либо разовая оплата (core/addons.js, сейчас
 // 490₽) через тот же addons-чекаут, что и "Шаблоны документов" выше.
+// Находки проверки сайта → документы пакета, которые их закрывают
+// (21.10.2026, идея продаж №1 из плана 20.10). Коды — website-check/scan.js.
+const SITE_FINDING_DOCS = {
+  'WC-02': 'Политика конфиденциальности',
+  'WC-07': 'Политика конфиденциальности',
+  'WC-09': 'Политика конфиденциальности — с пунктом про Яндекс Метрику',
+  'WC-04': 'Согласие на обработку персональных данных для формы на сайте',
+  'WC-03': 'Публичная оферта',
+};
+
+function docsForSiteFindings(findings) {
+  const docs = (findings || []).map((f) => SITE_FINDING_DOCS[f.code]).filter(Boolean);
+  // «с пунктом про Метрику» вбирает простую «Политику».
+  const unique = [...new Set(docs)];
+  return unique.some((d) => d.startsWith('Политика конфиденциальности —')) ? unique.filter((d) => d !== 'Политика конфиденциальности') : unique;
+}
+
 function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
   const [url, setUrl] = useState('');
   const [checkId, setCheckId] = useState(null);
@@ -1950,7 +1967,7 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
     if (!result) return;
     api
       .get('/platform/addons')
-      .then(({ data }) => setTemplatesAddon(data.find((a) => a.addonKey === 'document_templates' && !a.purchased) || null))
+      .then(({ data }) => setTemplatesAddon(data.find((a) => a.addonKey === 'document_templates') || null))
       .catch(() => {});
   }, [result]);
 
@@ -2009,13 +2026,34 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
             ))
           )}
 
-          {templatesAddon && (
-            <div style={{ padding: '10px 12px', marginTop: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 13 }}>
-                Раз навели порядок на сайте — стоит проверить и документы бизнеса: шаблоны по вашей нише, разовая оплата {templatesAddon.priceRub.toLocaleString('ru-RU')} ₽.
+          {templatesAddon && (() => {
+            const docs = docsForSiteFindings(result.findings);
+            if (docs.length === 0 && templatesAddon.purchased) return null;
+            return (
+              <div style={{ padding: '10px 12px', marginTop: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
+                {docs.length > 0 ? (
+                  <>
+                    <div style={{ fontSize: 13, marginBottom: 6 }}>Эти находки закрываются документами из «Документов студии»:</div>
+                    <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13 }}>
+                      {docs.map((d) => <li key={d}>{d}</li>)}
+                    </ul>
+                    <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
+                      {templatesAddon.purchased
+                        ? 'Пакет у вас уже есть — соберите документы и разместите их на сайте.'
+                        : `Разовая оплата ${templatesAddon.priceRub.toLocaleString('ru-RU')} ₽, документы собираются из вашей анкеты.`}
+                    </div>
+                    <Btn small onClick={() => document.getElementById('document-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                      {templatesAddon.purchased ? 'Собрать документы' : 'Открыть «Документы студии»'}
+                    </Btn>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13 }}>
+                    Раз навели порядок на сайте — стоит проверить и документы бизнеса: шаблоны по вашей нише, разовая оплата {templatesAddon.priceRub.toLocaleString('ru-RU')} ₽.
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </Card>
@@ -2184,6 +2222,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
   }
 
   return (
+    <div id="document-templates">
     <Card>
       <ST>Шаблоны документов</ST>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
@@ -2374,6 +2413,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
         </div>
       )}
     </Card>
+    </div>
   );
 }
 
