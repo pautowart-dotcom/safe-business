@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getCaptchaToken } from '../utils/captcha.js';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
@@ -609,6 +609,22 @@ function ResultStep({
   onPayWebsiteCheck, payingWebsiteCheck, websiteCheckError,
 }) {
   const zone = result.zone;
+  const payCardRef = useRef(null);
+  const emailRef = useRef(null);
+
+  // 21.10.2026 (владелец со своего телефона): кнопка оплаты прилипла к низу
+  // экрана, а почта и согласие — в самом конце страницы. Нажал, не заполнив, —
+  // ошибка появлялась там, где её не видно. Теперь прокручиваем к форме
+  // заключения и ставим курсор в почту.
+  function handlePay() {
+    const missing = !email || !email.includes('@') || !acceptedTerms;
+    if (missing && payCardRef.current) {
+      payCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if ((!email || !email.includes('@')) && emailRef.current) emailRef.current.focus({ preventScroll: true });
+    }
+    onPay();
+  }
+
   return (
     <div>
       <Card>
@@ -645,6 +661,7 @@ function ResultStep({
         onPay={onPayWebsiteCheck} paying={payingWebsiteCheck} error={websiteCheckError}
       />
 
+      <div ref={payCardRef}>
       <Card>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Заключение — {PRICE_RUB} ₽</div>
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
@@ -672,7 +689,7 @@ function ResultStep({
           Посмотреть пример отчёта (PDF, как выглядит результат) →
         </a>
         <Field label="Email">
-          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <TextInput ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
         <ConsentPair idPrefix="report" purpose="order" onChange={setAcceptedTerms} />
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
@@ -685,7 +702,8 @@ function ResultStep({
         />
         {error && <div className="alert alert-error">{error}</div>}
       </Card>
-      <StickyFooterButton onClick={onPay} disabled={paying}>
+      </div>
+      <StickyFooterButton onClick={handlePay} disabled={paying}>
         {paying ? 'Переходим к оплате…' : `Оплатить и получить заключение — ${promo ? promo.finalRub : PRICE_RUB} ₽`}
       </StickyFooterButton>
       {/* 02.09.2026, живой разбор воронки: раньше эта ссылка стояла прямо
