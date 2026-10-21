@@ -455,7 +455,7 @@ function DocumentsPackOffer({ violations }) {
     <Card>
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Документы студии — {addon.priceRub.toLocaleString('ru-RU')} ₽</div>
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}>
-        {pointsLabel(covered.length)} из списка выше можно закрыть документами из пакета — данные вашей студии
+        {pointsLabel(covered.length)} из списка выше можно закрыть документами из пакета — данные вашего бизнеса
         подставляются в них из анкеты:
       </div>
       <div style={{ marginBottom: 12 }}>
