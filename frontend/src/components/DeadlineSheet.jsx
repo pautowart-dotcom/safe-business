@@ -7,7 +7,7 @@ import { Btn, C, Icon } from '../ui/components.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { deadlineActions, daysLeft } from '../utils/deadlineActions.js';
 
-const CATEGORY_LABEL = { staff: 'Сотрудники', premises: 'Помещение', documents: 'Документы', tax: 'Налоги', financial: 'Финансы', operations: 'Работа студии' };
+const CATEGORY_LABEL = { staff: 'Сотрудники', premises: 'Помещение', documents: 'Документы', tax: 'Налоги', financial: 'Финансы', operations: 'Работа точки' };
 
 // Шторка срока (18.10.2026, вид приложения): что это, когда, и кнопки —
 // те же, что в «Дедлайнах» (utils/deadlineActions.js). «Готово» отмечает

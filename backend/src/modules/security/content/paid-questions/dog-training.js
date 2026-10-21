@@ -172,7 +172,7 @@ const QUESTIONS = [
   {
     code: 'DT-701',
     block: 7,
-    text: 'Зарегистрирован ли товарный знак или бренд?',
+    text: 'Зарегистрирован ли ваш бренд как товарный знак?',
     hint: null,
     showIf: null,
     answers: [

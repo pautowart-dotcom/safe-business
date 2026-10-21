@@ -87,7 +87,7 @@ function CompanyPicker({ companies, onPick, onAdd, error }) {
           onClick={onAdd}
           style={{ border: `1.5px dashed ${C.border}`, borderRadius: 16, padding: 20, marginTop: 6, cursor: 'pointer', textAlign: 'center', color: C.primary, fontSize: 14, fontWeight: 700 }}
         >
-          + Добавить студию
+          + Добавить точку
         </div>
       )}
     </AuthShell>
@@ -129,7 +129,7 @@ function CreateCompanyForm({ onCreate, onBack }) {
       <form onSubmit={submit}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Название компании</div>
         <div style={{ fontSize: 13, color: C.subtle, marginBottom: 24 }}>
-          Будет отображаться в вашем кабинете. Каждая студия — отдельная подписка; позже можно добавить ещё одну.
+          Будет отображаться в вашем кабинете. Каждая точка — отдельная подписка; позже можно добавить ещё одну.
         </div>
         {error && <div className="alert alert-error">{error}</div>}
         <Field>

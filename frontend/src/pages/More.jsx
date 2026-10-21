@@ -66,7 +66,7 @@ const OWNER_ITEMS = [
 const MORE_GROUPS = [
   ['network', 'Сеть'],
   ['law', 'Безопасность и закон'],
-  ['work', 'Работа студии'],
+  ['work', 'Работа точки'],
   ['team', 'Команда'],
   ['account', 'Аккаунт и помощь'],
 ];
@@ -158,7 +158,7 @@ function MasterMore() {
           </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>Обратная связь</div>
-            <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Передаётся владельцу студии</div>
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Передаётся владельцу</div>
           </div>
         </div>
         {error && <div className="alert alert-error">{error}</div>}

@@ -142,7 +142,7 @@ export default function Knowledge() {
         </div>
       )}
       {!isManagement && (
-        <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.subtle }}>Редактирование доступно только владельцу студии</div>
+        <div style={{ background: C.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.subtle }}>Редактирование доступно только владельцу</div>
       )}
 
       <TextInput placeholder="Поиск по статьям" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 16 }} />
