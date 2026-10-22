@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
-import { Card, Btn, C, Group, Row, Field, TextInput, Skeleton } from '../ui/components.jsx';
+import { Card, Btn, C, Field, TextInput, Skeleton } from '../ui/components.jsx';
 
 // «Ваш бизнес снаружи» (22.10.2026). Бэкенд — platform/outside-watch.routes.js.
-// Бесплатно: снимок открытых реестров по ИНН — что видят налоговая,
-// проверяющие и суды, и что с этим делать. По подписке: ежедневное
-// наблюдение (уведомления и Telegram) и статус самозанятых мастеров.
+// Только свой бизнес: ИНН подтверждается галочкой, если он уже есть в
+// реквизитах «Документов» — подставляем сами. Бесплатно — снимок открытых
+// реестров; по подписке — фоновое наблюдение с уведомлениями.
 // Тон — CLAUDE.md: без запугивания и обещаний, у каждой находки источник.
 
 const LEVELS = [
@@ -31,78 +31,21 @@ function FindingCard({ f, color, bg }) {
   );
 }
 
-function MastersBlock({ paid, masters, onChange }) {
-  const navigate = useNavigate();
-  const [label, setLabel] = useState('');
-  const [inn, setInn] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function add() {
-    setBusy(true);
-    setError('');
-    try {
-      await api.post('/platform/outside-watch/masters', { label, inn });
-      setLabel('');
-      setInn('');
-      onChange();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось добавить');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(id) {
-    await api.delete(`/platform/outside-watch/masters/${id}`).catch(() => {});
-    onChange();
-  }
-
-  return (
-    <Group title="Самозанятые мастера" aside={paid ? String(masters.length) : 'в подписке'}>
-      {!paid && (
-        <div style={{ padding: '12px 14px', fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
-          Если мастера работают с вами как самозанятые, раз в неделю сверяем их статус с ФНС. Потерял статус, а вы платите
-          как раньше, — налоговая может посчитать это трудовыми отношениями.
-          <div style={{ marginTop: 10 }}><Btn small onClick={() => navigate('/subscription')}>Подключить подписку</Btn></div>
-        </div>
-      )}
-      {paid && masters.map((m) => (
-        <Row
-          key={m.id}
-          icon="team"
-          tone={m.last_status === false ? 'red' : m.last_status ? 'green' : 'gray'}
-          title={m.label}
-          subtitle={`ИНН …${m.inn_tail}${m.last_checked_at ? ` · проверено ${fmtDate(m.last_checked_at)}` : ''}`}
-          tag={m.last_status === false ? 'нет статуса' : m.last_status ? 'самозанятый' : 'проверяем'}
-          onClick={() => { if (window.confirm(`Убрать «${m.label}» из проверки?`)) remove(m.id); }}
-          chevron={false}
-        />
-      ))}
-      {paid && (
-        <div style={{ padding: '12px 14px' }}>
-          <Field label="Имя мастера"><TextInput value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Анна" /></Field>
-          <Field label="ИНН мастера (12 цифр)"><TextInput value={inn} onChange={(e) => setInn(e.target.value.replace(/\D/g, '').slice(0, 12))} inputMode="numeric" /></Field>
-          <Btn small onClick={add} disabled={busy || !label.trim() || inn.length !== 12}>{busy ? 'Проверяем…' : 'Добавить и проверить'}</Btn>
-          {error && <div style={{ fontSize: 13, color: C.red, marginTop: 8 }}>{error}</div>}
-          <div style={{ fontSize: 11.5, color: C.subtle, marginTop: 8 }}>
-            ИНН храним в зашифрованном виде и используем только для проверки статуса в ФНС.
-          </div>
-        </div>
-      )}
-    </Group>
-  );
-}
-
 export default function OutsideWatch() {
   const navigate = useNavigate();
   const [state, setState] = useState(null);
   const [inn, setInn] = useState('');
+  const [confirmOwn, setConfirmOwn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   function load() {
-    api.get('/platform/outside-watch').then(({ data }) => setState(data)).catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
+    api.get('/platform/outside-watch')
+      .then(({ data }) => {
+        setState(data);
+        if (data.suggestedInn) setInn((v) => v || data.suggestedInn);
+      })
+      .catch((err) => setError(err.response?.data?.error || 'Не удалось загрузить'));
   }
   useEffect(load, []);
 
@@ -110,7 +53,7 @@ export default function OutsideWatch() {
     setBusy(true);
     setError('');
     try {
-      await api.post('/platform/outside-watch/snapshot', withInn ? { inn } : {});
+      await api.post('/platform/outside-watch/snapshot', withInn ? { inn, confirmOwn } : {});
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось проверить');
@@ -121,18 +64,19 @@ export default function OutsideWatch() {
 
   if (!state) return error ? <Card>{error}</Card> : <Skeleton rows={4} />;
   const findings = state.snapshot?.findings || [];
+  const innValid = inn.length === 10 || inn.length === 12;
 
   return (
     <div>
       <div className="ui-page-title" style={{ marginBottom: 6 }}>Ваш бизнес снаружи</div>
       <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.55, marginBottom: 18 }}>
-        Что о вашем бизнесе видно в открытых реестрах — налоговой, проверок, судов, приставов — и что с этим делать.
+        Что о вашем бизнесе видно в открытых реестрах — налоговой, проверок, судов — и что с этим делать.
         Документы загружать не нужно, достаточно ИНН.
       </div>
 
       {(!state.hasInn || !state.snapshot) && (
         <Card style={{ marginBottom: 16 }}>
-          <Field label="ИНН ИП или организации">
+          <Field label="ИНН вашего ИП или организации">
             <TextInput
               value={inn}
               onChange={(e) => setInn(e.target.value.replace(/\D/g, '').slice(0, 12))}
@@ -140,7 +84,14 @@ export default function OutsideWatch() {
               placeholder={state.inn || '10 или 12 цифр'}
             />
           </Field>
-          <Btn onClick={() => takeSnapshot(true)} disabled={busy || (inn.length !== 10 && inn.length !== 12)} style={{ width: '100%' }}>
+          {state.suggestedInn && inn === state.suggestedInn && (
+            <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 12 }}>Взяли из реквизитов ваших документов.</div>
+          )}
+          <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: C.secondary, lineHeight: 1.45, marginBottom: 14, cursor: 'pointer' }}>
+            <input type="checkbox" checked={confirmOwn} onChange={(e) => setConfirmOwn(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>Это мой ИП или организация, от имени которой я действую. Проверять можно только свой бизнес.</span>
+          </label>
+          <Btn onClick={() => takeSnapshot(true)} disabled={busy || !innValid || !confirmOwn} style={{ width: '100%' }}>
             {busy ? 'Смотрим реестры…' : 'Посмотреть бесплатно'}
           </Btn>
           {error && <div style={{ fontSize: 13, color: C.red, marginTop: 10 }}>{error}</div>}
@@ -169,20 +120,18 @@ export default function OutsideWatch() {
 
       <Card style={{ marginBottom: 16, background: state.watchActive ? C.greenBg : C.surface }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: C.primary, marginBottom: 6 }}>
-          {state.watchActive ? 'Наблюдение включено' : 'Наблюдение каждый день'}
+          {state.watchActive ? 'Наблюдение включено' : 'Наблюдение в фоне'}
         </div>
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.55 }}>
           {state.watchActive
-            ? 'Каждое утро сверяем реестры с прошлым снимком. Если появится проверка, суд, долг у приставов или изменятся данные в реестре — напишем в «Уведомления» и в Telegram.'
-            : 'Снимок показывает реестры на сегодня. По подписке сверяем их каждое утро и пишем в «Уведомления» и Telegram, если появилась проверка, суд, долг или изменились ваши данные в реестре.'}
+            ? 'Регулярно, обычно каждый день, сверяем реестры с прошлым снимком. Если появится проверка, арбитражное дело или изменятся ваши данные в реестре — напишем в «Уведомления» и в Telegram.'
+            : 'Снимок показывает реестры на сегодня. По подписке сверяем их регулярно, обычно каждый день, и пишем в «Уведомления» и Telegram, если появилась проверка, арбитражное дело или изменились ваши данные в реестре.'}
         </div>
         {!state.paid && <div style={{ marginTop: 10 }}><Btn small onClick={() => navigate('/subscription')}>Подключить подписку</Btn></div>}
       </Card>
 
-      <MastersBlock paid={state.paid} masters={state.masters} onChange={load} />
-
       <div style={{ fontSize: 11.5, color: C.subtle, lineHeight: 1.5, margin: '14px 0 30px' }}>
-        Данные открытых государственных реестров (через checko.ru и ФНС). Реестры обновляются с задержкой и бывают с ошибками —
+        Данные открытых государственных реестров через сервис checko.ru. Реестры обновляются с задержкой и бывают с ошибками —
         проверяйте по ссылкам в каждом пункте. Это не юридическая консультация.
       </div>
     </div>

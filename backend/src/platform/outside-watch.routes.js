@@ -1,12 +1,11 @@
 // «Ваш бизнес снаружи» (22.10.2026) — бэкенд страницы /outside.
-// Бесплатно: разовый снимок открытых реестров по ИНН (не чаще раза в сутки).
-// По подписке (accessLevel 'full'): ежедневное наблюдение с уведомлениями
-// (scripts/outsideWatchDaily.js) и проверка статуса самозанятых мастеров.
+// Бесплатно: разовый снимок открытых реестров по ИНН СВОЕГО бизнеса (не чаще
+// раза в сутки). По подписке (accessLevel 'full'): фоновое наблюдение
+// с уведомлениями (scripts/outsideWatchDaily.js). Других людей не проверяем.
 //
 // Включение: OUTSIDE_WATCH_ENABLED=true — для всех; без него — только
 // тестовые компании (companies.is_test), как у бесплатного уровня.
-// Путь в FREE_PATH_PREFIXES (core/freeTier.js) — платное отсекаем здесь
-// сами, ответом 402 paidFeature.
+// Путь в FREE_PATH_PREFIXES (core/freeTier.js).
 const express = require('express');
 const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
@@ -14,14 +13,10 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { accessLevel } = require('../core/freeTier');
-const { encrypt } = require('../core/crypto');
 const svc = require('../modules/outside-watch/service');
-const { checkSelfEmployed } = require('../modules/outside-watch/npdClient');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant, requireRole('owner'));
-
-const MAX_MASTERS = 30;
 
 router.use(
   asyncHandler(async (req, res, next) => {
@@ -31,37 +26,30 @@ router.use(
   })
 );
 
-async function requirePaid(req, res) {
-  if ((await accessLevel(req.tenant.companyId)) === 'full') return true;
-  res.status(402).json({ error: 'Это входит в подписку — оформите её в разделе «Подписка».', paidFeature: true });
-  return false;
-}
-
 function maskInn(inn) {
   return inn ? `${'•'.repeat(inn.length - 4)}${inn.slice(-4)}` : null;
 }
+
+const INN_ERRORS = { INVALID_INN: 400, CONFIRM_REQUIRED: 400, INN_MISMATCH: 400, INN_CHANGE_LIMIT: 429 };
 
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const companyId = req.tenant.companyId;
-    const [inn, snapshot, level, masters] = await Promise.all([
+    const [{ inn }, snapshot, level, docInn] = await Promise.all([
       svc.getCompanyInn(companyId),
       svc.latestSnapshot(companyId),
       accessLevel(companyId),
-      pool.query(
-        `SELECT id, label, inn_tail, last_status, last_checked_at FROM outside_watch_masters
-         WHERE company_id = $1 ORDER BY created_at`,
-        [companyId]
-      ),
+      svc.documentsInn(companyId),
     ]);
     res.json({
       inn: maskInn(inn),
       hasInn: !!inn,
+      // ИНН уже есть в реквизитах «Документов» — предлагаем его, не заставляя вводить.
+      suggestedInn: !inn && docInn ? docInn : null,
       watchActive: level === 'full' && !!inn,
       paid: level === 'full',
       snapshot: snapshot && { createdAt: snapshot.created_at, findings: snapshot.findings, source: snapshot.source },
-      masters: masters.rows,
     });
   })
 );
@@ -73,9 +61,11 @@ router.post(
     const companyId = req.tenant.companyId;
     let inn;
     try {
-      inn = req.body?.inn ? await svc.setCompanyInn(companyId, req.body.inn) : await svc.getCompanyInn(companyId);
+      inn = req.body?.inn
+        ? await svc.setCompanyInn(companyId, req.body.inn, { confirmOwn: req.body.confirmOwn === true })
+        : (await svc.getCompanyInn(companyId)).inn;
     } catch (err) {
-      if (err.code === 'INVALID_INN') return res.status(400).json({ error: err.message });
+      if (INN_ERRORS[err.code]) return res.status(INN_ERRORS[err.code]).json({ error: err.message, code: err.code });
       throw err;
     }
     if (!inn) return res.status(400).json({ error: 'Укажите ИНН' });
@@ -96,48 +86,6 @@ router.post(
       console.error('outside-watch snapshot failed', companyId, err.code, err.message);
       res.status(502).json({ error: 'Реестры сейчас не ответили — попробуйте позже.' });
     }
-  })
-);
-
-// Самозанятые мастера — по подписке.
-router.post(
-  '/masters',
-  asyncHandler(async (req, res) => {
-    if (!(await requirePaid(req, res))) return;
-    const label = String(req.body?.label || '').trim().slice(0, 120);
-    const inn = String(req.body?.inn || '').trim();
-    if (!label) return res.status(400).json({ error: 'Укажите имя мастера' });
-    if (!/^\d{12}$/.test(inn)) return res.status(400).json({ error: 'ИНН самозанятого — 12 цифр' });
-    const { rows: cnt } = await pool.query('SELECT COUNT(*)::int AS n FROM outside_watch_masters WHERE company_id = $1', [req.tenant.companyId]);
-    if (cnt[0].n >= MAX_MASTERS) return res.status(400).json({ error: `Не больше ${MAX_MASTERS} мастеров` });
-    const { rows } = await pool.query(
-      `INSERT INTO outside_watch_masters (company_id, label, inn_enc, inn_tail)
-       VALUES ($1, $2, $3, $4) RETURNING id, label, inn_tail, last_status, last_checked_at`,
-      [req.tenant.companyId, label, encrypt(inn), inn.slice(-4)]
-    );
-    // Сразу проверяем одного — ФНС разрешает 2 запроса в минуту, на одну
-    // кнопку этого хватает; остальное делает ежедневный скрипт.
-    const master = rows[0];
-    try {
-      const r = await checkSelfEmployed(inn);
-      const upd = await pool.query(
-        `UPDATE outside_watch_masters SET last_status = $2, last_checked_at = now() WHERE id = $1
-         RETURNING id, label, inn_tail, last_status, last_checked_at`,
-        [master.id, r.status]
-      );
-      return res.json(upd.rows[0]);
-    } catch (err) {
-      console.error('outside-watch npd check failed', master.id, err.code, err.message);
-      return res.json(master);
-    }
-  })
-);
-
-router.delete(
-  '/masters/:id',
-  asyncHandler(async (req, res) => {
-    await pool.query('DELETE FROM outside_watch_masters WHERE id = $1 AND company_id = $2', [req.params.id, req.tenant.companyId]);
-    res.json({ ok: true });
   })
 );
 
