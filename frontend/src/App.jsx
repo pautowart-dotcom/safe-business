@@ -37,6 +37,7 @@ import NetworkReport from './pages/NetworkReport.jsx';
 import NetworkStandards from './pages/NetworkStandards.jsx';
 import PointStandards from './pages/PointStandards.jsx';
 import MonthlyCheck from './pages/MonthlyCheck.jsx';
+import OutsideWatch from './pages/OutsideWatch.jsx';
 import MyPoints from './pages/MyPoints.jsx';
 import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
@@ -187,6 +188,16 @@ export default function App() {
           element={
             <PrivateRoute managementOnly>
               <MonthlyCheck />
+            </PrivateRoute>
+          }
+        />
+        {/* «Ваш бизнес снаружи» (22.10.2026) — только владелец; раздел за
+            флагом на бэкенде (outside-watch.routes.js отвечает 404). */}
+        <Route
+          path="outside"
+          element={
+            <PrivateRoute ownerOnly>
+              <OutsideWatch />
             </PrivateRoute>
           }
         />

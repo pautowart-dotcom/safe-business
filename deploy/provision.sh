@@ -110,6 +110,14 @@ echo "== Cron: налоговые сроки нового года =="
 TAX_ROLLOVER_CRON_CMD="cd $APP_DIR/backend && node src/scripts/taxDeadlinesRollover.js >> /var/log/safe-business-tax-rollover.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "taxDeadlinesRollover.js" ; echo "0 7 * * * $TAX_ROLLOVER_CRON_CMD" ) | crontab -
 
+# Добавлено 22.10.2026 — «Ваш бизнес снаружи»: ежедневное наблюдение за
+# открытыми реестрами по ИНН (Checko, нужен CHECKO_API_KEY в .env) и
+# еженедельная проверка самозанятых мастеров (ФНС). Только компании с
+# подпиской и при OUTSIDE_WATCH_ENABLED=true (иначе — тестовые).
+echo "== Cron: наблюдение «Ваш бизнес снаружи» =="
+OUTSIDE_WATCH_CRON_CMD="cd $APP_DIR/backend && node src/scripts/outsideWatchDaily.js >> /var/log/safe-business-outside-watch.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "outsideWatchDaily.js" ; echo "20 7 * * * $OUTSIDE_WATCH_CRON_CMD" ) | crontab -
+
 # Добавлено 06.09.2026 — вопрос владельца: "как быть клиенту, который уже
 # всё купил?" Раньше при добавлении нового вопроса/нарушения в матрицу
 # (например -505 в этой же сессии) уже вовлечённые компании не узнавали об

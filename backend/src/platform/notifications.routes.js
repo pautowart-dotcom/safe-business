@@ -14,7 +14,9 @@ router.use(requireAuth, requireTenant);
 const LIST_LIMIT = 50;
 
 function roleFilter(role) {
-  return role === 'admin' ? `AND category IS DISTINCT FROM 'tax'` : '';
+  // outside_watch (22.10.2026) — события из реестров про самого владельца
+  // (суды, приставы), Администратору их не показываем.
+  return role === 'admin' ? `AND (category IS NULL OR category NOT IN ('tax', 'outside_watch'))` : '';
 }
 
 router.get(

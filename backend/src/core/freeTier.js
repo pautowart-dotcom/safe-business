@@ -38,6 +38,9 @@ const FREE_PATH_PREFIXES = [
   '/api/platform/franchise-standards',
   '/api/platform/franchise-assistant',
   '/api/platform/my-points',
+  // «Ваш бизнес снаружи» (22.10.2026): снимок бесплатный, платное
+  // (мастера) роут отсекает сам — 402 paidFeature.
+  '/api/platform/outside-watch',
   // Разовые покупки — свои оплаты, подписка для них не нужна.
   '/api/platform/website-check',
   '/api/platform/ai-advisor-subscription',

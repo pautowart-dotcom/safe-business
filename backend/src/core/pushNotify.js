@@ -48,7 +48,7 @@ async function sendPushToCompany({ companyId, category, title, body, url, onlyMe
      FROM push_subscriptions ps
      JOIN memberships m ON m.id = ps.membership_id
      WHERE ps.company_id = $1
-       AND ($2::text IS DISTINCT FROM 'tax' OR m.role != 'admin')
+       AND ($2::text IS NULL OR $2::text NOT IN ('tax', 'outside_watch') OR m.role != 'admin')
        AND ($3::int IS NULL OR ps.membership_id = $3)`,
     [companyId, category || null, onlyMembershipId]
   );

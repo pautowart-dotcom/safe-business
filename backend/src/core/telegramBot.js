@@ -52,7 +52,7 @@ async function sendTelegramToCompany({ companyId, category, title, body, url }) 
      JOIN memberships m ON m.user_id = t.user_id
      WHERE m.company_id = $1 AND m.invite_status = 'active' AND m.active = true
        AND m.role IN ('owner', 'admin') AND t.notify = true AND t.blocked_at IS NULL
-       AND ($2::text IS DISTINCT FROM 'tax' OR m.role != 'admin')`,
+       AND ($2::text IS NULL OR $2::text NOT IN ('tax', 'outside_watch') OR m.role != 'admin')`,
     [companyId, category || null]
   );
   if (chats.length === 0) return { sent: 0 };
