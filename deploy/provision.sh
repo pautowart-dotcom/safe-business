@@ -118,6 +118,14 @@ echo "== Cron: наблюдение «Ваш бизнес снаружи» =="
 OUTSIDE_WATCH_CRON_CMD="cd $APP_DIR/backend && node src/scripts/outsideWatchDaily.js >> /var/log/safe-business-outside-watch.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "outsideWatchDaily.js" ; echo "20 7 * * * $OUTSIDE_WATCH_CRON_CMD" ) | crontab -
 
+# Добавлено 22.10.2026 — документы обновляются сами: шаблон вышел новой
+# версией (закон изменился) → по подписке пересобираем документы клиентов
+# из сохранённых данных, без подписки — запись «вышла новая версия».
+# Порядок выпуска новой версии шаблона — docs/document-updates.md.
+echo "== Cron: обновление документов по новым версиям шаблонов =="
+DOCUMENT_UPDATES_CRON_CMD="cd $APP_DIR/backend && node src/scripts/documentUpdates.js >> /var/log/safe-business-document-updates.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "documentUpdates.js" ; echo "30 7 * * * $DOCUMENT_UPDATES_CRON_CMD" ) | crontab -
+
 # Добавлено 06.09.2026 — вопрос владельца: "как быть клиенту, который уже
 # всё купил?" Раньше при добавлении нового вопроса/нарушения в матрицу
 # (например -505 в этой же сессии) уже вовлечённые компании не узнавали об

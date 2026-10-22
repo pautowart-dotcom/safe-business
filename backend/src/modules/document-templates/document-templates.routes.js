@@ -7,11 +7,10 @@ const { ADDON_KEY } = require('./addonKey');
 const { logEvent } = require('../../core/eventLog');
 const { logAudit } = require('../../core/auditLog');
 const { encrypt, decrypt } = require('../../core/crypto');
-const { saveDocumentFile, getFileUrl, signFileUrl } = require('../../core/fileStorage');
+const { signFileUrl } = require('../../core/fileStorage');
 const { loadProfile } = require('../security/profile');
 const repository = require('./content/repository');
-const { renderDocumentPdf } = require('./render');
-const { worksFromHome } = require('./homePremisesSignal');
+const { generateDocument, changeNote, missingRequired } = require('./generate');
 const templateViolationLinks = require('./content/templateViolationLinks');
 const { alreadyHasDocument } = require('./documentSignal');
 const securityRepository = require('../security/content/repository');
@@ -334,71 +333,28 @@ router.post(
   })
 );
 
-function missingRequired(template, values) {
-  return template.fields.filter((f) => f.required && !String(values[f.key] || '').trim());
-}
-
-// Один документ: рендер, файл, запись в историю. Общая часть /generate и
-// /generate-pack; проверки доступа, ниши и полей — у вызывающего.
-async function generateOne(req, template, profile, values) {
-  const generatedAt = new Date();
-  // profile прокидываем в рендер для сборки составных документов
-  // (assembleBody, render.js) — без него clause-документы не смогут решить,
-  // какие пункты показывать. worksFromHome — не поле самого profile (там
-  // такого нет для этой ниши, см. homePremisesSignal.js), довычисляем и
-  // кладём в копию профиля только для рендера этого документа.
-  const profileForRender = { ...profile, worksFromHome: await worksFromHome(req.tenant.companyId, template.niche) };
-  const pdfBuffer = await renderDocumentPdf({ template, data: values, generatedAt, profile: profileForRender });
-  const filename = await saveDocumentFile(pdfBuffer, 'application/pdf');
-
-  const { rows } = await pool.query(
-    `INSERT INTO generated_documents
-       (company_id, template_key, template_version, template_title, template_status_at_generation,
-        law_reference_at_generation, data_enc, file_url, generated_by_user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, generated_at`,
-    [
-      req.tenant.companyId,
-      template.key,
-      template.version,
-      template.title,
-      template.status,
-      template.lawReference || null,
-      encrypt(JSON.stringify(values)),
-      getFileUrl(filename),
-      req.user.id,
-    ]
-  );
-
-  await logEvent({
-    companyId: req.tenant.companyId,
-    moduleKey: 'document-templates',
-    userId: req.user.id,
-    entityType: 'generated_document',
-    entityId: rows[0].id,
-    action: 'generated_document.created',
-  });
-
-  return {
-    id: rows[0].id,
-    templateTitle: template.title,
-    status: template.status,
-    generatedAt: rows[0].generated_at,
-    downloadUrl: signFileUrl(getFileUrl(filename)),
-    securityDocumentId: null,
-  };
+// Один документ — общая часть /generate и /generate-pack (generate.js).
+function generateOne(req, template, profile, values) {
+  return generateDocument({ companyId: req.tenant.companyId, userId: req.user.id, template, profile, values });
 }
 
 router.get(
   '/generated',
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
-      `SELECT id, template_key, template_version, template_title, template_status_at_generation, generated_at, file_url, security_document_id
-       FROM generated_documents WHERE company_id = $1 ORDER BY generated_at DESC`,
+      `SELECT g.id, g.template_key, g.template_version, g.template_title, g.template_status_at_generation, g.generated_at,
+              g.file_url, g.security_document_id, g.regenerated_from_id,
+              EXISTS (SELECT 1 FROM generated_documents n WHERE n.regenerated_from_id = g.id) AS superseded
+       FROM generated_documents g WHERE g.company_id = $1 ORDER BY g.generated_at DESC`,
       [req.tenant.companyId]
     );
-    res.json(
-      rows.map((r) => ({
+    // outdated (22.10.2026, «документы обновляются сами»): шаблон вышел
+    // новой версией, а у этого документа ещё нет пересобранной замены.
+    const result = [];
+    for (const r of rows) {
+      const template = await repository.getTemplate(r.template_key);
+      const outdated = !!template && template.version > r.template_version && !r.superseded;
+      result.push({
         id: r.id,
         templateKey: r.template_key,
         templateVersion: r.template_version,
@@ -407,8 +363,13 @@ router.get(
         generatedAt: r.generated_at,
         downloadUrl: signFileUrl(r.file_url),
         securityDocumentId: r.security_document_id,
-      }))
-    );
+        superseded: r.superseded,
+        isUpdate: !!r.regenerated_from_id,
+        outdated,
+        changeNote: outdated ? changeNote(template, r.template_version) : null,
+      });
+    }
+    res.json(result);
   })
 );
 
@@ -485,6 +446,43 @@ router.post(
     });
 
     res.status(201).json({ securityDocumentId: inserted[0].id, category });
+  })
+);
+
+// «Обновить» (22.10.2026): пересобрать устаревший документ по новой версии
+// шаблона из уже сохранённых данных — без повторного ввода. По подписке то
+// же самое делает сам scripts/documentUpdates.js. Доступ — та же разовая
+// покупка, что и у генерации.
+router.post(
+  '/generated/:id/regenerate',
+  requireAddon(ADDON_KEY),
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT g.id, g.template_key, g.template_version, g.data_enc,
+              EXISTS (SELECT 1 FROM generated_documents n WHERE n.regenerated_from_id = g.id) AS superseded
+       FROM generated_documents g WHERE g.id = $1 AND g.company_id = $2`,
+      [req.params.id, req.tenant.companyId]
+    );
+    const doc = rows[0];
+    if (!doc) return res.status(404).json({ error: 'Документ не найден' });
+    if (doc.superseded) return res.status(409).json({ error: 'Этот документ уже обновлён — новая версия в списке' });
+    const template = await repository.getTemplate(doc.template_key);
+    if (!template || template.version <= doc.template_version) {
+      return res.status(409).json({ error: 'Новой версии шаблона нет' });
+    }
+    const profile = await loadProfile(req.tenant.companyId);
+    if (!profile || !profile.niches.includes(template.niche)) {
+      return res.status(403).json({ error: 'Этот шаблон не относится к вашей нише' });
+    }
+    const values = JSON.parse(decrypt(doc.data_enc));
+    const missing = missingRequired(template, values);
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `В новой версии появились поля: ${missing.map((f) => f.label).join(', ')} — создайте документ заново`, missingFields: missing.map((f) => f.key) });
+    }
+    const document = await generateDocument({
+      companyId: req.tenant.companyId, userId: req.user.id, template, profile, values, regeneratedFromId: doc.id,
+    });
+    res.status(201).json(document);
   })
 );
 

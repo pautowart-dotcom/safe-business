@@ -2101,6 +2101,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
   const [templates, setTemplates] = useState(null);
   const [savedDetails, setSavedDetails] = useState({});
   const [generated, setGenerated] = useState([]);
+  const [regeneratingId, setRegeneratingId] = useState(null);
   const [addon, setAddon] = useState(null);
   const [payingAddon, setPayingAddon] = useState(false);
   const [openKey, setOpenKey] = useState(null);
@@ -2218,6 +2219,21 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
       await load();
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось удалить документ');
+    }
+  }
+
+  // «Обновить» (22.10.2026): шаблон вышел новой версией — пересобираем из уже
+  // сохранённых данных, без повторного ввода. По подписке это делает сервис сам.
+  async function regenerate(id) {
+    setError('');
+    setRegeneratingId(id);
+    try {
+      await api.post(`/modules/document-templates/generated/${id}/regenerate`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось обновить документ');
+    } finally {
+      setRegeneratingId(null);
     }
   }
 
@@ -2384,7 +2400,11 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           {generated.map((g) => (
             <div key={g.id} style={{ padding: '6px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 13 }}>{g.templateTitle} · {new Date(g.generatedAt).toLocaleDateString('ru-RU')}</span>
+                <span style={{ fontSize: 13, color: g.superseded ? C.subtle : undefined }}>
+                  {g.templateTitle} · {new Date(g.generatedAt).toLocaleDateString('ru-RU')}
+                  {g.isUpdate && <span style={{ color: C.green, fontWeight: 700 }}> · обновлённая версия</span>}
+                  {g.superseded && <span> · заменён новой версией</span>}
+                </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                   <a href={g.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать</a>
                   <button
@@ -2396,7 +2416,22 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
                   </button>
                 </div>
               </div>
-              {!g.securityDocumentId && (
+              {g.outdated && (
+                <div style={{ background: C.orangeBg, borderRadius: 8, padding: '8px 10px', marginTop: 6 }}>
+                  <div style={{ fontSize: 12.5, color: C.primary, lineHeight: 1.45 }}>
+                    <b>Вышла новая версия.</b> {g.changeNote}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => regenerate(g.id)}
+                    disabled={regeneratingId === g.id}
+                    style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', padding: 0, marginTop: 4 }}
+                  >
+                    {regeneratingId === g.id ? 'Обновляем…' : 'Обновить — данные уже сохранены'}
+                  </button>
+                </div>
+              )}
+              {!g.securityDocumentId && !g.superseded && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                   <span style={{ fontSize: 12, color: C.subtle }}>Не добавлен в «Мои документы»</span>
                   <button
