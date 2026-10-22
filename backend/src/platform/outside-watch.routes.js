@@ -14,8 +14,14 @@ const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { accessLevel } = require('../core/freeTier');
 const svc = require('../modules/outside-watch/service');
+const { nichesForOkved } = require('../modules/outside-watch/okvedNiches');
 
 const router = express.Router();
+
+// Публично (до авторизации): показывать ли поле ИНН на первом экране
+// гостевого теста — там ещё нет ни токена, ни компании. Только общий флаг.
+router.get('/enabled', (req, res) => res.json({ enabled: process.env.OUTSIDE_WATCH_ENABLED === 'true' }));
+
 router.use(requireAuth, requireTenant, requireRole('owner'));
 
 router.use(
@@ -75,17 +81,52 @@ router.post(
     if (sameInn && Date.now() - new Date(last.created_at).getTime() < 24 * 3600 * 1000) {
       return res.status(429).json({ error: 'Снимок обновляется не чаще раза в сутки — ниже последний.' });
     }
-    if ((await svc.snapshotsToday()) >= svc.DAILY_SNAPSHOT_CAP) {
-      return res.status(503).json({ error: 'Сегодня проверок уже очень много — попробуйте завтра.' });
-    }
-
     try {
       const { row } = await svc.takeSnapshot(companyId, inn, 'free');
       res.json({ createdAt: row.created_at, findings: row.findings, source: row.source });
     } catch (err) {
+      if (err.code === 'BUDGET') return res.status(503).json({ error: 'Сегодня проверок уже очень много — попробуйте завтра.', code: 'BUDGET' });
       console.error('outside-watch snapshot failed', companyId, err.code, err.message);
       res.status(502).json({ error: 'Реестры сейчас не ответили — попробуйте позже.' });
     }
+  })
+);
+
+// Подсказки для теста (22.10.2026): по ИНН своего бизнеса — форма, подсказка
+// ниши по ОКВЭД; пустые поля компании (регион, дата регистрации, патент)
+// заполняются сами. 1 запрос к реестру. Реестр не ответил или лимит дня —
+// не ошибка для человека: тест просто идёт как обычно.
+router.post(
+  '/prefill',
+  asyncHandler(async (req, res) => {
+    const companyId = req.tenant.companyId;
+    let inn;
+    try {
+      inn = await svc.setCompanyInn(companyId, req.body?.inn, { confirmOwn: req.body?.confirmOwn === true });
+    } catch (err) {
+      if (INN_ERRORS[err.code]) return res.status(INN_ERRORS[err.code]).json({ error: err.message, code: err.code });
+      throw err;
+    }
+    const legalForm = inn.length === 10 ? 'ooo' : 'ip';
+    let card = null;
+    try {
+      card = await svc.fetchCard(inn);
+    } catch (err) {
+      console.error('outside-watch prefill failed', companyId, err.code, err.message);
+      return res.json({ found: false, legalForm });
+    }
+    // 12 цифр и нет в ЕГРИП — скорее всего самозанятый (личный ИНН).
+    if (!card) return res.json({ found: false, legalForm: inn.length === 12 ? 'self_employed' : legalForm });
+    await svc.applyRegistryToCompany(companyId, inn, card);
+    const okved = card.ОКВЭД || {};
+    res.json({
+      found: true,
+      legalForm,
+      name: card.НаимСокр || (card.ФИО ? `ИП ${card.ФИО}` : null),
+      okved: okved.Код ? { code: okved.Код, name: okved.Наим } : null,
+      suggestedNiches: nichesForOkved(okved.Код),
+      regimes: (card.Налоги && card.Налоги.ОсобРежим) || [],
+    });
   })
 );
 

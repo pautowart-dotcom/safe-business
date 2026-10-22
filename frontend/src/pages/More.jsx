@@ -84,26 +84,20 @@ function OwnerMore() {
   // «Пульт сети» (16.10.2026) — только у владельца сети и его
   // администраторов с выданным доступом (hasNetworkCabinet).
   const [hasNetworkCabinet, setHasNetworkCabinet] = useState(false);
-  // «Ваш бизнес снаружи» (22.10.2026) — за флагом, решает бэкенд.
-  const [outsideWatchEnabled, setOutsideWatchEnabled] = useState(false);
   // «Мои точки» (этап 5) — когда человек владелец/управляющий в 2+ точках.
   const [pointsCount, setPointsCount] = useState(0);
   useEffect(() => {
-    api.get('/platform/companies/current').then(({ data }) => {
-      setHasNetworkCabinet(!!data.hasNetworkCabinet);
-      setOutsideWatchEnabled(!!data.outsideWatchEnabled);
-    }).catch(() => {});
+    api.get('/platform/companies/current').then(({ data }) => setHasNetworkCabinet(!!data.hasNetworkCabinet)).catch(() => {});
     api.get('/platform/my-points').then(({ data }) => setPointsCount(data.length)).catch(() => {});
   }, []);
 
   const items = [
     ...(hasNetworkCabinet ? [{ label: 'Пульт сети', sub: 'Все точки сети: что горит, кто открывается', icon: 'team', to: '/network', group: 'network' }] : []),
     ...(pointsCount >= 2 ? [{ label: 'Мои точки', sub: 'Сроки и открытие всех ваших точек в одном месте', icon: 'home', to: '/my-points', group: 'network' }] : []),
-    ...(outsideWatchEnabled ? [{ label: 'Ваш бизнес снаружи', sub: 'Что видят налоговая, проверки и суды — по ИНН', icon: 'search', to: '/outside', group: 'law' }] : []),
     ...OWNER_ITEMS,
   ]
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
-    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/ai-advisor' && i.to !== '/outside'));
+    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/ai-advisor'));
 
   return (
     <div>

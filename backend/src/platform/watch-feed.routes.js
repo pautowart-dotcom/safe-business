@@ -15,6 +15,7 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { listUpcomingDeadlines } = require('../core/deadlines');
 const { isSubscriptionActive } = require('../core/middleware/subscription');
+const outsideWatch = require('../modules/outside-watch/service');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -129,6 +130,36 @@ async function loadLawCheckItem() {
   };
 }
 
+// «Ваш бизнес снаружи» (22.10.2026) — сюда вместо отдельного пункта меню:
+// последний снимок реестров одной строкой, со ссылкой на подробности. Нет
+// ИНН — приглашение посмотреть бесплатно. Только владельцу: это сведения
+// о суде/приставах самого владельца.
+async function loadOutsideWatchItem(companyId, role) {
+  if (role !== 'owner') return null;
+  const { rows } = await pool.query('SELECT is_test, outside_inn_enc IS NOT NULL AS has_inn, created_at FROM companies WHERE id = $1', [companyId]);
+  if (!rows[0] || !outsideWatch.enabledFor(rows[0])) return null;
+  const snapshot = await outsideWatch.latestSnapshot(companyId);
+  if (!snapshot) {
+    return {
+      kind: 'outside_watch',
+      title: 'Что видно о вас в реестрах',
+      text: 'Проверки, суды, налоговая — по ИНН, бесплатно.',
+      occurredAt: rows[0].created_at,
+      url: '/outside',
+    };
+  }
+  const findings = snapshot.findings || [];
+  const alerts = findings.filter((f) => f.level === 'alert').length;
+  const todo = findings.filter((f) => f.level === 'attention').length;
+  return {
+    kind: 'outside_watch',
+    title: 'Сверили реестры',
+    text: alerts ? `Нужно разобраться: ${alerts}.` : todo ? `Всё спокойно, есть что сделать: ${todo}.` : 'Всё спокойно.',
+    occurredAt: snapshot.created_at,
+    url: '/outside',
+  };
+}
+
 const LAW_NOTICE_WINDOW_DAYS = 30;
 
 // 05.09.2026 — платная расшифровка (доп. ИИ-подписка, ai-advisor-
@@ -182,7 +213,7 @@ router.get(
     );
     const openViolations = openViolationsRows[0].n;
 
-    const [{ items: deadlineItems, attentionCount: deadlineAttention }, checklistItem, websiteItem, resolvedItem, lawCheckItem, lawNoticeItem] =
+    const [{ items: deadlineItems, attentionCount: deadlineAttention }, checklistItem, websiteItem, resolvedItem, lawCheckItem, lawNoticeItem, outsideItem] =
       await Promise.all([
         loadDeadlineItems(companyId, req.tenant.role),
         loadChecklistItem(companyId),
@@ -190,6 +221,7 @@ router.get(
         loadResolvedViolationsItem(companyId),
         loadLawCheckItem(),
         loadLawChangeNoticeItem(companyId),
+        loadOutsideWatchItem(companyId, req.tenant.role),
       ]);
 
     // Если есть настоящая находка (или teaser на неё) — не показываем рядом
@@ -197,7 +229,7 @@ router.get(
     // как противоречие само себе.
     const lawItem = lawNoticeItem || lawCheckItem;
 
-    const items = [...deadlineItems, checklistItem, websiteItem, resolvedItem, lawItem]
+    const items = [...deadlineItems, checklistItem, websiteItem, resolvedItem, lawItem, outsideItem]
       .filter(Boolean)
       .sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt));
 

@@ -13,12 +13,19 @@ const svc = require('../modules/outside-watch/service');
 // 2) 1-го числа ИП — напоминание проверить долги у приставов вручную
 //    (по ИП автоматического источника нет, см. findings.js).
 //
-// Бесплатный лимит Checko защищён svc.DAILY_SNAPSHOT_CAP: дошли — остальные
+// Бесплатный лимит Checko защищён общим счётчиком (svc.reserveRequests): дошли — остальные
 // компании ждут завтра (в лог), платный баланс без решения владельца не тратим.
 
 async function watchedCompanies() {
   const { rows } = await pool.query(
-    `SELECT id, is_test, outside_inn_enc FROM companies WHERE outside_inn_enc IS NOT NULL ORDER BY id`
+    // Гостей теста (ИНН ввели на первом экране, пробный месяц = 'full') не
+    // наблюдаем — иначе каждый гость весь месяц ел бы дневной лимит Checko.
+    `SELECT c.id, c.is_test, c.outside_inn_enc FROM companies c
+     WHERE c.outside_inn_enc IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
+         WHERE m.company_id = c.id AND m.role = 'owner' AND u.is_guest = true)
+     ORDER BY c.id`
   );
   const out = [];
   for (const c of rows) {
@@ -37,10 +44,6 @@ async function runSnapshots(companies) {
     const last = await svc.latestSnapshot(c.id);
     // Свежий снимок (например, бесплатный по кнопке сегодня) — не повторяем.
     if (last && last.summary?.inn === c.inn && Date.now() - new Date(last.created_at).getTime() < 20 * 3600 * 1000) continue;
-    if ((await svc.snapshotsToday()) >= svc.DAILY_SNAPSHOT_CAP) {
-      skippedCap++;
-      continue;
-    }
     try {
       const { row, prevSummary } = await svc.takeSnapshot(c.id, c.inn, 'watch');
       taken++;
@@ -53,11 +56,15 @@ async function runSnapshots(companies) {
         events++;
       }
     } catch (err) {
+      if (err.code === 'BUDGET') {
+        skippedCap = companies.length - companies.indexOf(c);
+        break;
+      }
       console.error('outsideWatchDaily: snapshot failed', c.id, err.code, err.message);
       if (err.code === 'NO_API_KEY') break;
     }
   }
-  if (skippedCap) console.warn(`outsideWatchDaily: дневной потолок снимков, отложено компаний: ${skippedCap}`);
+  if (skippedCap) console.warn(`outsideWatchDaily: дневной лимит запросов к реестрам, отложено компаний: ${skippedCap}`);
   return { taken, events, skippedCap };
 }
 

@@ -7,6 +7,7 @@ import TestQuestion from '../components/TestQuestion.jsx';
 import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 import { ConsentPair } from '../ui/LegalConsents.jsx';
 import { reachGoal } from '../utils/metrika.js';
+import { OutsideFindingsList } from '../components/OutsideFindings.jsx';
 
 // Разовый аудит без регистрации (19.08.2026, п.5 плана, переделано по явному
 // уточнению владельца) — публичная страница, НЕ обёрнута в PrivateRoute/
@@ -186,7 +187,53 @@ function FeedbackCard({ sessionId }) {
   );
 }
 
-function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWorkModel, onStart, starting, error }) {
+// ИНН на первом экране (22.10.2026, «Ваш бизнес снаружи»): необязательно —
+// по реестру сами ставим форму, подсказываем нишу по ОКВЭД, а на экране
+// результата показываем, что видно о бизнесе в реестрах. Только свой бизнес.
+function InnPrefill({ inn, setInn, confirmOwn, setConfirmOwn, onPrefill, prefilling, prefill, prefillError, setNiche }) {
+  const innValid = inn.length === 10 || inn.length === 12;
+  if (prefill) {
+    const suggested = NICHE_OPTIONS.filter(([k]) => prefill.suggestedNiches?.includes(k));
+    return (
+      <div style={{ background: C.greenBg, borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 13, lineHeight: 1.5 }}>
+        {prefill.found ? (
+          <>
+            <div style={{ fontWeight: 700, color: C.primary }}>{prefill.name || 'Нашли вас в реестре'}</div>
+            {prefill.okved && <div style={{ color: C.secondary }}>Основной ОКВЭД {prefill.okved.code} — {prefill.okved.name}</div>}
+            <div style={{ color: C.secondary, marginTop: 4 }}>Форму работы заполнили сами. В конце теста покажем, что о вас видно в реестрах.</div>
+            {suggested.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ color: C.secondary, marginBottom: 6 }}>По ОКВЭД подходит — выберите свою нишу:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {suggested.map(([k, l]) => (
+                    <button key={k} type="button" onClick={() => setNiche(k)} style={{ border: `1px solid ${C.border}`, background: C.bg, borderRadius: 999, padding: '5px 10px', fontSize: 12.5, cursor: 'pointer' }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ color: C.secondary }}>В реестре ИП и организаций этот ИНН не нашли — заполните поля ниже, тест пройдёт как обычно.</div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: C.surface, borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Есть ИНН? Заполним часть ответов сами</div>
+      <div style={{ fontSize: 12.5, color: C.secondary, marginBottom: 10, lineHeight: 1.45 }}>Необязательно. По открытым реестрам поставим форму работы и подскажем нишу, а в конце покажем, что о вас видно в реестрах.</div>
+      <TextInput value={inn} onChange={(e) => setInn(e.target.value.replace(/\D/g, '').slice(0, 12))} inputMode="numeric" placeholder="ИНН ИП или организации" />
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: C.secondary, lineHeight: 1.4, margin: '10px 0', cursor: 'pointer' }}>
+        <input type="checkbox" checked={confirmOwn} onChange={(e) => setConfirmOwn(e.target.checked)} style={{ marginTop: 2 }} />
+        <span>Это мой ИП или организация. Проверять можно только свой бизнес.</span>
+      </label>
+      <Btn small variant="secondary" onClick={onPrefill} disabled={prefilling || !innValid || !confirmOwn}>{prefilling ? 'Смотрим реестр…' : 'Заполнить по ИНН'}</Btn>
+      {prefillError && <div style={{ fontSize: 12.5, color: C.red, marginTop: 8 }}>{prefillError}</div>}
+    </div>
+  );
+}
+
+function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWorkModel, onStart, starting, error, innProps }) {
   return (
     <Card>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Разовый аудит безопасности бизнеса</div>
@@ -206,6 +253,8 @@ function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWor
         Вопросов может быть много — зависит от ниши. Тест разбит на понятные этапы (юрбаза, санитария,
         персонал и т.д.), прогресс виден по ходу. Каждый вопрос — простой выбор варианта.
       </div>
+
+      {innProps.enabled && <InnPrefill {...innProps} setNiche={setNiche} />}
 
       <Field label="Ниша">
         <Select value={niche} onChange={(e) => setNiche(e.target.value)}>
@@ -792,6 +841,43 @@ export default function AnonymousAudit() {
   const [payingWebsiteCheck, setPayingWebsiteCheck] = useState(false);
   const [websiteCheckError, setWebsiteCheckError] = useState('');
 
+  // «Ваш бизнес снаружи» (22.10.2026): ИНН на первом экране, находки на результате.
+  const [innEnabled, setInnEnabled] = useState(false);
+  const [inn, setInn] = useState('');
+  const [confirmOwn, setConfirmOwn] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
+  const [prefill, setPrefill] = useState(null);
+  const [prefillError, setPrefillError] = useState('');
+  const [outsideFindings, setOutsideFindings] = useState(null);
+  useEffect(() => {
+    guestApi.get('/platform/outside-watch/enabled').then(({ data }) => setInnEnabled(!!data.enabled)).catch(() => {});
+  }, []);
+
+  // Гостевой аккаунт создаётся один раз: по кнопке «Заполнить по ИНН» или «Начать тест».
+  async function ensureGuest() {
+    if (guestApi.defaults.headers.common.Authorization) return;
+    const captchaToken = await getCaptchaToken();
+    const { data } = await guestApi.post('/platform/anonymous-audit/start', { captchaToken });
+    guestApi.defaults.headers.common.Authorization = `Bearer ${data.token}`;
+  }
+
+  async function prefillFromInn() {
+    setPrefillError('');
+    setPrefilling(true);
+    try {
+      await ensureGuest();
+      const { data } = await guestApi.post('/platform/outside-watch/prefill', { inn, confirmOwn });
+      setPrefill(data);
+      if (data.legalForm) setLegalForm(data.legalForm);
+      if (data.suggestedNiches?.length === 1) setNiche(data.suggestedNiches[0]);
+      reachGoal('inn_prefill');
+    } catch (err) {
+      setPrefillError(err.response?.data?.error || 'Не получилось — заполните поля ниже, тест пройдёт как обычно');
+    } finally {
+      setPrefilling(false);
+    }
+  }
+
   async function start() {
     if (!niche || !legalForm || !workModel) {
       setError('Заполните нишу, форму и модель работы');
@@ -800,9 +886,7 @@ export default function AnonymousAudit() {
     setError('');
     setStarting(true);
     try {
-      const captchaToken = await getCaptchaToken();
-      const { data } = await guestApi.post('/platform/anonymous-audit/start', { captchaToken });
-      guestApi.defaults.headers.common.Authorization = `Bearer ${data.token}`;
+      await ensureGuest();
 
       const segment = NICHE_OPTIONS.find(([k]) => k === niche)[2];
       await guestApi.post('/modules/security/profile', { segment, niches: [niche], legalForm, workModel });
@@ -848,6 +932,13 @@ export default function AnonymousAudit() {
       const reportRes = await guestApi.post(`/modules/security/sessions/${status.anchorSessionId}/report`);
       setReportId(reportRes.data.id);
       setStep('result');
+      // Реестры — уже после перехода к результату и без ожидания: не ответили
+      // или лимит дня — блок просто не появится.
+      if (prefill?.found) {
+        guestApi.post('/platform/outside-watch/snapshot', {})
+          .then(({ data }) => setOutsideFindings(data.findings || []))
+          .catch(() => {});
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось завершить тест');
     } finally {
@@ -1002,6 +1093,7 @@ export default function AnonymousAudit() {
           legalForm={legalForm} setLegalForm={setLegalForm}
           workModel={workModel} setWorkModel={setWorkModel}
           onStart={start} starting={starting} error={error}
+          innProps={{ enabled: innEnabled, inn, setInn, confirmOwn, setConfirmOwn, onPrefill: prefillFromInn, prefilling, prefill, prefillError }}
         />
       )}
       {!paymentDone && step === 'test' && session && (
@@ -1024,6 +1116,16 @@ export default function AnonymousAudit() {
           onPayWebsiteCheck={payWebsiteCheck} payingWebsiteCheck={payingWebsiteCheck}
           websiteCheckError={websiteCheckError}
         />
+      )}
+      {!paymentDone && step === 'result' && outsideFindings && outsideFindings.length > 0 && (
+        <Card style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Что видно о вас в реестрах</div>
+          <div style={{ fontSize: 12.5, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
+            Налоговая, проверки, суды — по вашему ИНН, на сегодня. Сохраните результат, и по подписке будем сверять реестры
+            регулярно и писать, если что-то изменится.
+          </div>
+          <OutsideFindingsList findings={outsideFindings} />
+        </Card>
       )}
     </div>
   );

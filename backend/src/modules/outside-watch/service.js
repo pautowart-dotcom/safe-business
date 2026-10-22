@@ -9,13 +9,15 @@
 
 const pool = require('../../db/pool');
 const { encrypt, decrypt } = require('../../core/crypto');
-const { fetchAllByInn, normalizeInn } = require('./checkoClient');
+const { fetchAllByInn, normalizeInn, callMethod, METHODS } = require('./checkoClient');
+const { syncTaxDeadlines } = require('../../core/taxDeadlines');
 const { buildFindings } = require('./findings');
 
-// Бесплатно у Checko 100 запросов в сутки, на снимок уходит 5. Потолок
-// с запасом: при его достижении новые снимки ждут следующего дня (платный
-// баланс без решения владельца не тратим — п. «Контроль расходов» условий).
-const DAILY_SNAPSHOT_CAP = Number(process.env.OUTSIDE_WATCH_DAILY_CAP || 18);
+// Бесплатно у Checko 100 запросов в сутки. Общий счётчик (checko_usage,
+// миграция 0155) на подсказку по ИНН (1 запрос), снимок и наблюдение
+// (METHODS.length = 5): дошли до потолка — ждём завтра. Платный баланс без
+// решения владельца не тратим; пополнил — поднять CHECKO_DAILY_REQUEST_CAP.
+const DAILY_REQUEST_CAP = Number(process.env.CHECKO_DAILY_REQUEST_CAP || 95);
 const INN_CHANGE_DAYS = 30;
 const LIST_METHODS = ['inspections', 'legal-cases', 'enforcements', 'bankruptcy-messages'];
 
@@ -137,18 +139,75 @@ async function latestSnapshot(companyId) {
   return rows[0] || null;
 }
 
-async function snapshotsToday() {
+// Забронировать n запросов на сегодня; false — лимит дня исчерпан.
+async function reserveRequests(n) {
   const { rows } = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM outside_watch_snapshots WHERE created_at >= date_trunc('day', now())`
+    `INSERT INTO checko_usage (day, requests) VALUES (current_date, $1)
+     ON CONFLICT (day) DO UPDATE SET requests = checko_usage.requests + $1
+       WHERE checko_usage.requests + $1 <= $2
+     RETURNING requests`,
+    [n, DAILY_REQUEST_CAP]
   );
-  return rows[0].n;
+  return rows.length > 0 && rows[0].requests <= DAILY_REQUEST_CAP;
+}
+
+function budgetError() {
+  const err = new Error('Лимит запросов к реестрам на сегодня исчерпан');
+  err.code = 'BUDGET';
+  return err;
+}
+
+// Только карточка ЕГРЮЛ/ЕГРИП — для подсказок в тесте (1 запрос).
+async function fetchCard(inn) {
+  if (!(await reserveRequests(1))) throw budgetError();
+  const json = await callMethod('card', inn);
+  const data = json && json.data;
+  return data && Object.keys(data).length ? data : null;
+}
+
+// Реестр → поля компании, только ПУСТЫЕ (введённое владельцем не трогаем):
+// форма, регион, дата регистрации ИП, название вместо «Моя компания»; режим
+// «Патент» — только если у ИП один ПСН (объект УСН из реестра не узнать).
+// Режим или дата поменялись — налоговые сроки пересчитываются сами.
+async function applyRegistryToCompany(companyId, inn, card) {
+  if (!card) return {};
+  const legalForm = inn.length === 10 ? 'ooo' : 'ip';
+  const regimes = (card.Налоги && card.Налоги.ОсобРежим) || [];
+  const taxRegime = legalForm === 'ip' && regimes.length === 1 && regimes[0] === 'ПСН' ? 'patent' : null;
+  const regionCode = card.Регион && /^\d{2}$/.test(card.Регион.Код) ? card.Регион.Код : null;
+  const registeredAt = legalForm === 'ip' && /^\d{4}-\d{2}-\d{2}$/.test(card.ДатаРег || '') ? card.ДатаРег : null;
+  const name = card.НаимСокр || (card.ФИО ? `ИП ${card.ФИО}` : null);
+
+  const { rows: regionOk } = regionCode
+    ? await pool.query('SELECT 1 FROM regions WHERE region_code = $1', [regionCode])
+    : { rows: [] };
+  const { rows } = await pool.query(
+    `UPDATE companies SET
+       legal_form = COALESCE(legal_form, $2),
+       region_code = COALESCE(region_code, $3),
+       ip_registered_at = COALESCE(ip_registered_at, $4::date),
+       tax_regime = COALESCE(tax_regime, $5),
+       name = CASE WHEN name = 'Моя компания' AND $6::text IS NOT NULL THEN $6 ELSE name END
+     WHERE id = $1
+     RETURNING tax_regime, to_char(ip_registered_at, 'YYYY-MM-DD') AS ip_registered_at, has_employees`,
+    [companyId, legalForm, regionOk.length ? regionCode : null, registeredAt, taxRegime, name]
+  );
+  const row = rows[0];
+  if (row && row.tax_regime && (taxRegime || registeredAt)) {
+    await syncTaxDeadlines(companyId, row.tax_regime, { ipRegisteredAt: row.ip_registered_at, hasEmployees: row.has_employees })
+      .catch((err) => console.error('outside-watch: syncTaxDeadlines failed', companyId, err.message));
+  }
+  return { legalForm, taxRegime: row?.tax_regime || null };
 }
 
 // Снять и сохранить снимок. Возвращает { row, prevSummary } — prevSummary
 // нужен скрипту наблюдения для diffSummaries.
 async function takeSnapshot(companyId, inn, source) {
+  if (!(await reserveRequests(METHODS.length))) throw budgetError();
   const prev = await latestSnapshot(companyId);
   const snapshot = await fetchAllByInn(inn);
+  const card = snapshot.results.card && snapshot.results.card.ok ? snapshot.results.card.json.data : null;
+  await applyRegistryToCompany(companyId, snapshot.inn, card && Object.keys(card).length ? card : null);
   const summary = summarize(snapshot);
   const findings = buildFindings(snapshot);
   const { rows } = await pool.query(
@@ -168,7 +227,10 @@ async function takeSnapshot(companyId, inn, source) {
 }
 
 module.exports = {
-  DAILY_SNAPSHOT_CAP,
+  DAILY_REQUEST_CAP,
+  reserveRequests,
+  fetchCard,
+  applyRegistryToCompany,
   enabledFor,
   summarize,
   diffSummaries,
@@ -176,6 +238,5 @@ module.exports = {
   getCompanyInn,
   setCompanyInn,
   latestSnapshot,
-  snapshotsToday,
   takeSnapshot,
 };

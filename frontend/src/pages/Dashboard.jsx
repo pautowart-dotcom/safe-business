@@ -117,13 +117,14 @@ const WATCH_FEED_KIND_LABELS = {
   violation_resolved: { tag: 'Безопасность', color: C.purple, bg: C.purpleBg },
   law_notice: { tag: 'ИИ по законодательству', color: C.purple, bg: C.purpleBg },
   law_notice_locked: { tag: 'Доступно по подписке', color: C.orange, bg: C.orangeBg },
+  outside_watch: { tag: 'Реестры', color: C.blue, bg: C.blueBg },
 };
 
 // 18.10.2026, вид приложения: та же раскладка, что на главной владельца —
 // карточка с кольцом, быстрые кнопки, «Что сделать» со шторкой; лента ниже
 // строками «как в Настройках».
-const WATCH_FEED_ICON = { deadline: 'bell', law_check: 'book', website_check: 'link', checklist: 'check', violation_resolved: 'shield', law_notice: 'spark', law_notice_locked: 'spark' };
-const WATCH_FEED_TONE = { deadline: 'orange', law_check: 'gray', website_check: 'blue', checklist: 'green', violation_resolved: 'purple', law_notice: 'purple', law_notice_locked: 'orange' };
+const WATCH_FEED_ICON = { deadline: 'bell', law_check: 'book', website_check: 'link', checklist: 'check', violation_resolved: 'shield', law_notice: 'spark', law_notice_locked: 'spark', outside_watch: 'search' };
+const WATCH_FEED_TONE = { deadline: 'orange', law_check: 'gray', website_check: 'blue', checklist: 'green', violation_resolved: 'purple', law_notice: 'purple', law_notice_locked: 'orange', outside_watch: 'blue' };
 
 function WatchFeedDashboard() {
   const navigate = useNavigate();
@@ -184,7 +185,7 @@ function WatchFeedDashboard() {
                 title={item.title}
                 subtitle={`${new Date(item.occurredAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} · ${item.text}`}
                 tag={locked ? 'По подписке' : undefined}
-                onClick={locked ? () => navigate('/ai-advisor') : undefined}
+                onClick={locked ? () => navigate('/ai-advisor') : item.url ? () => navigate(item.url) : undefined}
               />
             );
           })

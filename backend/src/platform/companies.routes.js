@@ -11,7 +11,6 @@ const { logAudit } = require('../core/auditLog');
 const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
 const { isSubscriptionActive } = require('../core/middleware/subscription');
 const freeTier = require('../core/freeTier');
-const outsideWatch = require('../modules/outside-watch/service');
 
 const router = express.Router();
 
@@ -163,9 +162,7 @@ router.get(
     // accessLevel (18.10.2026, core/freeTier.js): 'full' | 'free' | 'locked' —
     // фронт показывает бесплатному уровню подсказки про подписку.
     const accessLevel = await freeTier.accessLevel(req.tenant.companyId);
-    // «Ваш бизнес снаружи» (22.10.2026) — пункт меню за флагом, см. outside-watch.routes.js.
-    const outsideWatchEnabled = outsideWatch.enabledFor(company);
-    res.json({ ...company, hasAiAccess, accessLevel, outsideWatchEnabled, hasNetworkCabinet: networkRows.length > 0, niches: nichesRes.rows.map((r) => r.niche) });
+    res.json({ ...company, hasAiAccess, accessLevel, hasNetworkCabinet: networkRows.length > 0, niches: nichesRes.rows.map((r) => r.niche) });
   })
 );
 

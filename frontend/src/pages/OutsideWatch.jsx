@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { Card, Btn, C, Field, TextInput, Skeleton } from '../ui/components.jsx';
+import { OutsideFindingsList } from '../components/OutsideFindings.jsx';
 
 // «Ваш бизнес снаружи» (22.10.2026). Бэкенд — platform/outside-watch.routes.js.
 // Только свой бизнес: ИНН подтверждается галочкой, если он уже есть в
@@ -9,26 +10,8 @@ import { Card, Btn, C, Field, TextInput, Skeleton } from '../ui/components.jsx';
 // реестров; по подписке — фоновое наблюдение с уведомлениями.
 // Тон — CLAUDE.md: без запугивания и обещаний, у каждой находки источник.
 
-const LEVELS = [
-  ['alert', 'Нужно разобраться', C.red, C.redBg],
-  ['attention', 'Стоит сделать', C.orange, C.orangeBg],
-  ['info', 'Полезно знать', C.blue, C.blueBg],
-  ['ok', 'Всё спокойно', C.green, C.greenBg],
-];
-
 function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function FindingCard({ f, color, bg }) {
-  return (
-    <Card style={{ borderLeft: `4px solid ${color}`, background: bg, marginBottom: 10 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: C.primary, lineHeight: 1.35 }}>{f.title}</div>
-      {f.meaning && <div style={{ fontSize: 13, color: C.secondary, marginTop: 6, lineHeight: 1.5 }}>{f.meaning}</div>}
-      {f.action && <div style={{ fontSize: 13, color: C.primary, marginTop: 6, lineHeight: 1.5 }}><b>Что сделать:</b> {f.action}</div>}
-      <div style={{ fontSize: 11.5, color: C.subtle, marginTop: 8 }}>Источник: {f.sourceNote || f.source}</div>
-    </Card>
-  );
 }
 
 export default function OutsideWatch() {
@@ -105,16 +88,7 @@ export default function OutsideWatch() {
             <Btn small variant="secondary" onClick={() => takeSnapshot(false)} disabled={busy}>{busy ? 'Обновляем…' : 'Обновить'}</Btn>
           </div>
           {error && <div style={{ fontSize: 13, color: C.red, marginBottom: 10 }}>{error}</div>}
-          {LEVELS.map(([level, title, color, bg]) => {
-            const list = findings.filter((f) => f.level === level);
-            if (!list.length) return null;
-            return (
-              <div key={level} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color, marginBottom: 8 }}>{title}</div>
-                {list.map((f) => <FindingCard key={f.title} f={f} color={color} bg={bg} />)}
-              </div>
-            );
-          })}
+          <OutsideFindingsList findings={findings} />
         </>
       )}
 
