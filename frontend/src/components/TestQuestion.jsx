@@ -31,12 +31,15 @@ const KIND_STYLE = {
 export default function TestQuestion({ questions, index, blockLabels, topLine, onAnswer, onBack, onCancel, error, busy }) {
   const question = questions[index];
   const [picked, setPicked] = useState(null);
+  // Пояснение — за кружком «?» облачком (23.10.2026, владелец: «много текста на странице»).
+  const [hintOpen, setHintOpen] = useState(false);
   // Счётчик «уже в порядке» — по ответам этого прохождения (код → тон).
   const tally = useRef({});
   const timer = useRef(null);
 
   useEffect(() => {
     setPicked(null);
+    setHintOpen(false);
     return () => clearTimeout(timer.current);
   }, [question?.code]);
   // Ответ не сохранился (ошибка сети) — снова даём выбрать.
@@ -110,8 +113,32 @@ export default function TestQuestion({ questions, index, blockLabels, topLine, o
       </div>
 
       <div key={question.code} className="ui-view">
-        <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.3, letterSpacing: '-0.01em', marginBottom: 8, color: C.primary }}>{question.text}</div>
-        {question.hint && <div style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.5 }}>{question.hint}</div>}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+          <div style={{ flex: 1, fontSize: 20, fontWeight: 800, lineHeight: 1.3, letterSpacing: '-0.01em', color: C.primary }}>{question.text}</div>
+          {question.hint && (
+            <button
+              type="button"
+              onClick={() => setHintOpen((v) => !v)}
+              aria-label={hintOpen ? 'Скрыть пояснение' : 'Показать пояснение'}
+              aria-expanded={hintOpen}
+              style={{
+                flexShrink: 0, width: 30, height: 30, marginTop: 1, borderRadius: '50%', cursor: 'pointer', fontFamily: F,
+                border: `1.5px solid ${C.blue}`, background: hintOpen ? C.blue : C.blueBg, color: hintOpen ? '#fff' : C.blue,
+                fontSize: 16, fontWeight: 800, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              ?
+            </button>
+          )}
+        </div>
+        {question.hint && hintOpen && (
+          <div className="ui-view" style={{ position: 'relative', marginTop: 10 }}>
+            <div style={{ position: 'absolute', top: -6, right: 11, width: 12, height: 12, background: C.blueBg, transform: 'rotate(45deg)' }} />
+            <div style={{ position: 'relative', background: C.blueBg, borderRadius: 14, padding: '12px 14px', fontSize: 13.5, color: C.secondary, lineHeight: 1.5 }}>
+              {question.hint}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
           {question.answers.map((label, i) => {
