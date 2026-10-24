@@ -1,11 +1,11 @@
-﻿// РџСЂРѕРІРµСЂРєР° РјРµСЃСЏС†Р° (17.10.2026, СЌС‚Р°Рї 7, РјРёРіСЂР°С†РёСЏ 0140). Р’РѕРїСЂРѕСЃС‹ СЃРѕР±РёСЂР°СЋС‚СЃСЏ
-// РёР· РґР°РЅРЅС‹С… СЃР°РјРѕР№ С‚РѕС‡РєРё вЂ” РЅРѕРІС‹Р№ РєРѕРЅС‚РµРЅС‚ РїРѕРґ 37 РЅРёС€ РЅРµ РЅСѓР¶РµРЅ:
-//   1) РґРѕ 3 СЃР°РјС‹С… СЂРёСЃРєРѕРІР°РЅРЅС‹С… РѕС‚РєСЂС‹С‚С‹С… РЅР°СЂСѓС€РµРЅРёР№ вЂ” В«вЂћвЂ¦вЂњ вЂ” РёСЃРїСЂР°РІРёР»Рё?В»;
-//   2) РґРѕ 2 СЃСЂРѕРєРѕРІ РЅР° Р±Р»РёР¶Р°Р№С€РёРµ 30 РґРЅРµР№ (РёР»Рё РїРѕРґРѕС€РµРґС€РёС…) вЂ” В«СЃРґРµР»Р°Р»Рё?В»;
-//   3) РґРѕ 2 РЅРµРІС‹РїРѕР»РЅРµРЅРЅС‹С… Р·Р°РґР°С‡ СЃРµС‚Рё, РµСЃР»Рё С‚РѕС‡РєР° РІ СЃРµС‚Рё;
-//   4) 2 СЂРµРіСѓР»СЏСЂРЅС‹Рµ РІРµС‰Рё, РѕР±С‰РёРµ РґР»СЏ РІСЃРµС… (РјРµРЅСЏСЋС‚СЃСЏ РїРѕ РјРµСЃСЏС†Р°Рј).
-// РќРµ Р±РѕР»СЊС€Рµ 7 РІРѕРїСЂРѕСЃРѕРІ. РћС‚РІРµС‚ В«РґР°В» СЃСЂР°Р·Сѓ Р·Р°РєСЂС‹РІР°РµС‚ РЅР°СЂСѓС€РµРЅРёРµ / СЃСЂРѕРє /
-// Р·Р°РґР°С‡Сѓ вЂ” С‚РѕР№ Р¶Рµ Р»РѕРіРёРєРѕР№, С‡С‚Рѕ РєРЅРѕРїРєРё РІ РєР°Р±РёРЅРµС‚Рµ.
+// Проверка месяца (17.10.2026, этап 7, миграция 0140). Вопросы собираются
+// из данных самой точки — новый контент под 37 ниш не нужен:
+//   1) до 3 самых рискованных открытых нарушений — «„…“ — исправили?»;
+//   2) до 2 сроков на ближайшие 30 дней (или подошедших) — «сделали?»;
+//   3) до 2 невыполненных задач сети, если точка в сети;
+//   4) 2 регулярные вещи, общие для всех (меняются по месяцам).
+// Не больше 7 вопросов. Ответ «да» сразу закрывает нарушение / срок /
+// задачу — той же логикой, что кнопки в кабинете.
 const pool = require('../../db/pool');
 const repository = require('../security/content/repository');
 const { clearAction, nextDueDate } = require('../../core/deadlines');
@@ -16,14 +16,14 @@ const MAX_ITEMS = 7;
 const SKIP_MONTHS = 6;
 const ANSWERS = ['yes', 'no', 'skip'];
 
-// Р‘РµР· СЃС‚Р°С‚РµР№ Рё СЃСѓРјРј: СЌС‚Рѕ РїРѕРІРѕРґ РїРѕСЃРјРѕС‚СЂРµС‚СЊ, Р° РЅРµ РЅРѕРІРѕРµ В«РЅР°СЂСѓС€РµРЅРёРµВ».
+// Без статей и сумм: это повод посмотреть, а не новое «нарушение».
 const REGULAR = [
-  { key: 'fire_ext', title: 'РћРіРЅРµС‚СѓС€РёС‚РµР»Рё РЅР° РјРµСЃС‚Рµ, РїР»РѕРјР±Р° С†РµР»Р°, СЃС‚СЂРµР»РєР° РјР°РЅРѕРјРµС‚СЂР° РІ Р·РµР»С‘РЅРѕР№ Р·РѕРЅРµ?' },
-  { key: 'first_aid', title: 'РђРїС‚РµС‡РєР° РїРѕР»РЅР°СЏ, СЃСЂРѕРєРё РіРѕРґРЅРѕСЃС‚Рё РЅРµ РІС‹С€Р»Рё?' },
-  { key: 'consumer_corner', title: 'РЈРіРѕР»РѕРє РїРѕС‚СЂРµР±РёС‚РµР»СЏ Р°РєС‚СѓР°Р»РµРЅ: С†РµРЅС‹, СЂРµР¶РёРј СЂР°Р±РѕС‚С‹, РєРѕРЅС‚Р°РєС‚С‹?' },
-  { key: 'evacuation', title: 'РџСѓС‚Рё СЌРІР°РєСѓР°С†РёРё СЃРІРѕР±РѕРґРЅС‹, С‚Р°Р±Р»РёС‡РєР° В«Р’С‹С…РѕРґВ» РІРёРґРЅР°?' },
-  { key: 'client_docs', title: 'РЈ РЅРѕРІС‹С… РєР»РёРµРЅС‚РѕРІ РїРѕРґРїРёСЃР°РЅС‹ РґРѕРіРѕРІРѕСЂ Рё СЃРѕРіР»Р°СЃРёРµ РЅР° РѕР±СЂР°Р±РѕС‚РєСѓ РґР°РЅРЅС‹С…?' },
-  { key: 'staff_books', title: 'РњРµРґРєРЅРёР¶РєРё СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ РЅРµ РїСЂРѕСЃСЂРѕС‡РµРЅС‹? (РўРѕР»СЊРєРѕ РїРѕСЃРјРѕС‚СЂРёС‚Рµ вЂ” СЃСЋРґР° РЅРµ РІРЅРѕСЃРёРј.)' },
+  { key: 'fire_ext', title: 'Огнетушители на месте, пломба цела, стрелка манометра в зелёной зоне?' },
+  { key: 'first_aid', title: 'Аптечка полная, сроки годности не вышли?' },
+  { key: 'consumer_corner', title: 'Уголок потребителя актуален: цены, режим работы, контакты?' },
+  { key: 'evacuation', title: 'Пути эвакуации свободны, табличка «Выход» видна?' },
+  { key: 'client_docs', title: 'У новых клиентов подписаны договор и согласие на обработку данных?' },
+  { key: 'staff_books', title: 'Медкнижки сотрудников не просрочены? (Только посмотрите — сюда не вносим.)' },
 ];
 
 function currentMonth() {
@@ -61,10 +61,10 @@ async function buildItems(companyId, month = currentMonth()) {
     const d = await repository.getViolation(v.niche, v.violation_code);
     if (d) detailed.push({ id: v.id, title: d.title, risk: d.risk || 0, solution: d.solution });
   }
-  // Р§РµСЂРµРґРѕРІР°РЅРёРµ Рё В«РќРµ РїРѕР»СѓС‡РёС‚СЃСЏВ» (17.10.2026, РІР»Р°РґРµР»РµС†: В«РїРѕРґРјРµРЅСѓ С‚СЂСѓРґРѕРІС‹С…
-  // РѕС‚РЅРѕС€РµРЅРёР№ РјР°Р»С‹Р№ Р±РёР·РЅРµСЃ РґРѕ РєРѕРЅС†Р° РЅРµ РёСЃРїСЂР°РІРёС‚В»): РЅР°СЂСѓС€РµРЅРёРµ СЃ РѕС‚РІРµС‚РѕРј
-  // В«РќРµ РїРѕР»СѓС‡РёС‚СЃСЏВ» РЅРµ СЃРїСЂР°С€РёРІР°РµРј РїРѕР»РіРѕРґР°; СЃРїСЂРѕС€РµРЅРЅРѕРµ РІ РїСЂРѕС€Р»РѕРј РјРµСЃСЏС†Рµ
-  // СЃС‚Р°РІРёРј РІ РєРѕРЅРµС† РѕС‡РµСЂРµРґРё, С‡С‚РѕР±С‹ РЅРµ РєСЂСѓС‚РёС‚СЊ РѕРґРЅРё Рё С‚Рµ Р¶Рµ С‚СЂРё РїСѓРЅРєС‚Р°.
+  // Чередование и «Не получится» (17.10.2026, владелец: «подмену трудовых
+  // отношений малый бизнес до конца не исправит»): нарушение с ответом
+  // «Не получится» не спрашиваем полгода; спрошенное в прошлом месяце
+  // ставим в конец очереди, чтобы не крутить одни и те же три пункта.
   const { rows: history } = await pool.query(
     `SELECT month, items FROM monthly_checks WHERE company_id = $1 AND month < $2 ORDER BY month DESC LIMIT ${SKIP_MONTHS}`,
     [companyId, month]
@@ -82,9 +82,9 @@ async function buildItems(companyId, month = currentMonth()) {
     .sort((a, b) => (askedLastMonth.has(`v:${a.id}`) - askedLastMonth.has(`v:${b.id}`)) || b.risk - a.risk);
 
   const items = [
-    ...queue.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `В«${v.title}В» вЂ” РёСЃРїСЂР°РІРёР»Рё?`, hint: v.solution || null, risk: v.risk })),
-    ...deadlines.map((d) => ({ key: `d:${d.id}`, type: 'deadline', title: `${d.title} вЂ” СЃРґРµР»Р°РЅРѕ?`, hint: d.due_date < today ? `РЎСЂРѕРє Р±С‹Р» ${d.due_date}` : `РЎСЂРѕРє ${d.due_date}`, overdue: d.due_date < today })),
-    ...tasks.map((t) => ({ key: `t:${t.id}`, type: 'task', title: `Р—Р°РґР°С‡Р° СЃРµС‚Рё: ${t.title} вЂ” РІС‹РїРѕР»РЅРµРЅР°?`, hint: null })),
+    ...queue.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `«${v.title}» — исправили?`, hint: v.solution || null, risk: v.risk })),
+    ...deadlines.map((d) => ({ key: `d:${d.id}`, type: 'deadline', title: `${d.title} — сделано?`, hint: d.due_date < today ? `Срок был ${d.due_date}` : `Срок ${d.due_date}`, overdue: d.due_date < today })),
+    ...tasks.map((t) => ({ key: `t:${t.id}`, type: 'task', title: `Задача сети: ${t.title} — выполнена?`, hint: null })),
     ...regularFor(month).map((r) => ({ key: `r:${r.key}`, type: 'regular', title: r.title, hint: null })),
   ];
   return items.slice(0, MAX_ITEMS);
@@ -105,7 +105,7 @@ async function applyYes(item, { companyId, membershipId, userId }) {
        RETURNING recurrence, to_char(due_date, 'YYYY-MM-DD') AS due_date`,
       [id, companyId]
     );
-    // РџРµСЂРёРѕРґРёС‡РµСЃРєРёР№ СЃСЂРѕРє вЂ” РєР°Рє В«Р“РѕС‚РѕРІРѕВ» РІ СЂР°Р·РґРµР»Рµ СЃСЂРѕРєРѕРІ: РґР°С‚Р° РЅР° СЃР»РµРґСѓСЋС‰РёР№ РїРµСЂРёРѕРґ.
+    // Периодический срок — как «Готово» в разделе сроков: дата на следующий период.
     if (rows[0]?.recurrence && rows[0].due_date) {
       await pool.query(
         `UPDATE deadlines SET due_date = $1, status = 'pending', last_reminded_days_before = NULL WHERE id = $2`,
@@ -121,13 +121,13 @@ async function applyYes(item, { companyId, membershipId, userId }) {
   }
 }
 
-// РС‚РѕРі: С‡С‚Рѕ СЃС‚Р°Р»Рѕ Р»СѓС‡С€Рµ, С‡С‚Рѕ РіРѕСЂРёС‚, РїР»Р°РЅ РЅР° РјРµСЃСЏС†.
+// Итог: что стало лучше, что горит, план на месяц.
 function bare(item) {
-  return item.title.replace(/^В«|В» вЂ” РёСЃРїСЂР°РІРёР»Рё\?$|^Р—Р°РґР°С‡Р° СЃРµС‚Рё: | вЂ” (СЃРґРµР»Р°РЅРѕ|РІС‹РїРѕР»РЅРµРЅР°)\?$|\?$/g, '').replace(/ \(РўРѕР»СЊРєРѕ РїРѕСЃРјРѕС‚СЂРёС‚Рµ вЂ” СЃСЋРґР° РЅРµ РІРЅРѕСЃРёРј\.\)$/, '');
+  return item.title.replace(/^«|» — исправили\?$|^Задача сети: | — (сделано|выполнена)\?$|\?$/g, '').replace(/ \(Только посмотрите — сюда не вносим\.\)$/, '');
 }
 
-const DONE_PREFIX = { violation: 'РСЃРїСЂР°РІР»РµРЅРѕ', deadline: 'РЎРґРµР»Р°РЅРѕ', task: 'Р’С‹РїРѕР»РЅРµРЅР° Р·Р°РґР°С‡Р° СЃРµС‚Рё', regular: 'РџСЂРѕРІРµСЂРµРЅРѕ' };
-const TODO_PREFIX = { violation: 'РСЃРїСЂР°РІРёС‚СЊ', deadline: 'РЎРґРµР»Р°С‚СЊ', task: 'Р’С‹РїРѕР»РЅРёС‚СЊ Р·Р°РґР°С‡Сѓ СЃРµС‚Рё', regular: 'РџСЂРѕРІРµСЂРёС‚СЊ' };
+const DONE_PREFIX = { violation: 'Исправлено', deadline: 'Сделано', task: 'Выполнена задача сети', regular: 'Проверено' };
+const TODO_PREFIX = { violation: 'Исправить', deadline: 'Сделать', task: 'Выполнить задачу сети', regular: 'Проверить' };
 
 function summarize(items, indexNow, indexPrev) {
   const yes = items.filter((i) => i.answer === 'yes');
@@ -136,9 +136,9 @@ function summarize(items, indexNow, indexPrev) {
   return {
     better: yes.map((i) => `${DONE_PREFIX[i.type]}: ${bare(i)}`),
     burning: burning.map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
-    // В«Р“РѕСЂРёС‚В» СѓР¶Рµ РІ СЃРІРѕС‘Рј Р±Р»РѕРєРµ вЂ” РІ РїР»Р°РЅРµ РЅРµ РїРѕРІС‚РѕСЂСЏРµРј.
+    // «Горит» уже в своём блоке — в плане не повторяем.
     plan: no.filter((i) => !burning.includes(i)).map((i) => `${TODO_PREFIX[i.type]}: ${bare(i)}`),
-    // В«РќРµ РїРѕР»СѓС‡РёС‚СЃСЏВ» вЂ” СЂРёСЃРє РѕСЃС‚Р°С‘С‚СЃСЏ, РїСЂРѕСЃС‚Рѕ РЅРµ СЃРїСЂР°С€РёРІР°РµРј РїРѕР»РіРѕРґР°.
+    // «Не получится» — риск остаётся, просто не спрашиваем полгода.
     accepted: items.filter((i) => i.answer === 'skip').map((i) => bare(i)),
     indexNow,
     indexPrev,
@@ -163,7 +163,7 @@ async function complete({ companyId, membershipId, userId, answers }) {
   const month = currentMonth();
   const items = await buildItems(companyId, month);
   const byKey = new Map((Array.isArray(answers) ? answers : []).map((a) => [a.key, a.answer]));
-  // В«РќРµ РїРѕР»СѓС‡РёС‚СЃСЏВ» вЂ” С‚РѕР»СЊРєРѕ РґР»СЏ РЅР°СЂСѓС€РµРЅРёР№: Сѓ СЃСЂРѕРєРѕРІ Рё Р·Р°РґР°С‡ СЃРµС‚Рё РµСЃС‚СЊ СЃРІРѕРё РєРЅРѕРїРєРё.
+  // «Не получится» — только для нарушений: у сроков и задач сети есть свои кнопки.
   const answered = items.map((i) => {
     const a = byKey.get(i.key);
     const valid = ANSWERS.includes(a) && (a !== 'skip' || i.type === 'violation');
@@ -185,7 +185,7 @@ async function complete({ companyId, membershipId, userId, answers }) {
        completed_at = now(), completed_by_user_id = EXCLUDED.completed_by_user_id`,
     [companyId, month, JSON.stringify(answered), status.indexPercent, userId]
   );
-  // РќР°РїРѕРјРёРЅР°РЅРёРµ В«РїСЂРѕРІРµСЂРєР° РјРµСЃСЏС†Р°В» РІ Р¦РµРЅС‚СЂРµ РґРµР№СЃС‚РІРёР№ Р±РѕР»СЊС€Рµ РЅРµ РЅСѓР¶РЅРѕ.
+  // Напоминание «проверка месяца» в Центре действий больше не нужно.
   await clearAction({ relatedEntityType: `monthly_check:${month}`, relatedEntityId: companyId, category: 'documents' });
   return { month, done: true, summary: summarize(answered, status.indexPercent, prev[0]?.index_percent ?? null) };
 }
