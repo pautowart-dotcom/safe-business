@@ -285,9 +285,12 @@ async function onBusinessMessage(m) {
     // но запоминаем: клиент может ответить «не смогу прийти».
     if (brain.isAutoMessage(text, config.autoMessagePatterns)) {
       history.push(String(m.chat.id), 'assistant', `[автосообщение Dikidi] ${text}`);
+      console.log(`[${m.chat.id}] автосообщение Dikidi — бот не молчит`);
       return;
     }
     pause(String(m.chat.id));
+    // Начало текста — чтобы по журналу понять, не приняли ли шаблон Dikidi за человека.
+    console.log(`[${m.chat.id}] ответил человек — бот молчит ${config.pauseHoursAfterAdmin} ч («${String(text || '[не текст]').slice(0, 40)}»)`);
     return;
   }
   if (isPaused(String(m.chat.id))) return;
