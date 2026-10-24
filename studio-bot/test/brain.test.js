@@ -144,6 +144,17 @@ test('приветствие только в первом ответе, авто
   assert.match(sys, /не здоровайся заново/);
 });
 
+test('латинские имена из Telegram → по-русски, ник и кириллица не трогаются', () => {
+  const n = brain.nameForGreeting;
+  assert.equal(n('Alisa'), 'Алиса');
+  assert.equal(n('Artem Pautov'), 'Артём');
+  assert.equal(n('Andrey'), 'Андрей');
+  assert.equal(n('Ksenia'), 'Ксения');
+  assert.equal(n('Анна Петрова'), 'Анна');
+  assert.equal(n('kitty_99'), 'kitty_99');
+  assert.equal(n(''), '');
+});
+
 test('голосовое → карточка', () => {
   const r = brain.mediaAnswer({ caption: '', kind: 'голосовое', config, now: DAY });
   assert.equal(r.handoff, 'normal');

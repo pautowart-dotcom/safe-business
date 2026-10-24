@@ -69,10 +69,17 @@ function enqueue(m, bcId) {
   clearTimeout(p.timer);
   p.timer = setTimeout(() => {
     pending.delete(chatId);
-    handle(chatId, p).catch((err) => console.error('[handle]', chatId, err));
+    // Ответы в одном чате — строго по очереди: иначе второй ответ готовится,
+    // пока первый ещё у ИИ, не видит его в истории и, например, здоровается заново.
+    const prev = chains.get(chatId) || Promise.resolve();
+    const next = prev.then(() => handle(chatId, p)).catch((err) => console.error('[handle]', chatId, err));
+    chains.set(chatId, next);
+    next.then(() => { if (chains.get(chatId) === next) chains.delete(chatId); });
   }, config.debounceMs);
   pending.set(chatId, p);
 }
+
+const chains = new Map(); // chatId → промис последнего ответа
 
 async function handle(chatId, { items, bcId, from }) {
   if (isPaused(chatId)) return;
@@ -81,7 +88,7 @@ async function handle(chatId, { items, bcId, from }) {
   if (!texts.length && !media) return; // стикеры, реакции и т. п. — молчим
   const text = texts.join('\n');
 
-  const clientName = [from?.first_name, from?.last_name].filter(Boolean).join(' ');
+  const clientName = brain.nameForGreeting([from?.first_name, from?.last_name].filter(Boolean).join(' '));
   const result = media
     ? brain.mediaAnswer({ caption: text, kind: media, config })
     : await brain.answer({ text, history: history.get(chatId), config, kbText: kb.text, styleText, clientName, llm: (msgs) => yandex.complete(msgs) });
@@ -299,7 +306,9 @@ async function onMessage(m) {
   }
   if (m.chat.type === 'private' && config.answerDirectMessages) {
     if (m.text === '/start') {
-      return tg.call('sendMessage', { chat_id: m.chat.id, text: 'Здравствуйте! Я помощник студии. Напишите, что хотите узнать.' });
+      const hello = 'Здравствуйте! Это служба заботы «Фабрика маникюра» 🤍 Подскажу по услугам, ценам и записи — что вас интересует?';
+      history.push(String(m.chat.id), 'assistant', hello); // чтобы следующий ответ не здоровался второй раз
+      return tg.call('sendMessage', { chat_id: m.chat.id, text: hello });
     }
     enqueue(m, null);
   }
