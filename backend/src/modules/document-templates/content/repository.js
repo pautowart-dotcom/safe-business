@@ -366,6 +366,13 @@ for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
   list.push(lawyerOferta.goodsTemplate(niche), lawyerOferta.consultTemplate(niche));
 }
 
+// 24.10.2026: общие документы всех ниш (commonTemplates.js) — инструкция о
+// мерах пожарной безопасности, приказ об ответственном, акт ввода оборудования.
+const commonTemplates = require('./commonTemplates');
+for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
+  for (const kind of commonTemplates.COMMON_KINDS) list.push(commonTemplates.build(niche, kind));
+}
+
 async function getTemplatesForNiche(niche) {
   return TEMPLATES_BY_NICHE[niche] || [];
 }

@@ -246,6 +246,33 @@ LINKS.universal = [
   },
 ];
 
+// Общие шаблоны всех ниш (24.10.2026, content/commonTemplates.js). Коды
+// нарушений у ниш разные (MN-602, FD-604, UNI-301…), поэтому связку строим
+// по точному названию пункта в матрице нарушений ниши, а не по номеру.
+// questionCode = коду нарушения, «Да» — первый ответ, как и у связок выше.
+const fs = require('fs');
+const path = require('path');
+const VIOLATIONS_DIR = path.join(__dirname, '../../security/content/violations');
+const COMMON_LINKS_BY_TITLE = {
+  'Инструкция о мерах пожарной безопасности': { kind: 'fire_instruction', title: 'Инструкция о мерах пожарной безопасности' },
+  'Ввод оборудования в эксплуатацию': { kind: 'equipment_act', title: 'Акт ввода оборудования в эксплуатацию' },
+};
+for (const file of fs.readdirSync(VIOLATIONS_DIR)) {
+  const { niche, violations } = require(path.join(VIOLATIONS_DIR, file));
+  if (!niche || !violations) continue;
+  for (const v of violations) {
+    const link = COMMON_LINKS_BY_TITLE[v.title];
+    if (!link) continue;
+    (LINKS[niche] = LINKS[niche] || []).push({
+      violationCode: v.code,
+      templateKey: `${niche}_${link.kind}`,
+      templateTitle: link.title,
+      questionCode: v.code,
+      hasAnswerIndex: 0,
+    });
+  }
+}
+
 function forTemplate(niche, templateKey) {
   return (LINKS[niche] || []).find((l) => l.templateKey === templateKey) || null;
 }

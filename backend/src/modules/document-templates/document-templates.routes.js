@@ -46,6 +46,9 @@ const SAVED_DETAIL_KEYS = [
   // оферты юриста (content/lawyerOferta.js)
   'city', 'lateMinutes', 'prepayHours', 'rescheduleDays', 'lateCancelPercent',
   'bankAccount', 'bankName', 'bik', 'corrAccount', 'goodsDescription', 'consultPayMode', 'consultPrepayPercent',
+  // общие документы всех ниш (content/commonTemplates.js, 24.10.2026); данные
+  // конкретного оборудования (акт ввода) не запоминаем — у каждого акта свои
+  'headName', 'headPosition', 'fireResponsible', 'maxPeople', 'smoking',
 ];
 
 async function loadSavedDetails(companyId) {
