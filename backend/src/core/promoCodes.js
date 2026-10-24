@@ -94,4 +94,24 @@ async function evaluatePromo({ code: rawCode, companyId, appliesTo, priceRub }) 
   return { promo, discountRub, finalRub: priceRub - discountRub };
 }
 
-module.exports = { evaluatePromo, normalizeCode, isValidCodeFormat, MIN_PAYMENT_RUB };
+// Набор «заключение + документы» (24.10.2026, решение владельца: промокод —
+// везде). Отдельного типа кода для набора нет: код на отчёт даёт в наборе ту
+// же скидку, что дал бы на отчёт (процент — от цены отчёта, не набора), код
+// на документы — ту же, что на документы. Не подошёл ни так, ни так —
+// ошибка проверки как для отчёта.
+async function evaluateBundlePromo({ code, companyId, reportPriceRub, docsPriceRub, bundlePriceRub }) {
+  let firstError = null;
+  for (const [appliesTo, partPriceRub] of [['report', reportPriceRub], ['templates', docsPriceRub]]) {
+    try {
+      const { promo, discountRub } = await evaluatePromo({ code, companyId, appliesTo, priceRub: partPriceRub });
+      const bundleDiscountRub = Math.min(discountRub, bundlePriceRub - MIN_PAYMENT_RUB);
+      return { promo, discountRub: bundleDiscountRub, finalRub: bundlePriceRub - bundleDiscountRub };
+    } catch (err) {
+      if (!err.status) throw err;
+      firstError = firstError || err;
+    }
+  }
+  throw firstError;
+}
+
+module.exports = { evaluatePromo, evaluateBundlePromo, normalizeCode, isValidCodeFormat, MIN_PAYMENT_RUB };

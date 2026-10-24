@@ -35,9 +35,8 @@ router.post(
       const nextAt = new Date(recent.created_at);
       nextAt.setDate(nextAt.getDate() + WEBSITE_CHECK_SUBSCRIPTION_INTERVAL_DAYS);
       return res.status(429).json({
-        error: `Бесплатная проверка сайта по подписке — раз в ${WEBSITE_CHECK_SUBSCRIPTION_INTERVAL_DAYS} дней. Следующая доступна ${nextAt.toLocaleDateString('ru-RU')}.`,
+        error: `Проверка сайта по подписке — раз в ${WEBSITE_CHECK_SUBSCRIPTION_INTERVAL_DAYS} дней. Следующая доступна ${nextAt.toLocaleDateString('ru-RU')}.`,
         nextAvailableAt: nextAt.toISOString(),
-        requiresAddon: 'website_check',
       });
     }
 

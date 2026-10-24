@@ -5,8 +5,10 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { createPayment } = require('../core/yookassa');
-const { ADDON_CATALOG, getAddon, priceForCompany } = require('../core/addons');
-const { evaluatePromo } = require('../core/promoCodes');
+const { ADDON_CATALOG, getAddon, priceForCompany, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
+const { evaluatePromo, evaluateBundlePromo } = require('../core/promoCodes');
+// Цена заключения — та же, что в subscription.routes.js (SUBSCRIPTION_PRICE_RUB).
+const REPORT_PRICE_RUB = 1990;
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 
 const router = express.Router();
@@ -31,19 +33,23 @@ router.get(
     const purchased = new Set(rows.map((r) => r.addon_key));
     const inNetwork = await isNetworkPoint(req.tenant.companyId);
     res.json(
-      Object.entries(ADDON_CATALOG).map(([key, addon]) => {
-        const price = priceForCompany(key, { inNetwork });
-        return {
-          addonKey: key,
-          label: addon.label,
-          priceRub: price.priceRub,
-          fullPriceRub: addon.priceRub,
-          networkDiscountPercent: price.networkDiscountPercent,
-          // Цена для точки сети — пульт показывает её владельцу сети.
-          networkPriceRub: priceForCompany(key, { inNetwork: true }).priceRub,
-          purchased: purchased.has(key),
-        };
-      })
+      Object.entries(ADDON_CATALOG)
+        .filter(([, addon]) => addon.forSale !== false)
+        .map(([key, addon]) => {
+          const price = priceForCompany(key, { inNetwork });
+          return {
+            addonKey: key,
+            label: addon.label,
+            priceRub: price.priceRub,
+            fullPriceRub: addon.priceRub,
+            networkDiscountPercent: price.networkDiscountPercent,
+            // Цена для точки сети — пульт показывает её владельцу сети.
+            networkPriceRub: priceForCompany(key, { inNetwork: true }).priceRub,
+            // Набор с заключением (экран результата теста, 24.10.2026).
+            ...(key === 'document_templates' ? { bundleWithReportPriceRub: REPORT_BUNDLE_PRICE_RUB } : {}),
+            purchased: purchased.has(key),
+          };
+        })
     );
   })
 );
@@ -65,19 +71,35 @@ router.post(
   asyncHandler(async (req, res) => {
     const addon = getAddon(req.params.addonKey);
     if (!addon) return res.status(400).json({ error: 'Неизвестная надстройка' });
+    if (addon.forSale === false) {
+      return res.status(410).json({ error: 'Отдельно больше не продаётся — входит в подписку' });
+    }
 
-    // website_check — не "разблокировать навсегда" (как document_templates),
-    // а "оплатить ещё один скан" — повторная покупка должна быть возможна
-    // (сайт меняется, захотят перепроверить). Гейт "уже оплачено" остаётся
-    // только для остальных addon_key из каталога.
-    if (req.params.addonKey !== 'website_check') {
-      const already = await pool.query(
-        `SELECT 1 FROM addon_purchases WHERE company_id = $1 AND addon_key = $2 AND status = 'succeeded' LIMIT 1`,
-        [req.tenant.companyId, req.params.addonKey]
+    // Набор «заключение + документы» (24.10.2026): покупка документов с
+    // привязанным отчётом. Отчёт должен быть этой компании и ещё не оплачен —
+    // иначе человек заплатил бы за заключение второй раз.
+    const bundleReportId = req.params.addonKey === 'document_templates' && req.body?.withReportId
+      ? Number(req.body.withReportId)
+      : null;
+    if (bundleReportId !== null) {
+      const { rows: reportRows } = await pool.query(
+        'SELECT unlocked_without_subscription FROM security_reports WHERE id = $1 AND company_id = $2',
+        [bundleReportId, req.tenant.companyId]
       );
-      if (already.rows.length > 0) {
-        return res.status(409).json({ error: 'Уже оплачено' });
+      if (reportRows.length === 0) return res.status(404).json({ error: 'Отчёт не найден' });
+      if (reportRows[0].unlocked_without_subscription) {
+        return res.status(409).json({ error: 'Заключение уже оплачено — документы можно взять отдельно' });
       }
+    }
+
+    // Всё, что сейчас в продаже, покупается один раз навсегда. (Повторяемая
+    // разовая проверка сайта снята с продажи 24.10.2026 — см. core/addons.js.)
+    const already = await pool.query(
+      `SELECT 1 FROM addon_purchases WHERE company_id = $1 AND addon_key = $2 AND status = 'succeeded' LIMIT 1`,
+      [req.tenant.companyId, req.params.addonKey]
+    );
+    if (already.rows.length > 0) {
+      return res.status(409).json({ error: 'Уже оплачено' });
     }
 
     // Гость анонимного теста (is_guest, см. anonymous-audit.routes.js) не
@@ -119,42 +141,32 @@ router.post(
     const company = rows[0];
 
     const metadata = { companyId: String(req.tenant.companyId), addonKey: req.params.addonKey };
-
-    // website_check — единственный addon, которому нужен вход-параметр
-    // (адрес сайта) уже на чек-ауте: строку заводим сейчас, статус
-    // 'awaiting_payment', id прокидываем через metadata (тот же приём, что
-    // и subscription_payments.report_id, миграция 0091) — вебхук
-    // (subscription.routes.js) найдёт её по этому id и запустит скан.
-    if (req.params.addonKey === 'website_check') {
-      const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
-      if (!url) return res.status(400).json({ error: 'Укажите адрес сайта' });
-      const source = req.body?.source === 'test' ? 'test' : 'standalone';
-      const checkRows = await pool.query(
-        `INSERT INTO website_checks (company_id, url, source, status)
-         VALUES ($1, $2, $3, 'awaiting_payment') RETURNING id`,
-        [req.tenant.companyId, url, source]
-      );
-      metadata.websiteCheckId = String(checkRows.rows[0].id);
-    }
+    if (bundleReportId) metadata.reportId = String(bundleReportId);
 
     // Цена с учётом скидки точке сети (core/addons.js, 21.10.2026).
     const basePriceRub = priceForCompany(req.params.addonKey, { inNetwork: await isNetworkPoint(req.tenant.companyId) }).priceRub;
 
     // Промокод на документы (20.10.2026, миграция 0148): «уже оплачено» выше
     // гарантирует, что это первая покупка. Считается от цены точки сети.
+    // Набор (24.10.2026): код на отчёт или на документы, см. evaluateBundlePromo.
     let promoResult = null;
     if (req.params.addonKey === 'document_templates' && req.body?.promoCode) {
       try {
-        promoResult = await evaluatePromo({ code: req.body.promoCode, companyId: req.tenant.companyId, appliesTo: 'templates', priceRub: basePriceRub });
+        promoResult = bundleReportId
+          ? await evaluateBundlePromo({
+            code: req.body.promoCode, companyId: req.tenant.companyId,
+            reportPriceRub: REPORT_PRICE_RUB, docsPriceRub: basePriceRub, bundlePriceRub: REPORT_BUNDLE_PRICE_RUB,
+          })
+          : await evaluatePromo({ code: req.body.promoCode, companyId: req.tenant.companyId, appliesTo: 'templates', priceRub: basePriceRub });
       } catch (err) {
         return res.status(err.status || 400).json({ error: err.message });
       }
     }
-    const amountRub = promoResult ? promoResult.finalRub : basePriceRub;
+    const amountRub = promoResult ? promoResult.finalRub : bundleReportId ? REPORT_BUNDLE_PRICE_RUB : basePriceRub;
 
     const payment = await createPayment({
       amountRub,
-      description: `${addon.label} — ${company.name}`,
+      description: bundleReportId ? `Заключение и ${addon.label.toLowerCase()} — ${company.name}` : `${addon.label} — ${company.name}`,
       returnUrl,
       savePaymentMethod: false,
       metadata,
@@ -162,9 +174,9 @@ router.post(
     });
 
     await pool.query(
-      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status, promo_code_id, discount_rub)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
-      [req.tenant.companyId, req.params.addonKey, payment.id, amountRub, promoResult?.promo.id || null, promoResult?.discountRub || 0]
+      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status, promo_code_id, discount_rub, report_id)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7)`,
+      [req.tenant.companyId, req.params.addonKey, payment.id, amountRub, promoResult?.promo.id || null, promoResult?.discountRub || 0, bundleReportId]
     );
 
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
@@ -181,13 +193,14 @@ router.post(
 // Push владельцу платформы о новой addon-оплате — вызывается из webhook
 // в subscription.routes.js, вынесено сюда как отдельная функция, чтобы
 // не плодить SQL-запросы к addon_purchases в чужом файле.
-async function notifyAddonPurchase({ companyId, addonKey, amountRub }) {
+async function notifyAddonPurchase({ companyId, addonKey, amountRub, withReport = false }) {
   const addon = getAddon(addonKey);
   const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [companyId]);
+  const label = `${withReport ? 'Заключение + ' : ''}${addon?.label || addonKey}`;
   await sendPushToSuperAdmins({
     title: 'Оплата надстройки',
     // amountRub — реально оплаченная сумма (промокод, скидка точке сети).
-    body: `${rows[0]?.name || 'Компания'} — ${addon?.label || addonKey}, ${amountRub ?? addon?.priceRub ?? '?'} ₽`,
+    body: `${rows[0]?.name || 'Компания'} — ${label}, ${amountRub ?? addon?.priceRub ?? '?'} ₽`,
     url: '/office/companies',
   }).catch((err) => console.error('sendPushToSuperAdmins (addon) failed:', err));
 }

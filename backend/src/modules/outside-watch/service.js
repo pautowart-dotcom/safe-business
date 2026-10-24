@@ -197,7 +197,45 @@ async function applyRegistryToCompany(companyId, inn, card) {
     await syncTaxDeadlines(companyId, row.tax_regime, { ipRegisteredAt: row.ip_registered_at, hasEmployees: row.has_employees })
       .catch((err) => console.error('outside-watch: syncTaxDeadlines failed', companyId, err.message));
   }
+  await applyRegistryToDocumentDetails(companyId, inn, card)
+    .catch((err) => console.error('outside-watch: document details prefill failed', companyId, err.message));
   return { legalForm, taxRegime: row?.tax_regime || null };
+}
+
+// Реестр → анкета «Документов студии» (24.10.2026, решение владельца: «всё
+// заполнится за него»). Те же ключи, что document-templates.routes.js
+// SAVED_DETAIL_KEYS; только ПУСТЫЕ — введённое владельцем не трогаем. Адреса
+// ИП в открытом ЕГРИП нет — его владелец вводит сам. Имена полей Checko
+// (ОГРН/ОГРНИП, КПП, ЮрАдрес.АдресРФ) — по их документации, на живом ответе
+// не сверены: нет поля — просто не подставляем.
+function registryDocumentDetails(inn, card) {
+  const isIp = inn.length === 12;
+  const details = {
+    inn,
+    legalName: isIp ? card.ФИО : card.НаимСокр || card.НаимПолн,
+    ogrnip: isIp ? card.ОГРНИП || card.ОГРН : card.ОГРН,
+    kpp: isIp ? null : card.КПП,
+    legalAddress: isIp ? null : card.ЮрАдрес && card.ЮрАдрес.АдресРФ,
+  };
+  return Object.fromEntries(Object.entries(details).filter(([, v]) => typeof v === 'string' && v.trim()));
+}
+
+async function applyRegistryToDocumentDetails(companyId, inn, card) {
+  const found = registryDocumentDetails(inn, card);
+  if (!Object.keys(found).length) return;
+  const { rows } = await pool.query('SELECT document_details_enc FROM companies WHERE id = $1', [companyId]);
+  let existing = {};
+  if (rows[0]?.document_details_enc) {
+    try {
+      existing = JSON.parse(decrypt(rows[0].document_details_enc)) || {};
+    } catch {
+      return; // не смогли прочитать — лучше не трогать, чем затереть
+    }
+  }
+  const next = { ...existing };
+  for (const [key, value] of Object.entries(found)) if (!next[key]) next[key] = value.trim();
+  if (JSON.stringify(next) === JSON.stringify(existing)) return;
+  await pool.query('UPDATE companies SET document_details_enc = $1 WHERE id = $2', [encrypt(JSON.stringify(next)), companyId]);
 }
 
 // Снять и сохранить снимок. Возвращает { row, prevSummary } — prevSummary

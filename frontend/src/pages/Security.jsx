@@ -10,6 +10,7 @@ import { FM } from '../ui/theme.js';
 import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
 import { reachGoal } from '../utils/metrika.js';
+import { usePromoQuote } from '../utils/usePromoQuote.js';
 import { withDeclensions } from '../utils/declension.js';
 import { PartnerServicesCard, PartnerRequestButton, partnerServiceForViolation } from '../ui/PartnerServices.jsx';
 
@@ -1855,11 +1856,10 @@ function RiskCheckHistoryCard({ isManagement, refreshSignal }) {
   );
 }
 
-// Проверка сайта на риски 152-ФЗ (03.09.2026) — бесплатный бонус
-// подписчикам (раз в 30 дней, лимит на backend, core/middleware/
-// websiteCheck.js — без него подписка давала бы неограниченные бесплатные
-// проверки чужих сайтов), либо разовая оплата (core/addons.js, сейчас
-// 490₽) через тот же addons-чекаут, что и "Шаблоны документов" выше.
+// Проверка сайта на риски 152-ФЗ (03.09.2026) — входит в подписку (раз в
+// 30 дней, лимит на backend, core/middleware/websiteCheck.js — без него
+// подписка давала бы неограниченные проверки чужих сайтов). Разовая оплата
+// 490 ₽ снята с продажи 24.10.2026 (решение владельца).
 // Находки проверки сайта → документы пакета, которые их закрывают
 // (21.10.2026, идея продаж №1 из плана 20.10). Коды — website-check/scan.js.
 const SITE_FINDING_DOCS = {
@@ -1882,7 +1882,6 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
   const [checkId, setCheckId] = useState(null);
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState('idle'); // idle | pending | completed | failed
-  const [payInfo, setPayInfo] = useState(null); // { priceRub, source } — показать кнопку разовой оплаты
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [templatesAddon, setTemplatesAddon] = useState(null);
@@ -1924,38 +1923,14 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
     if (!url.trim()) return;
     setSubmitting(true);
     setError('');
-    setPayInfo(null);
     try {
       const { data } = await api.post('/platform/website-check/scan', { url: url.trim() });
       setCheckId(data.id);
       setResult(null);
       setStatus('pending');
     } catch (err) {
-      if (err.response?.status === 402 || err.response?.status === 429) {
-        setError(err.response.data?.error || 'Проверка недоступна');
-        try {
-          const { data: addons } = await api.get('/platform/addons');
-          setPayInfo(addons.find((a) => a.addonKey === 'website_check') || null);
-        } catch (e2) {
-          // не критично — просто не покажем кнопку разовой оплаты с ценой
-        }
-      } else {
-        setError(err.response?.data?.error || 'Не удалось запустить проверку');
-      }
+      setError(err.response?.data?.error || 'Не удалось запустить проверку');
     } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function payOnceForCheck() {
-    setSubmitting(true);
-    setError('');
-    try {
-      const { data } = await api.post('/platform/addons/website_check/checkout', { url: url.trim() });
-      reachGoal('checkout_start');
-      window.location.href = data.confirmationUrl;
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось начать оплату');
       setSubmitting(false);
     }
   }
@@ -1998,16 +1973,6 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
 
       {error && <div style={{ fontSize: 13, color: C.red, marginBottom: 8 }}>{error}</div>}
 
-      {payInfo && (
-        <div style={{ padding: '10px 12px', marginBottom: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 13, marginBottom: 8 }}>
-            Разовая проверка без ожидания подписки — {payInfo.priceRub.toLocaleString('ru-RU')} ₽.
-          </div>
-          <Btn small onClick={payOnceForCheck} disabled={submitting || !url.trim()}>
-            {`Оплатить разовую проверку — ${payInfo.priceRub.toLocaleString('ru-RU')} ₽`}
-          </Btn>
-        </div>
-      )}
 
       {result && (
         <div style={{ marginTop: 8 }}>
@@ -2113,6 +2078,12 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
   // error } на каждый t.key, запрашивается лениво по клику, не все сразу.
   const [explanations, setExplanations] = useState({});
   const [promoCode, setPromoCode] = useState('');
+  // Цена со скидкой видна сразу, до оплаты (24.10.2026, жалоба клиентки:
+  // сумма менялась только в ЮKassa). utils/usePromoQuote.js.
+  const { quote: promoQuote, error: promoError, checking: promoChecking } = usePromoQuote(api, promoCode);
+  const promoDocs = promoQuote?.docs;
+  const promoApplies = promoDocs?.finalRub != null;
+  const shownAddon = addon && promoApplies ? { ...addon, priceRub: promoDocs.finalRub } : addon;
   useDraftAutosave(openKey ? formData : null);
 
   async function explainTemplate(key) {
@@ -2155,7 +2126,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     setPayingAddon(true);
     setError('');
     try {
-      const { data } = await api.post('/platform/addons/document_templates/checkout', promoCode.trim() ? { promoCode: promoCode.trim() } : {});
+      const { data } = await api.post('/platform/addons/document_templates/checkout', promoApplies ? { promoCode: promoQuote.code } : {});
       reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
@@ -2253,6 +2224,13 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
       {addon && !addon.purchased && templates && templates.length > 0 && (
         <Field label="Промокод (если есть)">
           <TextInput value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Необязательно" maxLength={32} />
+          {promoChecking && <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Проверяем…</div>}
+          {(promoError || promoDocs?.error) && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{promoError || promoDocs.error}</div>}
+          {promoApplies && (
+            <div style={{ fontSize: 13, color: C.green, fontWeight: 600, marginTop: 6 }}>
+              Промокод применён: {promoDocs.finalRub.toLocaleString('ru-RU')}&nbsp;₽ вместо {addon.priceRub.toLocaleString('ru-RU')}&nbsp;₽
+            </div>
+          )}
         </Field>
       )}
       {addon && !addon.purchased && addon.networkDiscountPercent > 0 && (
@@ -2265,7 +2243,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
         <SigningPackBlock
           templates={templates}
           savedDetails={savedDetails}
-          addon={addon}
+          addon={shownAddon}
           payingAddon={payingAddon}
           onPay={payForAddon}
           onGenerated={load}

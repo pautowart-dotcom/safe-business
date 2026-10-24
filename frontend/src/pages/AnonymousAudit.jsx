@@ -8,6 +8,7 @@ import { NICHE_OPTIONS } from '../ui/nicheOptions.js';
 import { ConsentPair } from '../ui/LegalConsents.jsx';
 import { reachGoal } from '../utils/metrika.js';
 import { OutsideFindingsList } from '../components/OutsideFindings.jsx';
+import { usePromoQuote } from '../utils/usePromoQuote.js';
 
 // Разовый аудит без регистрации (19.08.2026, п.5 плана, переделано по явному
 // уточнению владельца) — публичная страница, НЕ обёрнута в PrivateRoute/
@@ -419,39 +420,12 @@ function TestStepList({ session, answers, setAnswer, onSubmit, submitting, error
   );
 }
 
-// Проверка сайта (03.09.2026, шаг 2 плана) — отдельная разовая допродажа
-// (990 ₽), не конкурирует с основной кнопкой оплаты PDF-отчёта (sticky
-// внизу) — карточка стоит выше нее, со своей обычной (не sticky) кнопкой,
-// тот же принцип, что и у "claim free" ссылки ниже: не отвлекать от
-// главного CTA. Гость не получает бесплатный скан по подписке (её нет) —
-// сразу ведёт на оплату, тот же backend, что и подписчик в ЛК
-// (POST /platform/addons/website_check/checkout), но с returnUrl на /audit,
-// а не /security (гостю некуда логиниться).
-function WebsiteCheckOffer({ url, setUrl, email, setEmail, acceptedTerms, setAcceptedTerms, onPay, paying, error }) {
-  return (
-    <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Проверить сайт — 490 ₽</div>
-      <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
-        Отдельная проверка вашего сайта на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта,
-        согласие на обработку персональных данных в формах, уведомление о cookie. Результат — на почту.
-      </div>
-      <Field label="Адрес сайта">
-        <TextInput value={url} onChange={(e) => setUrl(e.target.value)} placeholder="example.ru" />
-      </Field>
-      <Field label="Email">
-        <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      </Field>
-      <ConsentPair idPrefix="site" purpose="order" onChange={setAcceptedTerms} />
-      {error && <div className="alert alert-error">{error}</div>}
-      <Btn small onClick={onPay} disabled={paying || !url.trim()}>{paying ? 'Переходим к оплате…' : 'Проверить сайт — 490 ₽'}</Btn>
-    </Card>
-  );
-}
-
-// «Документы студии» после теста (21.10.2026, план 20.10). Показываем только
+// Выбор покупки после теста (24.10.2026, решение владельца): одна карточка
+// вместо трёх отдельных — набор «заключение + документы» первым и выделен,
+// под ним заключение и документы по отдельности. Документы предлагаем, только
 // если среди найденного есть то, что закрывает пакет (inDocumentsPack из
-// /status) — иначе предлагать нечего. Названия пунктов и так видны выше
-// бесплатно, заключение здесь не раскрывается. Цена — с сервера.
+// /status). Проверка сайта отсюда убрана — она теперь только в подписке.
+// Цены документов и набора — с сервера (core/addons.js).
 function pointsLabel(n) {
   if (n === 1) return 'Один пункт';
   const mod10 = n % 10;
@@ -460,171 +434,86 @@ function pointsLabel(n) {
   return `${n} пунктов`;
 }
 
-function DocumentsPackOffer({ violations }) {
-  const covered = (violations || []).filter((v) => v.inDocumentsPack && v.status !== 'resolved');
-  const [addon, setAddon] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [paying, setPaying] = useState(false);
-  const [error, setError] = useState('');
+// Неразрывный пробел перед ₽ — иначе знак рубля переносится на новую строку
+// в длинной надписи кнопки (24.10.2026, скриншот владельца).
+function rub(n) {
+  return `${n.toLocaleString('ru-RU')} ₽`;
+}
 
-  useEffect(() => {
-    if (covered.length === 0) return;
-    guestApi
-      .get('/platform/addons')
-      .then((res) => setAddon(res.data.find((a) => a.addonKey === 'document_templates') || null))
-      .catch(() => {});
-  }, [covered.length]);
-
-  if (covered.length === 0 || !addon || addon.purchased) return null;
-
-  async function pay() {
-    if (!email || !email.includes('@')) {
-      setError('Укажите email');
-      return;
-    }
-    if (!acceptedTerms) {
-      setError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
-      return;
-    }
-    setError('');
-    setPaying(true);
-    try {
-      const { data } = await guestApi.post('/platform/addons/document_templates/checkout', { email, acceptedTerms });
-      reachGoal('checkout_start');
-      window.location.href = data.confirmationUrl;
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось начать оплату');
-      setPaying(false);
-    }
-  }
-
+function PlanOption({ selected, onSelect, title, price, badge, children }) {
   return (
-    <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Документы студии — {addon.priceRub.toLocaleString('ru-RU')} ₽</div>
-      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}>
-        {pointsLabel(covered.length)} из списка выше можно закрыть документами из пакета — данные вашего бизнеса
-        подставляются в них из анкеты:
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      style={{
+        display: 'block', width: '100%', textAlign: 'left', fontFamily: F, color: 'inherit', cursor: 'pointer',
+        background: selected ? C.surface : 'none',
+        border: `${selected ? 2 : 1}px solid ${selected ? C.primary : C.border}`,
+        borderRadius: 12, padding: selected ? '11px 13px' : '12px 14px', marginBottom: 10,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ fontSize: 15, fontWeight: 700 }}>{title}</span>
+        <span style={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{price}</span>
       </div>
-      <div style={{ marginBottom: 12 }}>
-        {covered.map((v) => (
-          <div key={v.code} style={{ fontSize: 13, padding: '3px 0', display: 'flex', gap: 8 }}>
-            <span style={{ color: C.subtle }}>—</span><span>{v.title}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
-        Разовая оплата. В подарок — месяц полного доступа к кабинету. После оплаты пришлём на почту ссылку для входа:
-        там одна анкета, и документы готовы к скачиванию.
-      </div>
-      {open ? (
-        <>
-          <Field label="Email">
-            <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </Field>
-          <ConsentPair idPrefix="docs" purpose="order" onChange={setAcceptedTerms} />
-          {error && <div className="alert alert-error">{error}</div>}
-          <Btn small onClick={pay} disabled={paying}>{paying ? 'Переходим к оплате…' : `Оплатить — ${addon.priceRub.toLocaleString('ru-RU')} ₽`}</Btn>
-        </>
-      ) : (
-        <Btn small variant="secondary" onClick={() => setOpen(true)}>Оформить документы</Btn>
+      {badge && <div style={{ marginTop: 6 }}><Badge color={C.green} bg={C.greenBg}>{badge}</Badge></div>}
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 6 }}>{children}</div>
+    </button>
+  );
+}
+
+// docsAddon — запись document_templates из GET /platform/addons или null
+// (не загрузилось / уже куплено / закрывать нечего) — тогда только заключение.
+function PlanChoice({ plan, setPlan, docsAddon, covered, quote }) {
+  if (!docsAddon) {
+    return (
+      <>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Заключение — <PriceWithPromo baseRub={PRICE_RUB} planQuote={quote?.report} /></div>
+        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
+          PDF по каждому найденному нарушению: штраф и статья закона, на чём основано требование, план
+          устранения и список обязательных документов — пришлём на почту.
+        </div>
+      </>
+    );
+  }
+  const savingRub = PRICE_RUB + docsAddon.priceRub - docsAddon.bundleWithReportPriceRub;
+  return (
+    <div role="radiogroup" aria-label="Что оплатить" style={{ marginBottom: 4 }}>
+      <PlanOption
+        selected={plan === 'bundle'} onSelect={() => setPlan('bundle')}
+        title="Всё вместе" price={<PriceWithPromo baseRub={docsAddon.bundleWithReportPriceRub} planQuote={quote?.bundle} />}
+        badge={savingRub > 0 ? `Выгоднее на ${rub(savingRub)}` : null}
+      >
+        Заключение по каждому нарушению и готовые документы с данными вашего бизнеса.
+      </PlanOption>
+      <PlanOption selected={plan === 'report'} onSelect={() => setPlan('report')} title="Только заключение" price={<PriceWithPromo baseRub={PRICE_RUB} planQuote={quote?.report} />}>
+        PDF по каждому нарушению: штраф и статья закона, на чём основано требование, план устранения.
+      </PlanOption>
+      <PlanOption selected={plan === 'docs'} onSelect={() => setPlan('docs')} title="Только документы" price={<PriceWithPromo baseRub={docsAddon.priceRub} planQuote={quote?.docs} />}>
+        Готовые документы с данными вашего бизнеса — одна анкета в кабинете.
+      </PlanOption>
+      {plan !== 'report' && (
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, margin: '4px 0 12px' }}>
+          Документы закроют {pointsLabel(covered.length).toLowerCase()} из списка выше:
+          {covered.map((v) => (
+            <div key={v.code} style={{ padding: '3px 0', display: 'flex', gap: 8, color: C.primary }}>
+              <span style={{ color: C.subtle }}>—</span><span>{v.title}</span>
+            </div>
+          ))}
+        </div>
       )}
-    </Card>
+    </div>
   );
 }
 
-// 13.09.2026 — та же подсказка "Мои сроки", что уже стоит после теста в
-// самом приложении (Security.jsx, QuickDeadlinesPrompt), но здесь отдельная
-// копия, а не импорт: этот экран нарочно не использует ни общий api-клиент
-// (см. комментарий у guestApi выше про изоляцию от залогиненной сессии),
-// ни авторизованный роутинг. Реальный повод продублировать, а не отложить:
-// проверка по проду (read-only доступ) показала, что 112 из 142 компаний в
-// активном триале — как раз гости с ЭТОГО экрана, ни разу не заходившие в
-// настоящий личный кабинет, то есть версия в Security.jsx их вообще не
-// касается. Только ЭЦП (без огнетушителей — hasPremises в этом упрощённом
-// анонимном профиле не спрашивается, не гадаем).
-function GuestQuickDeadlinePrompt() {
-  const [slot, setSlot] = useState(null); // null = загрузка/недоступно
-  const [value, setValue] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    guestApi
-      .get('/platform/my-deadlines')
-      .then((res) => setSlot(res.data.slots.find((s) => s.key === 'esign') || false))
-      .catch(() => setSlot(false));
-  }, []);
-
-  // slot === false — GET сам не удался (не "поля esign не нашлось", которое
-  // невозможно, каталог фиксированный): показываем прежний статичный текст,
-  // а не пустоту, лучше сказать про фичу словами, чем не сказать вообще.
-  if (slot === false) {
-    return (
-      <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>«Безопасный бизнес» — это не только тест</div>
-        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
-          Приложение само напоминает о сроках медкнижек, огнетушителей, СОУТ и других документов, ведёт финансы
-          и чек-листы смены, отвечает на вопросы через ИИ-ассистента. Результат этого теста уже сохранён —
-          проходить заново не нужно.
-        </div>
-      </Card>
-    );
-  }
-  if (dismissed || done || !slot || slot.dueDate) return null;
-
-  async function save() {
-    if (!value) return;
-    setSaving(true);
-    try {
-      await guestApi.patch('/platform/my-deadlines/slots/esign', { dueDate: value });
-      setDone(true);
-    } catch (err) {
-      // Тихо — необязательная подсказка, не блокирует результат теста.
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Card>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>«Безопасный бизнес» — это не только тест</div>
-      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
-        Приложение само напоминает о сроках медкнижек, огнетушителей, СОУТ, ЭЦП и других документов, ведёт финансы
-        и чек-листы смены. Результат этого теста уже сохранён — проходить заново не нужно.
-        Впишите ниже, когда у вас истекает ЭЦП — пришлём напоминание заранее.
-      </div>
-      <Field label="ЭЦП истекает">
-        <TextInput type="date" value={value} onChange={(e) => setValue(e.target.value)} />
-      </Field>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <Btn small onClick={save} disabled={saving || !value}>{saving ? 'Сохраняем…' : 'Сохранить'}</Btn>
-        <Btn small variant="secondary" onClick={() => setDismissed(true)}>Не сейчас</Btn>
-      </div>
-    </Card>
-  );
-}
-
-// Поле промокода перед оплатой отчёта (09.10.2026). Свёрнуто в ссылку
-// «Есть промокод?», чтобы не отвлекать тех, у кого кода нет. Отдельная
-// форма не нужна — Enter в поле применяет код, а не уходит в оплату.
-function PromoField({ input, setInput, promo, error, checking, onApply, onRemove }) {
-  const [open, setOpen] = useState(false);
-  if (promo) {
-    return (
-      <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 13 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-          <span>Промокод <b>{promo.code}</b></span>
-          <button onClick={onRemove} style={{ background: 'none', border: 'none', color: C.subtle, cursor: 'pointer', fontSize: 12, padding: 0 }}>убрать</button>
-        </div>
-        <div style={{ marginTop: 4, color: C.secondary }}>
-          Отчёт — <b>{promo.finalRub} ₽</b> вместо {promo.priceRub} ₽
-        </div>
-      </div>
-    );
-  }
+// Поле промокода (09.10.2026; 24.10.2026 — на любой вариант, цена меняется
+// сразу, utils/usePromoQuote.js). Свёрнуто в ссылку «Есть промокод?», чтобы
+// не отвлекать тех, у кого кода нет. planQuote — ответ сервера для
+// выбранного варианта: { finalRub } или { error } (код на другую покупку).
+function PromoField({ input, setInput, quote, planQuote, error, checking }) {
+  const [open, setOpen] = useState(!!input);
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} style={{ display: 'block', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 12 }}>
@@ -634,28 +523,45 @@ function PromoField({ input, setInput, promo, error, checking, onApply, onRemove
   }
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <TextInput
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onApply(); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
           placeholder="Промокод"
           autoFocus
           style={{ flex: 1, minWidth: 0 }}
         />
-        <Btn variant="secondary" onClick={onApply} disabled={checking || !input.trim()} style={{ width: 'auto', flexShrink: 0 }}>{checking ? '…' : 'Применить'}</Btn>
+        {input && (
+          <button onClick={() => setInput('')} style={{ background: 'none', border: 'none', color: C.subtle, cursor: 'pointer', fontSize: 12, padding: 0, flexShrink: 0 }}>убрать</button>
+        )}
       </div>
+      {checking && <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Проверяем…</div>}
       {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
+      {quote && planQuote?.error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{planQuote.error}</div>}
+      {quote && planQuote?.finalRub != null && (
+        <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 }}>Промокод {quote.code} применён — цена выше уже со скидкой</div>
+      )}
     </div>
+  );
+}
+
+// Цена варианта со скидкой: старая зачёркнута, новая рядом.
+function PriceWithPromo({ baseRub, planQuote }) {
+  if (planQuote?.finalRub == null || planQuote.finalRub === baseRub) return rub(baseRub);
+  return (
+    <>
+      <s style={{ color: C.subtle, fontWeight: 600, marginRight: 6 }}>{rub(baseRub)}</s>
+      {rub(planQuote.finalRub)}
+    </>
   );
 }
 
 function ResultStep({
   result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
   onPay, paying, onClaimFree, claiming, claimed, error,
-  promoInput, setPromoInput, promo, promoError, promoChecking, onApplyPromo, onRemovePromo,
-  websiteUrl, setWebsiteUrl, websiteEmail, setWebsiteEmail, websiteAcceptedTerms, setWebsiteAcceptedTerms,
-  onPayWebsiteCheck, payingWebsiteCheck, websiteCheckError,
+  promoInput, setPromoInput, promoQuote, promoError, promoChecking,
+  plan, setPlan, docsAddon, covered, innUsed,
 }) {
   const zone = result.zone;
   const payCardRef = useRef(null);
@@ -664,15 +570,32 @@ function ResultStep({
   // 21.10.2026 (владелец со своего телефона): кнопка оплаты прилипла к низу
   // экрана, а почта и согласие — в самом конце страницы. Нажал, не заполнив, —
   // ошибка появлялась там, где её не видно. Теперь прокручиваем к форме
-  // заключения и ставим курсор в почту.
-  function handlePay() {
+  // заключения и ставим курсор в почту. Та же почта нужна и для входа в
+  // приложение бесплатно — поэтому тот же приём и для кнопки ниже.
+  function scrollToFormIfMissing() {
     const missing = !email || !email.includes('@') || !acceptedTerms;
     if (missing && payCardRef.current) {
       payCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if ((!email || !email.includes('@')) && emailRef.current) emailRef.current.focus({ preventScroll: true });
     }
+  }
+  function handlePay() {
+    scrollToFormIfMissing();
     onPay();
   }
+  function handleClaim() {
+    scrollToFormIfMissing();
+    onClaimFree();
+  }
+
+  const planQuote = promoQuote?.[plan];
+  const priceRub = planQuote?.finalRub != null ? planQuote.finalRub
+    : plan === 'bundle' ? docsAddon.bundleWithReportPriceRub
+    : plan === 'docs' ? docsAddon.priceRub
+    : PRICE_RUB;
+  const payLabel = plan === 'bundle' ? 'Оплатить всё вместе'
+    : plan === 'docs' ? 'Оплатить документы'
+    : 'Оплатить и получить заключение';
 
   return (
     <div>
@@ -689,36 +612,14 @@ function ResultStep({
 
       <FeedbackCard sessionId={result.anchorSessionId} />
 
-      {/* 24.08.2026, живой разбор воронки: раньше после теста был только
-          выбор "заплати за PDF сейчас или уходи" — ничего не говорило о
-          том, что "Безопасный бизнес" вообще не сводится к разовому тесту
-          (сроки документов, финансы, чек-листы, ИИ-ассистент). Эта карточка
-          не конкурирует с оплатой — она для тех, кто пока не готов платить,
-          но результат терять не хочет.
-          13.09.2026: было просто текстом про "приложение само напоминает о
-          сроках" — заменено на реально работающую форму (GuestQuickDeadlinePrompt),
-          иначе это осталось бы только обещанием, которое 0 из 142 гостей
-          сами не пошли выполнять. */}
-      <GuestQuickDeadlinePrompt />
-
-      <DocumentsPackOffer violations={result.violations} />
-
-      <WebsiteCheckOffer
-        url={websiteUrl} setUrl={setWebsiteUrl}
-        email={websiteEmail} setEmail={setWebsiteEmail}
-        acceptedTerms={websiteAcceptedTerms} setAcceptedTerms={setWebsiteAcceptedTerms}
-        onPay={onPayWebsiteCheck} paying={payingWebsiteCheck} error={websiteCheckError}
-      />
-
       <div ref={payCardRef}>
       <Card>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Заключение — {PRICE_RUB} ₽</div>
+        <PlanChoice plan={plan} setPlan={setPlan} docsAddon={docsAddon} covered={covered} quote={promoQuote} />
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
-          PDF по каждому найденному нарушению: штраф и статья закона, на чём основано требование, план
-          устранения и список обязательных документов — пришлём на почту. Разовая оплата, без подписки.
-          В подарок — месяц полного доступа к кабинету: план устранения списком дел и напоминания о сроках.
-          Карту не сохраняем, ничего не спишется само.
+          Разовая оплата, без подписки. В подарок — месяц полного доступа к кабинету: план устранения списком
+          дел и напоминания о сроках. Карту не сохраняем, ничего не спишется само.
         </div>
+        <AfterPaymentNote plan={docsAddon ? plan : 'report'} innUsed={innUsed} />
         {/* Ссылка на уже существующий пример (backend/src/scripts/
             generateSampleReport.js, 13.08.2026) — 2 нарушения из 8 раскрыты
             полностью (штраф/статья/решение), остальные 6 честно заблокированы
@@ -746,55 +647,186 @@ function ResultStep({
           <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
         </label>
         <PromoField
-          input={promoInput} setInput={setPromoInput} promo={promo} error={promoError}
-          checking={promoChecking} onApply={onApplyPromo} onRemove={onRemovePromo}
+          input={promoInput} setInput={setPromoInput} quote={promoQuote} planQuote={planQuote}
+          error={promoError} checking={promoChecking}
         />
         {error && <div className="alert alert-error">{error}</div>}
       </Card>
       </div>
       <StickyFooterButton onClick={handlePay} disabled={paying}>
-        {paying ? 'Переходим к оплате…' : `Оплатить и получить заключение — ${promo ? promo.finalRub : PRICE_RUB} ₽`}
+        {paying ? 'Переходим к оплате…' : `${payLabel} — ${rub(priceRub)}`}
       </StickyFooterButton>
-      {/* 02.09.2026, живой разбор воронки: раньше эта ссылка стояла прямо
-          над платной кнопкой, тем же цветом и весом (C.primary, стрелка →),
-          что делало её визуально равноценной альтернативой оплате — из 47
-          дошедших до этого экрана заплатили 2-3. Перенесена под sticky-кнопку
-          оплаты, приглушённым цветом, без стрелки — доступна тому, кто
-          специально её ищет, не конкурирует с оплатой за внимание того, кто
-          ещё не решил. */}
-      {claimed ? (
-        <div style={{ fontSize: 12, color: C.green, fontWeight: 600, textAlign: 'center', marginTop: 12 }}>✓ Письмо со ссылкой отправлено на {email}</div>
-      ) : (
-        <button
-          onClick={onClaimFree}
-          disabled={claiming}
-          style={{ display: 'block', width: '100%', background: 'none', border: 'none', color: C.subtle, fontSize: 12, cursor: 'pointer', padding: 0, marginTop: 12, textAlign: 'center' }}
-        >
-          {claiming ? 'Отправляем…' : 'Не готовы платить сейчас — сохранить результат бесплатно'}
-        </button>
-      )}
+      {/* 24.10.2026 (решение владельца): кто не купил — в приложение. Раньше
+          здесь была мелкая серая ссылка «сохранить результат бесплатно» (из 21
+          после деплоя 14.10 — 0 нажатий) и выше карточка «впишите дату ЭЦП»
+          (0 из 142). Теперь отдельная карточка: claim (почта и согласие из
+          формы выше), сразу за ним — пароль и вход, без похода в почту. */}
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Не готовы платить — откройте приложение бесплатно</div>
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
+          Результат теста уже внутри, проходить заново не нужно. Месяц полного доступа без карты: список дел по
+          найденному, «Мои сроки» с напоминаниями. Нужна только почта из формы выше и пароль.
+        </div>
+        {claimed ? (
+          <SetPasswordForm email={email} />
+        ) : (
+          <Btn small variant="secondary" onClick={handleClaim} disabled={claiming}>
+            {claiming ? 'Отправляем…' : 'Открыть приложение бесплатно'}
+          </Btn>
+        )}
+      </Card>
     </div>
   );
 }
 
-// Возврат со страницы оплаты ЮKassa (checkout-one-time, returnPath='/audit'
-// для гостей, см. subscription.routes.js) — сама страница ничего не знает
-// о статусе платежа (вебхук асинхронный, а у гостя нет пароля, чтобы
-// перезайти и проверить) — просто честно объясняем, что письмо придёт,
-// без попытки опрашивать статус.
+// Что будет после оплаты — до оплаты (24.10.2026, владелец: путь длиннее
+// прежнего «пришлём на почту», предупредить заранее и объяснить, что анкета
+// заполнится за человека). innUsed — указал ИНН в начале теста: реквизиты из
+// реестра уже лежат в анкете документов (outside-watch/service.js).
+function AfterPaymentNote({ plan, innUsed }) {
+  const docs = plan !== 'report';
+  return (
+    <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 14, padding: '10px 12px', borderRadius: 10, background: C.surface }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Что будет после оплаты</div>
+      <div style={{ color: C.secondary }}>
+        Вернётесь на эту страницу, придумаете пароль — и сразу откроется кабинет.
+        {docs
+          ? innUsed
+            ? ' Документы собираются из одной анкеты: название и реквизиты по вашему ИНН уже подставлены, останется ответить на несколько вопросов про ваш бизнес.'
+            : ' Документы собираются из одной анкеты: реквизиты вводятся один раз — сразу на все документы.'
+          : ' Там план устранения по каждому нарушению.'}
+        {plan !== 'docs' && ' Заключение в PDF придёт и на почту.'}
+      </div>
+    </div>
+  );
+}
+
+// Гостевой токен переживает уход на страницу ЮKassa (24.10.2026): без него
+// вернувшийся не смог бы сразу поставить пароль. sessionStorage — только эта
+// вкладка; удаляется после входа.
+const GUEST_TOKEN_KEY = 'bb_guest_audit_token';
+
+function rememberGuestToken() {
+  try {
+    const auth = guestApi.defaults.headers.common.Authorization;
+    if (auth) sessionStorage.setItem(GUEST_TOKEN_KEY, auth);
+  } catch { /* приватный режим — вернётся старый путь через письмо */ }
+}
+
+function restoreGuestToken() {
+  try {
+    const auth = sessionStorage.getItem(GUEST_TOKEN_KEY);
+    if (auth) guestApi.defaults.headers.common.Authorization = auth;
+    return !!auth;
+  } catch {
+    return false;
+  }
+}
+
+// Пароль прямо здесь → обычная сессия приложения (тот же localStorage, что у
+// входа, context/AuthContext.jsx applyAuthResult) → кабинет. Это осознанный
+// вход: если в браузере была другая сессия, она заменится, как при логине.
+function SetPasswordForm({ email }) {
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function save() {
+    if (password.length < 8) {
+      setError('Пароль должен быть не короче 8 символов');
+      return;
+    }
+    setError('');
+    setSaving(true);
+    try {
+      const { data } = await guestApi.post('/platform/anonymous-audit/set-password', { password });
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('deviceToken', data.deviceToken);
+      localStorage.removeItem('currentCompany');
+      try { sessionStorage.removeItem(GUEST_TOKEN_KEY); } catch { /* не критично */ }
+      window.location.href = `${import.meta.env.BASE_URL}security`;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не получилось — попробуйте ещё раз');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Field label={email ? `Придумайте пароль — вход по почте ${email}` : 'Придумайте пароль'}>
+        <TextInput
+          type="password" autoComplete="new-password" value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+        />
+      </Field>
+      {error && <div className="alert alert-error">{error}</div>}
+      <Btn small onClick={save} disabled={saving}>{saving ? 'Входим…' : 'Войти в кабинет'}</Btn>
+    </>
+  );
+}
+
+// Возврат со страницы оплаты ЮKassa (returnUrl '/audit?payment=done' для
+// гостей). Вебхук асинхронный — спрашиваем сервер раз в 3 секунды, пока
+// оплата не подтвердится (до 3 минут), и сразу предлагаем пароль. Нет
+// гостевого токена (другая вкладка, приватный режим) или не дождались —
+// прежний текст: письмо со ссылкой придёт на почту.
 function DoneStep() {
+  const [state, setState] = useState(() => (restoreGuestToken() ? 'waiting' : 'email')); // waiting | paid | email
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (state !== 'waiting') return undefined;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries += 1;
+      try {
+        const { data } = await guestApi.get('/platform/anonymous-audit/payment-status');
+        if (data.paid) {
+          setEmail(data.email);
+          setState('paid');
+          return;
+        }
+      } catch { /* сеть моргнула — следующая попытка */ }
+      if (tries >= 60) setState('email');
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [state]);
+
+  if (state === 'paid') {
+    return (
+      <Card>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Оплата прошла</div>
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
+          Придумайте пароль — и сразу откроется кабинет: план устранения списком дел, месяц полного доступа в
+          подарок и, если брали документы, анкета для них. Заключение в PDF придёт и на почту.
+        </div>
+        <SetPasswordForm email={email} />
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Оплата обрабатывается</div>
-      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
-        Обычно это занимает не больше пары минут. Как только оплата подтвердится, результат придёт на
-        указанную почту (отчёт по тесту, проверка сайта или ссылка для входа к документам — смотря что оплачивали) — проверьте папку "Спам",
-        если письмо не появится в течение 10 минут.
-      </div>
-      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 10 }}>
-        Если оплачивали заключение — в письме будет ссылка для входа в кабинет. Там ваш план устранения списком
-        дел и месяц полного доступа в подарок.
-      </div>
+      {state === 'waiting' ? (
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+          Ждём подтверждения от банка — обычно несколько секунд. Не закрывайте страницу: как только оплата
+          пройдёт, здесь появится вход в кабинет.
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+            Обычно это занимает не больше пары минут. Как только оплата подтвердится, результат придёт на
+            указанную почту — проверьте папку "Спам", если письмо не появится в течение 10 минут.
+          </div>
+          <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 10 }}>
+            Заключение будет во вложении. В письме — ссылка для входа в кабинет: там ваш план устранения списком
+            дел, месяц полного доступа в подарок и, если брали документы, анкета для них.
+          </div>
+        </>
+      )}
       {/* 12.09.2026, прямой запрос владельца: способ связаться, если после
           оплаты письмо всё равно не пришло. */}
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
@@ -835,11 +867,24 @@ export default function AnonymousAudit() {
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
 
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [websiteEmail, setWebsiteEmail] = useState('');
-  const [websiteAcceptedTerms, setWebsiteAcceptedTerms] = useState(false);
-  const [payingWebsiteCheck, setPayingWebsiteCheck] = useState(false);
-  const [websiteCheckError, setWebsiteCheckError] = useState('');
+  // Что оплачивают с экрана результата (24.10.2026): 'bundle' | 'report' | 'docs'.
+  // Документы — только если пакет что-то закрывает и ещё не куплен.
+  const [plan, setPlan] = useState('report');
+  const [docsAddon, setDocsAddon] = useState(null);
+  const covered = (result?.violations || []).filter((v) => v.inDocumentsPack && v.status !== 'resolved');
+  useEffect(() => {
+    if (covered.length === 0) return;
+    guestApi
+      .get('/platform/addons')
+      .then((res) => {
+        const addon = res.data.find((a) => a.addonKey === 'document_templates');
+        if (addon && !addon.purchased && addon.bundleWithReportPriceRub) {
+          setDocsAddon(addon);
+          setPlan('bundle');
+        }
+      })
+      .catch(() => {});
+  }, [covered.length]);
 
   // «Ваш бизнес снаружи» (22.10.2026): ИНН на первом экране, находки на результате.
   const [innEnabled, setInnEnabled] = useState(false);
@@ -946,33 +991,13 @@ export default function AnonymousAudit() {
     }
   }
 
-  // Промокод на отчёт (09.10.2026) — основной поток идёт через этот тест,
-  // поэтому поле здесь, перед оплатой. Сервер проверяет код ещё раз сам
-  // при /checkout-one-time — сумма в кнопке и в ЮKassa не разойдутся.
+  // Промокод (09.10.2026; 24.10.2026 — на любой вариант, цена меняется сразу).
+  // Сервер проверяет код ещё раз сам при чек-ауте — сумма в кнопке и в ЮKassa
+  // не разойдутся.
   const [promoInput, setPromoInput] = useState('');
-  const [promo, setPromo] = useState(null);
-  const [promoError, setPromoError] = useState('');
-  const [promoChecking, setPromoChecking] = useState(false);
-
-  async function applyPromo() {
-    if (!promoInput.trim()) return;
-    setPromoChecking(true);
-    setPromoError('');
-    try {
-      const { data } = await guestApi.post('/platform/subscription/promo/check', { code: promoInput, appliesTo: 'report' });
-      setPromo(data);
-    } catch (err) {
-      setPromo(null);
-      setPromoError(err.response?.data?.error || 'Не удалось проверить промокод');
-    } finally {
-      setPromoChecking(false);
-    }
-  }
-  function removePromo() {
-    setPromo(null);
-    setPromoInput('');
-    setPromoError('');
-  }
+  const { quote: promoQuote, error: promoError, checking: promoChecking } = usePromoQuote(guestApi, promoInput);
+  // Код уходит в оплату, только если подошёл к выбранному варианту.
+  const promoCodeForPlan = promoQuote?.[docsAddon ? plan : 'report']?.finalRub != null ? promoQuote.code : null;
 
   async function pay() {
     if (!email || !email.includes('@')) {
@@ -986,14 +1011,25 @@ export default function AnonymousAudit() {
     setError('');
     setPaying(true);
     try {
-      const { data } = await guestApi.post('/platform/subscription/checkout-one-time', {
-        reportId,
-        email,
-        acceptedTerms,
-        analyticsConsent,
-        ...(promo ? { promoCode: promo.code } : {}),
-      });
+      // Набор и документы — через чек-аут надстроек (addons.routes.js), набор
+      // с привязкой отчёта; заключение отдельно — прежний разовый чек-аут.
+      const { data } = plan === 'report' || !docsAddon
+        ? await guestApi.post('/platform/subscription/checkout-one-time', {
+          reportId,
+          email,
+          acceptedTerms,
+          analyticsConsent,
+          ...(promoCodeForPlan ? { promoCode: promoCodeForPlan } : {}),
+        })
+        : await guestApi.post('/platform/addons/document_templates/checkout', {
+          email,
+          acceptedTerms,
+          analyticsConsent,
+          ...(plan === 'bundle' ? { withReportId: reportId } : {}),
+          ...(promoCodeForPlan ? { promoCode: promoCodeForPlan } : {}),
+        });
       reachGoal('checkout_start');
+      rememberGuestToken();
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
@@ -1022,37 +1058,6 @@ export default function AnonymousAudit() {
       setError(err.response?.data?.error || 'Не удалось отправить письмо');
     } finally {
       setClaiming(false);
-    }
-  }
-
-  // Тот же чек-аут, что и кнопка в ЛК подписчика (Security.jsx →
-  // WebsiteCheckCard), но напрямую на оплату — у гостя нет подписки, ждать
-  // 402/429 незачем. source='test' — для аналитики (website_checks.source),
-  // на доступ не влияет.
-  async function payWebsiteCheck() {
-    if (!websiteUrl.trim()) return;
-    if (!websiteEmail || !websiteEmail.includes('@')) {
-      setWebsiteCheckError('Укажите email');
-      return;
-    }
-    if (!websiteAcceptedTerms) {
-      setWebsiteCheckError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
-      return;
-    }
-    setWebsiteCheckError('');
-    setPayingWebsiteCheck(true);
-    try {
-      const { data } = await guestApi.post('/platform/addons/website_check/checkout', {
-        url: websiteUrl.trim(),
-        email: websiteEmail,
-        acceptedTerms: websiteAcceptedTerms,
-        source: 'test',
-      });
-      reachGoal('checkout_start');
-      window.location.href = data.confirmationUrl;
-    } catch (err) {
-      setWebsiteCheckError(err.response?.data?.error || 'Не удалось начать оплату');
-      setPayingWebsiteCheck(false);
     }
   }
 
@@ -1108,13 +1113,10 @@ export default function AnonymousAudit() {
           onPay={pay} paying={paying}
           onClaimFree={claimFree} claiming={claiming} claimed={claimed}
           error={error}
-          promoInput={promoInput} setPromoInput={setPromoInput} promo={promo} promoError={promoError}
-          promoChecking={promoChecking} onApplyPromo={applyPromo} onRemovePromo={removePromo}
-          websiteUrl={websiteUrl} setWebsiteUrl={setWebsiteUrl}
-          websiteEmail={websiteEmail} setWebsiteEmail={setWebsiteEmail}
-          websiteAcceptedTerms={websiteAcceptedTerms} setWebsiteAcceptedTerms={setWebsiteAcceptedTerms}
-          onPayWebsiteCheck={payWebsiteCheck} payingWebsiteCheck={payingWebsiteCheck}
-          websiteCheckError={websiteCheckError}
+          promoInput={promoInput} setPromoInput={setPromoInput} promoQuote={promoQuote}
+          promoError={promoError} promoChecking={promoChecking}
+          plan={plan} setPlan={setPlan} docsAddon={docsAddon} covered={covered}
+          innUsed={!!prefill?.found}
         />
       )}
       {!paymentDone && step === 'result' && outsideFindings && outsideFindings.length > 0 && (

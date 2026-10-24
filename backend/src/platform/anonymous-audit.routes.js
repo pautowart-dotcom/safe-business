@@ -13,7 +13,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
-const { signCompanyToken } = require('../core/jwt');
+const { signCompanyToken, signBaseToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart } = require('../core/loginRateLimit');
@@ -197,6 +197,76 @@ router.post(
   })
 );
 
+// Сразу в кабинет, без похода в почту (24.10.2026, решение владельца).
+// Страница теста после возврата с ЮKassa спрашивает, прошла ли оплата
+// (вебхук асинхронный), и как только прошла — предлагает придумать пароль.
+// Тот же гостевой токен, что вёл тест, — другого способа доказать, что это
+// тот же человек, здесь не нужно: почту и согласие он ввёл в этой же вкладке.
+router.get(
+  '/payment-status',
+  requireAuth,
+  requireTenant,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM subscription_payments WHERE company_id = $1 AND status = 'succeeded' AND report_id IS NOT NULL
+         UNION ALL
+         SELECT 1 FROM addon_purchases WHERE company_id = $1 AND status = 'succeeded'
+       ) AS paid`,
+      [req.tenant.companyId]
+    );
+    res.json({ paid: !!rows[0].paid, email: req.user.email });
+  })
+);
+
+// Придумать пароль прямо на странице теста — после оплаты или после «открыть
+// приложение бесплатно» (claim). Условие — гость уже указал настоящую почту и
+// принял оферту (это делают и чек-аут, и claim). Почта при этом не
+// подтверждена кодом — решение владельца: пускаем сразу, а вход с другого
+// устройства всё равно попросит код с этой почты (auth.routes.js,
+// loginOrRequireVerification). Это устройство запоминаем как подтверждённое.
+router.post(
+  '/set-password',
+  requireAuth,
+  requireTenant,
+  asyncHandler(async (req, res) => {
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Пароль должен быть не короче 8 символов' });
+    }
+    const { rows: userRows } = await pool.query(
+      'SELECT is_guest, email, accepted_terms_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const guest = userRows[0];
+    if (!guest?.is_guest) {
+      return res.status(400).json({ error: 'Пароль уже установлен — войдите в кабинет' });
+    }
+    if (!guest.accepted_terms_at || guest.email.endsWith('@guest.business-safe.internal')) {
+      return res.status(400).json({ error: 'Сначала укажите почту' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    // date_trunc до секунды: новый токен ниже подписан в ту же секунду, а
+    // core/middleware/auth.js отклоняет токены, выданные раньше смены пароля
+    // (iat в секундах). Гостевой токен этой вкладки после этого не нужен.
+    await pool.query(
+      `UPDATE users SET password_hash = $2, password_changed_at = date_trunc('second', now()), is_guest = false WHERE id = $1`,
+      [req.user.id, passwordHash]
+    );
+
+    const deviceToken = crypto.randomBytes(32).toString('hex');
+    const deviceTokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+    await pool.query('INSERT INTO trusted_devices (user_id, device_token_hash) VALUES ($1, $2)', [req.user.id, deviceTokenHash]);
+
+    const { rows: users } = await pool.query(
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    res.json({ token: signBaseToken(req.user.id), user: users[0], deviceToken });
+  })
+);
+
 // Вызывается из вебхука ЮKassa (subscription.routes.js) после того, как
 // разовая покупка отчёта (миграция 0091) успешно прошла — но только если
 // платит гость (is_guest), у которого нет пароля и, соответственно, нет
@@ -205,7 +275,9 @@ router.post(
 // уже подтверждён тем, что на него пришло письмо от ЮKassa/чек) + ссылку
 // "установить пароль", чтобы данные не пропали, если человек решит стать
 // обычным пользователем платформы позже.
-async function fulfillGuestReport({ companyId, reportId }) {
+// withDocuments — набор «заключение + документы» (24.10.2026): то же письмо,
+// плюс абзац, где заполнить анкету для документов.
+async function fulfillGuestReport({ companyId, reportId, withDocuments = false }) {
   const { rows: ownerRows } = await pool.query(
     `SELECT u.id AS user_id, u.email, u.is_guest
      FROM memberships m JOIN users u ON u.id = m.user_id
@@ -257,11 +329,19 @@ async function fulfillGuestReport({ companyId, reportId }) {
       `медкнижек, огнетушителей, СОУТ и другими документами) — установите пароль по ссылке, вводить тест заново ` +
       `не понадобится:</p>`;
 
+  const documentsHtml = withDocuments
+    ? `<p>Документы студии собираются из данных вашего бизнеса — название, ИНН, адрес, что есть на сайте. Это одна ` +
+      `анкета в кабинете: «Безопасность» → «Обзор» → «Шаблоны документов», заполненное сохраняется само.</p>`
+    : '';
+
   await sendMail({
     to: owner.email,
-    subject: 'Ваше заключение по тесту безопасности готово — «Безопасный бизнес»',
+    subject: withDocuments
+      ? 'Заключение готово, документы ждут анкету — «Безопасный бизнес»'
+      : 'Ваше заключение по тесту безопасности готово — «Безопасный бизнес»',
     html:
       `<p>Спасибо за оплату! Заключение по тесту безопасности — во вложении (${reportRow.report_number}.pdf).</p>` +
+      documentsHtml +
       nextStepHtml +
       `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
     attachments: [{ filename: `${reportRow.report_number}.pdf`, content: pdfBuffer }],

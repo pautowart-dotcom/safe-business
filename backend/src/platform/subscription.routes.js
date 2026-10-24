@@ -10,7 +10,8 @@ const { notifyAddonPurchase } = require('./addons.routes');
 const { handleAiAdvisorSubscriptionWebhook } = require('./ai-advisor-subscription.routes');
 const { fulfillGuestReport, fulfillGuestDocuments } = require('./anonymous-audit.routes');
 const { runScanForPurchase } = require('./website-check.routes');
-const { evaluatePromo } = require('../core/promoCodes');
+const { evaluatePromo, evaluateBundlePromo } = require('../core/promoCodes');
+const { priceForCompany, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
 const { createRateLimiter } = require('../core/rateLimit');
 
 // Против перебора кодов (09.10.2026): гостевой тест открыт любому, токен без
@@ -80,6 +81,42 @@ router.post(
       if (err.status) return res.status(err.status).json({ error: err.message });
       throw err;
     }
+  })
+);
+
+// Промокод на экране результата теста (24.10.2026, решение владельца: на
+// любой вариант, цена меняется сразу на экране). Один запрос — цены всех
+// трёх вариантов: заключение, документы, набор. Вариант, к которому код не
+// подходит, приходит с error — фронт показывает его у этого варианта. Те же
+// проверки, что в самих чек-аутах (checkout-one-time, addons.routes.js).
+router.post(
+  '/promo/quote',
+  promoRateLimit,
+  requireAuth,
+  requireTenant,
+  requireRole('owner', 'admin'),
+  asyncHandler(async (req, res) => {
+    const companyId = req.tenant.companyId;
+    const { rows } = await pool.query('SELECT franchise_group_id FROM companies WHERE id = $1', [companyId]);
+    const docsPriceRub = priceForCompany('document_templates', { inNetwork: !!rows[0]?.franchise_group_id }).priceRub;
+    const code = req.body?.code;
+
+    async function quote(fn) {
+      try {
+        const { promo, finalRub } = await fn();
+        return { code: promo.code, finalRub };
+      } catch (err) {
+        if (err.status) return { error: err.message };
+        throw err;
+      }
+    }
+    const report = await quote(() => evaluatePromo({ code, companyId, appliesTo: 'report', priceRub: SUBSCRIPTION_PRICE_RUB }));
+    const docs = await quote(() => evaluatePromo({ code, companyId, appliesTo: 'templates', priceRub: docsPriceRub }));
+    const bundle = await quote(() => evaluateBundlePromo({
+      code, companyId, reportPriceRub: SUBSCRIPTION_PRICE_RUB, docsPriceRub, bundlePriceRub: REPORT_BUNDLE_PRICE_RUB,
+    }));
+    if (report.error && docs.error && bundle.error) return res.status(400).json({ error: bundle.error });
+    res.json({ code: (report.code || docs.code || bundle.code), report, docs, bundle });
   })
 );
 
@@ -427,11 +464,11 @@ router.post(
 // (см. вызов выше), не доверяем повторно телу исходного запроса.
 async function handleAddonWebhook(paymentId, payment, res) {
   const { rows } = await pool.query(
-    `SELECT company_id, addon_key, amount_rub FROM addon_purchases WHERE yookassa_payment_id = $1`,
+    `SELECT company_id, addon_key, amount_rub, report_id FROM addon_purchases WHERE yookassa_payment_id = $1`,
     [paymentId]
   );
   if (rows.length === 0) return res.status(200).end();
-  const { company_id: companyId, addon_key: addonKey, amount_rub: amountRub } = rows[0];
+  const { company_id: companyId, addon_key: addonKey, amount_rub: amountRub, report_id: reportId } = rows[0];
 
   if (payment.status === 'succeeded') {
     // Повторное уведомление ЮKassa — ничего не делаем второй раз (иначе
@@ -442,9 +479,14 @@ async function handleAddonWebhook(paymentId, payment, res) {
       [paymentId]
     );
     if (firstTime.rowCount === 0) return res.status(200).end();
-    await notifyAddonPurchase({ companyId, addonKey, amountRub });
+    await notifyAddonPurchase({ companyId, addonKey, amountRub, withReport: !!reportId });
 
     if (addonKey === 'document_templates') {
+      // Набор «заключение + документы» (24.10.2026, addons.routes.js) —
+      // заключение открываем так же, как разовую покупку отчёта выше.
+      if (reportId) {
+        await pool.query(`UPDATE security_reports SET unlocked_without_subscription = true WHERE id = $1`, [reportId]);
+      }
       // 21.10.2026 (план 20.10, решение владельца 19.10): к пакету — месяц
       // подписки в подарок, тем же правилом, что и к заключению выше: только
       // из триала, настоящую подписку не трогаем.
@@ -454,8 +496,15 @@ async function handleAddonWebhook(paymentId, payment, res) {
         [companyId]
       );
       // Гость с экрана результата теста — без пароля ему не войти и не
-      // заполнить анкету; no-op для обычных покупателей.
-      fulfillGuestDocuments({ companyId }).catch((err) => console.error('fulfillGuestDocuments failed:', err));
+      // заполнить анкету; no-op для обычных покупателей. За набор — одно
+      // письмо: заключение во вложении и что дальше с документами.
+      if (reportId) {
+        fulfillGuestReport({ companyId, reportId, withDocuments: true }).catch((err) =>
+          console.error('fulfillGuestReport (bundle) failed:', err)
+        );
+      } else {
+        fulfillGuestDocuments({ companyId }).catch((err) => console.error('fulfillGuestDocuments failed:', err));
+      }
     }
 
     if (addonKey === 'website_check' && payment.metadata?.websiteCheckId) {

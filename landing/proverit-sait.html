@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
 <title>Проверка сайта на риски 152-ФЗ — Безопасный бизнес</title>
-<meta name="description" content="Проверка сайта на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта, согласие в формах, cookie. 490 ₽ разово, без регистрации." />
+<meta name="description" content="Проверка сайта на базовые риски по 152-ФЗ: HTTPS, политика конфиденциальности, оферта, согласие в формах, cookie. Входит в подписку «Безопасный бизнес»." />
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=2" />
 <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png?v=2" />
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=2" />
@@ -58,7 +58,7 @@
 
   <h1>Проверка сайта на риски 152-ФЗ</h1>
   <p class="lead">Быстрая проверка вашего сайта на базовые требования закона о персональных данных. Не юридическое заключение — предварительная проверка перед тем, как показывать сайт проверяющим или клиентам.</p>
-  <div class="price-badge">490 ₽ — разово, без подписки</div>
+  <div class="price-badge">Входит в подписку — раз в 30 дней</div>
 
   <ul class="checks-list">
     <li>HTTPS</li>
@@ -68,85 +68,12 @@
     <li>Уведомление о cookie</li>
   </ul>
 
-  <form id="check-form">
-    <fieldset>
-      <legend>Адрес сайта</legend>
-      <input type="text" id="url" required placeholder="example.ru">
-    </fieldset>
-    <fieldset>
-      <legend>Email — куда пришлём результат</legend>
-      <input type="email" id="email" required placeholder="you@example.com">
-    </fieldset>
-
-    <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.5; margin:16px 0 8px; cursor:pointer;">
-      <input type="checkbox" id="accepted-terms" required style="margin-top:2px;">
-      <span>Я принимаю и согласен с условиями <a href="/lk/legal/user_agreement" target="_blank" rel="noreferrer">пользовательского соглашения</a></span>
-    </label>
-    <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.5; margin:0 0 16px; cursor:pointer;">
-      <input type="checkbox" id="accepted-pd" required style="margin-top:2px;">
-      <span>Я <a href="/lk/legal/consent_order" target="_blank" rel="noreferrer">согласен на обработку</a> моих персональных данных в соответствии с условиями <a href="/lk/legal/privacy_policy" target="_blank" rel="noreferrer">политики конфиденциальности</a></span>
-    </label>
-    <button type="submit" class="btn" id="submit-btn">Проверить за 490 ₽</button>
-    <div class="error" id="error" hidden></div>
-    <div class="hint">Оплата через ЮKassa. Результат придёт на почту обычно в течение нескольких минут.</div>
-    <div class="disclaimer">Сервис не заменяет юриста — результат не является юридическим заключением.</div>
-  </form>
+  <!-- 24.10.2026 (решение владельца): отдельно за 490 ₽ больше не продаём —
+       проверка сайта входит в подписку. Страница остаётся для старых ссылок. -->
+  <p class="lead">Отдельно проверку сайта мы больше не продаём — она входит в подписку: раз в 30 дней, результат в личном кабинете. Первый месяц после бесплатного теста — полный доступ без карты.</p>
+  <a class="btn" href="/lk/audit">Пройти бесплатный тест</a>
+  <div class="disclaimer">Сервис не заменяет юриста — результат не является юридическим заключением.</div>
 </main>
-<script>
-(function () {
-  var form = document.getElementById('check-form');
-  var submitBtn = document.getElementById('submit-btn');
-  var errorBox = document.getElementById('error');
-
-  function showError(msg) {
-    errorBox.textContent = msg;
-    errorBox.hidden = false;
-  }
-
-  // Тихая обкатка теста (ANONYMOUS_AUDIT_ENABLED) прикрывает и /start — тот
-  // же самый флаг, тот же понятный текст, что и в landing/start.html.
-  function errorMessage(data, fallback) {
-    return data.error === 'not_launched' ? 'Этот продукт ещё не запущен — загляните позже.' : (data.error || fallback);
-  }
-
-  form.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    errorBox.hidden = true;
-    var url = document.getElementById('url').value.trim();
-    var email = document.getElementById('email').value.trim();
-    var acceptedTerms = (document.getElementById('accepted-terms').checked && document.getElementById('accepted-pd').checked);
-    if (!url) return showError('Укажите адрес сайта');
-    if (!email) return showError('Укажите email');
-    if (!acceptedTerms) return showError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Секунду…';
-    try {
-      // Тихо заводит гостевую компанию/пользователя (anonymous-audit.routes.js,
-      // тот же механизм, что у бесплатного теста /audit) — токен нужен только
-      // на один следующий запрос, дальше результат уходит на email, хранить
-      // токен в браузере не нужно.
-      var startRes = await fetch('/api/platform/anonymous-audit/start', { method: 'POST' });
-      var startData = await startRes.json();
-      if (!startRes.ok) throw new Error(errorMessage(startData, 'Не получилось начать проверку'));
-
-      var checkoutRes = await fetch('/api/platform/addons/website_check/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + startData.token },
-        body: JSON.stringify({ url: url, email: email, acceptedTerms: acceptedTerms, source: 'standalone' }),
-      });
-      var checkoutData = await checkoutRes.json();
-      if (!checkoutRes.ok) throw new Error(errorMessage(checkoutData, 'Не получилось создать оплату'));
-      if (typeof window.ym === 'function') window.ym(112875830, 'reachGoal', 'checkout_start');
-      window.location.href = checkoutData.confirmationUrl;
-    } catch (e) {
-      showError(e.message);
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Проверить за 490 ₽';
-    }
-  });
-})();
-</script>
 <script src="/cookie-notice.js" defer></script>
 </body>
 </html>

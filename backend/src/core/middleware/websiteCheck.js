@@ -18,10 +18,8 @@ const requireWebsiteCheckAccess = asyncHandler(async (req, res, next) => {
     req.tenant.companyId,
   ]);
   if (rows[0]?.freeAddons || (await isSubscriptionActive(req.tenant.companyId))) return next();
-  return res.status(402).json({
-    error: 'Проверка сайта доступна по подписке или разовой оплатой',
-    requiresAddon: 'website_check',
-  });
+  // Разовой оплаты больше нет (24.10.2026, core/addons.js) — только подписка.
+  return res.status(402).json({ error: 'Проверка сайта входит в подписку — раз в 30 дней' });
 });
 
 // Владелец решил (03.09.2026): бесплатный бонус подписчикам — не безлимит

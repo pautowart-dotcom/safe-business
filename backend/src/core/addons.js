@@ -31,11 +31,21 @@ const ADDON_CATALOG = {
     label: 'Документы студии',
     priceRub: 4990,
   },
+  // 24.10.2026 (решение владельца): отдельно больше не продаём — проверка
+  // сайта только в подписке (раз в 30 дней, core/middleware/websiteCheck.js).
+  // Запись остаётся ради прошлых покупок (вебхук, название в push).
   website_check: {
     label: 'Проверка сайта',
     priceRub: 490,
+    forSale: false,
   },
 };
+
+// Набор «заключение + документы студии» одним платежом (24.10.2026, решение
+// владельца): 1990 + 4990 = 6980 ₽ по отдельности, вместе — 5990 ₽. Без
+// скидки точке сети — цена набора уже ниже суммы. Промокоды — по правилу
+// core/promoCodes.js evaluateBundlePromo.
+const REPORT_BUNDLE_PRICE_RUB = 5990;
 
 function getAddon(addonKey) {
   return ADDON_CATALOG[addonKey] || null;
@@ -55,4 +65,4 @@ function priceForCompany(addonKey, { inNetwork }) {
   return { priceRub: addon.priceRub, networkDiscountPercent: 0 };
 }
 
-module.exports = { ADDON_CATALOG, getAddon, priceForCompany, NETWORK_DISCOUNT_PERCENT };
+module.exports = { ADDON_CATALOG, getAddon, priceForCompany, NETWORK_DISCOUNT_PERCENT, REPORT_BUNDLE_PRICE_RUB };
