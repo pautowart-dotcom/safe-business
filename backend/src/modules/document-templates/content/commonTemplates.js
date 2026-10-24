@@ -245,7 +245,117 @@ const EQUIPMENT_FIELDS = [
   { key: 'equipmentResponsible', label: 'Ответственный за эксплуатацию: ФИО и должность', type: 'text', required: true },
 ];
 
+// «Уголок потребителя» — информация для клиентов в доступном месте. Три
+// варианта по тем правилам, что действуют для ниши (сверено по текстам на
+// garant.ru 24.10.2026): бытовые услуги — ст. 9, 10 ЗоЗПП и п. 2, 3 Правил
+// бытового обслуживания (ПП № 1514, действуют до 01.01.2027), книга отзывов —
+// там же; общепит — п. 6, 8, 9 Правил оказания услуг общепита (ПП № 1515);
+// остальные (спорт, дети, прочее) — только ст. 9, 10 ЗоЗПП.
+const CORNER_VARIANT = {
+  beauty: 'household', repair: 'household', cleaning: 'household', pets: 'household', auto: 'household',
+  food: 'food', sport: 'general', kids: 'general', generic: 'general',
+};
+
+const CORNER_SAFETY = {
+  beauty: 'Перед услугой сообщите мастеру об аллергии, кожных заболеваниях, беременности и других противопоказаниях. Мастер вправе отказать в услуге, если её оказание может навредить вашему здоровью.',
+  repair: 'При сдаче вещи (изделия) сообщите о её особенностях, ранее проведённых ремонтах и скрытых дефектах. Исполнитель вправе отказаться от работы, если она может привести к порче вещи.',
+  cleaning: 'Перед уборкой сообщите о хрупких и ценных предметах, покрытиях, требующих особого ухода, и о средствах, на которые у вас аллергия.',
+  pets: 'Перед услугой сообщите о здоровье, поведении и особенностях вашего питомца. Исполнитель вправе отказать в услуге, если она может навредить животному.',
+  auto: 'При сдаче автомобиля сообщите об известных неисправностях. На время работ клиентам не разрешается находиться в рабочей зоне.',
+  food: 'Сведения о составе блюд, основных ингредиентах и аллергенах можно уточнить у персонала.',
+  sport: 'Перед началом занятий сообщите о заболеваниях и противопоказаниях. Тренер вправе не допустить к занятию, если оно может навредить вашему здоровью.',
+  kids: 'Сообщите о здоровье, аллергиях и особенностях ребёнка. Порядок передачи ребёнка и его ухода с занятия — по договору.',
+  generic: 'Перед услугой сообщите о своих особенностях, которые важны для безопасности её оказания.',
+};
+
+function cornerBody(niche) {
+  const group = NICHE_GROUP[niche] || 'generic';
+  const variant = CORNER_VARIANT[group];
+  const rulesLine = {
+    household: 'Правила бытового обслуживания населения (постановление Правительства РФ от 21.09.2020 № 1514) и Закон РФ «О защите прав потребителей».',
+    food: 'Правила оказания услуг общественного питания (постановление Правительства РФ от 21.09.2020 № 1515) и Закон РФ «О защите прав потребителей». Тексты Правил и Закона находятся в этой папке.',
+    general: 'Закон РФ «О защите прав потребителей».',
+  }[variant];
+  const servicesSection = variant === 'food'
+    ? `# 2. Об услугах
+
+- Меню и прейскурант с ценами в рублях: {{servicesPlace}}.
+- В меню указаны наименования блюд, способы приготовления и основные ингредиенты, объём (вес) порций, пищевая ценность.
+- Условия обслуживания: {{serviceTerms}}.
+- ${CORNER_SAFETY.food}`
+    : `# 2. Об услугах
+
+- Перечень услуг и цены в рублях: {{servicesPlace}}.
+- Сроки оказания услуг: {{serviceTerms}}.
+- Образцы договоров (квитанций): прилагаются в этой папке.
+- Льготы: {{benefits}}.
+- ${CORNER_SAFETY[group]}`;
+  const bookSection = variant === 'general' ? '' : `
+
+# 3. Книга отзывов и предложений
+
+Книга отзывов и предложений выдаётся по первому требованию.`;
+  return `# 1. Об исполнителе
+
+- {{legalName}}
+- {{registration}}
+- Адрес (место нахождения): {{legalAddress}}
+- Адрес оказания услуг: {{serviceAddress}}
+- Режим работы: {{workHours}}
+- Телефон: {{phone}}{{licenseLine}}
+
+${servicesSection}${bookSection}
+
+# ${variant === 'general' ? 3 : 4}. Правила, по которым мы работаем
+
+${rulesLine}`;
+}
+
+const CORNER_FIELDS = [
+  { key: 'legalName', label: 'ФИО ИП или название ООО (как в выписке)', type: 'text', required: true },
+  { key: 'inn', label: 'ИНН', type: 'text', required: true },
+  { key: 'ogrnip', label: 'ОГРНИП / ОГРН', type: 'text', required: true },
+  { key: 'registrationAuthority', label: 'Для ИП: какая налоговая зарегистрировала (есть в выписке ЕГРИП). Пример: Межрайонная ИФНС России № 46 по г. Москве', type: 'text', required: false },
+  { key: 'legalAddress', label: 'Адрес (юридический адрес / адрес ИП)', type: 'text', required: true },
+  F.serviceAddress,
+  { key: 'workHours', label: 'Режим работы. Пример: ежедневно с 10:00 до 21:00', type: 'text', required: true },
+  { key: 'phone', label: 'Телефон для клиентов', type: 'text', required: true },
+  { key: 'servicesPlace', label: 'Где клиент видит цены. Пример: прейскурант — на стойке администратора и на сайте studio.ru', type: 'text', required: true, default: 'прейскурант прилагается' },
+  { key: 'serviceTerms', label: 'Сроки оказания услуг. Пример: согласовываются при записи', type: 'text', required: true, default: 'согласовываются при записи' },
+  { key: 'benefits', label: 'Льготы, если предоставляете по закону (обычно нет)', type: 'text', required: false },
+  { key: 'license', label: 'Лицензия — только если ваш вид деятельности лицензируется: номер, дата, кем выдана', type: 'text', required: false },
+];
+
+function cornerPrepare(values) {
+  const ogrnLabel = String(values.ogrnip || '').replace(/\D/g, '').length === 15 ? 'ОГРНИП' : 'ОГРН';
+  const isIp = ogrnLabel === 'ОГРНИП' || /^ИП\s|индивидуальн/i.test(String(values.legalName || ''));
+  return {
+    // blocks — вставляются до подстановки полей, перенос строки сохраняется
+    // (render.js applyPrepare); фигурные скобки убираем, чтобы ввод клиента
+    // не превратился в {{поле}}.
+    blocks: { licenseLine: values.license ? `\n- Лицензия: ${String(values.license).replace(/[{}]/g, '')}` : '' },
+    values: {
+      registration: `ИНН ${values.inn || ''}, ${ogrnLabel} ${values.ogrnip || ''}${isIp && values.registrationAuthority ? `, зарегистрирован(а): ${values.registrationAuthority}` : ''}`,
+      benefits: values.benefits || 'не предусмотрены',
+    },
+  };
+}
+
 const KINDS = {
+  consumer_corner: {
+    title: 'Уголок потребителя — информация для клиентов',
+    pdfTitle: 'Информация для потребителей',
+    lawReference: (niche) => ({
+      household: 'ст. 9, 10 Закона РФ «О защите прав потребителей»; п. 2, 3 Правил бытового обслуживания населения (ПП РФ № 1514)',
+      food: 'ст. 9, 10 Закона РФ «О защите прав потребителей»; п. 6, 8, 9 Правил оказания услуг общественного питания (ПП РФ № 1515)',
+      general: 'ст. 9, 10 Закона РФ «О защите прав потребителей»',
+    }[CORNER_VARIANT[NICHE_GROUP[niche] || 'generic']]),
+    documentCategory: 'Документы по работе с клиентами',
+    employerOnly: false,
+    fields: CORNER_FIELDS,
+    body: cornerBody,
+    prepare: cornerPrepare,
+  },
   fire_instruction: {
     title: 'Инструкция о мерах пожарной безопасности',
     lawReference: 'п. 2 и раздел XVIII (п. 392–394) Правил противопожарного режима в РФ, ПП РФ от 16.09.2020 № 1479',
@@ -284,7 +394,7 @@ function build(niche, kind) {
     title: k.title,
     pdfTitle: k.pdfTitle,
     ...DRAFT,
-    lawReference: k.lawReference,
+    lawReference: typeof k.lawReference === 'function' ? k.lawReference(niche) : k.lawReference,
     employerOnly: k.employerOnly,
     documentCategory: k.documentCategory,
     fields: k.fields,

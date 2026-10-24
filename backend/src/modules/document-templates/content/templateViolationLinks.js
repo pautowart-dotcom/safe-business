@@ -253,15 +253,17 @@ LINKS.universal = [
 const fs = require('fs');
 const path = require('path');
 const VIOLATIONS_DIR = path.join(__dirname, '../../security/content/violations');
-const COMMON_LINKS_BY_TITLE = {
-  'Инструкция о мерах пожарной безопасности': { kind: 'fire_instruction', title: 'Инструкция о мерах пожарной безопасности' },
-  'Ввод оборудования в эксплуатацию': { kind: 'equipment_act', title: 'Акт ввода оборудования в эксплуатацию' },
-};
+const COMMON_LINKS = [
+  { match: (t) => t === 'Инструкция о мерах пожарной безопасности', kind: 'fire_instruction', title: 'Инструкция о мерах пожарной безопасности' },
+  { match: (t) => t === 'Ввод оборудования в эксплуатацию', kind: 'equipment_act', title: 'Акт ввода оборудования в эксплуатацию' },
+  // у ниш разные хвосты названия («— для родителей», «, меню и книга отзывов»)
+  { match: (t) => t.startsWith('«Уголок потребителя»'), kind: 'consumer_corner', title: 'Уголок потребителя — информация для клиентов' },
+];
 for (const file of fs.readdirSync(VIOLATIONS_DIR)) {
   const { niche, violations } = require(path.join(VIOLATIONS_DIR, file));
   if (!niche || !violations) continue;
   for (const v of violations) {
-    const link = COMMON_LINKS_BY_TITLE[v.title];
+    const link = COMMON_LINKS.find((l) => l.match(v.title));
     if (!link) continue;
     (LINKS[niche] = LINKS[niche] || []).push({
       violationCode: v.code,

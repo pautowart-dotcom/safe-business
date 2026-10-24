@@ -49,6 +49,7 @@ const SAVED_DETAIL_KEYS = [
   // общие документы всех ниш (content/commonTemplates.js, 24.10.2026); данные
   // конкретного оборудования (акт ввода) не запоминаем — у каждого акта свои
   'headName', 'headPosition', 'fireResponsible', 'maxPeople', 'smoking',
+  'registrationAuthority', 'workHours', 'servicesPlace', 'serviceTerms', 'benefits', 'license',
 ];
 
 async function loadSavedDetails(companyId) {
