@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Фабрика маникюра — карточки</title>
+<style>
+  :root {
+    --bg: #f3ede6;
+    --ink: #2a2420;
+    --muted: #7d6f65;
+    --accent: #9c7b63;
+    --line: #d8ccc0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; background: var(--bg); }
+  body { font-family: "Segoe UI Light", "Segoe UI", sans-serif; color: var(--ink); }
+  .card { display: none; width: 1080px; height: 1920px; padding: 170px 110px 150px; flex-direction: column; position: relative; }
+  .card.on { display: flex; }
+  .card::before { content: ""; position: absolute; inset: 44px; border: 1.5px solid var(--line); pointer-events: none; }
+  .brand { font-family: "Segoe UI Semilight", "Segoe UI", sans-serif; font-size: 30px; letter-spacing: 12px; text-transform: uppercase; color: var(--accent); text-align: center; }
+  .rule { width: 90px; height: 1.5px; background: var(--accent); margin: 56px auto; }
+  h1 { font-family: Georgia, "Cambria", serif; font-weight: normal; font-size: 92px; line-height: 1.12; text-align: center; letter-spacing: -1px; }
+  .lead { font-size: 38px; line-height: 1.45; text-align: center; color: var(--muted); margin-top: 36px; }
+  .steps { margin: auto 0; padding-bottom: 40px; display: flex; flex-direction: column; gap: 74px; }
+  .step { display: grid; grid-template-columns: 130px 1fr; align-items: start; }
+  .num { font-family: Georgia, serif; font-size: 58px; color: var(--accent); line-height: 1; padding-top: 4px; }
+  .step h2 { font-family: "Segoe UI Semibold", "Segoe UI", sans-serif; font-weight: 600; font-size: 46px; line-height: 1.2; }
+  .step p { font-size: 39px; line-height: 1.45; color: var(--muted); margin-top: 14px; }
+  .foot { text-align: center; font-family: Georgia, serif; font-style: italic; font-size: 40px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<section class="card" id="c1">
+  <div class="brand">Фабрика маникюра</div>
+  <div class="rule"></div>
+  <h1>Как войти<br>в студию</h1>
+  <p class="lead">Три шага у двери —<br>и в студии остаются чистота и уют</p>
+  <div class="steps">
+    <div class="step"><div class="num">01</div><div><h2>Коврик у входа</h2><p>Пожалуйста, не проходите в&nbsp;уличной обуви дальше коврика</p></div></div>
+    <div class="step"><div class="num">02</div><div><h2>Банкетка слева от двери</h2><p>На ней удобно переобуться</p></div></div>
+    <div class="step"><div class="num">03</div><div><h2>Чёрная подставка</h2><p>Для вашей обуви</p></div></div>
+  </div>
+  <div class="foot">Спасибо, что бережёте<br>чистоту студии</div>
+</section>
+
+<section class="card" id="c2">
+  <div class="brand">Фабрика маникюра</div>
+  <div class="rule"></div>
+  <h1>Тапочки<br>и носочки</h1>
+  <p class="lead">Всё уже ждёт вас на банкетке</p>
+  <div class="steps">
+    <div class="step"><div class="num">01</div><div><h2>Белые тапочки</h2><p>Смените на них уличную обувь. Каждую пару мы обрабатываем</p></div></div>
+    <div class="step"><div class="num">02</div><div><h2>Одноразовые носочки</h2><p>Обязательно наденьте их поверх своих</p></div></div>
+  </div>
+  <div class="foot">Ваша чистота и комфорт —<br>наш приоритет</div>
+</section>
+
+<script>
+  const id = (location.hash || '#c1').slice(1);
+  document.getElementById(id).classList.add('on');
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "studio-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ИИ-помощник администратора студий: отвечает клиентам в Telegram (Business), сложное передаёт админу карточкой",
+  "type": "commonjs",
+  "main": "src/bot.js",
+  "scripts": {
+    "start": "node src/bot.js",
+    "chat": "node cli-chat.js",
+    "check": "node cli-chat.js --batch test/voprosy.txt",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "botName": "служба заботы «Фабрика маникюра»",
+  "timezone": "Europe/Moscow",
+  "workHours": { "from": "09:00", "to": "22:00", "_comment": "часы администратора, не бота: бот отвечает круглосуточно" },
+  "replyPromise": "в течение часа",
+  "pauseHoursAfterAdmin": 3,
+  "historyLimit": 12,
+  "historyTtlHours": 24,
+  "debounceMs": 3000,
+  "answerDirectMessages": true,
+  "routeCards": ["privetstvie/1-kak-voyti.png", "privetstvie/2-tapochki.png"],
+  "gapsReportEveryDays": 7,
+  "waitlistDays": 14,
+  "autoMessagePatterns": [
+    "dikidi",
+    "dkd\\.su",
+    "подтвердите свой визит",
+    "Вы записались к специалисту",
+    "Записали Вас к специалисту",
+    "Изменена запись к (сотруднику|специалисту)",
+    "Отменена запись к (сотруднику|специалисту)",
+    "жд[её]т Вас .*По адресу",
+    "Оставить оценку мастеру",
+    "добавьте наш номер в список контактов"
+  ]
+}
