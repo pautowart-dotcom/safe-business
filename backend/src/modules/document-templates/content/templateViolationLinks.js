@@ -261,6 +261,27 @@ const COMMON_LINKS = [
   // 25.10: ATL/DC/SR/WJ/AR-105 «Приёмная квитанция…», DR-105 «Квитанция/наряд-заказ…»
   { match: (t) => t.startsWith('Приёмная квитанция') || t.startsWith('Квитанция/наряд-заказ'), kind: 'receipt', title: 'Приёмная квитанция — бланк договора с клиентом' },
 ];
+// Информированное согласие (25.10) — названия пунктов у ниш разные, поэтому
+// по точному коду. AS-801 (автосервис) не здесь: это заказ-наряд по ПП № 780.
+const CONSENT_CODES = {
+  manicure: 'MN-801', lashes_brows: 'LB-801', hair: 'HR-804', barbershop: 'BB-801', cosmetology: 'CS-801',
+  massage: 'MS-801', tattoo: 'TT-801', depilation: 'DP-801', solarium: 'SL-803',
+  fitness_gym: 'FT-801', yoga: 'YG-801', pilates: 'PL-801', dance: 'DN-801', martial_arts: 'MT-801',
+  atelier: 'ATL-801', dry_cleaning: 'DC-801', shoe_repair: 'SR-801', watch_jewelry_repair: 'WJ-801',
+  appliance_repair: 'AR-801', device_repair: 'DR-801', tire_service: 'TS-801', car_wash: 'CW-801',
+  pet_grooming: 'GR-801', photo_studio: 'PH-801', renovation_cleaning: 'RC-801', dog_training: 'DT-801',
+};
+const { build: buildCommon } = require('./commonTemplates');
+for (const [niche, code] of Object.entries(CONSENT_CODES)) {
+  (LINKS[niche] = LINKS[niche] || []).push({
+    violationCode: code,
+    templateKey: `${niche}_informed_consent`,
+    templateTitle: buildCommon(niche, 'informed_consent').title,
+    questionCode: code,
+    hasAnswerIndex: 0,
+  });
+}
+
 for (const file of fs.readdirSync(VIOLATIONS_DIR)) {
   const { niche, violations } = require(path.join(VIOLATIONS_DIR, file));
   if (!niche || !violations) continue;
