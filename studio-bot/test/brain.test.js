@@ -53,12 +53,58 @@ test('опоздание всегда срочно', async () => {
 test('жалоба всегда срочно', async () => {
   const r = await ask('Покрытие отслоилось через два дня', llmSays({ reply: 'Мне жаль, передал администратору.', handoff: 'normal', topic: 'другое', summary: '' }));
   assert.equal(r.handoff, 'urgent');
-  assert.equal(r.topic, 'жалоба');
+  assert.equal(r.topic, 'переделка');
 });
 
 test('ответ ИИ в ```json``` разбирается', async () => {
-  const r = await ask('Привет', llmSays('```json\n{"reply":"Здравствуйте!","handoff":"none","topic":"другое","summary":""}\n```'));
-  assert.equal(r.reply, 'Здравствуйте!');
+  const r = await ask('Цена?', llmSays('```json\n{"reply":"Маникюр — от 2 000 ₽.","handoff":"none","topic":"цена","summary":""}\n```'));
+  assert.match(r.reply, /Маникюр — от 2 000 ₽\.$/);
+});
+
+test('первый ответ — приветствие кодом, своё приветствие ИИ убираем', async () => {
+  const r = await ask('Добрый день! Переживаю, что не успею к 19:00', llmSays({ reply: 'Добрый день! Это служба заботы «Фабрика маникюра» 🤍 Спасибо, что предупредили!', handoff: 'none', topic: 'перенос', summary: '' }));
+  assert.match(r.reply, /^Здравствуйте! На связи бот-помощник Службы заботы/);
+  assert.match(r.reply, /Администратор тоже на связи/);
+  assert.match(r.reply, /\n\nСпасибо, что предупредили!$/);
+  assert.equal((r.reply.match(/Здравствуйте|Добрый день/g) || []).length, 1);
+});
+
+test('приветствие: зовём человека — без второй фразы про админа; жалоба — без 🤍; ночью — утро', async () => {
+  const r = await ask('Надломился ноготь, можно переделать?', llmSays({ reply: 'Мы постараемся максимально оперативно решить ваш вопрос — администратор подключится в ближайшее время.', handoff: 'urgent', topic: 'жалоба', summary: '' }));
+  assert.doesNotMatch(r.reply, /🤍|тоже на связи/);
+  assert.match(brain.greeting(config, NIGHT), /подключится утром, после 10:00/);
+  const hi = await ask('Здравствуйте', llmSays({ reply: 'Здравствуйте!', handoff: 'none', topic: 'другое', summary: '' }));
+  assert.match(hi.reply, /\n\nПодскажу по услугам/);
+});
+
+test('шаблонные ситуации — без ИИ', async () => {
+  const noLlm = async () => { throw new Error('ИИ не должен вызываться'); };
+  const cases = [
+    ['Опаздываю на 10 минут', 'опоздание', 'urgent'],
+    ['Подскажите, есть ли возможность завтра подойти на переделку одного ногтя? Чуть надломился', 'переделка', 'urgent'],
+    ['Мне очень не понравилось, хочу вернуть деньги', 'жалоба', 'urgent'],
+    ['Извините, что-то не складывается, отмените пожалуйста', 'отмена', 'normal'],
+    ['я забыла в какую я записывалась', 'своя запись', 'normal'],
+    ['в которую я записана?', 'своя запись', 'normal'],
+    ['Я беременна, можно делать маникюр?', 'здоровье', 'normal'],
+  ];
+  for (const [text, topic, handoff] of cases) {
+    const r = await ask(text, noLlm);
+    assert.equal(r.guard, 'template', text);
+    assert.equal(r.topic, topic, text);
+    assert.equal(r.handoff, handoff, text);
+  }
+  assert.match((await ask('Отмените запись', noLlm)).reply, /каждое окошко/);
+});
+
+test('похоже на шаблон, но решает ИИ: перенос, «почему отменили», обычные вопросы', () => {
+  for (const t of ['Не смогу прийти, можно перенести на пятницу?', 'Почему отменили мою запись?', 'Сколько стоит маникюр?', 'Переживаю, что могу не успеть, есть окошко на 19:00?', 'Хочу записаться на маникюр'])
+    assert.equal(brain.templateAnswer(t, 'в ближайшее время'), null, t);
+});
+
+test('диалог идёт — без приветствия', async () => {
+  const r = await brain.answer({ text: 'А цена?', history: [{ role: 'user', text: 'Привет' }, { role: 'assistant', text: 'Здравствуйте!' }], config, kbText, llm: llmSays({ reply: 'Маникюр — от 2 000 ₽.', handoff: 'none', topic: 'цена', summary: '' }), now: DAY });
+  assert.equal(r.reply, 'Маникюр — от 2 000 ₽.');
 });
 
 test('мусор от ИИ → передаём человеку', async () => {

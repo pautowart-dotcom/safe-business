@@ -112,7 +112,15 @@ async function handle(chatId, { items, bcId, from }) {
   history.push(chatId, 'assistant', result.reply);
   console.log(`[${chatId}] ${result.topic} → ${result.handoff}${result.guard ? ` (${result.guard})` : ''}`);
 
-  if (result.handoff !== 'none') await sendCard({ chatId, from, text: text || `[${media}]`, result });
+  if (result.handoff !== 'none') {
+    await sendCard({ chatId, from, text: text || `[${media}]`, result });
+    // Днём админ подхватит сам — дальнейшие «ну что там?» не гоняем через ИИ.
+    // Ночью не молчим: админа до утра нет, бот ещё пригодится.
+    if (config.pauseAfterCard && inWorkHours(config)) {
+      pause(chatId);
+      console.log(`[${chatId}] карточка администратору — бот молчит ${config.pauseHoursAfterAdmin} ч`);
+    }
+  }
 }
 
 // Карточки «Как войти в студию» — альбомом. Первый раз загружаем файлы,
@@ -309,7 +317,7 @@ async function onMessage(m) {
   }
   if (m.chat.type === 'private' && config.answerDirectMessages) {
     if (m.text === '/start') {
-      const hello = 'Здравствуйте! Это служба заботы «Фабрика маникюра» 🤍 Подскажу по услугам, ценам и записи — что вас интересует?';
+      const hello = `${brain.greeting(config)}\n\nПодскажу по услугам, ценам и записи — что вас интересует?`;
       history.push(String(m.chat.id), 'assistant', hello); // чтобы следующий ответ не здоровался второй раз
       return tg.call('sendMessage', { chat_id: m.chat.id, text: hello });
     }
