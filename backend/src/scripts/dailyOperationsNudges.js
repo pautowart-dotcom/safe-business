@@ -312,9 +312,13 @@ async function nudgeQuarterlyMedicalBooksCheck() {
   const { year, q } = quarterKey(moscowDateStr(new Date()));
   const type = `medbook_check:${year}-Q${q}`;
   const prev = q === 1 ? `medbook_check:${year - 1}-Q4` : `medbook_check:${year}-Q${q - 1}`;
+  // 25.10.2026: если владелец сам завёл «Медкнижки сотрудников — проверить»
+  // в «Моих сроках» (core/deadlineSlotsCatalog.js, повтор раз в квартал) —
+  // автоматическое не создаём, чтобы не было двух одинаковых напоминаний.
   const { rows: companies } = await pool.query(
     `SELECT DISTINCT m.company_id AS id FROM memberships m
-     WHERE m.active = true AND m.role <> 'owner'`
+     WHERE m.active = true AND m.role <> 'owner'
+       AND NOT EXISTS (SELECT 1 FROM deadlines d WHERE d.company_id = m.company_id AND d.related_entity_type = 'manual:medbook_check')`
   );
   let created = 0;
   for (const { id } of companies) {
@@ -408,6 +412,13 @@ async function main() {
     console.log(`Проверка месяца: напоминаний ${await nudgeMonthlyCheck()}`);
   } catch (err) {
     console.error('nudgeMonthlyCheck упал:', err);
+  }
+  // Письмо-напоминание после теста (25.10.2026, scripts/guestResultFollowup.js)
+  // — здесь, а не отдельной строкой cron, чтобы не трогать crontab сервера.
+  try {
+    console.log(`Письмо после теста: отправлено ${await require('./guestResultFollowup').run()}`);
+  } catch (err) {
+    console.error('guestResultFollowup упал:', err);
   }
   try {
     const abuse = await watchAbuse();

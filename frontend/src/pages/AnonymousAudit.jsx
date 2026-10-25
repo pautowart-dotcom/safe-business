@@ -239,9 +239,9 @@ function IntroStep({ niche, setNiche, legalForm, setLegalForm, workModel, setWor
     <Card>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Разовый аудит безопасности бизнеса</div>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16, lineHeight: 1.5 }}>
-        Тест по вашей нише — бесплатно: сразу увидите индекс безопасности и список найденных нарушений.
-        Штрафы, нормы закона и план устранения по каждому пункту — в заключении, {PRICE_RUB} ₽ разово, без
-        подписки. Регистрация не нужна, только email в конце, если решите получить заключение.
+        Тест по вашей нише — бесплатно: индекс безопасности, список найденных нарушений и три самых важных
+        пункта с решением. Регистрация не нужна — в конце укажете почту, покажем результат и пришлём его
+        письмом. Штрафы, нормы закона и план по каждому пункту — в заключении, {PRICE_RUB} ₽ разово, без подписки.
       </div>
       {/* 07.09.2026, живой разбор воронки маркетолога: "переходят из
           Instagram, видят 30 вопросов и просто не проходят" — честно
@@ -557,7 +557,73 @@ function PriceWithPromo({ baseRub, planQuote }) {
   );
 }
 
+// «Куда прислать результат?» (25.10.2026, решение владельца по совету
+// таргетолога) — между тестом и результатом. Тот же /claim, что у «открыть
+// приложение бесплатно»: почта + согласие → письмо с результатом и ссылкой в
+// кабинет. Галочка на письма с предложениями — необязательная, отдельная
+// (ст. 18 закона «О рекламе»). Выключается на сервере (RESULT_CONTACT_GATE).
+function ContactStep({ result, email, setEmail, setAcceptedTerms, analyticsConsent, setAnalyticsConsent, marketingConsent, setMarketingConsent, onSubmit, submitting, error, onSkipAfterError }) {
+  return (
+    <>
+      <Card>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Результат готов</div>
+        <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 16 }}>
+          {result.violationsCount > 0
+            ? `Нашли ${result.violationsCount} — что стоит оформить или исправить. `
+            : 'По вашим ответам серьёзных нарушений нет. '}
+          Укажите почту: покажем результат здесь и пришлём его письмом — с тремя самыми важными пунктами и тем, что с ними сделать.
+        </div>
+        <Field label="Email">
+          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+        </Field>
+        <ConsentPair idPrefix="contact" purpose="order" onChange={setAcceptedTerms} />
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
+          <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>
+            Присылать полезное и предложения — напоминания по результату, изменения требований (<a href="/lk/legal/consent_mailing" target="_blank" rel="noreferrer" style={{ color: C.primary }}>согласие</a>, необязательно)
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
+          <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
+        </label>
+        {error && <div className="alert alert-error">{error}</div>}
+        {error && onSkipAfterError && (
+          <button type="button" onClick={onSkipAfterError} style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13, marginTop: 4 }}>
+            Показать результат без сохранения
+          </button>
+        )}
+      </Card>
+      <StickyFooterButton onClick={onSubmit} disabled={submitting}>{submitting ? 'Секунду…' : 'Показать результат'}</StickyFooterButton>
+    </>
+  );
+}
+
+// Три самых важных пункта бесплатно (25.10.2026) — штраф и одна строка «что
+// сделать». Сервер отдаёт их только после почты (GET /top-risks).
+function TopRisks({ top }) {
+  if (!top || top.length === 0) return null;
+  return (
+    <Card>
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.subtle, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+        Самое важное
+      </div>
+      {top.map((v, i) => (
+        <div key={v.code} style={{ padding: '10px 0', borderBottom: i < top.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor(v.risk), flexShrink: 0 }} />
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{v.title}</div>
+          </div>
+          {v.fine && <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 4 }}><b>Штраф:</b> {v.fine}</div>}
+          {v.whatToDo && <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}><b>Что сделать:</b> {v.whatToDo}</div>}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function ResultStep({
+  topRisks,
   result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
   onPay, paying, onClaimFree, claiming, claimed, error,
   promoInput, setPromoInput, promoQuote, promoError, promoChecking,
@@ -608,6 +674,8 @@ function ResultStep({
         </div>
       </Card>
 
+      <TopRisks top={topRisks} />
+
       <ViolationPreview violations={result.violations} />
 
       <FeedbackCard sessionId={result.anchorSessionId} />
@@ -638,14 +706,22 @@ function ResultStep({
         >
           Посмотреть пример отчёта (PDF, как выглядит результат) →
         </a>
-        <Field label="Email">
-          <TextInput ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </Field>
-        <ConsentPair idPrefix="report" purpose="order" onChange={setAcceptedTerms} />
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
-          <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
-          <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
-        </label>
+        {/* Почту и согласие уже дали перед результатом (ContactStep) — второй
+            раз не спрашиваем. */}
+        {claimed ? (
+          <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14 }}>Почта: <b>{email}</b></div>
+        ) : (
+          <>
+            <Field label="Email">
+              <TextInput ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </Field>
+            <ConsentPair idPrefix="report" purpose="order" onChange={setAcceptedTerms} />
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={analyticsConsent} onChange={(e) => setAnalyticsConsent(e.target.checked)} style={{ marginTop: 2 }} />
+              <span>Согласен на использование обезличенных агрегированных данных для аналитики (необязательно)</span>
+            </label>
+          </>
+        )}
         <PromoField
           input={promoInput} setInput={setPromoInput} quote={promoQuote} planQuote={planQuote}
           error={promoError} checking={promoChecking}
@@ -665,7 +741,7 @@ function ResultStep({
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Не готовы платить — откройте приложение бесплатно</div>
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
           Результат теста уже внутри, проходить заново не нужно. Месяц полного доступа без карты: список дел по
-          найденному, «Мои сроки» с напоминаниями. Нужна только почта из формы выше и пароль.
+          найденному, «Мои сроки» с напоминаниями. {claimed ? 'Почта уже есть — осталось придумать пароль.' : 'Нужна только почта из формы выше и пароль.'}
         </div>
         {claimed ? (
           <SetPasswordForm email={email} />
@@ -866,6 +942,15 @@ export default function AnonymousAudit() {
   const [paying, setPaying] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
+  // Почта перед результатом (25.10.2026): включено, пока сервер не сказал
+  // иначе (RESULT_CONTACT_GATE=false — откат без деплоя кода).
+  const [contactGate, setContactGate] = useState(true);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [topRisks, setTopRisks] = useState(null);
+  const [contactConflict, setContactConflict] = useState(false);
+  useEffect(() => {
+    guestApi.get('/platform/anonymous-audit/config').then(({ data }) => setContactGate(data.contactGate !== false)).catch(() => {});
+  }, []);
 
   // Что оплачивают с экрана результата (24.10.2026): 'bundle' | 'report' | 'docs'.
   // Документы — только если пакет что-то закрывает и ещё не куплен.
@@ -976,7 +1061,7 @@ export default function AnonymousAudit() {
 
       const reportRes = await guestApi.post(`/modules/security/sessions/${status.anchorSessionId}/report`);
       setReportId(reportRes.data.id);
-      setStep('result');
+      setStep(contactGate ? 'contact' : 'result');
       // Реестры — уже после перехода к результату и без ожидания: не ответили
       // или лимит дня — блок просто не появится.
       if (prefill?.found) {
@@ -1034,6 +1119,36 @@ export default function AnonymousAudit() {
     } catch (err) {
       setError(err.response?.data?.error || 'Не удалось начать оплату');
       setPaying(false);
+    }
+  }
+
+  // «Показать результат» на шаге почты — /claim (почта, согласия, письмо с
+  // результатом), затем три важных пункта и экран результата. 409 — почта уже
+  // зарегистрирована: предлагаем войти, результат всё равно можно посмотреть.
+  async function submitContact() {
+    if (!email || !email.includes('@')) {
+      setError('Укажите email');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
+      return;
+    }
+    setError('');
+    setContactConflict(false);
+    setClaiming(true);
+    try {
+      await guestApi.post('/platform/anonymous-audit/claim', { email, acceptedTerms, analyticsConsent, marketingConsent });
+      setClaimed(true);
+      reachGoal('result_contact');
+      if (marketingConsent) reachGoal('result_contact_marketing');
+      guestApi.get('/platform/anonymous-audit/top-risks').then(({ data }) => setTopRisks(data.top)).catch(() => {});
+      setStep('result');
+    } catch (err) {
+      if (err.response?.status === 409) setContactConflict(true);
+      setError(err.response?.data?.error || 'Не удалось сохранить почту');
+    } finally {
+      setClaiming(false);
     }
   }
 
@@ -1104,8 +1219,20 @@ export default function AnonymousAudit() {
       {!paymentDone && step === 'test' && session && (
         <TestStep session={session} answers={answers} setAnswer={setAnswer} onSubmit={submitTest} submitting={submittingTest} error={error} />
       )}
+      {!paymentDone && step === 'contact' && result && (
+        <ContactStep
+          result={result}
+          email={email} setEmail={setEmail}
+          setAcceptedTerms={setAcceptedTerms}
+          analyticsConsent={analyticsConsent} setAnalyticsConsent={setAnalyticsConsent}
+          marketingConsent={marketingConsent} setMarketingConsent={setMarketingConsent}
+          onSubmit={submitContact} submitting={claiming} error={error}
+          onSkipAfterError={contactConflict ? () => { setError(''); setAcceptedTerms(false); setStep('result'); } : null}
+        />
+      )}
       {!paymentDone && step === 'result' && result && (
         <ResultStep
+          topRisks={topRisks}
           result={result}
           email={email} setEmail={setEmail}
           acceptedTerms={acceptedTerms} setAcceptedTerms={setAcceptedTerms}

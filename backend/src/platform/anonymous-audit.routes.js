@@ -131,6 +131,71 @@ router.post(
   })
 );
 
+// Почта перед результатом (25.10.2026, решение владельца по совету
+// таргетолога): результат показываем после «куда прислать результат» — это
+// тот же /claim ниже. Выключается RESULT_CONTACT_GATE=false в .env (тогда
+// результат сразу, как раньше), чтобы откатить без деплоя кода.
+router.get('/config', (req, res) => {
+  res.json({ contactGate: process.env.RESULT_CONTACT_GATE !== 'false' });
+});
+
+// Первое предложение, не длиннее max — «одна строка» штрафа и решения.
+// Конец фразы — «; » или точка перед заглавной буквой: иначе «ст. 5.27»
+// резалось бы на «ст».
+function shortLine(text, max = 200) {
+  if (!text) return '';
+  const first = String(text).split(/;\s|\.\s(?=[А-ЯЁA-Z«])/)[0].replace(/[;.]$/, '');
+  if (first.length <= max) return first;
+  return `${first.slice(0, first.lastIndexOf(' ', max))}…`;
+}
+
+// Открытые нарушения гостя по убыванию риска и три самых опасных с
+// подробностями. Остальное (норма, шаги, инструкции) — в заключении.
+async function guestResultSummary(companyId) {
+  const repository = require('../modules/security/content/repository');
+  const { rows } = await pool.query(
+    `SELECT violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`,
+    [companyId]
+  );
+  const matrices = {};
+  const items = [];
+  for (const row of rows) {
+    if (!(row.niche in matrices)) matrices[row.niche] = (await repository.getViolationMatrix(row.niche)) || [];
+    const v = matrices[row.niche].find((x) => x.code === row.violation_code);
+    if (v) items.push(v);
+  }
+  items.sort((a, b) => (b.risk || 0) - (a.risk || 0));
+  const top = items.slice(0, 3).map((v) => ({
+    code: v.code,
+    title: v.title,
+    risk: v.risk,
+    fine: shortLine(v.fineText),
+    whatToDo: shortLine(v.solution),
+  }));
+  return { titles: items.map((v) => v.title), top };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Три пункта бесплатно — только тому, кто оставил почту (accepted_terms_at и
+// настоящая почта ставит /claim).
+router.get(
+  '/top-risks',
+  requireAuth,
+  requireTenant,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query('SELECT email, accepted_terms_at FROM users WHERE id = $1', [req.user.id]);
+    const user = rows[0];
+    if (!user?.accepted_terms_at || user.email.endsWith('@guest.business-safe.internal')) {
+      return res.status(403).json({ error: 'Сначала укажите почту' });
+    }
+    const { top } = await guestResultSummary(req.tenant.companyId);
+    res.json({ top });
+  })
+);
+
 // "Продолжить без оплаты" (24.08.2026, живой разбор воронки: 40 прошли
 // бесплатный тест, дальше — либо оплата PDF, либо человек просто уходит,
 // ничего не связывает бесплатный тест с самой платформой). Тот же механизм
@@ -161,9 +226,13 @@ router.post(
         error: 'Этот email уже зарегистрирован на платформе — войдите в аккаунт, там уже есть доступ ко всему',
       });
     }
+    // marketing_consent_at (25.10.2026, миграция 0158) — необязательная
+    // галочка «присылать полезное и предложения»; без неё — только результат.
     await pool.query(
-      'UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3 WHERE id = $1',
-      [req.user.id, email, !!req.body?.analyticsConsent]
+      `UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3,
+              marketing_consent_at = CASE WHEN $4 THEN now() ELSE marketing_consent_at END
+       WHERE id = $1`,
+      [req.user.id, email, !!req.body?.analyticsConsent, !!req.body?.marketingConsent]
     );
     // Пробный месяц — с момента, когда человек сохранил результат, а не с
     // начала гостевого теста (18.10.2026): иначе вернувшийся через три недели
@@ -183,14 +252,27 @@ router.post(
     );
     const claimUrl = `${process.env.FRONTEND_URL}/reset-password/${claimToken}`;
 
+    // С 25.10.2026 /claim вызывается перед экраном результата («куда прислать
+    // результат»), поэтому в письме — сам результат: что нашли и три самых
+    // опасных пункта с подробностями, как на экране.
+    const summary = await guestResultSummary(req.tenant.companyId);
+    const resultHtml = summary.titles.length === 0
+      ? `<p>Нарушений не нашли — по вашим ответам всё в порядке.</p>`
+      : `<p><b>Что нашли — ${summary.titles.length}:</b></p><ul>${summary.titles.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>` +
+        `<p><b>Самое важное:</b></p>` +
+        summary.top.map((v) => `<p><b>${escapeHtml(v.title)}</b><br>Штраф: ${escapeHtml(v.fine)}<br>Что сделать: ${escapeHtml(v.whatToDo)}</p>`).join('') +
+        `<p>Штраф, норма закона и план по каждому пункту — в заключении. Его можно получить в кабинете.</p>`;
+
     await sendMail({
       to: email,
-      subject: 'Продолжите в «Безопасный бизнес» — результаты теста уже сохранены',
+      subject: 'Результат теста — «Безопасный бизнес»',
       html:
-        `<p>Результаты вашего теста безопасности уже сохранены — не нужно проходить его заново.</p>` +
-        `<p>Установите пароль, чтобы зайти в личный кабинет и пользоваться платформой целиком — отслеживать сроки ` +
-        `медкнижек, огнетушителей, СОУТ, финансы и остальные документы:</p>` +
+        `<p>Здравствуйте! Вот результат вашего теста.</p>` +
+        resultHtml +
+        `<p>Результат уже сохранён в кабинете. Установите пароль, чтобы войти — проходить тест заново не нужно. ` +
+        `Месяц полного доступа без карты: список дел по найденному и напоминания о сроках.</p>` +
         `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
+      meta: { purpose: 'guest_result' },
     });
 
     res.json({ ok: true });
@@ -407,3 +489,6 @@ async function fulfillGuestDocuments({ companyId }) {
 module.exports = router;
 module.exports.fulfillGuestReport = fulfillGuestReport;
 module.exports.fulfillGuestDocuments = fulfillGuestDocuments;
+module.exports.guestResultSummary = guestResultSummary;
+module.exports.escapeHtml = escapeHtml;
+module.exports.CLAIM_TOKEN_TTL_DAYS = CLAIM_TOKEN_TTL_DAYS;
