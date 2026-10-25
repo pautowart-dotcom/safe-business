@@ -98,7 +98,9 @@ const LEASE_TERM_PRESETS = [
 // нажатие клавиши в заметке.
 function SlotCard({ slot, onSave, saving, aiDateDetectionAvailable }) {
   const [dueDate, setDueDate] = useState(slot.dueDate || '');
-  const [recurrence, setRecurrence] = useState(slot.recurrence || '');
+  // defaultRecurrence (25.10.2026) — например, медкнижки: «раз в квартал»
+  // подставлено сразу, владельцу остаётся выбрать дату.
+  const [recurrence, setRecurrence] = useState(slot.recurrence || slot.defaultRecurrence || '');
   const [note, setNote] = useState(slot.note || '');
   const [file, setFile] = useState(null);
   // Автоизвлечение даты (30.08.2026, .claude/plans/document-date-extraction.md)
@@ -155,6 +157,20 @@ function SlotCard({ slot, onSave, saving, aiDateDetectionAvailable }) {
               +{label} от сегодня
             </button>
           ))}
+        </div>
+      )}
+      {slot.key === 'medbook_check' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -6, marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={() => setDueDate(addMonthsFromToday(3))}
+            style={{
+              padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface,
+              color: C.secondary, fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            Проверил сегодня — следующая через 3 месяца
+          </button>
         </div>
       )}
       {/* Аренда — это пересматриваемый срок договора (для этого уже есть

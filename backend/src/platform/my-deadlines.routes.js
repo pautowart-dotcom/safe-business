@@ -72,6 +72,7 @@ router.get(
         category: c.category,
         label: c.label,
         instruction: c.instruction || null,
+        defaultRecurrence: c.defaultRecurrence || null,
         dueDate: row?.due_date || null,
         recurrence: row?.recurrence || null,
         note: row?.note || null,
