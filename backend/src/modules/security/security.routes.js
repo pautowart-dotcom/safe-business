@@ -708,12 +708,43 @@ router.get(
 );
 
 // Подробная инструкция «как сделать» (25.10.2026, content/instructionLinks.js).
-// Это часть заключения — доступ тот же, что у штрафа и решения в /violations.
+// Доступ: как у заключения (подписка, пробный месяц, оплата заключения) или
+// навсегда у купивших пакет документов — решение владельца 25.10 «попробуем,
+// потом если что поменяем»: покупательница пакета просила инструкции к нему.
+async function canSeeInstructions(req) {
+  const { rows } = await pool.query(
+    `SELECT c.free_addons AS "freeAddons",
+            EXISTS(SELECT 1 FROM addon_purchases WHERE company_id = c.id AND addon_key = 'document_templates' AND status = 'succeeded') AS purchased
+     FROM companies c WHERE c.id = $1`,
+    [req.tenant.companyId]
+  );
+  if (rows[0]?.freeAddons || rows[0]?.purchased) return true;
+  return freeTier.canSeeConclusion({ companyId: req.tenant.companyId, userId: req.user.id });
+}
+
+// Список инструкций по нишам компании — для раздела «Шаблоны документов»,
+// где их найдёт и покупатель пакета без подписки (карточки нарушений ему
+// показываются без подробностей).
+router.get(
+  '/instructions',
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query('SELECT niche FROM security_profile_niches WHERE company_id = $1', [req.tenant.companyId]);
+    const byKey = {};
+    for (const { niche } of rows) {
+      for (const v of (await repository.getViolationMatrix(niche)) || []) {
+        for (const ins of instructionLinks.forViolationTitle(v.title)) byKey[ins.key] = ins;
+      }
+    }
+    const instructions = instructionLinks.INSTRUCTIONS.map((i) => byKey[i.key]).filter(Boolean);
+    res.json({ available: await canSeeInstructions(req), instructions });
+  })
+);
+
 router.get(
   '/instructions/:key',
   asyncHandler(async (req, res) => {
-    if (!(await freeTier.canSeeConclusion({ companyId: req.tenant.companyId, userId: req.user.id }))) {
-      return res.status(403).json({ error: 'Инструкции входят в подписку' });
+    if (!(await canSeeInstructions(req))) {
+      return res.status(403).json({ error: 'Инструкции входят в подписку и в пакет документов' });
     }
     const instruction = instructionLinks.getInstruction(req.params.key);
     if (!instruction) return res.status(404).json({ error: 'Инструкция не найдена' });

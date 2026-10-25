@@ -50,6 +50,9 @@ const FREE_PATH_PREFIXES = [
   '/api/modules/security/sessions',
   '/api/modules/security/reports',
   '/api/modules/security/violations',
+  // Инструкции (25.10.2026): доступ проверяет сам роут — заключение или
+  // покупка пакета документов (security.routes.js canSeeInstructions).
+  '/api/modules/security/instructions',
 ];
 
 // Платное внутри открытых разделов.

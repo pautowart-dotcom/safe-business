@@ -2426,7 +2426,56 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           ))}
         </div>
       )}
+      <InstructionsList />
     </Card>
+    </div>
+  );
+}
+
+// Инструкции по шагам (25.10.2026) — по нишам компании, открываются в шторке.
+// Здесь их видит и покупатель пакета документов без подписки: в карточках
+// нарушений ему подробности не показываются (security.routes.js
+// canSeeInstructions). Без доступа список не показываем вовсе.
+function InstructionsList() {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [loadingKey, setLoadingKey] = useState(null);
+
+  useEffect(() => {
+    api.get('/modules/security/instructions', { silent: true }).then(({ data: d }) => setData(d)).catch(() => {});
+  }, []);
+
+  async function openInstruction(key) {
+    setLoadingKey(key);
+    try {
+      const { data: d } = await api.get(`/modules/security/instructions/${key}`);
+      setOpen(d);
+    } catch (err) {
+      toast(err.response?.data?.error || 'Не удалось открыть инструкцию');
+    } finally {
+      setLoadingKey(null);
+    }
+  }
+
+  if (!data || !data.available || data.instructions.length === 0) return null;
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Инструкции по шагам</div>
+      <div style={{ fontSize: 12.5, color: C.subtle, marginBottom: 8 }}>Для того, что документом не закрыть: как вести журналы, что проверить, куда подать.</div>
+      {data.instructions.map((ins) => (
+        <button
+          key={ins.key}
+          type="button"
+          onClick={() => openInstruction(ins.key)}
+          disabled={!!loadingKey}
+          style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 0', cursor: 'pointer', color: C.primary, fontSize: 14 }}
+        >
+          {loadingKey === ins.key ? 'Открываем…' : ins.title}
+        </button>
+      ))}
+      <Sheet open={!!open} onClose={() => setOpen(null)} title={null}>
+        {open && <MarkdownRich text={open.markdown} />}
+      </Sheet>
     </div>
   );
 }
