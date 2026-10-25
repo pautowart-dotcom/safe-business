@@ -258,6 +258,8 @@ const COMMON_LINKS = [
   { match: (t) => t === 'Ввод оборудования в эксплуатацию', kind: 'equipment_act', title: 'Акт ввода оборудования в эксплуатацию' },
   // у ниш разные хвосты названия («— для родителей», «, меню и книга отзывов»)
   { match: (t) => t.startsWith('«Уголок потребителя»'), kind: 'consumer_corner', title: 'Уголок потребителя — информация для клиентов' },
+  // 25.10: ATL/DC/SR/WJ/AR-105 «Приёмная квитанция…», DR-105 «Квитанция/наряд-заказ…»
+  { match: (t) => t.startsWith('Приёмная квитанция') || t.startsWith('Квитанция/наряд-заказ'), kind: 'receipt', title: 'Приёмная квитанция — бланк договора с клиентом' },
 ];
 for (const file of fs.readdirSync(VIOLATIONS_DIR)) {
   const { niche, violations } = require(path.join(VIOLATIONS_DIR, file));
