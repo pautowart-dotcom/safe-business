@@ -11,6 +11,7 @@ const { encrypt, decrypt } = require('../../core/crypto');
 const { uploadDocument } = require('../../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl, bareFileUrl } = require('../../core/fileStorage');
 const repository = require('./content/repository');
+const instructionLinks = require('./content/instructionLinks');
 const { mergeDocumentSections } = require('./content/mergeSections');
 const scoring = require('./content/scoring');
 const { secondsLeft } = require('./sessionPacing');
@@ -690,6 +691,7 @@ router.get(
           resolvedAt: row.resolved_at,
           ...details,
           closesWithTemplate: link ? { templateKey: link.templateKey, templateTitle: link.templateTitle } : null,
+          instructions: instructionLinks.forViolationTitle(details.title),
         });
       }
     }
@@ -702,6 +704,20 @@ router.get(
       return res.json(sorted.map(freeTier.namesOnly));
     }
     res.json(sorted);
+  })
+);
+
+// Подробная инструкция «как сделать» (25.10.2026, content/instructionLinks.js).
+// Это часть заключения — доступ тот же, что у штрафа и решения в /violations.
+router.get(
+  '/instructions/:key',
+  asyncHandler(async (req, res) => {
+    if (!(await freeTier.canSeeConclusion({ companyId: req.tenant.companyId, userId: req.user.id }))) {
+      return res.status(403).json({ error: 'Инструкции входят в подписку' });
+    }
+    const instruction = instructionLinks.getInstruction(req.params.key);
+    if (!instruction) return res.status(404).json({ error: 'Инструкция не найдена' });
+    res.json(instruction);
   })
 );
 

@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Card, ST, BackBtn, Badge, Btn, Field, TextInput, TextArea, Select, Icon, C, SH, Segmented, Ring, Group, Row } from '../ui/components.jsx';
 import Sheet from '../ui/Sheet.jsx';
+import MarkdownRich from '../ui/MarkdownRich.jsx';
 import TestQuestion from '../components/TestQuestion.jsx';
 import toast from '../ui/toast.js';
 import { FM } from '../ui/theme.js';
@@ -2637,6 +2638,37 @@ function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates })
 function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) {
   const navigate = useNavigate();
   const color = riskColor(violation.risk);
+  // Подробная инструкция (25.10.2026) открывается в этой же шторке, вместо
+  // карточки — вторая шторка поверх первой на телефоне путает.
+  const [instruction, setInstruction] = useState(null);
+  const [instructionLoading, setInstructionLoading] = useState(null);
+
+  async function openInstruction(key) {
+    setInstructionLoading(key);
+    try {
+      const { data } = await api.get(`/modules/security/instructions/${key}`);
+      setInstruction(data);
+    } catch (err) {
+      toast(err.response?.data?.error || 'Не удалось открыть инструкцию');
+    } finally {
+      setInstructionLoading(null);
+    }
+  }
+
+  if (instruction) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setInstruction(null)}
+          style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13, marginBottom: 12 }}
+        >
+          ← К нарушению
+        </button>
+        <MarkdownRich text={instruction.markdown} />
+      </div>
+    );
+  }
   // Бесплатный уровень (18.10.2026): сервер отдаёт только название и риск —
   // подробности (штраф, норма, что делать) входят в подписку.
   if (violation.locked) {
@@ -2683,6 +2715,27 @@ function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) 
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 4 }}><strong>Основание:</strong> {violation.normBase}</div>
       )}
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 4 }}><strong>Что сделать:</strong> {violation.solution}</div>
+      {violation.howTo?.length > 0 && (
+        <ol style={{ fontSize: 12, color: C.subtle, margin: '0 0 6px', paddingLeft: 18, lineHeight: 1.5 }}>
+          {violation.howTo.map((step, i) => <li key={i} style={{ marginBottom: 2 }}>{step}</li>)}
+        </ol>
+      )}
+      {violation.instructions?.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0 10px' }}>
+          {violation.instructions.map((ins) => (
+            <button
+              key={ins.key}
+              type="button"
+              onClick={() => openInstruction(ins.key)}
+              disabled={!!instructionLoading}
+              style={{ textAlign: 'left', background: C.blueBg, border: 'none', borderRadius: 12, padding: '10px 12px', cursor: 'pointer', color: C.primary }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 800 }}>{instructionLoading === ins.key ? 'Открываем…' : 'Подробная инструкция по шагам'}</div>
+              <div style={{ fontSize: 12, color: C.secondary, marginTop: 2 }}>{ins.title}</div>
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
         <strong>Стоимость:</strong> {violation.free ? 'бесплатно' : money(violation.costMin)} · <strong>Срок:</strong> {violation.daysMin} дн.
       </div>
