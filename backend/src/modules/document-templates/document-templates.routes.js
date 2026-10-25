@@ -50,7 +50,7 @@ const SAVED_DETAIL_KEYS = [
   // конкретного оборудования (акт ввода) не запоминаем — у каждого акта свои
   'headName', 'headPosition', 'fireResponsible', 'maxPeople', 'smoking',
   'registrationAuthority', 'workHours', 'servicesPlace', 'serviceTerms', 'benefits', 'license',
-  'receiverPosition', 'warranty',
+  'receiverPosition', 'warranty', 'healthKeepTerm', 'petResponsible', 'vetClinic',
 ];
 
 async function loadSavedDetails(companyId) {

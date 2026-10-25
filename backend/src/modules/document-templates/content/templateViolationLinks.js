@@ -271,15 +271,24 @@ const CONSENT_CODES = {
   appliance_repair: 'AR-801', device_repair: 'DR-801', tire_service: 'TS-801', car_wash: 'CW-801',
   pet_grooming: 'GR-801', photo_studio: 'PH-801', renovation_cleaning: 'RC-801', dog_training: 'DT-801',
 };
+// Анкета о здоровье и порядок при ухудшении состояния животного (25.10).
+const HEALTH_CODES = {
+  fitness_gym: 'FT-204', yoga: 'YG-204', pilates: 'PL-204', dance: 'DN-204', martial_arts: 'MT-204',
+  massage: 'MS-203', cosmetology: 'CS-212', kids_club: 'KC-801',
+  dog_training: 'DT-202', pet_grooming: 'GR-105', pet_boarding: 'PB-106',
+};
+const PET_EMERGENCY_CODES = { pet_grooming: 'GR-204', pet_boarding: 'PB-204' };
 const { build: buildCommon } = require('./commonTemplates');
-for (const [niche, code] of Object.entries(CONSENT_CODES)) {
-  (LINKS[niche] = LINKS[niche] || []).push({
-    violationCode: code,
-    templateKey: `${niche}_informed_consent`,
-    templateTitle: buildCommon(niche, 'informed_consent').title,
-    questionCode: code,
-    hasAnswerIndex: 0,
-  });
+for (const [kind, codes] of [['informed_consent', CONSENT_CODES], ['health_form', HEALTH_CODES], ['pet_emergency', PET_EMERGENCY_CODES]]) {
+  for (const [niche, code] of Object.entries(codes)) {
+    (LINKS[niche] = LINKS[niche] || []).push({
+      violationCode: code,
+      templateKey: `${niche}_${kind}`,
+      templateTitle: buildCommon(niche, kind).title,
+      questionCode: code,
+      hasAnswerIndex: 0,
+    });
+  }
 }
 
 for (const file of fs.readdirSync(VIOLATIONS_DIR)) {
