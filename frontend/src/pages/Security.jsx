@@ -427,6 +427,9 @@ export default function Security() {
   async function resolveViolation(id) {
     const { data } = await api.patch(`/modules/security/violations/${id}/resolve`);
     setViolations(violations.map((v) => (v.id === id ? { ...v, status: 'resolved' } : v)));
+    // Путь до 100 % (26.10.2026): после шага меняются прирост и порядок
+    // остальных — берём свежий список.
+    api.get('/modules/security/violations').then(({ data: list }) => setViolations(list)).catch(() => {});
     // Индекс/зона теперь всегда объединённые по всем актуальным нишам
     // (status.js на бэкенде) — просто обновляем ту же строку локально.
     if (data?.indexPercent !== undefined) {
@@ -872,14 +875,14 @@ function SecurityDashboard({
       )}
       {hasResult && violations.length > 0 && (
         <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '0 4px' }}>
-          {[[violations.length, 'Нарушений'], [doneCount, 'Устранено'], [openCount, 'Осталось']].map(([v, l]) => (
+          {[[violations.length, 'Шагов до 100 %'], [doneCount, 'Сделано'], [openCount, 'Осталось']].map(([v, l]) => (
             <div key={l}><div style={{ fontSize: 18, fontWeight: 800 }}>{v}</div><div style={{ fontSize: 11, color: C.subtle }}>{l}</div></div>
           ))}
         </div>
       )}
 
       <Segmented
-        options={[['overview', 'Обзор'], ['violations', `Нарушения ${openCount}`], ['documents', 'Документы'], ['inspection', 'Проверки']]}
+        options={[['overview', 'Обзор'], ['violations', `Шаги ${openCount}`], ['documents', 'Документы'], ['inspection', 'Проверки']]}
         value={tab}
         onChange={setTab}
       />
@@ -887,7 +890,7 @@ function SecurityDashboard({
       {tab === 'overview' && (
         <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
       )}
-      {tab === 'violations' && <ViolationsTab violations={violations} isManagement={isManagement} onResolve={onResolveViolation} onGoToTemplates={() => setTab('overview')} />}
+      {tab === 'violations' && <ViolationsTab violations={violations} indexPercent={status?.indexPercent} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'inspection' && (
         <>
@@ -2633,48 +2636,92 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
   );
 }
 
-function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates }) {
-  const open = violations.filter((v) => v.status === 'open');
+// Путь до 100 % (26.10.2026, docs/plan-2026-10-26.md, шаг 2; бэкенд —
+// modules/security/path.js): каждое открытое нарушение — шаг. Сверху
+// «следующий шаг», дальше по порядку пути (pathStep: сначала 3 быстрые победы,
+// потом по риску), внизу сделанное. У шага — прирост индекса.
+function stepWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'шаг';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'шага';
+  return 'шагов';
+}
+
+function ViolationsTab({ violations, indexPercent, isManagement, onResolve, onDocumentsChange, onGoToTemplates }) {
+  const open = violations.filter((v) => v.status === 'open').sort((a, b) => (a.pathStep || 999) - (b.pathStep || 999));
   const resolved = violations.filter((v) => v.status === 'resolved');
+
+  // 18.10.2026, вид приложения: строки с риском справа, подробности и
+  // кнопки — в шторке (ViolationCard ниже рисует её содержимое).
+  const [openId, setOpenId] = useState(null);
 
   if (violations.length === 0) {
     return <div className="empty-hint">Нарушений не найдено. Пройдите тест безопасности, чтобы увидеть карту уязвимостей.</div>;
   }
 
-  // 18.10.2026, вид приложения: строки с риском справа, подробности и
-  // кнопки — в шторке (ViolationCard ниже рисует её содержимое).
-  const [openId, setOpenId] = useState(null);
   const current = violations.find((v) => v.id === openId);
+  const next = open[0];
+  const gainText = (v) => (v.gain > 0 ? `+${v.gain} % к индексу` : null);
   const row = (v) => {
     const resolvedV = v.status === 'resolved';
+    const files = v.evidence?.length || 0;
     return (
       <Row
         key={v.id}
         icon={resolvedV ? 'check' : 'shield'}
         tone={resolvedV ? 'green' : v.risk >= 9 ? 'red' : v.risk >= 7 ? 'orange' : 'gray'}
         title={v.title}
-        subtitle={resolvedV ? 'Устранено' : v.locked ? 'Штраф и что делать — по подписке' : `Штраф: ${v.fineText}`}
+        subtitle={resolvedV
+          ? `Сделано${files ? ` · файлов: ${files}` : ''}`
+          : [gainText(v), v.locked ? 'что делать — по подписке' : `штраф: ${v.fineText}`].filter(Boolean).join(' · ')}
         tag={resolvedV ? undefined : `${v.risk}/10`}
         onClick={() => setOpenId(v.id)}
       />
     );
   };
+  const done = resolved.length;
+  const total = violations.length;
 
   return (
     <div>
-      {open.length > 0 ? (
-        <Group title="Открытые" aside={String(open.length)}>{open.map(row)}</Group>
-      ) : (
-        <Group><Row icon="check" tone="green" title="Открытых нарушений нет" subtitle="Всё найденное в тесте отмечено устранённым." /></Group>
+      <Card>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>
+          {open.length > 0 ? `До 100 % — ${open.length} ${stepWord(open.length)}` : 'Все шаги сделаны'}
+        </div>
+        <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>
+          {indexPercent != null && `Индекс сейчас ${Math.round(indexPercent)} %. `}
+          Сделано {done} из {total}. Каждый шаг — инструкция, документ, если нужен, и отметка «Сделано».
+        </div>
+        <div style={{ height: 6, borderRadius: 3, background: C.surface, marginTop: 12, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${(done / Math.max(total, 1)) * 100}%`, background: C.green, transition: 'width .25s' }} />
+        </div>
+      </Card>
+
+      {next && (
+        <Card>
+          <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700, marginBottom: 4 }}>Следующий шаг{gainText(next) ? ` · ${gainText(next)}` : ''}</div>
+          <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.4 }}>{next.title}</div>
+          {!next.locked && next.solution && <div style={{ fontSize: 12.5, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>{next.solution}</div>}
+          <div style={{ marginTop: 12 }}>
+            <Btn onClick={() => setOpenId(next.id)}>Открыть шаг</Btn>
+          </div>
+        </Card>
       )}
-      {resolved.length > 0 && <Group title="Устранено" aside={String(resolved.length)}>{resolved.map(row)}</Group>}
+
+      {open.length > 1 && <Group title="Дальше" aside={String(open.length - 1)}>{open.slice(1).map(row)}</Group>}
+      {open.length === 0 && (
+        <Group><Row icon="check" tone="green" title="Открытых шагов нет" subtitle="Всё найденное в тесте отмечено сделанным." /></Group>
+      )}
+      {resolved.length > 0 && <Group title="Сделано" aside={String(resolved.length)}>{resolved.map(row)}</Group>}
 
       <Sheet open={!!current} onClose={() => setOpenId(null)} title={current?.title}>
         {current && (
           <ViolationCard
             violation={current}
             isManagement={isManagement}
-            onResolve={async (id) => { await onResolve(id); setOpenId(null); toast('Отмечено устранённым'); }}
+            onResolve={async (id) => { await onResolve(id); setOpenId(null); toast(current.gain > 0 ? `Сделано — индекс +${current.gain} %` : 'Отмечено сделанным'); }}
+            onEvidenceAdded={onDocumentsChange}
             onGoToTemplates={onGoToTemplates && (() => { setOpenId(null); onGoToTemplates(); })}
           />
         )}
@@ -2683,8 +2730,79 @@ function ViolationsTab({ violations, isManagement, onResolve, onGoToTemplates })
   );
 }
 
+// Фото или файл к шагу — по желанию (26.10.2026). Сначала загружаем файл,
+// потом отмечаем шаг — так «Сделано» не теряется, если файл не прошёл.
+function EvidenceBlock({ violation, isManagement, onResolve, onEvidenceAdded }) {
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const isOpen = violation.status === 'open';
+
+  async function upload() {
+    const fd = new FormData();
+    fd.append('file', file);
+    await api.post(`/modules/security/violations/${violation.id}/evidence`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError('');
+    try {
+      if (file) await upload();
+      if (isOpen) {
+        await onResolve(violation.id);
+        if (file && onEvidenceAdded) onEvidenceAdded();
+      } else {
+        setFile(null);
+        toast('Файл приложен');
+        if (onEvidenceAdded) onEvidenceAdded();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось сохранить');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!isManagement) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      {violation.evidence?.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700, marginBottom: 4 }}>Приложено</div>
+          {violation.evidence.map((e) => (
+            <a key={e.id} href={e.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 13, color: C.primary, textDecoration: 'none', padding: '4px 0' }}>
+              {e.name} · {new Date(e.uploadedAt).toLocaleDateString('ru-RU')}
+            </a>
+          ))}
+        </div>
+      )}
+      {violation.evidenceAllowed ? (
+        <label style={{ display: 'block', fontSize: 12.5, color: C.secondary, marginBottom: 10, lineHeight: 1.5 }}>
+          {isOpen ? 'Фото или PDF — по желанию: ляжет в «Документы» и пригодится на проверке.' : 'Приложить фото или PDF:'}
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            style={{ display: 'block', marginTop: 6, fontSize: 13 }}
+          />
+          <span style={{ display: 'block', fontSize: 11.5, color: C.subtle, marginTop: 4 }}>Не загружайте документы с личными данными клиентов.</span>
+        </label>
+      ) : (
+        isOpen && <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>Файл сюда не прикладываем: там сведения о здоровье, мы их не храним.</div>
+      )}
+      {(isOpen || file) && (
+        <Btn onClick={submit} disabled={busy}>
+          {busy ? 'Секунду…' : isOpen ? `Сделано${violation.gain > 0 ? ` · +${violation.gain} %` : ''}` : 'Приложить'}
+        </Btn>
+      )}
+      {error && <div className="alert alert-error" style={{ marginTop: 8 }}>{error}</div>}
+    </div>
+  );
+}
+
 // Содержимое шторки нарушения (до 18.10.2026 — отдельная карточка в списке).
-function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) {
+function ViolationCard({ violation, isManagement, onResolve, onEvidenceAdded, onGoToTemplates }) {
   const navigate = useNavigate();
   const color = riskColor(violation.risk);
   // Подробная инструкция (25.10.2026) открывается в этой же шторке, вместо
@@ -2804,9 +2922,9 @@ function ViolationCard({ violation, isManagement, onResolve, onGoToTemplates }) 
           )}
         </div>
       )}
+      <EvidenceBlock violation={violation} isManagement={isManagement} onResolve={onResolve} onEvidenceAdded={onEvidenceAdded} />
       {isManagement && violation.status === 'open' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-          <Btn onClick={() => onResolve(violation.id)}>Отметить устранённым</Btn>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
           {/* 18.09.2026 — та же связка, что уже есть в Дедлайнах для
               критических нарушений (risk>=8), но здесь она видна в
               "Нарушениях" всем открытым нарушениям, не только критическим —

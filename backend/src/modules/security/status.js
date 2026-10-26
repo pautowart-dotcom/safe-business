@@ -30,6 +30,7 @@ function emptyStatus(profile) {
     answersWithBlocks: [],
     sessions: [],
     anchorSessionId: null,
+    gainByCode: {},
   };
 }
 
@@ -63,6 +64,9 @@ async function computeSecurityStatus(companyId) {
   let totalScore = 0;
   let totalMax = 0;
   const answersWithBlocks = [];
+  // Путь до 100 % (26.10.2026): сколько баллов вернёт устранение нарушения —
+  // по коду, для «+N % к индексу» у шага.
+  const lostByCode = {};
 
   for (const session of sessions) {
     matricesByNiche[session.niche] = await repository.getViolationMatrix(session.niche);
@@ -82,6 +86,9 @@ async function computeSecurityStatus(companyId) {
       const resolved = evaluated.createsViolation && resolvedCodes.has(evaluated.violationCode);
       const points = resolved ? 1 : evaluated.points;
       score += points;
+      if (evaluated.createsViolation && !resolved) {
+        lostByCode[evaluated.violationCode] = (lostByCode[evaluated.violationCode] || 0) + 1 - points;
+      }
       answersWithBlocks.push({ code: question.code, points, block: question.block });
     }
     totalScore += score;
@@ -130,7 +137,14 @@ async function computeSecurityStatus(companyId) {
 
   const anchorSessionId = sessions.reduce((latest, s) => (!latest || s.completed_at > latest.completed_at ? s : latest), null)?.id;
 
+  // Прирост индекса по той же формуле, что и сам индекс.
+  const gainByCode = {};
+  for (const [code, lost] of Object.entries(lostByCode)) {
+    gainByCode[code] = Math.round(scoring.indexPercent(totalScore + lost, totalMax) - percent);
+  }
+
   return {
+    gainByCode,
     hasProfile: true,
     profile,
     indexPercent: percent,

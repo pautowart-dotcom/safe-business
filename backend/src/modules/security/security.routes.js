@@ -24,6 +24,7 @@ const { CATALOG: DEADLINE_CATALOG } = require('../../core/deadlineSlotsCatalog')
 const templateViolationLinks = require('../document-templates/content/templateViolationLinks');
 const { alreadyHasDocument } = require('../document-templates/documentSignal');
 const freeTier = require('../../core/freeTier');
+const violationPath = require('./path');
 
 // Пакет 4, Этап 1/5: "не пройден тест" — пример "Действия" (условие есть,
 // точной даты нет) из docs/task-batch-4.txt. category='documents' — тест
@@ -675,6 +676,13 @@ router.get(
     );
     const matrixCache = {};
     const withDetails = [];
+    // Путь до 100 % (26.10.2026, path.js): прирост индекса и файлы у шага.
+    const { gainByCode } = await computeSecurityStatus(req.tenant.companyId);
+    const { rows: evidenceRows } = await pool.query(
+      `SELECT id, violation_id, name, file_url, uploaded_at FROM security_documents
+       WHERE company_id = $1 AND violation_id IS NOT NULL ORDER BY uploaded_at`,
+      [req.tenant.companyId]
+    );
     for (const row of rows) {
       if (!(row.niche in matrixCache)) matrixCache[row.niche] = await repository.getViolationMatrix(row.niche);
       const details = matrixCache[row.niche]?.find((v) => v.code === row.violation_code);
@@ -692,16 +700,23 @@ router.get(
           ...details,
           closesWithTemplate: link ? { templateKey: link.templateKey, templateTitle: link.templateTitle } : null,
           instructions: instructionLinks.forViolationTitle(details.title),
+          gain: row.status === 'open' ? gainByCode[row.violation_code] || 0 : 0,
+          evidenceAllowed: violationPath.evidenceAllowed(details.title),
+          evidence: evidenceRows.filter((e) => e.violation_id === row.id).map((e) => ({ id: e.id, name: e.name, fileUrl: signFileUrl(e.file_url), uploadedAt: e.uploaded_at })),
         });
       }
     }
+
+    // pathStep — номер шага в пути до 100 % (только у открытых).
+    const steps = violationPath.orderPath(withDetails.filter((v) => v.status === 'open'));
+    steps.forEach((v, i) => { v.pathStep = i + 1; });
 
     // 18.10.2026: штраф, норма и решение — это заключение. Раньше этот
     // список отдавал их и гостю без оплаты (в /status они уже были урезаны,
     // здесь — нет). Без права на заключение — только названия и риск.
     const sorted = scoring.sortByRisk(withDetails);
     if (!(await freeTier.canSeeConclusion({ companyId: req.tenant.companyId, userId: req.user.id }))) {
-      return res.json(sorted.map(freeTier.namesOnly));
+      return res.json(sorted.map((v) => ({ ...freeTier.namesOnly(v), gain: v.gain, pathStep: v.pathStep, evidenceAllowed: v.evidenceAllowed, evidence: v.evidence })));
     }
     res.json(sorted);
   })
@@ -778,6 +793,47 @@ router.patch(
 
     const status = await computeSecurityStatus(req.tenant.companyId);
     res.json({ ...rows[0], indexPercent: status.indexPercent, zone: status.zone });
+  })
+);
+
+// Путь до 100 % (26.10.2026, path.js): фото или файл к шагу — по желанию.
+// Ложится в «Документы» раздела «Безопасность» с привязкой к нарушению.
+router.post(
+  '/violations/:id/evidence',
+  uploadDocument,
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Выберите фото или PDF' });
+    const { rows } = await pool.query(
+      'SELECT id, niche, violation_code FROM security_violations WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.tenant.companyId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Нарушение не найдено' });
+    const details = await repository.getViolation(rows[0].niche, rows[0].violation_code);
+    if (!details) return res.status(404).json({ error: 'Нарушение не найдено' });
+    if (!violationPath.evidenceAllowed(details.title)) {
+      return res.status(400).json({ error: 'К этому пункту файл не прикладываем: там сведения о здоровье, мы их не храним' });
+    }
+
+    const profile = await loadProfile(req.tenant.companyId);
+    const sectionsPerNiche = await Promise.all((profile?.niches || []).map((n) => repository.getMandatoryDocuments(n)));
+    const sectionTitles = mergeDocumentSections(sectionsPerNiche.filter(Boolean)).map((s) => s.title);
+    const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
+    const { rows: saved } = await pool.query(
+      `INSERT INTO security_documents (company_id, category, name, file_url, uploaded_by_user_id, violation_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, file_url, uploaded_at`,
+      [req.tenant.companyId, violationPath.categoryFor(details.block, sectionTitles), details.title.slice(0, 200), getFileUrl(filename), req.user.id, rows[0].id]
+    );
+
+    await logEvent({
+      companyId: req.tenant.companyId,
+      moduleKey: 'security',
+      userId: req.user.id,
+      entityType: 'security_document',
+      entityId: saved[0].id,
+      action: 'security_document.created',
+    });
+
+    res.status(201).json({ id: saved[0].id, name: saved[0].name, fileUrl: signFileUrl(saved[0].file_url), uploadedAt: saved[0].uploaded_at });
   })
 );
 
