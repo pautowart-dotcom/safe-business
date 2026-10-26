@@ -219,3 +219,19 @@ test('заглушки [ЗАПОЛНИТЬ] не попадают в базу д
   assert.equal(kb.total, 2);
   assert.equal(kb.empty, 1);
 });
+
+test('«[ссылка]» после адреса → ссылка Dikidi из базы', () => {
+  const kb = cleanKb(require('fs').readFileSync(require('path').join(__dirname, '..', 'baza.md'), 'utf8')).text;
+  const r = brain.fillLinks('Вы можете сами изменить запись по ссылке: Большая Марфинская, д. 4, к. 7 — [ссылка], Ивовая улица, д. 6, к. 1 — [ссылка]. Если удобнее, администратор поможет.', kb);
+  assert.match(r, /Большая Марфинская, д\. 4, к\. 7 — https:\/\/dikidi\.net\/731427/);
+  assert.match(r, /Ивовая улица, д\. 6, к\. 1 — https:\/\/dikidi\.net\/863138/);
+  assert.doesNotMatch(r, /\[ссылка\]/);
+  assert.deepEqual(brain.inventedFacts(r, kb), []);
+});
+
+test('«[ссылка]» без адреса → обе студии', () => {
+  const kb = cleanKb(require('fs').readFileSync(require('path').join(__dirname, '..', 'baza.md'), 'utf8')).text;
+  const r = brain.fillLinks('Записаться можно по ссылке: [ссылка на запись]', kb);
+  assert.match(r, /731427/);
+  assert.match(r, /863138/);
+});
