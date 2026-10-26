@@ -274,11 +274,11 @@ export default function MyDeadlinesTab() {
     setSwitchMessage('');
     try {
       await api.post('/platform/my-deadlines/tax-regime-recommendation/switch-deadline', { targetRegime, startAt });
-      setSwitchMessage('Дедлайн добавлен — смотрите в «Дедлайнах».');
+      setSwitchMessage('Срок добавлен — смотрите во «Всех сроках».');
       const res = await api.get('/platform/deadlines', { params: { category: 'tax' } });
       setTaxDeadlines(res.data);
     } catch (err) {
-      setSwitchMessage(err.response?.data?.error || 'Не получилось создать дедлайн');
+      setSwitchMessage(err.response?.data?.error || 'Не получилось создать срок');
     } finally {
       setSwitchingRegime(null);
     }
@@ -481,7 +481,7 @@ export default function MyDeadlinesTab() {
                   onClick={() => createSwitchDeadline(o.regime)}
                   style={{ marginTop: 6, padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.secondary, fontSize: 12, cursor: 'pointer' }}
                 >
-                  {switchingRegime === o.regime ? 'Создаём...' : 'Дедлайн перехода (до 31 декабря)'}
+                  {switchingRegime === o.regime ? 'Создаём...' : 'Срок перехода (до 31 декабря)'}
                 </button>
               )}
               {o.regime === 'patent' && (
@@ -493,7 +493,7 @@ export default function MyDeadlinesTab() {
                     onClick={() => createSwitchDeadline('patent', patentSwitchDate)}
                     style={{ padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.secondary, fontSize: 12, cursor: 'pointer' }}
                   >
-                    {switchingRegime === 'patent' ? 'Создаём...' : 'Дедлайн заявления (за 10 раб. дней до старта)'}
+                    {switchingRegime === 'patent' ? 'Создаём...' : 'Срок заявления (за 10 раб. дней до старта)'}
                   </button>
                 </div>
               )}

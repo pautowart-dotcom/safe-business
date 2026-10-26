@@ -44,7 +44,7 @@ async function run() {
     const overdue = row.due_date && row.due_date < today;
     await notifyCompany({
       companyId: row.company_id, kind: 'deadline', category: row.category, title: row.title,
-      body: overdue ? 'Вы просили напомнить. Срок уже прошёл — подробности в «Дедлайнах»' : 'Вы просили напомнить — подробности в «Дедлайнах»',
+      body: overdue ? 'Вы просили напомнить. Срок уже прошёл — подробности во «Всех сроках»' : 'Вы просили напомнить — подробности во «Всех сроках»',
       url: '/deadlines',
       dedupeKey: `deadline:${row.id}`,
     }).catch((err) => console.error('deadlineReminders: snooze notify failed', row.id, err));
@@ -72,8 +72,8 @@ async function run() {
     await pool.query('UPDATE deadlines SET last_reminded_days_before = $1 WHERE id = $2', [threshold, row.id]);
 
     const body = daysUntil <= 0
-      ? 'Срок наступает сегодня — подробности в «Дедлайнах»'
-      : `Осталось ${daysUntil} дн. — подробности в «Дедлайнах»`;
+      ? 'Срок наступает сегодня — подробности во «Всех сроках»'
+      : `Осталось ${daysUntil} дн. — подробности во «Всех сроках»`;
 
     // Побочный эффект (push) не должен ронять весь прогон из-за одной
     // недоступной подписки — тот же принцип, что в core/deadlines.js.

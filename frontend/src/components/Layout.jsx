@@ -202,7 +202,7 @@ const TITLES = {
   '/feedback': 'Обратная связь',
   '/subscription': 'Подписка',
   '/support': 'Поддержка',
-  '/deadlines': 'Дедлайны',
+  '/deadlines': 'Все сроки',
   '/notifications': 'Уведомления',
   '/network': 'Пульт сети',
   '/network-tasks': 'Задачи от сети',

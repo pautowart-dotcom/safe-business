@@ -51,7 +51,7 @@ const BLOCK_LABELS = {
   7: 'Дополнительные зоны',
   9: 'Финансовая безопасность',
 };
-const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая зона', red: 'Красная зона' };
+const ZONE_LABELS = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
 

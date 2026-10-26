@@ -63,7 +63,7 @@ async function registerDeadline({
       kind: 'deadline',
       category,
       title,
-      body: 'Новый срок — подробности в «Дедлайнах»',
+      body: 'Новый срок — подробности во «Всех сроках»',
       url: '/deadlines',
       dedupeKey: `deadline:${id}`,
     }).catch((err) => console.error('notifyCompany failed:', err));
@@ -114,7 +114,7 @@ async function registerAction({ companyId, category, title, relatedEntityType = 
       kind: 'deadline',
       category,
       title,
-      body: notifyBody || 'Подробности — в «Дедлайнах»',
+      body: notifyBody || 'Подробности — во «Всех сроках»',
       url: notifyUrl || '/deadlines',
       dedupeKey: relatedEntityType && relatedEntityId ? `action:${relatedEntityType}:${relatedEntityId}` : null,
     }).catch((err) => console.error('notifyCompany failed:', err));

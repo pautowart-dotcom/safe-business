@@ -84,7 +84,7 @@ export default function Deadlines() {
 
   return (
     <div>
-      <div className="ui-page-title" style={{ marginBottom: 16 }}>Дедлайны</div>
+      <div className="ui-page-title" style={{ marginBottom: 16 }}>Все сроки</div>
 
       {/* Баг №9: все категории сразу, переносом, без горизонтального скролла. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>

@@ -48,7 +48,7 @@ async function run() {
       kind: 'deadline',
       category: 'tax',
       title: `Налоговые сроки на ${year} год добавлены`,
-      body: 'Напомним заранее о каждом — список в «Дедлайнах»',
+      body: 'Напомним заранее о каждом — список во «Всех сроках»',
       url: '/deadlines',
       dedupeKey: `tax_rollover:${year}`,
     }).catch((err) => console.error('taxDeadlinesRollover: notifyCompany failed', c.id, err));

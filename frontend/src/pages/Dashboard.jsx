@@ -18,7 +18,7 @@ import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 import { isNewCohort } from '../utils/cohort.js';
 
-const ZONE_LABEL = { green: 'Зелёная зона', yellow: 'Жёлтая зона · Есть нарушения', red: 'Красная зона · Есть нарушения' };
+const ZONE_LABEL = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const SHIFT_LABEL = { open: 'Смена открыта', closed: 'Смена закрыта', not_opened: 'Смена ещё не открыта' };
 const SHIFT_COLOR = { open: C.green, closed: C.subtle, not_opened: C.orange };
@@ -76,7 +76,7 @@ function ActionsCenterCard({ items, navigate }) {
 
   return (
     <Card style={{ cursor: 'pointer' }} onClick={() => navigate(allSameTarget ? actionTarget(visible[0]) : '/deadlines')}>
-      <ST>Центр действий</ST>
+      <ST>Что сделать</ST>
       {visible.map((d) => {
         const overdue = d.due_date && d.due_date < today;
         const isToday = d.due_date === today;
@@ -237,7 +237,7 @@ function StatRow({ revenueLabel, revenue, reportsDone, reportsTotal, criticalCou
   const stats = [
     { label: 'Выручка сегодня', value: money(revenue) },
     { label: 'Отчётов', value: reportsTotal > 0 ? `${reportsDone}/${reportsTotal}` : '—' },
-    { label: 'Критических действий', value: criticalCount, dot: criticalCount > 0 ? C.red : null },
+    { label: 'Требуют внимания', value: criticalCount, dot: criticalCount > 0 ? C.red : null },
     { label: 'Индекс безопасности', value: indexPercent != null ? `${indexPercent}%` : '—', dot: indexPercent != null ? C.orange : null },
   ];
   return (
@@ -444,7 +444,7 @@ function OwnerDashboard() {
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01" /><circle cx="12" cy="12" r="9" /></svg>
             </span>
             <span style={{ fontSize: 15, fontWeight: 700, color: C.primary }}>
-              Критических действий: <span style={{ fontFamily: FM, color: C.red }}>{criticalCount}</span>
+              Требуют внимания: <span style={{ fontFamily: FM, color: C.red }}>{criticalCount}</span>
             </span>
           </div>
           {subscriptionProblem && (

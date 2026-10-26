@@ -173,12 +173,12 @@ function SecuritySection() {
       </p>
 
       <div style={{ fontSize: 13, fontWeight: 700, margin: '14px 0 4px' }}>Вкладка «Обзор» — тест и индекс</div>
-      <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>34 вопроса о вашем бизнесе (бесплатно, один раз, можно пройти заново) — по итогам показывается индекс безопасности и зона (зелёная/жёлтая/красная).</p>
+      <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>34 вопроса о вашем бизнесе (бесплатно, один раз, можно пройти заново) — по итогам показывается индекс — сколько пунктов из 100 в порядке.</p>
       <Mock>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.orangeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: C.orange }}>67%</div>
           <div>
-            <Badge color={C.orange} bg={C.orangeBg}>Жёлтая зона</Badge>
+            <Badge color={C.orange} bg={C.orangeBg}>На полпути</Badge>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>3 нарушения найдено</div>
           </div>
         </div>

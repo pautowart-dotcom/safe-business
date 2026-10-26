@@ -271,7 +271,7 @@ function formatContextForPrompt(ctx) {
   }
 
   if (ctx.deadlines.length === 0) {
-    lines.push('Ближайших сроков в разделе "Мои сроки"/"Дедлайны" не внесено.');
+    lines.push('Ближайших сроков в разделе "Мои сроки"/"Все сроки" не внесено.');
   } else {
     lines.push('Ближайшие сроки:');
     for (const d of ctx.deadlines) {
