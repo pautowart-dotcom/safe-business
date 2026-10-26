@@ -301,6 +301,11 @@ export default function Security() {
   // query — тут не нужна постоянная ссылка, только разовая передача при
   // навигации).
   const [topTab, setTopTab] = useState(location.state?.tab || 'test');
+  // Путь из 4 этапов (26.10.2026) — переключатель на сервере, см. SecurityPath.
+  const [pathUi, setPathUi] = useState(null);
+  useEffect(() => {
+    api.get('/platform/ui-config', { silent: true }).then(({ data }) => setPathUi(!!data.securityPath)).catch(() => setPathUi(false));
+  }, []);
 
   async function loadDashboardData() {
     const [statusRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
@@ -442,7 +447,7 @@ export default function Security() {
     toast('Записали в лист ожидания — сообщим о запуске');
   }
 
-  if (loading) return <div className="page-loading">Загрузка...</div>;
+  if (loading || pathUi === null) return <div className="page-loading">Загрузка...</div>;
 
   if (activeAudit) {
     return (
@@ -483,6 +488,31 @@ export default function Security() {
           else setProfile(null);
         }}
         onCancel={profile ? () => setEditingProfile(false) : null}
+      />
+    );
+  }
+
+  if (pathUi) {
+    return (
+      <SecurityPath
+        initialStage={STAGE_FOR_TAB[location.state?.tab] || STAGE_FOR_TAB[dashboardTab] || null}
+        profile={profile}
+        status={status}
+        violations={violations}
+        documents={documents}
+        documentSections={documentSections}
+        products={products}
+        isManagement={isManagement}
+        hasPaidPlan={hasPaidPlan}
+        isTestCompany={isTestCompany}
+        pdfPaywall={pdfPaywall}
+        error={error}
+        onEditProfile={() => setEditingProfile(true)}
+        onStartAudit={startAudit}
+        onResolveViolation={resolveViolation}
+        onJoinWaitlist={joinWaitlist}
+        onDownloadReport={(sessionId) => downloadPdf(sessionId, setError, setPdfPaywall)}
+        onDocumentsChange={loadDashboardData}
       />
     );
   }
@@ -834,6 +864,251 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, hasPremises, onClose, on
         </Btn>
       )}
       <Btn variant="secondary" onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт · по подписке'}</Btn>
+    </div>
+  );
+}
+
+// ---------- Путь из 4 этапов (26.10.2026) ----------
+// План 26.10, шаг 2.5 «Понятность» (docs/karta-putanicy-2026-10-26.md):
+// раньше «Безопасность» была 6 вкладками с разной информацией без общей
+// логики. Теперь — один путь: Узнать (тест) → Исправить (шаги, документы) →
+// Держать (проверка месяца, сроки) → Быть готовым (ИНН, папка к проверке,
+// памятка). Новых функций нет — те же карточки, разложенные по этапам.
+// Этапы 3–4 открыты и до 100 %: порядок — подсказка, а не замок.
+// Откат без деплоя: SECURITY_PATH_UI=false (platform/index.js /ui-config) —
+// тогда рендерится прежний SecurityDashboard ниже, он не тронут.
+
+// Куда вели старые ссылки на вкладки (Дедлайны, главная, результат теста).
+const STAGE_FOR_TAB = { overview: null, violations: 2, documents: 4, inspection: 4, my_deadlines: 3 };
+
+// Без «красной зоны»: тон продукта — контроль и порядок, не запугивание.
+function pathIndexWords(percent) {
+  if (percent >= 100) return 'Готовы к проверке';
+  if (percent >= 80) return 'Почти готовы к проверке';
+  if (percent >= 50) return 'На полпути';
+  return 'Начало пути';
+}
+
+function SecurityPath({
+  initialStage, profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
+  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange,
+}) {
+  const navigate = useNavigate();
+  const [monthly, setMonthly] = useState(null);
+  const [outside, setOutside] = useState(null); // null — раздел выключен или не загрузился
+  const [showDeadlines, setShowDeadlines] = useState(initialStage === 3);
+  const [showOther, setShowOther] = useState(false);
+
+  useEffect(() => {
+    api.get('/platform/monthly-check', { silent: true }).then(({ data }) => setMonthly(data)).catch(() => {});
+    api.get('/platform/outside-watch', { silent: true }).then(({ data }) => setOutside(data)).catch(() => {});
+  }, []);
+
+  const index = status?.indexPercent;
+  const hasResult = index != null;
+  const open = violations.filter((v) => v.status === 'open').sort((a, b) => (a.pathStep || 999) - (b.pathStep || 999));
+  const doneCount = violations.length - open.length;
+  const outstanding = status?.outstandingNiches || [];
+
+  const stages = [
+    {
+      n: 1, title: 'Узнать', done: hasResult,
+      line: hasResult ? `Тест пройден · ${Math.round(index)} из 100` : 'Тест — около 10 минут',
+    },
+    {
+      n: 2, title: 'Исправить', done: hasResult && open.length === 0,
+      line: !hasResult ? 'После теста — шаги по порядку' : open.length ? `Сделано ${doneCount} из ${violations.length}` : 'Все шаги сделаны',
+    },
+    {
+      n: 3, title: 'Держать', done: !!monthly?.done,
+      line: monthly?.done ? 'Проверка месяца пройдена' : 'Проверка месяца — 2 минуты',
+    },
+    {
+      n: 4, title: 'Быть готовым', done: !!outside?.hasInn,
+      line: outside ? (outside.hasInn ? 'Следим за реестром проверок' : 'Проверка по ИНН') : 'Памятка и папка к проверке',
+    },
+  ];
+  const current = !hasResult ? 1 : open.length ? 2 : !monthly?.done ? 3 : 4;
+  const [stage, setStage] = useState(initialStage || current);
+  const next = open[0];
+
+  // Одна кнопка «что дальше» — по текущему этапу.
+  const nextAction = {
+    1: { text: products?.audit.available === false ? 'Тест для вашей ниши в разработке' : 'Пройти тест', run: products?.audit.available === false ? null : () => onStartAudit() },
+    2: { text: next ? `Дальше: ${next.title}${next.gain > 0 ? ` · +${next.gain}` : ''}` : 'Открыть шаги', run: () => setStage(2) },
+    3: { text: 'Пройти проверку месяца', run: () => navigate('/monthly-check') },
+    4: { text: outside && !outside.hasInn ? 'Проверить по ИНН' : 'Что видно о вас в реестрах', run: () => (outside ? navigate('/outside') : setStage(4)) },
+  }[current];
+
+  let continueLabel = 'Пройти тест заново';
+  let continueAction = () => onStartAudit({ retakeAll: true });
+  if (outstanding.length > 0) {
+    continueLabel = outstanding.length === 1 ? `Пройти тест по нише «${nicheLabel(outstanding[0])}»` : 'Пройти тест по новым нишам';
+    continueAction = () => onStartAudit();
+  }
+
+  return (
+    <div>
+      <div className="ui-page-title" style={{ marginBottom: 4 }}>Безопасность</div>
+      <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
+        {(profile.niches || []).map(nicheLabel).join(', ') || '—'} · {LEGAL_FORM_OPTIONS.find((o) => o.value === profile.legalForm)?.label}
+        {isManagement && <span onClick={onEditProfile} style={{ color: C.primary, fontWeight: 600, cursor: 'pointer', marginLeft: 8 }}>Изменить</span>}
+      </div>
+      {error && <div className="alert alert-error">{error}</div>}
+
+      <div style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 16, boxShadow: SH.raised }}>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14 }}>
+          <Ring percent={hasResult ? Math.round(index) : null} label={hasResult ? 'из 100' : 'нет теста'} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{hasResult ? pathIndexWords(index) : 'Ваш путь к «готов к проверке»'}</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>
+              {hasResult ? 'Столько пунктов из 100 у вас в порядке. Каждый сделанный шаг добавляет.' : 'Четыре этапа: узнать, исправить, держать порядок, быть готовым к проверке.'}
+            </div>
+          </div>
+        </div>
+        {stages.map((s) => {
+          const isCurrent = s.n === current;
+          return (
+            <button
+              key={s.n}
+              type="button"
+              onClick={() => setStage(s.n)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer',
+                background: stage === s.n ? 'rgba(255,255,255,.12)' : 'transparent', border: 'none', borderRadius: 12, padding: '9px 10px', color: '#FFF',
+              }}
+            >
+              <span style={{
+                width: 24, height: 24, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
+                background: s.done ? C.green : isCurrent ? '#FFF' : 'rgba(255,255,255,.15)', color: s.done ? '#FFF' : isCurrent ? C.primary : 'rgba(255,255,255,.7)',
+              }}
+              >
+                {s.done ? '✓' : s.n}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 800 }}>{s.title}{isCurrent ? ' · вы здесь' : ''}</span>
+                <span style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,.65)', marginTop: 1 }}>{s.line}</span>
+              </span>
+            </button>
+          );
+        })}
+        {isManagement && nextAction && (
+          <button
+            type="button"
+            onClick={nextAction.run || undefined}
+            disabled={!nextAction.run}
+            style={{ marginTop: 12, width: '100%', background: '#FFF', color: C.primary, border: 'none', borderRadius: 14, padding: '12px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 800, cursor: nextAction.run ? 'pointer' : 'default', textAlign: 'center' }}
+          >
+            {nextAction.text}
+          </button>
+        )}
+      </div>
+
+      {stage === 1 && (
+        <div>
+          <ST>Узнать</ST>
+          {hasResult ? (
+            isManagement && (
+              <Group>
+                <Row icon="check" title={continueLabel} subtitle="Индекс обновится по новым ответам" onClick={continueAction} />
+                <Row icon="doc" title="Скачать PDF-отчёт" subtitle="Для печати и для проверяющего" tag={hasPaidPlan ? undefined : 'По подписке'} tone={hasPaidPlan ? 'gray' : 'blue'} onClick={() => onDownloadReport(status.anchorSessionId)} />
+              </Group>
+            )
+          ) : products?.audit.available === false ? (
+            <Card>
+              <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>Тест безопасности для вашей ниши сейчас в разработке. Мы уведомим вас о запуске.</div>
+              {isManagement && <Btn small variant="secondary" onClick={() => onJoinWaitlist('paid_audit')}>Сообщить о запуске</Btn>}
+            </Card>
+          ) : (
+            <Card>
+              <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+                {products?.audit.questionsCount != null ? `${products.audit.questionsCount} вопрос${pluralSuffix(products.audit.questionsCount)}, бесплатно. ` : 'Бесплатно. '}
+                Покажет, что у вас уже в порядке, а что стоит сделать, — по шагам.
+              </div>
+            </Card>
+          )}
+          {pdfPaywall && <div style={{ marginBottom: 12 }}><PdfPaywallNotice /></div>}
+        </div>
+      )}
+
+      {stage === 2 && (
+        <div>
+          <ST>Исправить</ST>
+          {hasResult ? (
+            <ViolationsTab violations={violations} indexPercent={index} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} onGoToTemplates={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })} />
+          ) : (
+            <Card><div style={{ fontSize: 13, color: C.secondary }}>Сначала пройдите тест — здесь появятся шаги по порядку: что сделать, какой документ нужен, отметка «Сделано».</div></Card>
+          )}
+          <div id="path-templates">
+            <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
+          </div>
+          <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
+        </div>
+      )}
+
+      {stage === 3 && (
+        <div>
+          <ST>Держать порядок</ST>
+          <Group>
+            <Row
+              icon="check"
+              tone={monthly?.done ? 'green' : 'blue'}
+              title="Проверка месяца"
+              subtitle={monthly?.done ? 'В этом месяце пройдена — следующая в начале месяца' : '5–7 вопросов, 2 минуты: что уже сделано, что в план'}
+              onClick={() => navigate('/monthly-check')}
+            />
+            {isManagement && (
+              <Row
+                icon="bell"
+                title="Мои сроки — по желанию"
+                subtitle="Если хотите точные даты: медкнижки, огнетушители, ЭЦП, патент"
+                onClick={() => setShowDeadlines((v) => !v)}
+              />
+            )}
+          </Group>
+          {showDeadlines && isManagement && <MyDeadlinesTab />}
+        </div>
+      )}
+
+      {stage === 4 && (
+        <div>
+          <ST>Быть готовым к проверке</ST>
+          <OutsideWatchEntry />
+          <div style={{ fontSize: 15, fontWeight: 800, margin: '6px 4px 8px' }}>Папка к проверке</div>
+          <div style={{ fontSize: 12.5, color: C.subtle, margin: '0 4px 10px' }}>Документы, которые вы покажете проверяющему: загруженные сами и приложенные к шагам.</div>
+          <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setStage(2)} />
+          <InspectionsHistoryCard />
+          <InspectionGuidesTab />
+        </div>
+      )}
+
+      {/* Не про путь — свёрнуто внизу (раньше лежало в «Обзоре»). */}
+      <div style={{ marginTop: 18 }}>
+        <button
+          type="button"
+          onClick={() => setShowOther((v) => !v)}
+          style={{ background: 'none', border: 'none', color: C.secondary, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '4px', fontFamily: 'inherit' }}
+        >
+          {showOther ? 'Скрыть другое ▴' : 'Другое: открытие точки, паспорт бизнеса, сеть, партнёры ▾'}
+        </button>
+        {showOther && (
+          <div style={{ marginTop: 8 }}>
+            <OpeningRoadmapCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} />
+            <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
+            <FranchiseCard isManagement={isManagement} />
+            {isManagement && (
+              <Group>
+                <Row icon="home" title="Точка ещё не открылась?" subtitle="Чек-лист вашей ниши с отметками и кнопка «Открылись»" onClick={() => navigate('/opening')} />
+              </Group>
+            )}
+            {isManagement && <PartnerServicesCard />}
+          </div>
+        )}
+      </div>
+
+      <div style={{ fontSize: 12, color: C.subtle, textAlign: 'center', marginTop: 12 }}>
+        Сервис не заменяет юриста, бухгалтера или специалиста по охране труда.
+      </div>
     </div>
   );
 }

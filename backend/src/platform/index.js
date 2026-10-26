@@ -90,4 +90,11 @@ platformRouter.use('/my-points', myPointsRoutes);
 platformRouter.use('/telegram-webhook', telegramWebhookRoutes);
 platformRouter.use('/outside-watch', outsideWatchRoutes);
 
+// Переключатели вида кабинета (26.10.2026). securityPath — «Безопасность»
+// как путь из 4 этапов (Узнать → Исправить → Держать → Быть готовым, план
+// 26.10 шаг 2.5). SECURITY_PATH_UI=false в .env — старые вкладки, без деплоя.
+platformRouter.get('/ui-config', (req, res) => {
+  res.json({ securityPath: process.env.SECURITY_PATH_UI !== 'false' });
+});
+
 module.exports = { authRoutes, platformRouter, legalRoutes };
