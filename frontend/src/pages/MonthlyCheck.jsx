@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Btn, C, SH, Group, Row, Ring } from '../ui/components.jsx';
+import Sheet from '../ui/Sheet.jsx';
+import MarkdownRich from '../ui/MarkdownRich.jsx';
+import toast from '../ui/toast.js';
 
 // Проверка месяца (17.10.2026, этап 7). Бэкенд — platform/monthly-check.routes.js.
 // Вопросы собраны из данных самой точки; «Да» сразу закрывает нарушение,
@@ -23,8 +26,22 @@ const REACTION = {
   },
   deadline: { yes: 'Закроем срок. Если он повторяется — поставим следующий.', no: 'Оставим в сроках, напомним ещё.' },
   task: { yes: 'Отметим сети, что сделано.', no: 'Сеть увидит, что задача ещё в работе.' },
-  regular: { yes: 'Хорошо, порядок.', no: 'Стоит посмотреть на этой неделе.' },
+  regular: { yes: 'Хорошо, порядок.', no: 'Напомним в следующем месяце.' },
 };
+
+// Подписка без дат (26.10.2026): у регулярного вопроса своя частота. «Да» —
+// спросим снова через неё; дата «когда было» — по желанию.
+function againIn(every) {
+  if (every === 1) return 'Спросим снова через месяц.';
+  if (every === 12) return 'Спросим снова через год.';
+  return `Спросим снова через ${every} месяц${every < 5 ? 'а' : 'ев'}.`;
+}
+
+function ruDate(iso) {
+  return iso ? iso.split('-').reverse().join('.') : '';
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
 
 // 18.10.2026, вид приложения: списки итога — строками «как в Настройках».
 function List({ title, items, tone, icon }) {
@@ -67,8 +84,27 @@ function Summary({ state }) {
 export default function MonthlyCheck() {
   const [state, setState] = useState(undefined);
   const [answers, setAnswers] = useState({});
+  const [extra, setExtra] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [instruction, setInstruction] = useState(null);
+  const [loadingKey, setLoadingKey] = useState(null);
+
+  async function openInstruction(key) {
+    setLoadingKey(key);
+    try {
+      const { data } = await api.get(`/modules/security/instructions/${key}`);
+      setInstruction(data);
+    } catch (err) {
+      toast(err.response?.data?.error || 'Не удалось открыть инструкцию');
+    } finally {
+      setLoadingKey(null);
+    }
+  }
+
+  function setExtraFor(key, patch) {
+    setExtra({ ...extra, [key]: { ...extra[key], ...patch } });
+  }
 
   function load() {
     return api.get('/platform/monthly-check').then(({ data }) => setState(data)).catch(() => setState(null));
@@ -81,7 +117,9 @@ export default function MonthlyCheck() {
     setError('');
     try {
       const { data } = await api.post('/platform/monthly-check', {
-        answers: Object.entries(answers).map(([key, answer]) => ({ key, answer })),
+        answers: state.items
+          .filter((i) => answers[i.key] || extra[i.key]?.every)
+          .map((i) => ({ key: i.key, answer: answers[i.key], ...extra[i.key] })),
       });
       setState(data);
     } catch (err) {
@@ -114,7 +152,25 @@ export default function MonthlyCheck() {
         return (
           <Card key={item.key}>
             <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.45 }}>{item.title}</div>
-            {item.hint && <div style={{ fontSize: 12, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>{item.hint}</div>}
+            {item.hint && (
+              <div style={{ fontSize: 12, color: C.secondary, marginTop: 4, lineHeight: 1.5 }}>
+                {item.hint}
+                {item.lastDone && ` · отмечали ${ruDate(item.lastDone)}`}
+                {item.instruction && (
+                  <>
+                    {' · '}
+                    <button
+                      type="button"
+                      onClick={() => openInstruction(item.instruction)}
+                      disabled={!!loadingKey}
+                      style={{ background: 'none', border: 'none', padding: 0, color: C.primary, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}
+                    >
+                      {loadingKey === item.instruction ? 'Открываем…' : 'Как сделать'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {/* 18.10.2026, вид приложения: крупные ответы с цветом выбранного. */}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               {[['yes', 'Да', C.green, C.greenBg], ['no', 'Ещё нет', C.orange, C.orangeBg], ...(item.type === 'violation' ? [['skip', 'Позже', C.secondary, '#F1F3F6']] : [])].map(([key, label, col, bg]) => (
@@ -133,7 +189,37 @@ export default function MonthlyCheck() {
                 </button>
               ))}
             </div>
-            {a && <div className="ui-view" style={{ fontSize: 12.5, color: a === 'yes' ? C.green : a === 'skip' ? C.secondary : C.orange, marginTop: 8, lineHeight: 1.5 }}>{REACTION[item.type][a]}</div>}
+            {a && (
+              <div className="ui-view" style={{ fontSize: 12.5, color: a === 'yes' ? C.green : a === 'skip' ? C.secondary : C.orange, marginTop: 8, lineHeight: 1.5 }}>
+                {REACTION[item.type][a]}
+                {item.type === 'regular' && a === 'yes' && ` ${againIn(extra[item.key]?.every || item.every)}`}
+              </div>
+            )}
+            {item.type === 'regular' && a === 'yes' && item.every > 1 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, color: C.secondary, marginTop: 8 }}>
+                Когда было? Необязательно — иначе считаем от сегодня.
+                <input
+                  type="date"
+                  max={today()}
+                  value={extra[item.key]?.date || ''}
+                  onChange={(e) => setExtraFor(item.key, { date: e.target.value || undefined })}
+                  style={{ fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', borderRadius: 8, border: `1px solid ${C.border}` }}
+                />
+              </label>
+            )}
+            {item.everyOptions && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, color: C.secondary, marginTop: 8 }}>
+                Спрашивать:
+                <select
+                  value={extra[item.key]?.every || item.every}
+                  onChange={(e) => setExtraFor(item.key, { every: Number(e.target.value) })}
+                  style={{ fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', borderRadius: 8, border: `1px solid ${C.border}` }}
+                >
+                  {item.everyOptions.map((n) => <option key={n} value={n}>{n === 12 ? 'раз в год' : `раз в ${n} месяц${n < 5 ? 'а' : 'ев'}`}</option>)}
+                </select>
+                <span>Перезарядили — можно реже; срок осмотра смотрите в паспорте.</span>
+              </label>
+            )}
           </Card>
         );
       })}
@@ -143,6 +229,9 @@ export default function MonthlyCheck() {
         <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Вопросы без ответа посчитаем как «ещё нет».</div>
       )}
       {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
+      <Sheet open={!!instruction} onClose={() => setInstruction(null)} title={null}>
+        {instruction && <MarkdownRich text={instruction.markdown} />}
+      </Sheet>
     </div>
   );
 }

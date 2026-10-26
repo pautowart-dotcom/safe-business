@@ -3,40 +3,111 @@
 //   1) до 3 самых рискованных открытых нарушений — «„…“ — исправили?»;
 //   2) до 2 сроков на ближайшие 30 дней (или подошедших) — «сделали?»;
 //   3) до 2 невыполненных задач сети, если точка в сети;
-//   4) 2 регулярные вещи, общие для всех (меняются по месяцам).
+//   4) регулярные вещи со своей частотой — остальные места до 7, не меньше 2.
 // Не больше 7 вопросов. Ответ «да» сразу закрывает нарушение / срок /
 // задачу — той же логикой, что кнопки в кабинете.
+//
+// Подписка без дат (26.10.2026, docs/plan-2026-10-26.md, шаг 1, решения
+// владельца): регулярные вопросы — по нише и ответам теста, частота — из наших
+// инструкций (content/instructions, сверены с законом). «Да» запускает цикл:
+// вопрос вернётся через свою частоту, считая от сегодня или от даты, которую
+// человек по желанию указал сам. «Ещё нет» — просто напоминание: спросим в
+// следующем месяце, индекс не снижаем. Огнетушители — раз в квартал, после
+// перезарядки владелец может сделать реже. Не помещается в 7 — переносится.
 const pool = require('../../db/pool');
 const repository = require('../security/content/repository');
 const { clearAction, nextDueDate } = require('../../core/deadlines');
 const { computeSecurityStatus } = require('../security/status');
+const { loadProfile } = require('../security/profile');
+const { isVisible } = require('../../core/profileVisibility');
 const { moscowDateStr } = require('../../utils/moscowDate');
 
 const MAX_ITEMS = 7;
+const MIN_REGULAR = 2;
 const SKIP_MONTHS = 6;
 const ANSWERS = ['yes', 'no', 'skip'];
 
+const STERILIZATION = ['Журнал стерилизации', 'Контроль качества стерилизации', 'Стерилизация инструмента для чистки лица', 'Стерилизация многоразового инструмента (автоклав/сухожар)'];
+
 // Без статей и сумм: это повод посмотреть, а не новое «нарушение».
+// titles — пункты матрицы нарушений ниши, при которых вопрос нужен (null — всем);
+// showIf — правило профиля из core/profileVisibility.js; every — раз в N месяцев.
+// Порядок = приоритет, когда в 7 вопросов всё не помещается.
 const REGULAR = [
-  { key: 'fire_ext', title: 'Огнетушители на месте, пломба цела, стрелка манометра в зелёной зоне?' },
-  { key: 'first_aid', title: 'Аптечка полная, сроки годности не вышли?' },
-  { key: 'consumer_corner', title: 'Уголок потребителя актуален: цены, режим работы, контакты?' },
-  { key: 'evacuation', title: 'Пути эвакуации свободны, табличка «Выход» видна?' },
-  { key: 'client_docs', title: 'У новых клиентов подписаны договор и согласие на обработку данных?' },
-  { key: 'staff_books', title: 'Медкнижки сотрудников не просрочены? (Только посмотрите — сюда не вносим.)' },
+  { key: 'sterilization', every: 1, instruction: 'sterilizaciya', titles: STERILIZATION, title: 'Журнал стерилизации заполнен за все дни прошлого месяца?' },
+  { key: 'general_cleaning', every: 1, instruction: 'uborka', titles: ['График генеральных уборок', 'Журнал уборки'], title: 'Генеральная уборка была каждую неделю по графику?' },
+  { key: 'pest_control', every: 1, instruction: 'dogovory-musor-dezinsekciya', titles: ['Дезинсекция и дератизация'], title: 'Дезинсекция приходила по договору (осмотр не реже 2 раз в месяц), акты есть?' },
+  { key: 'waste_b', every: 1, instruction: 'dogovory-musor-dezinsekciya', titles: ['Отходы класса Б'], title: 'Отходы класса Б вывезли по договору, акт есть?' },
+  { key: 'fire_ext', every: 3, everyOptions: [3, 6, 12], instruction: 'ognetushiteli', titles: null, title: 'Огнетушители осмотрены по паспорту: на месте, пломба цела, стрелка в зелёной зоне?' },
+  { key: 'staff_books', every: 3, instruction: 'medknizhki', titles: null, showIf: 'has_employees', title: 'Медкнижки: ни у кого не подходит срок медосмотра? (Только посмотрите — даты сюда не вносим.)' },
+  { key: 'ot_briefing', every: 6, instruction: 'instruktazh-ohrana-truda', titles: ['Инструктаж по охране труда'], showIf: 'has_employees', title: 'Повторный инструктаж по охране труда провели в последние 6 месяцев?' },
+  { key: 'sterilizer_ppk', every: 6, instruction: 'proizvodstvennyj-kontrol', titles: STERILIZATION, title: 'Проверку стерилизатора по программе производственного контроля делали в последние 6 месяцев?' },
+  { key: 'consumer_corner', every: 3, instruction: null, titles: null, title: 'Уголок потребителя актуален: цены, режим работы, контакты?' },
+  { key: 'fire_briefing', every: 12, instruction: 'instruktazh-pozharnyj', titles: ['Инструкция о мерах пожарной безопасности'], showIf: 'has_employees', title: 'Повторный противопожарный инструктаж со всеми был в последние 12 месяцев?' },
+  { key: 'light_ppk', every: 12, instruction: 'proizvodstvennyj-kontrol', titles: STERILIZATION, title: 'Замер освещённости по программе производственного контроля был в последние 12 месяцев?' },
+  { key: 'first_aid', every: 6, instruction: null, titles: null, title: 'Аптечка полная, сроки годности не вышли?' },
 ];
 
 function currentMonth() {
   return moscowDateStr(new Date()).slice(0, 7);
 }
 
-function regularFor(month) {
-  const n = Number(month.slice(5, 7));
-  return [REGULAR[(n * 2) % REGULAR.length], REGULAR[(n * 2 + 1) % REGULAR.length]];
+function monthNo(ym) {
+  return Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5, 7)) - 1;
+}
+
+// Вопросы, которые нужны этой точке: по нише (titles) и профилю (showIf).
+// Без профиля (теста не было) — только общие, без правил профиля.
+function relevantRegular(profile, nicheTitles) {
+  return REGULAR.filter((r) => {
+    if (r.showIf && (!profile || !isVisible(r.showIf, profile))) return false;
+    return !r.titles || r.titles.some((t) => nicheTitles.has(t));
+  });
+}
+
+// Пора ли спросить: ни разу не отвечали «да» или прошла своя частота.
+function dueRegular(relevant, stateByKey, month) {
+  return relevant.filter((r) => {
+    const s = stateByKey.get(r.key);
+    if (!s?.last_done) return true;
+    return monthNo(month) - monthNo(s.last_done) >= (s.every_months || r.every);
+  });
+}
+
+function everyLabel(n) {
+  if (n === 1) return 'Каждый месяц';
+  if (n === 12) return 'Раз в год';
+  return `Раз в ${n} месяц${n < 5 ? 'а' : 'ев'}`;
+}
+
+function regularItem(r, s) {
+  const every = s?.every_months || r.every;
+  return {
+    key: `r:${r.key}`,
+    type: 'regular',
+    title: r.title,
+    hint: everyLabel(every),
+    every,
+    everyOptions: r.everyOptions || null,
+    instruction: r.instruction,
+    lastDone: s?.last_done || null,
+  };
 }
 
 async function buildItems(companyId, month = currentMonth()) {
   const today = moscowDateStr(new Date());
+  const profile = await loadProfile(companyId);
+  const nicheTitles = new Set();
+  for (const niche of profile?.niches || []) {
+    for (const v of (await repository.getViolationMatrix(niche)) || []) nicheTitles.add(v.title);
+  }
+  const { rows: regularState } = await pool.query(
+    `SELECT item_key, to_char(last_done, 'YYYY-MM-DD') AS last_done, every_months FROM monthly_regular_state WHERE company_id = $1`,
+    [companyId]
+  );
+  const stateByKey = new Map(regularState.map((s) => [s.item_key, s]));
+  const dueRegularList = dueRegular(relevantRegular(profile, nicheTitles), stateByKey, month);
+
   const [{ rows: violations }, { rows: deadlines }, { rows: tasks }] = await Promise.all([
     pool.query(`SELECT id, violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`, [companyId]),
     pool.query(
@@ -81,13 +152,48 @@ async function buildItems(companyId, month = currentMonth()) {
     .filter((v) => !skipped.has(`v:${v.id}`))
     .sort((a, b) => (askedLastMonth.has(`v:${a.id}`) - askedLastMonth.has(`v:${b.id}`)) || b.risk - a.risk);
 
-  const items = [
+  // Не спрошенное в прошлом месяце — вперёд, чтобы редкие вопросы не
+  // застревали за ежемесячными (sort стабильный — внутри порядок REGULAR).
+  const dueRegularItems = dueRegularList
+    .sort((a, b) => askedLastMonth.has(`r:${a.key}`) - askedLastMonth.has(`r:${b.key}`))
+    .map((r) => regularItem(r, stateByKey.get(r.key)));
+
+  const own = [
     ...queue.slice(0, 3).map((v) => ({ key: `v:${v.id}`, type: 'violation', title: `«${v.title}» — исправили?`, hint: v.solution || null, risk: v.risk })),
     ...deadlines.map((d) => ({ key: `d:${d.id}`, type: 'deadline', title: `${d.title} — сделано?`, hint: d.due_date < today ? `Срок был ${d.due_date}` : `Срок ${d.due_date}`, overdue: d.due_date < today })),
     ...tasks.map((t) => ({ key: `t:${t.id}`, type: 'task', title: `Задача сети: ${t.title} — выполнена?`, hint: null })),
-    ...regularFor(month).map((r) => ({ key: `r:${r.key}`, type: 'regular', title: r.title, hint: null })),
   ];
-  return items.slice(0, MAX_ITEMS);
+  return pickItems(own, dueRegularItems);
+}
+
+// Регулярным — свободные места до 7, но не меньше 2; что не влезло, спросим
+// в следующем месяце (оно так и останется «пора»).
+function pickItems(own, regular) {
+  const regularPick = regular.slice(0, Math.max(MIN_REGULAR, MAX_ITEMS - own.length));
+  return [...own.slice(0, MAX_ITEMS - regularPick.length), ...regularPick];
+}
+
+// «Когда было» — по желанию: не в будущем и не старше двух лет, иначе сегодня.
+function doneDate(date, today) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return today;
+  const minDate = `${Number(today.slice(0, 4)) - 2}${today.slice(4)}`;
+  return date <= today && date >= minDate ? date : today;
+}
+
+async function applyRegular(item, { companyId, date, every }) {
+  const key = item.key.slice(2);
+  const ownEvery = item.everyOptions?.includes(every) ? every : null;
+  if (item.answer !== 'yes' && !ownEvery) return;
+  const lastDone = item.answer === 'yes' ? doneDate(date, moscowDateStr(new Date())) : null;
+  await pool.query(
+    `INSERT INTO monthly_regular_state (company_id, item_key, last_done, every_months)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (company_id, item_key) DO UPDATE SET
+       last_done = COALESCE(EXCLUDED.last_done, monthly_regular_state.last_done),
+       every_months = COALESCE(EXCLUDED.every_months, monthly_regular_state.every_months),
+       updated_at = now()`,
+    [companyId, key, lastDone, ownEvery]
+  );
 }
 
 async function applyYes(item, { companyId, membershipId, userId }) {
@@ -123,7 +229,7 @@ async function applyYes(item, { companyId, membershipId, userId }) {
 
 // Итог: что стало лучше, что горит, план на месяц.
 function bare(item) {
-  return item.title.replace(/^«|» — исправили\?$|^Задача сети: | — (сделано|выполнена)\?$|\?$/g, '').replace(/ \(Только посмотрите — сюда не вносим\.\)$/, '');
+  return item.title.replace(/ \(Только посмотрите[^)]*\)$/, '').replace(/^«|» — исправили\?$|^Задача сети: | — (сделано|выполнена)\?$|\?$/g, '');
 }
 
 const DONE_PREFIX = { violation: 'Исправлено', deadline: 'Сделано', task: 'Выполнена задача сети', regular: 'Проверено' };
@@ -162,16 +268,21 @@ async function getState(companyId) {
 async function complete({ companyId, membershipId, userId, answers }) {
   const month = currentMonth();
   const items = await buildItems(companyId, month);
-  const byKey = new Map((Array.isArray(answers) ? answers : []).map((a) => [a.key, a.answer]));
+  const byKey = new Map((Array.isArray(answers) ? answers : []).map((a) => [a?.key, a]));
   // «Не получится» — только для нарушений: у сроков и задач сети есть свои кнопки.
   const answered = items.map((i) => {
-    const a = byKey.get(i.key);
+    const a = byKey.get(i.key)?.answer;
     const valid = ANSWERS.includes(a) && (a !== 'skip' || i.type === 'violation');
     return { ...i, answer: valid ? a : 'no' };
   });
 
   for (const item of answered) {
-    if (item.answer === 'yes') await applyYes(item, { companyId, membershipId, userId });
+    if (item.type === 'regular') {
+      const { date, every } = byKey.get(item.key) || {};
+      await applyRegular(item, { companyId, date, every: Number(every) || null });
+    } else if (item.answer === 'yes') {
+      await applyYes(item, { companyId, membershipId, userId });
+    }
   }
   const status = await computeSecurityStatus(companyId);
   const { rows: prev } = await pool.query(
@@ -190,4 +301,4 @@ async function complete({ companyId, membershipId, userId, answers }) {
   return { month, done: true, summary: summarize(answered, status.indexPercent, prev[0]?.index_percent ?? null) };
 }
 
-module.exports = { currentMonth, buildItems, getState, complete, summarize, REGULAR };
+module.exports = { currentMonth, buildItems, getState, complete, summarize, REGULAR, relevantRegular, dueRegular, pickItems, doneDate };
