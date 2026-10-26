@@ -47,10 +47,15 @@ async function runSnapshots(companies) {
     try {
       const { row, prevSummary } = await svc.takeSnapshot(c.id, c.inn, 'watch');
       taken++;
-      for (const ev of svc.diffSummaries(prevSummary, row.summary)) {
+      // Предстоящая проверка (26.10.2026) — своим событием «что подготовить»;
+      // общее «появилась запись о проверке» тогда не дублируем.
+      const inspectionEvents = await svc.inspectionEvents(c.id, row.summary);
+      const diff = svc.diffSummaries(prevSummary, row.summary)
+        .filter((ev) => !(inspectionEvents.length && ev.key.startsWith('count:inspections:')));
+      for (const ev of [...inspectionEvents, ...diff]) {
         await notifyCompany({
           companyId: c.id, kind: 'outside_watch', category: 'outside_watch',
-          title: ev.title, body: `${ev.body} Источник: открытые реестры через checko.ru.`, url: '/outside',
+          title: ev.title, body: `${ev.body} Источник: открытые реестры через checko.ru.`, url: ev.url || '/outside',
           dedupeKey: `outside:${ev.key}`,
         }).catch((err) => console.error('outsideWatchDaily: notify failed', c.id, err));
         events++;

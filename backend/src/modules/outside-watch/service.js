@@ -12,6 +12,8 @@ const { encrypt, decrypt } = require('../../core/crypto');
 const { fetchAllByInn, normalizeInn, callMethod, METHODS } = require('./checkoClient');
 const { syncTaxDeadlines } = require('../../core/taxDeadlines');
 const { buildFindings } = require('./findings');
+const inspections = require('./inspections');
+const repository = require('../security/content/repository');
 
 // Бесплатно у Checko 100 запросов в сутки. Общий счётчик (checko_usage,
 // миграция 0155) на подсказку по ИНН (1 запрос), снимок и наблюдение
@@ -48,7 +50,27 @@ function summarize(snapshot) {
     unfairSupplier: !!card.НедобПост,
     trademarks: Array.isArray(card.ТоварЗнак) ? card.ТоварЗнак.length : null,
     counts,
+    upcomingInspections: inspections.upcomingInspections(r.inspections, String(snapshot.fetchedAt || new Date().toISOString()).slice(0, 10)),
   };
+}
+
+// «К вам проверка — вот что подготовить» (26.10.2026, inspections.js): по
+// каждой предстоящей проверке — событие с открытыми шагами по теме органа.
+// Не зависит от прошлого снимка: проверка, найденная в первом же снимке,
+// тоже повод сказать. Повторно не шлём — dedupeKey по номеру записи.
+async function inspectionEvents(companyId, summary) {
+  const upcoming = summary?.upcomingInspections || [];
+  if (!upcoming.length) return [];
+  const { rows } = await pool.query(
+    `SELECT niche, violation_code FROM security_violations WHERE company_id = $1 AND status = 'open'`,
+    [companyId]
+  );
+  const openByBlock = {};
+  for (const v of rows) {
+    const d = await repository.getViolation(v.niche, v.violation_code);
+    if (d) openByBlock[d.block] = (openByBlock[d.block] || 0) + 1;
+  }
+  return upcoming.map((insp) => ({ key: `inspection:${insp.id}`, url: '/security', ...inspections.prepareText(insp, openByBlock) }));
 }
 
 const COUNT_EVENTS = {
@@ -272,6 +294,7 @@ module.exports = {
   enabledFor,
   summarize,
   diffSummaries,
+  inspectionEvents,
   documentsInn,
   getCompanyInn,
   setCompanyInn,

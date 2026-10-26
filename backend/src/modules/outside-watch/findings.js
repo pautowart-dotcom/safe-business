@@ -10,6 +10,8 @@
 // level: 'alert' — нужно разобраться сейчас; 'attention' — стоит сделать;
 // 'info' — полезно знать; 'ok' — проверили, всё спокойно.
 
+const { upcomingInspections } = require('./inspections');
+
 const SOURCE = 'по данным открытых реестров через checko.ru';
 
 function listData(result) {
@@ -126,19 +128,35 @@ function listFinding({ result, label, foundTitle, foundAction, emptyTitle, manua
   return { level: foundLevel, title: foundTitle(n, data), meaning: '', action: foundAction, source: label };
 }
 
-function buildFindings(snapshot) {
-  const r = snapshot.results || {};
-  const card = listData(r.card);
-  const findings = [
-    ...cardFindings(card),
-    listFinding({
+// Предстоящая проверка (26.10.2026, inspections.js) — отдельной строкой с
+// датой и органом, а не «есть записи: N».
+function inspectionFindings(r, today) {
+  const upcoming = upcomingInspections(r.inspections, today);
+  if (!upcoming.length) {
+    return [listFinding({
       result: r.inspections,
       label: 'Проверки',
       emptyTitle: 'Плановых и внеплановых проверок в реестре нет',
       foundTitle: (n) => `В реестре проверок есть записи: ${n}`,
       foundAction: 'Откройте proverki.gov.ru по ИНН: там дата, орган и что проверяют.',
       manualCheck: 'Проверьте вручную на proverki.gov.ru по ИНН.',
-    }),
+    })];
+  }
+  return upcoming.map((insp) => ({
+    level: 'alert',
+    title: `${insp.planned ? 'Плановая проверка' : 'Проверка'}: ${insp.organ || 'контрольный орган'}, с ${insp.date.split('-').reverse().join('.')}`,
+    meaning: 'Запись есть в реестре проверок.',
+    action: 'Откройте раздел «Безопасность»: во вкладке «Шаги» — что исправить, во вкладке «Проверки» — памятка, как проходит проверка.',
+    source: 'Проверки',
+  }));
+}
+
+function buildFindings(snapshot) {
+  const r = snapshot.results || {};
+  const card = listData(r.card);
+  const findings = [
+    ...cardFindings(card),
+    ...inspectionFindings(r, String(snapshot.fetchedAt || new Date().toISOString()).slice(0, 10)),
     listFinding({
       result: r['legal-cases'],
       label: 'Арбитражные суды',
