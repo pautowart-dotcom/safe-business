@@ -894,6 +894,7 @@ function SecurityDashboard({
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'inspection' && (
         <>
+          <OutsideWatchEntry />
           <InspectionsHistoryCard />
           <InspectionGuidesTab />
         </>
@@ -1000,6 +1001,29 @@ function NoticeAnalysisCard({ notice, onSave, onClose, onAsk }) {
       </div>
       <PartnerRequestButton serviceKey="claims" context="разбор бумаги от проверяющего" label="Подготовить ответ с юристом" />
     </div>
+  );
+}
+
+// Вход в «Ваш бизнес снаружи» (26.10.2026): пункт меню убрали 24.10, а
+// другой ссылки в кабинете не было — страницу находили только по адресу.
+// Здесь ей место: плановая проверка в реестре видна заранее по ИНН.
+function OutsideWatchEntry() {
+  const navigate = useNavigate();
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    api.get('/platform/outside-watch/enabled', { silent: true }).then(({ data }) => setEnabled(!!data.enabled)).catch(() => {});
+  }, []);
+  if (!enabled) return null;
+  return (
+    <Group>
+      <Row
+        icon="search"
+        tone="blue"
+        title="Проверка по ИНН"
+        subtitle="Есть ли вы в реестре проверок, судов, приставов — и что подготовить"
+        onClick={() => navigate('/outside')}
+      />
+    </Group>
   );
 }
 
