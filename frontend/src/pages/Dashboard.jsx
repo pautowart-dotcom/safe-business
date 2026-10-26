@@ -17,6 +17,8 @@ import useIsDesktop from '../hooks/useIsDesktop.js';
 import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 import { isNewCohort } from '../utils/cohort.js';
+import { useUiConfig } from '../utils/useUiConfig.js';
+import { usePathSummary, withoutViolations, NextStepRow, FirstSteps } from '../components/HomePath.jsx';
 
 const ZONE_LABEL = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
@@ -133,6 +135,9 @@ function WatchFeedDashboard() {
   const [indexPercent, setIndexPercent] = useState(null);
   const [deadlines, setDeadlines] = useState([]);
   const [openItem, setOpenItem] = useState(null);
+  // Путь на главной (26.10.2026, components/HomePath.jsx).
+  const ui = useUiConfig();
+  const pathSummary = usePathSummary(isOwner && !!(ui?.homePath || ui?.firstSteps));
 
   function load() {
     return Promise.all([
@@ -155,7 +160,8 @@ function WatchFeedDashboard() {
   const today = todayStr();
   const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
   // Отложенное («Напомнить позже») с главной убираем; в «Дедлайнах» оно видно.
-  const todo = buildActionsCenter(deadlines.filter((d) => (!d.due_date || d.due_date <= in30) && !(d.snoozed_until && d.snoozed_until > today)));
+  const todoAll = buildActionsCenter(deadlines.filter((d) => (!d.due_date || d.due_date <= in30) && !(d.snoozed_until && d.snoozed_until > today)));
+  const todo = ui?.homePath && isOwner ? withoutViolations(todoAll) : todoAll;
   const first = todo.find((d) => !d.due_date || d.due_date <= today) || todo[0];
 
   return (
@@ -167,8 +173,9 @@ function WatchFeedDashboard() {
         line={first ? `Ближайшее — ${inSentence(first.title)}, ${dueTag(first).text.toLowerCase()}.` : 'Мы следим за сроками, законом и вашими проверками.'}
         onClick={() => navigate('/security', attention ? { state: { dashboardTab: 'violations' } } : undefined)}
       />
-      <HomeQuick navigate={navigate} />
-      <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} />
+      {ui?.firstSteps && isOwner && <FirstSteps summary={pathSummary} hasIndex={indexPercent != null} navigate={navigate} />}
+      <HomeQuick navigate={navigate} pathMode={!!ui?.homePath && isOwner} />
+      <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} topRow={ui?.homePath && isOwner ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null} topCount={ui?.homePath && isOwner && pathSummary?.next ? 1 : 0} />
       <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} onSnoozed={(d, until) => setDeadlines((all) => all.map((x) => (x.id === d.id ? { ...x, snoozed_until: until } : x)))} />
 
       <Group title="Что мы проверили">
@@ -268,6 +275,9 @@ function OwnerDashboard() {
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [openItem, setOpenItem] = useState(null);
+  // Путь на главной (26.10.2026, components/HomePath.jsx).
+  const ui = useUiConfig();
+  const pathSummary = usePathSummary(!!(ui?.homePath || ui?.firstSteps));
 
   function load() {
     setLoading(true);
@@ -369,7 +379,8 @@ function OwnerDashboard() {
   // Отложенное («Напомнить позже») из списка убираем, но в счётчиках оно
   // остаётся — риск никуда не делся.
   const notSnoozed = (d) => !(d.snoozed_until && d.snoozed_until > today);
-  const todoItems = [...overdueOrNoDate, ...upcoming, ...(aiAdvisorAction ? [aiAdvisorAction] : [])].filter(notSnoozed);
+  const todoAll = [...overdueOrNoDate, ...upcoming, ...(aiAdvisorAction ? [aiAdvisorAction] : [])].filter(notSnoozed);
+  const todoItems = ui?.homePath ? withoutViolations(todoAll) : todoAll;
 
   // 24.08.2026: владелец прислал референсы (YooKassa/Яндекс Почта) — у
   // настоящих десктопных приложений часто есть третья, правая колонка с
@@ -409,8 +420,11 @@ function OwnerDashboard() {
             }
             onClick={() => navigate('/security')}
           />
-          <HomeQuick navigate={navigate} />
+          {ui?.firstSteps && <FirstSteps summary={pathSummary} hasIndex={security?.indexPercent != null} navigate={navigate} />}
+          <HomeQuick navigate={navigate} pathMode={!!ui?.homePath} />
           <TodoGroup
+            topRow={ui?.homePath ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null}
+            topCount={ui?.homePath && pathSummary?.next ? 1 : 0}
             items={todoItems}
             subscriptionProblem={subscriptionProblem}
             navigate={navigate}
@@ -651,7 +665,7 @@ function HomeHero({ indexPercent, attention, line, onClick, title }) {
       className="ui-press"
       style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 14, display: 'flex', gap: 16, alignItems: 'center', boxShadow: SH.raised, cursor: 'pointer' }}
     >
-      <Ring percent={indexPercent} label={hasIndex ? 'индекс' : title ? '' : 'нет теста'} />
+      <Ring percent={hasIndex ? Math.round(indexPercent) : indexPercent} label={hasIndex ? 'из 100' : title ? '' : 'нет теста'} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{heading}</div>
         <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>
@@ -670,10 +684,15 @@ const HOME_QUICK = [
   { label: 'Все сроки', icon: 'bell', to: '/deadlines' },
 ];
 
-function HomeQuick({ navigate }) {
+// pathMode (26.10.2026): «Фото документа» (вела в «Мои сроки» — неочевидно)
+// заменена на «Следующий шаг» пути до 100 %.
+const PATH_QUICK = { label: 'Следующий шаг', icon: 'shield', to: '/security', state: { dashboardTab: 'violations' } };
+
+function HomeQuick({ navigate, pathMode }) {
+  const quick = pathMode ? [PATH_QUICK, ...HOME_QUICK.slice(1)] : HOME_QUICK;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 20 }}>
-      {HOME_QUICK.map((q) => (
+      {quick.map((q) => (
         <button
           key={q.label}
           onClick={() => navigate(q.to, q.state ? { state: q.state } : undefined)}
@@ -689,19 +708,21 @@ function HomeQuick({ navigate }) {
 }
 
 // «Что сделать»: строки как в «Настройках», тап — шторка срока.
-function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount }) {
+// topRow/topCount (26.10.2026) — строка «Следующий шаг» пути над сроками.
+function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount, topRow = null, topCount = 0 }) {
   const visible = items.slice(0, ACTIONS_CENTER_VISIBLE);
-  const total = items.length + (subscriptionProblem ? 1 : 0);
+  const total = items.length + (subscriptionProblem ? 1 : 0) + topCount;
   if (total === 0) {
     return (
       <Group title="Что сделать">
-        <Row icon="check" tone="green" title="Сейчас ничего не горит" subtitle={inOrderCount > 0 ? `В порядке: ${inOrderCount}. Напомним о сроках заранее.` : 'Внесите даты документов — и мы напомним заранее.'} onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })} />
+        <Row icon="check" tone="green" title="Сейчас ничего не горит" subtitle={inOrderCount > 0 ? `В порядке: ${inOrderCount}. Напомним о сроках заранее.` : 'Мы следим за сроками и напомним заранее.'} onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })} />
       </Group>
     );
   }
   return (
     <Group title="Что сделать" aside={`${total} ${total === 1 ? 'дело' : total < 5 ? 'дела' : 'дел'}`}>
       {subscriptionProblem && <Row icon="finance" tone="red" title="Проблема с оплатой подписки" subtitle="Без оплаты напоминания остановятся" tag="Срочно" onClick={() => navigate('/subscription')} />}
+      {topRow}
       {visible.map((d) => {
         const tag = dueTag(d);
         return (

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefreshController } from '../context/PullToRefreshContext.jsx';
 import Icon from '../ui/Icon.jsx';
 import OnboardingModal from './OnboardingModal.jsx';
+import { useUiConfig } from '../utils/useUiConfig.js';
 import AiAssistantWidget from './AiAssistantWidget.jsx';
 import PaidFeatureSheet from './PaidFeatureSheet.jsx';
 import useIsDesktop from '../hooks/useIsDesktop.js';
@@ -284,6 +285,12 @@ export default function Layout() {
   const [scrolled, setScrolled] = useState(false);
   const isDesktop = useIsDesktop();
   const unreadNotifications = useUnreadNotifications(isOwner || isManagement, location.pathname);
+  // Слайды при первом входе (26.10.2026): владельцу вместо них — «С чего
+  // начать» на главной (components/HomePath.jsx), если включено firstSteps.
+  // Администратору и мастеру слайды остаются. Ждём ответ /ui-config, чтобы
+  // слайды не мигнули.
+  const uiConfig = useUiConfig();
+  const showOnboarding = !user?.onboarding_seen_at && !!uiConfig && !(uiConfig.firstSteps && isOwner);
 
   // 04.09.2026: раньше Финансы не имела moduleKey и всегда была видна,
   // независимо от того, включён ли модуль company_modules.finance — из-за
@@ -411,7 +418,7 @@ export default function Layout() {
   if (isDesktop) {
     return (
       <div style={{ height: '100vh', display: 'flex', background: PAGE_BG, fontFamily: F }}>
-        {!user?.onboarding_seen_at && <OnboardingModal />}
+        {showOnboarding && <OnboardingModal />}
         <div style={{ width: 232, flexShrink: 0, background: C.primary, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 12px' }}>
           <div>
             {/* 24.08.2026: тёмный графитовый сайдбар вместо светлого — по
@@ -513,7 +520,7 @@ export default function Layout() {
     // иначе на iOS Safari в обычной вкладке нижняя навигация уезжала за
     // пределы реально видимой области, когда была видна панель браузера.
     <div className="layout-viewport" style={{ maxWidth: MAX_WIDTH, margin: '0 auto', background: PAGE_BG, fontFamily: F, display: 'flex', flexDirection: 'column' }}>
-      {!user?.onboarding_seen_at && <OnboardingModal />}
+      {showOnboarding && <OnboardingModal />}
       {/* Узкая шапка: название экрана появляется в ней, только когда большой
           заголовок уехал вверх при прокрутке (ui-bar-title в styles.css). */}
       <div

@@ -93,8 +93,16 @@ platformRouter.use('/outside-watch', outsideWatchRoutes);
 // Переключатели вида кабинета (26.10.2026). securityPath — «Безопасность»
 // как путь из 4 этапов (Узнать → Исправить → Держать → Быть готовым, план
 // 26.10 шаг 2.5). SECURITY_PATH_UI=false в .env — старые вкладки, без деплоя.
+// homePath — на главной одна строка «Следующий шаг» вместо всех нарушений в
+// «Что сделать» (HOME_PATH_UI=false — как было). firstSteps — «Первые 3
+// дела» на главной вместо слайдов при первом входе (FIRST_STEPS_UI=false —
+// снова слайды).
 platformRouter.get('/ui-config', (req, res) => {
-  res.json({ securityPath: process.env.SECURITY_PATH_UI !== 'false' });
+  res.json({
+    securityPath: process.env.SECURITY_PATH_UI !== 'false',
+    homePath: process.env.HOME_PATH_UI !== 'false',
+    firstSteps: process.env.FIRST_STEPS_UI !== 'false',
+  });
 });
 
 module.exports = { authRoutes, platformRouter, legalRoutes };
