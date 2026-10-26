@@ -8,6 +8,8 @@ const { computeDiscountRepeatComparison } = require('../modules/finance/discount
 const { computeMasterDepartureImpact } = require('../modules/finance/masterDepartureAdvisor');
 const { NEW_COHORT_CUTOFF } = require('../core/cohort');
 const { accessLevel } = require('../core/freeTier');
+const { loadProfile } = require('../modules/security/profile');
+const { isVisible } = require('../core/profileVisibility');
 const { buildBusinessContext, hasNotableComplianceFindings } = require('../platform/ai-advisor-subscription.routes');
 
 // Запускается раз в сутки по cron (см. deploy/provision.sh), утром по
@@ -323,6 +325,13 @@ async function nudgeQuarterlyMedicalBooksCheck() {
   let created = 0;
   for (const { id } of companies) {
     await clearAction({ relatedEntityType: prev, relatedEntityId: id, category: 'staff' });
+    // 26.10.2026: у кого есть «Проверка месяца», там медкнижки — свой вопрос
+    // раз в квартал (modules/monthly/monthlyCheck.js); отдельное напоминание —
+    // дубль, снимаем и уже созданное в этом квартале.
+    if (await getsMonthlyCheck(id)) {
+      await clearAction({ relatedEntityType: type, relatedEntityId: id, category: 'staff' });
+      continue;
+    }
     const exists = await pool.query(
       'SELECT 1 FROM deadlines WHERE related_entity_type = $1 AND related_entity_id = $2 AND category = $3',
       [type, id, 'staff']
@@ -348,6 +357,20 @@ async function nudgeQuarterlyMedicalBooksCheck() {
 // Клиентам — с ноября 2026 (решение владельца 17.10: сначала сам проходит
 // проверку на своих студиях по ссылке /lk/monthly-check, потом рассылка).
 const MONTHLY_CHECK_START = '2026-11';
+
+// Те же условия, что у nudgeMonthlyCheck (тест пройден, уровень не
+// бесплатный), и вопрос про медкнижки там будет — по профилю есть сотрудники.
+async function getsMonthlyCheck(companyId) {
+  if (moscowDateStr(new Date()).slice(0, 7) < MONTHLY_CHECK_START) return false;
+  const { rows } = await pool.query(
+    'SELECT 1 FROM security_sessions WHERE company_id = $1 AND completed_at IS NOT NULL LIMIT 1',
+    [companyId]
+  );
+  if (!rows.length) return false;
+  const profile = await loadProfile(companyId);
+  if (!profile || !isVisible('has_employees', profile)) return false;
+  return (await accessLevel(companyId)) !== 'free';
+}
 
 async function nudgeMonthlyCheck() {
   const month = moscowDateStr(new Date()).slice(0, 7);
