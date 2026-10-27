@@ -32,6 +32,9 @@ function sanitize(client, role) {
   return client;
 }
 
+// Аллергии клиентов (27.10.2026, проверка): это сведения о здоровье, их не
+// собираем — ни из формы, ни из импорта; колонка allergies осталась только
+// с уже внесённым (удалять — отдельным решением владельца).
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -45,7 +48,9 @@ router.get(
       // свободным текстом: "+7 900 123-45-67", "89001234567" и т.п.
       // считаем одним и тем же номером). Ищем ПОДстроку, не префикс —
       // удобно найти клиента по последним цифрам номера.
-      const searchDigits = search.replace(/\D/g, '');
+      // Мастеру телефон скрыт — и искать по нему нельзя, иначе номер
+      // восстанавливается подбором цифр (проверка 27.10.2026).
+      const searchDigits = req.tenant.role === 'master' ? '' : search.replace(/\D/g, '');
       if (searchDigits) {
         params.push(`%${searchDigits}%`);
         clause = `(${clause} OR regexp_replace(phone, '\\D', '', 'g') ILIKE $${params.length})`;
@@ -151,7 +156,7 @@ router.post(
           req.tenant.companyId, firstName, lastName, phone,
           (row['Пожелания'] || '').trim() || null,
           (row['Заметки'] || '').trim() || null,
-          (row['Аллергии'] || '').trim() || null,
+          null, // «Аллергии» из файла не переносим
           req.user.id,
         ]
       );
@@ -355,9 +360,10 @@ router.post(
     if (phone && !confirmDuplicate) {
       const existing = await findClientByPhone(req.tenant.companyId, phone);
       if (existing) {
+        // Мастеру не называем, чей это номер (телефон от него скрыт).
         return res.status(409).json({
           error: 'duplicate_phone',
-          existingClient: { id: existing.id, firstName: existing.first_name, lastName: existing.last_name },
+          existingClient: req.tenant.role === 'master' ? null : { id: existing.id, firstName: existing.first_name, lastName: existing.last_name },
         });
       }
     }
@@ -370,7 +376,7 @@ router.post(
        RETURNING id, first_name, last_name, phone, preferences, notes, allergies,
                  client_type, engagement_type, organization_name, inn, created_at`,
       [
-        req.tenant.companyId, firstName, lastName, phone || null, preferences || null, notes || null, allergies || null,
+        req.tenant.companyId, firstName, lastName, phone || null, preferences || null, notes || null, null, // allergies не собираем
         clientType || 'individual', engagementType || null, organizationName || null, inn || null, req.user.id,
       ]
     );
@@ -398,9 +404,10 @@ router.patch(
     if (phone && !confirmDuplicate) {
       const existing = await findClientByPhone(req.tenant.companyId, phone, req.params.id);
       if (existing) {
+        // Мастеру не называем, чей это номер (телефон от него скрыт).
         return res.status(409).json({
           error: 'duplicate_phone',
-          existingClient: { id: existing.id, firstName: existing.first_name, lastName: existing.last_name },
+          existingClient: req.tenant.role === 'master' ? null : { id: existing.id, firstName: existing.first_name, lastName: existing.last_name },
         });
       }
     }
@@ -420,7 +427,7 @@ router.patch(
        RETURNING id, first_name, last_name, phone, preferences, notes, allergies,
                  client_type, engagement_type, organization_name, inn, created_at`,
       [
-        firstName || null, lastName || null, phone || null, preferences || null, notes || null, allergies || null,
+        firstName || null, lastName || null, phone || null, preferences || null, notes || null, null, // allergies не собираем
         clientType || null, engagementType || null, organizationName || null, inn || null,
         req.params.id, req.tenant.companyId,
       ]

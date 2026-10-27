@@ -82,7 +82,26 @@ async function recordNoticeAudit(ip) {
   await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`notice:${ip}`]);
 }
 
+// Запросы к реестрам по ИНН (проверка 27.10.2026): снимок — 6 запросов
+// Checko из дневного лимита ~95 на весь сервис. Без лимита по IP десяток
+// новых аккаунтов за день съедал бы лимит у настоящих клиентов.
+const OUTSIDE_MAX_PER_HOUR = 5;
+const OUTSIDE_MAX_PER_DAY = 10;
+
+async function checkOutsideAllowed(ip) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE created_at > now() - interval '1 hour') AS hour_n, COUNT(*) AS day_n
+     FROM login_attempts WHERE identifier = $1`,
+    [`outside:${ip}`]
+  );
+  return Number(rows[0].hour_n) < OUTSIDE_MAX_PER_HOUR && Number(rows[0].day_n) < OUTSIDE_MAX_PER_DAY;
+}
+
+async function recordOutside(ip) {
+  await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`outside:${ip}`]);
+}
+
 module.exports = {
   checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart,
-  checkNoticeAuditAllowed, recordNoticeAudit,
+  checkNoticeAuditAllowed, recordNoticeAudit, checkOutsideAllowed, recordOutside,
 };

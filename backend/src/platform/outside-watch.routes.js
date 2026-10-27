@@ -15,6 +15,7 @@ const { requireRole } = require('../core/middleware/role');
 const { accessLevel } = require('../core/freeTier');
 const svc = require('../modules/outside-watch/service');
 const { nichesForOkved } = require('../modules/outside-watch/okvedNiches');
+const { checkOutsideAllowed, recordOutside } = require('../core/loginRateLimit');
 
 const router = express.Router();
 
@@ -81,6 +82,10 @@ router.post(
     if (sameInn && Date.now() - new Date(last.created_at).getTime() < 24 * 3600 * 1000) {
       return res.status(429).json({ error: 'Снимок обновляется не чаще раза в сутки — ниже последний.' });
     }
+    if (!(await checkOutsideAllowed(req.ip))) {
+      return res.status(429).json({ error: 'Слишком много проверок с этого устройства — попробуйте завтра.' });
+    }
+    await recordOutside(req.ip);
     try {
       const { row } = await svc.takeSnapshot(companyId, inn, 'free');
       res.json({ createdAt: row.created_at, findings: row.findings, source: row.source });
@@ -108,6 +113,9 @@ router.post(
       throw err;
     }
     const legalForm = inn.length === 10 ? 'ooo' : 'ip';
+    // Лимит по IP — как «реестр не ответил»: тест идёт дальше без подсказок.
+    if (!(await checkOutsideAllowed(req.ip))) return res.json({ found: false, legalForm });
+    await recordOutside(req.ip);
     let card = null;
     try {
       card = await svc.fetchCard(inn);

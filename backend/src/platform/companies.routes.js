@@ -52,9 +52,13 @@ router.post(
     try {
       await client.query('BEGIN');
 
+      // Пробный месяц — один на владельца (проверка 27.10.2026): вторая и
+      // следующие компании получают тот же срок, что у самой поздней из уже
+      // заведённых, иначе «новая компания» = бесконечный бесплатный доступ.
       const companyResult = await client.query(
         `INSERT INTO companies (name, industry_segment, created_by_user_id, trial_ends_at)
-         VALUES ($1, $2, $3, now() + interval '30 days')
+         VALUES ($1, $2, $3, LEAST(now() + interval '30 days',
+           COALESCE((SELECT MAX(trial_ends_at) FROM companies WHERE created_by_user_id = $3), now() + interval '30 days')))
          RETURNING id, name`,
         [name, industrySegment || null, req.user.id]
       );

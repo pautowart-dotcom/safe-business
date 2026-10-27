@@ -310,9 +310,8 @@ export default function Clients() {
           <Field label="Замечания">
             <TextArea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Например: часто опаздывает, просил напоминать заранее" />
           </Field>
-          <Field label="Аллергии">
-            <TextArea value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} placeholder="Например: аллергия на латекс" />
-          </Field>
+          {/* «Аллергии» убраны 27.10.2026: сведения о здоровье клиентов не собираем.
+              Уже внесённое показывается в карточке, пока владелец не решит. */}
           <Btn type="submit">Сохранить клиента</Btn>
         </form>
       </div>

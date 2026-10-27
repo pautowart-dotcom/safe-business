@@ -562,7 +562,7 @@ export default function Visits() {
                     <Btn small onClick={() => pickClient(c)}>Это он/она</Btn>
                   </div>
                   {c.preferences && <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>Пожелания: {c.preferences}</div>}
-                  {c.allergies && <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>⚠ Аллергии: {c.allergies}</div>}
+                  {c.allergies && <div style={{ fontSize: 12, color: C.red, marginTop: 2 }}>Аллергии: {c.allergies}</div>}
                 </div>
               ))}
             </div>
@@ -576,7 +576,7 @@ export default function Visits() {
                 <div style={{ fontSize: 12, color: C.secondary, marginTop: 4 }}>Пожелания: {selectedClientNote.preferences}</div>
               )}
               {selectedClientNote?.allergies && (
-                <div style={{ fontSize: 12, color: C.red, marginTop: 4, fontWeight: 600 }}>⚠ Аллергии: {selectedClientNote.allergies}</div>
+                <div style={{ fontSize: 12, color: C.red, marginTop: 4, fontWeight: 600 }}>Аллергии: {selectedClientNote.allergies}</div>
               )}
             </div>
           )}
