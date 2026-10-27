@@ -13,6 +13,7 @@ const { fetchAllByInn, normalizeInn, callMethod, METHODS } = require('./checkoCl
 const { syncTaxDeadlines } = require('../../core/taxDeadlines');
 const { buildFindings } = require('./findings');
 const inspections = require('./inspections');
+const { moscowDateStr } = require('../../utils/moscowDate');
 const repository = require('../security/content/repository');
 
 // Бесплатно у Checko 100 запросов в сутки. Общий счётчик (checko_usage,
@@ -50,7 +51,7 @@ function summarize(snapshot) {
     unfairSupplier: !!card.НедобПост,
     trademarks: Array.isArray(card.ТоварЗнак) ? card.ТоварЗнак.length : null,
     counts,
-    upcomingInspections: inspections.upcomingInspections(r.inspections, String(snapshot.fetchedAt || new Date().toISOString()).slice(0, 10)),
+    upcomingInspections: inspections.upcomingInspections(r.inspections, moscowDateStr(snapshot.fetchedAt ? new Date(snapshot.fetchedAt) : new Date())),
   };
 }
 

@@ -11,6 +11,7 @@
 // 'info' — полезно знать; 'ok' — проверили, всё спокойно.
 
 const { upcomingInspections } = require('./inspections');
+const { moscowDateStr } = require('../../utils/moscowDate');
 
 const SOURCE = 'по данным открытых реестров через checko.ru';
 
@@ -156,7 +157,7 @@ function buildFindings(snapshot) {
   const card = listData(r.card);
   const findings = [
     ...cardFindings(card),
-    ...inspectionFindings(r, String(snapshot.fetchedAt || new Date().toISOString()).slice(0, 10)),
+    ...inspectionFindings(r, moscowDateStr(snapshot.fetchedAt ? new Date(snapshot.fetchedAt) : new Date())),
     listFinding({
       result: r['legal-cases'],
       label: 'Арбитражные суды',

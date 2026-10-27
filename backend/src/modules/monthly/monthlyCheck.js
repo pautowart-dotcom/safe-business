@@ -158,8 +158,12 @@ async function buildItems(companyId, month = currentMonth(), { withViolations = 
 
   // Не спрошенное в прошлом месяце — вперёд, чтобы редкие вопросы не
   // застревали за ежемесячными (sort стабильный — внутри порядок REGULAR).
+  // Медкнижки — первыми: отдельное квартальное напоминание о них снято у тех,
+  // кто проходит проверку месяца, и вопрос не должен вытесняться лимитом в 7
+  // (проверка 27.10.2026).
   const dueRegularItems = dueRegularList
-    .sort((a, b) => askedLastMonth.has(`r:${a.key}`) - askedLastMonth.has(`r:${b.key}`))
+    .sort((a, b) => (b.key === 'staff_books') - (a.key === 'staff_books')
+      || askedLastMonth.has(`r:${a.key}`) - askedLastMonth.has(`r:${b.key}`))
     .map((r) => regularItem(r, stateByKey.get(r.key)));
 
   const own = [
