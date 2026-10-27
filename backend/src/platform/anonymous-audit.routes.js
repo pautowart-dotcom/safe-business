@@ -220,6 +220,14 @@ router.post(
     if (!req.body?.acceptedTerms) {
       return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
     }
+    // Повтор /claim законен (опечатка в почте, «Сохранить бесплатно» после
+    // результата), но без лимита с одного гостевого токена можно слать письма
+    // на любые адреса и по 409 выяснять, кто уже клиент (проверка 27.10.2026).
+    const claimKey = `claim:${req.user.id}`;
+    if (!(await checkLoginAllowed(req.ip, claimKey))) {
+      return res.status(429).json({ error: 'Слишком много попыток. Попробуйте через 15 минут' });
+    }
+    await recordFailedLogin(req.ip, claimKey);
     const existing = await pool.query('SELECT 1 FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
     if (existing.rows.length > 0) {
       return res.status(409).json({
@@ -228,21 +236,38 @@ router.post(
     }
     // marketing_consent_at (25.10.2026, миграция 0158) — необязательная
     // галочка «присылать полезное и предложения»; без неё — только результат.
+    // Согласие привязано к почте: сменил адрес без галочки — согласия у нового
+    // адреса нет (иначе рассылка ушла бы тому, кто его не давал, 27.10.2026).
+    const { rows: before } = await pool.query(
+      `SELECT accepted_terms_at FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    const firstClaim = !before[0]?.accepted_terms_at;
     await pool.query(
       `UPDATE users SET email = $2, accepted_terms_at = now(), analytics_consent = $3,
-              marketing_consent_at = CASE WHEN $4 THEN now() ELSE marketing_consent_at END
+              marketing_consent_at = CASE WHEN $4 THEN now()
+                                          WHEN email = $2 THEN marketing_consent_at
+                                          ELSE NULL END
        WHERE id = $1`,
       [req.user.id, email, !!req.body?.analyticsConsent, !!req.body?.marketingConsent]
     );
     // Пробный месяц — с момента, когда человек сохранил результат, а не с
     // начала гостевого теста (18.10.2026): иначе вернувшийся через три недели
-    // получал неделю. Только для ещё не оплаченного триала.
-    await pool.query(
-      `UPDATE companies SET trial_ends_at = now() + interval '30 days'
-       WHERE id = $1 AND subscription_status = 'trial'`,
-      [req.tenant.companyId]
-    );
+    // получал неделю. Только для ещё не оплаченного триала и только при первом
+    // сохранении — повтор /claim не продлевает месяц бесконечно (27.10.2026).
+    if (firstClaim) {
+      await pool.query(
+        `UPDATE companies SET trial_ends_at = now() + interval '30 days'
+         WHERE id = $1 AND subscription_status = 'trial'`,
+        [req.tenant.companyId]
+      );
+    }
 
+    // Ссылки, отправленные на прежний адрес, больше не действуют.
+    await pool.query(
+      `UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`,
+      [req.user.id]
+    );
     const claimToken = crypto.randomBytes(32).toString('hex');
     const claimTokenHash = crypto.createHash('sha256').update(claimToken).digest('hex');
     const expiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
