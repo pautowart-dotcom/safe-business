@@ -669,7 +669,7 @@ function HomeHero({ indexPercent, attention, line, onClick, title }) {
       className="ui-press"
       style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 14, display: 'flex', gap: 16, alignItems: 'center', boxShadow: SH.raised, cursor: 'pointer' }}
     >
-      <Ring percent={hasIndex ? Math.round(indexPercent) : indexPercent} label={hasIndex ? 'из 100' : title ? '' : 'нет теста'} />
+      <Ring percent={hasIndex ? Math.round(indexPercent) : indexPercent} unit={hasIndex ? '' : '%'} label={hasIndex ? 'из 100' : title ? '' : 'нет теста'} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{heading}</div>
         <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>

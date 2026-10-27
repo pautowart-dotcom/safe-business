@@ -62,7 +62,7 @@ function Summary({ state }) {
     <div>
       <div className="ui-page-title" style={{ marginBottom: 14 }}>Итог за {monthLabel(state.month)}</div>
       <div style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 18, display: 'flex', gap: 16, alignItems: 'center', boxShadow: SH.raised }}>
-        {s.indexNow != null && <Ring percent={s.indexNow} label="индекс" />}
+        {s.indexNow != null && <Ring percent={Math.round(s.indexNow)} unit="" label="из 100" />}
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>{calm ? 'Всё отмечено' : `В плане на месяц: ${s.plan.length + s.burning.length}`}</div>
           <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>

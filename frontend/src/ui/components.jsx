@@ -137,7 +137,8 @@ export function Toggle({ checked, onChange, disabled = false, label }) {
 
 // Кольцо индекса (главная, «Безопасность»): светлое на тёмной карточке.
 // percent == null — пустое кольцо с прочерком.
-export function Ring({ percent, size = 84, label }) {
+// unit: '' для индекса «N из 100» (27.10.2026: было «49% из 100»).
+export function Ring({ percent, size = 84, label, unit = '%' }) {
   const r = size / 2 - 6;
   const len = 2 * Math.PI * r;
   const has = percent != null;
@@ -154,7 +155,7 @@ export function Ring({ percent, size = 84, label }) {
         )}
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#FFF' }}>
-        <div style={{ fontSize: size * 0.26, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{has ? `${percent}%` : '—'}</div>
+        <div style={{ fontSize: size * 0.26, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{has ? `${percent}${unit}` : '—'}</div>
         {label && <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.6, marginTop: 3 }}>{label}</div>}
       </div>
     </div>

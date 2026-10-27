@@ -40,7 +40,7 @@ const OWNER_ITEMS = [
   // перенесён туда же, тот же принцип, что и раньше.
   { label: 'Чек-листы смены', sub: 'Открытие, закрытие', icon: 'shift', to: '/shift', group: 'work', moduleKey: 'checklists' },
   { label: 'База знаний', sub: 'Стандарты, правила, инструкции', icon: 'book', to: '/knowledge', group: 'work', moduleKey: 'knowledge' },
-  { label: 'Безопасность', sub: 'Индекс, документы, нарушения', icon: 'shield', to: '/security', group: 'law' },
+  { label: 'Безопасность', sub: 'Индекс, шаги до 100 %, документы', icon: 'shield', to: '/security', group: 'law' },
   // "Журналы" убраны из меню 05.08.2026 — раздел заморожен целиком
   // (владелец: до легализации электронных журналов). Роут /journals
   // остался в App.jsx как заглушка "временно недоступно" — на случай, если

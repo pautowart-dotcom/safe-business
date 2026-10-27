@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getCaptchaToken } from '../utils/captcha.js';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { Card, Btn, TextInput, Field, Select, Badge, Icon, C, F } from '../ui/components.jsx';
 import TestQuestion from '../components/TestQuestion.jsx';
@@ -336,7 +336,7 @@ function TestStep({ session, answers, setAnswer, onSubmit, submitting, error }) 
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
               <Icon name="check" size={30} color={C.green} sw={2.4} />
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Готово — все {questions.length} вопросов</div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Готово — вопросов: {questions.length}</div>
             <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5 }}>
               Уже в порядке: <b style={{ color: C.green }}>{ok} из {questions.length}</b>. Сейчас посчитаем индекс и покажем, что стоит оформить.
             </div>
@@ -569,7 +569,7 @@ function ContactStep({ result, email, setEmail, setAcceptedTerms, analyticsConse
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Результат готов</div>
         <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.5, marginBottom: 16 }}>
           {result.violationsCount > 0
-            ? `Нашли ${result.violationsCount} — что стоит оформить или исправить. `
+            ? `Нашли пунктов: ${result.violationsCount} — что стоит оформить или исправить. `
             : 'По вашим ответам серьёзных нарушений нет. '}
           Укажите почту: покажем результат здесь и пришлём его письмом — с тремя самыми важными пунктами и тем, что с ними сделать.
         </div>
@@ -592,6 +592,9 @@ function ContactStep({ result, email, setEmail, setAcceptedTerms, analyticsConse
           <button type="button" onClick={onSkipAfterError} style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13, marginTop: 4 }}>
             Показать результат без сохранения
           </button>
+        )}
+        {error && onSkipAfterError && (
+          <Link to="/login" style={{ display: 'block', color: C.primary, fontWeight: 600, fontSize: 13, marginTop: 8 }}>Войти в аккаунт</Link>
         )}
       </Card>
       <StickyFooterButton onClick={onSubmit} disabled={submitting}>{submitting ? 'Секунду…' : 'Показать результат'}</StickyFooterButton>
@@ -668,9 +671,9 @@ function ResultStep({
       <Card>
         <div style={{ background: C.primary, borderRadius: 16, padding: 20, marginBottom: 4, color: '#FFF' }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Индекс безопасности</div>
-          <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-2px', marginBottom: 8 }}>{result.indexPercent}%</div>
+          <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-2px', marginBottom: 8 }}>{Math.round(result.indexPercent)}<span style={{ fontSize: 18, fontWeight: 600, letterSpacing: 0, opacity: 0.7 }}> из 100</span></div>
           <Badge color={ZONE_COLOR[zone]} bg="rgba(255,255,255,0.15)">{ZONE_LABELS[zone]}</Badge>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 10 }}>Найдено нарушений: {result.violationsCount}</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 10 }}>Нашли пунктов: {result.violationsCount}</div>
         </div>
       </Card>
 

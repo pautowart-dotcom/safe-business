@@ -735,7 +735,7 @@ function AuditQuestionnaire({ activeAudit, onAnswer, onBack, onCancel, error }) 
 function IndexHero({ percent, zone, subtitle, note }) {
   return (
     <div style={{ background: C.primary, borderRadius: 22, padding: 18, marginBottom: 12, color: '#FFF', boxShadow: SH.raised, display: 'flex', gap: 16, alignItems: 'center' }}>
-      <Ring percent={percent} label="индекс" />
+      <Ring percent={percent == null ? percent : Math.round(percent)} unit="" label="из 100" />
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: ZONE_COLOR[zone] || '#FFF', flexShrink: 0 }} />
@@ -900,6 +900,7 @@ function SecurityPath({
   const [outside, setOutside] = useState(null); // null — раздел выключен или не загрузился
   const [showDeadlines, setShowDeadlines] = useState(initialStage === 3);
   const [showOther, setShowOther] = useState(false);
+  const [openStep, setOpenStep] = useState(null);
 
   useEffect(() => {
     api.get('/platform/monthly-check', { silent: true }).then(({ data }) => setMonthly(data)).catch(() => {});
@@ -937,7 +938,7 @@ function SecurityPath({
   // Одна кнопка «что дальше» — по текущему этапу.
   const nextAction = {
     1: { text: products?.audit.available === false ? 'Тест для вашей ниши в разработке' : 'Пройти тест', run: products?.audit.available === false ? null : () => onStartAudit() },
-    2: { text: next ? `Дальше: ${next.title}${next.gain > 0 ? ` · +${next.gain}` : ''}` : 'Открыть шаги', run: () => setStage(2) },
+    2: { text: next ? `Дальше: ${next.title}${next.gain > 0 ? ` · +${next.gain}` : ''}` : 'Открыть шаги', run: () => { setStage(2); if (next) setOpenStep({ id: next.id, at: Date.now() }); } },
     3: { text: 'Пройти проверку месяца', run: () => navigate('/monthly-check') },
     4: { text: outside && !outside.hasInn ? 'Проверить по ИНН' : 'Что видно о вас в реестрах', run: () => (outside ? navigate('/outside') : setStage(4)) },
   }[current];
@@ -960,7 +961,7 @@ function SecurityPath({
 
       <div style={{ background: C.primary, color: '#FFF', borderRadius: 22, padding: 18, marginBottom: 16, boxShadow: SH.raised }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14 }}>
-          <Ring percent={hasResult ? Math.round(index) : null} label={hasResult ? 'из 100' : 'нет теста'} />
+          <Ring percent={hasResult ? Math.round(index) : null} unit="" label={hasResult ? 'из 100' : 'нет теста'} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{hasResult ? pathIndexWords(index) : 'Ваш путь к «готов к проверке»'}</div>
             <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'rgba(255,255,255,.7)' }}>
@@ -1036,8 +1037,16 @@ function SecurityPath({
       {stage === 2 && (
         <div>
           <ST>Исправить</ST>
+          {/* Шаблоны лежат под длинным списком шагов — ссылка сверху (27.10.2026). */}
+          <button
+            type="button"
+            onClick={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })}
+            style={{ background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '0 4px 10px', fontFamily: 'inherit' }}
+          >
+            Шаблоны документов ↓
+          </button>
           {hasResult ? (
-            <ViolationsTab violations={violations} indexPercent={index} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} onGoToTemplates={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })} />
+            <ViolationsTab violations={violations} indexPercent={index} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} openRequest={openStep} onGoToTemplates={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })} />
           ) : (
             <Card><div style={{ fontSize: 13, color: C.secondary }}>Сначала пройдите тест — здесь появятся шаги по порядку: что сделать, какой документ нужен, отметка «Сделано».</div></Card>
           )}
@@ -1265,7 +1274,7 @@ function NoticeAnalysisCard({ notice, onSave, onClose, onAsk }) {
             return <div key={v.code} style={{ fontSize: 12, marginBottom: 4 }}>{v.title} — <span style={{ color, fontWeight: 600 }}>{label}</span></div>;
           })}
           {relatedTemplates.length > 0 && (
-            <div style={{ fontSize: 12, color: C.secondary, marginTop: 6 }}>Документы, которые могут помочь закрыть замечания: {relatedTemplates.map((t) => t.title).join('; ')} (вкладка «Обзор» → шаблоны документов)</div>
+            <div style={{ fontSize: 12, color: C.secondary, marginTop: 6 }}>Документы, которые могут помочь закрыть замечания: {relatedTemplates.map((t) => t.title).join('; ')} (этап «Исправить» → «Шаблоны документов»)</div>
           )}
         </div>
       ) : (
@@ -2303,7 +2312,7 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
               <div style={{ padding: '10px 12px', marginTop: 12, borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>
                 {docs.length > 0 ? (
                   <>
-                    <div style={{ fontSize: 13, marginBottom: 6 }}>Эти находки закрываются документами из «Документов студии»:</div>
+                    <div style={{ fontSize: 13, marginBottom: 6 }}>Эти находки закрываются документами из пакета документов:</div>
                     <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13 }}>
                       {docs.map((d) => <li key={d}>{d}</li>)}
                     </ul>
@@ -2313,7 +2322,7 @@ function WebsiteCheckCard({ isManagement, hasPaidPlan }) {
                         : `Разовая оплата ${templatesAddon.priceRub.toLocaleString('ru-RU')} ₽, документы собираются из вашей анкеты.`}
                     </div>
                     <Btn small onClick={() => document.getElementById('document-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-                      {templatesAddon.purchased ? 'Собрать документы' : 'Открыть «Документы студии»'}
+                      {templatesAddon.purchased ? 'Собрать документы' : 'Открыть пакет документов'}
                     </Btn>
                   </>
                 ) : (
@@ -2479,7 +2488,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
       setLocalId(data.securityDocumentId);
       await load();
     } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось добавить в «Мои документы»');
+      setError(err.response?.data?.error || 'Не удалось добавить в «Папку к проверке»');
     }
   }
 
@@ -2595,12 +2604,12 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
               подсказку с "создать" на "проверить, что уже есть". */}
           {t.closesViolationCode && !t.alreadyHasDocument && (
             <div style={{ fontSize: 12, color: C.green, marginBottom: 6 }}>
-              Закрывает нарушение {t.closesViolationCode} из вашего теста безопасности.
+              Закрывает один из пунктов вашего теста безопасности.
             </div>
           )}
           {t.closesViolationCode && t.alreadyHasDocument && (
             <div style={{ fontSize: 12, color: C.subtle, marginBottom: 6, background: C.surface, borderRadius: 8, padding: '6px 10px' }}>
-              В тесте безопасности вы отметили, что этот документ уже есть. Возможно, стоит не создавать новый, а проверить действующий — во вкладке «Документы» есть «Проверка документа на риски».
+              В тесте безопасности вы отметили, что этот документ уже есть. Возможно, стоит не создавать новый, а проверить действующий — в этапе «Быть готовым», в «Папке к проверке», есть «Проверка документа на риски».
             </div>
           )}
 
@@ -2667,10 +2676,10 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
             «{lastResult.templateTitle}» готов — <a href={lastResult.downloadUrl} target="_blank" rel="noreferrer">скачать PDF</a>
           </div>
           {lastResult.securityDocumentId ? (
-            <div style={{ fontSize: 12, color: C.secondary }}>Добавлен в «Мои документы».</div>
+            <div style={{ fontSize: 12, color: C.secondary }}>Добавлен в «Папку к проверке».</div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13 }}>Добавить его в «Мои документы»?</span>
+              <span style={{ fontSize: 13 }}>Добавить его в «Папку к проверке»?</span>
               <Btn small onClick={() => addToDocuments(lastResult.id, (id) => setLastResult((prev) => ({ ...prev, securityDocumentId: id })))}>Да, добавить</Btn>
             </div>
           )}
@@ -2716,7 +2725,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
               )}
               {!g.securityDocumentId && !g.superseded && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 12, color: C.subtle }}>Не добавлен в «Мои документы»</span>
+                  <span style={{ fontSize: 12, color: C.subtle }}>Не добавлен в «Папку к проверке»</span>
                   <button
                     type="button"
                     onClick={() => addToDocuments(g.id, (id) => setGenerated((prev) => prev.map((x) => (x.id === g.id ? { ...x, securityDocumentId: id } : x))))}
@@ -2847,7 +2856,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
     }
   }
 
-  // "Подписал(а)": документ уходит в «Мои документы», связанное нарушение —
+  // "Подписал(а)": документ уходит в «Папку к проверке», связанное нарушение —
   // в устранённые. Ровно то же, что владелец и так делал двумя кнопками в
   // разных местах, одним действием.
   async function markDone(doc) {
@@ -2949,16 +2958,21 @@ function stepWord(n) {
   return 'шагов';
 }
 
-function ViolationsTab({ violations, indexPercent, isManagement, onResolve, onDocumentsChange, onGoToTemplates }) {
+function ViolationsTab({ violations, indexPercent, isManagement, onResolve, onDocumentsChange, onGoToTemplates, openRequest = null }) {
   const open = violations.filter((v) => v.status === 'open').sort((a, b) => (a.pathStep || 999) - (b.pathStep || 999));
   const resolved = violations.filter((v) => v.status === 'resolved');
 
   // 18.10.2026, вид приложения: строки с риском справа, подробности и
   // кнопки — в шторке (ViolationCard ниже рисует её содержимое).
   const [openId, setOpenId] = useState(null);
+  // Кнопка «Дальше: …» над путём (27.10.2026) открывает шторку этого шага —
+  // раньше она только переключала на этап, где человек уже был.
+  useEffect(() => {
+    if (openRequest?.id) setOpenId(openRequest.id);
+  }, [openRequest]);
 
   if (violations.length === 0) {
-    return <div className="empty-hint">Нарушений не найдено. Пройдите тест безопасности, чтобы увидеть карту уязвимостей.</div>;
+    return <div className="empty-hint">Пока пусто. Пройдите тест безопасности — здесь появятся шаги до 100 %.</div>;
   }
 
   const current = violations.find((v) => v.id === openId);
@@ -3211,7 +3225,7 @@ function ViolationCard({ violation, isManagement, onResolve, onEvidenceAdded, on
           и templateViolationLinks.js. Только для проверенных пар. */}
       {violation.closesWithTemplate && violation.status === 'open' && (
         <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10, background: C.surface, borderRadius: 8, padding: '6px 10px' }}>
-          Закрывается документом «{violation.closesWithTemplate.templateTitle}» — доступен во вкладке «Обзор», раздел «Шаблоны документов».
+          Закрывается документом «{violation.closesWithTemplate.templateTitle}» — он в этапе «Исправить», блок «Шаблоны документов».
           {onGoToTemplates && (
             <button
               type="button"
