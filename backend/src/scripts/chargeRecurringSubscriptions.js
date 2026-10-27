@@ -58,7 +58,7 @@ async function chargeDueCompanies() {
       await pool.query(
         `INSERT INTO subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge)
          VALUES ($1, $2, $3, $4, true)`,
-        [company.id, payment.id, company.subscription_price_rub, payment.status === 'succeeded' ? 'succeeded' : 'pending']
+        [company.id, payment.id, company.subscription_price_rub, ['succeeded', 'canceled'].includes(payment.status) ? payment.status : 'pending']
       );
 
       if (payment.status === 'succeeded') {
@@ -72,6 +72,10 @@ async function chargeDueCompanies() {
           [company.id, nextPeriodEnd]
         );
         console.log(`✅ ${company.name}: списано ${company.subscription_price_rub} ₽, продлено до ${nextPeriodEnd.toISOString().slice(0, 10)}`);
+      } else if (payment.status === 'canceled') {
+        // Банк отклонил сразу, без исключения (проверка 27.10.2026): раньше
+        // компания оставалась 'active' с прошедшей датой и без письма.
+        throw new Error(`платёж отклонён (${payment.cancellation_details?.reason || 'canceled'})`);
       } else {
         // pending — редкий случай для сохранённого способа оплаты, но
         // возможен (например, требуется 3-D Secure повторно); статус

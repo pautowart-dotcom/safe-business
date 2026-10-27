@@ -100,10 +100,16 @@ async function accessLevel(companyId) {
 
 // Видно ли заключение (штраф, норма, что делать). Гость без оплаты и
 // бесплатный уровень — нет; пробный месяц обычного пользователя и подписка —
-// да; любая успешная оплата (заключение за 1990 ₽) — да.
+// да; любая успешная оплата (заключение за 1990 ₽) — да. Набор «заключение +
+// документы» (5990 ₽) оплачивается через addon_purchases с report_id — это
+// тоже оплаченное заключение (проверка 27.10.2026: после подарочного месяца
+// у купивших набор пропадали штраф и решение в «Шагах»).
 async function canSeeConclusion({ companyId, userId }) {
   const { rows: paid } = await pool.query(
-    `SELECT 1 FROM subscription_payments WHERE company_id = $1 AND status = 'succeeded' LIMIT 1`,
+    `SELECT 1 FROM subscription_payments WHERE company_id = $1 AND status = 'succeeded'
+     UNION ALL
+     SELECT 1 FROM addon_purchases WHERE company_id = $1 AND status = 'succeeded' AND report_id IS NOT NULL
+     LIMIT 1`,
     [companyId]
   );
   if (paid.length > 0) return true;

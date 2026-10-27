@@ -7,8 +7,11 @@ const ZONES = [
   { key: 'red', min: 0, max: 49, label: 'Красная зона' },
 ];
 
+// Индекс дробный (49.1): границы — «от min и меньше следующей зоны», иначе
+// 79.5 не попадал ни в жёлтую (до 79), ни в зелёную (от 80) и считался
+// красным (проверка 27.10.2026).
 function zoneForPercent(percent) {
-  return ZONES.find((z) => percent >= z.min && percent <= z.max) || ZONES[ZONES.length - 1];
+  return ZONES.find((z) => percent >= z.min) || ZONES[ZONES.length - 1];
 }
 
 function indexPercent(score, maxScore) {
