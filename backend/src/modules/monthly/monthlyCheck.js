@@ -94,7 +94,9 @@ function regularItem(r, s) {
   };
 }
 
-async function buildItems(companyId, month = currentMonth()) {
+// withViolations: false — администратору (27.10.2026): нарушения из теста видит
+// только владелец (политика, п. 8.4).
+async function buildItems(companyId, month = currentMonth(), { withViolations = true } = {}) {
   const today = moscowDateStr(new Date());
   const profile = await loadProfile(companyId);
   const nicheTitles = new Set();
@@ -109,7 +111,9 @@ async function buildItems(companyId, month = currentMonth()) {
   const dueRegularList = dueRegular(relevantRegular(profile, nicheTitles), stateByKey, month);
 
   const [{ rows: violations }, { rows: deadlines }, { rows: tasks }] = await Promise.all([
-    pool.query(`SELECT id, violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`, [companyId]),
+    withViolations
+      ? pool.query(`SELECT id, violation_code, niche FROM security_violations WHERE company_id = $1 AND status = 'open'`, [companyId])
+      : { rows: [] },
     pool.query(
       `SELECT id, title, to_char(due_date, 'YYYY-MM-DD') AS due_date FROM deadlines
        WHERE company_id = $1 AND kind = 'deadline' AND status = 'pending' AND category <> 'journals'
@@ -251,7 +255,8 @@ function summarize(items, indexNow, indexPrev) {
   };
 }
 
-async function getState(companyId) {
+async function getState(companyId, { role = 'owner' } = {}) {
+  const withViolations = role === 'owner';
   const month = currentMonth();
   const { rows } = await pool.query(
     'SELECT month, items, index_percent, completed_at FROM monthly_checks WHERE company_id = $1 ORDER BY month DESC LIMIT 2',
@@ -260,14 +265,16 @@ async function getState(companyId) {
   const done = rows.find((r) => r.month === month);
   const prev = rows.find((r) => r.month !== month);
   if (done) {
-    return { month, done: true, completedAt: done.completed_at, summary: summarize(done.items, done.index_percent, prev?.index_percent ?? null) };
+    const items = withViolations ? done.items : (done.items || []).filter((i) => i.type !== 'violation');
+    return { month, done: true, completedAt: done.completed_at, summary: summarize(items, done.index_percent, prev?.index_percent ?? null) };
   }
-  return { month, done: false, items: await buildItems(companyId, month), lastIndex: prev?.index_percent ?? null };
+  return { month, done: false, items: await buildItems(companyId, month, { withViolations }), lastIndex: prev?.index_percent ?? null };
 }
 
-async function complete({ companyId, membershipId, userId, answers }) {
+async function complete({ companyId, membershipId, userId, answers, role = 'owner' }) {
   const month = currentMonth();
-  const items = await buildItems(companyId, month);
+  const withViolations = role === 'owner';
+  const items = await buildItems(companyId, month, { withViolations });
   const byKey = new Map((Array.isArray(answers) ? answers : []).map((a) => [a?.key, a]));
   // «Не получится» — только для нарушений: у сроков и задач сети есть свои кнопки.
   const answered = items.map((i) => {

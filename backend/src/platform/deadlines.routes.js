@@ -12,6 +12,8 @@ const { nextDueDate, listUpcomingDeadlines } = require('../core/deadlines');
 // теперь их шлёт scripts/dailyOperationsNudges.js. 'operations' — та же
 // ежедневная механика для смены/остатков (13.08.2026).
 const CATEGORIES = ['staff', 'premises', 'documents', 'tax', 'journals', 'financial', 'operations'];
+// Что админ не видит в списке (core/deadlines.js) — то же не даём менять по id.
+const ADMIN_GUARD = `AND category != 'tax' AND related_entity_type IS DISTINCT FROM 'security_violation'`;
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -87,9 +89,9 @@ router.patch(
     if (!['pending', 'done', 'dismissed'].includes(status)) {
       return res.status(400).json({ error: 'Недопустимый статус' });
     }
-    // Админ не видит налоговые дедлайны в списке — не даём тронуть их и
-    // напрямую по id.
-    const adminGuard = req.tenant.role === 'admin' ? `AND category != 'tax'` : '';
+    // Админ не видит налоговые дедлайны и нарушения из теста в списке — не
+    // даём тронуть их и напрямую по id.
+    const adminGuard = req.tenant.role === 'admin' ? ADMIN_GUARD : '';
     const { rows } = await pool.query(
       `UPDATE deadlines SET status = $1, snoozed_until = NULL WHERE id = $2 AND company_id = $3 ${adminGuard}
        RETURNING id, category, title, kind, to_char(due_date, 'YYYY-MM-DD') AS due_date, status,
@@ -150,7 +152,7 @@ router.patch(
   asyncHandler(async (req, res) => {
     const days = Number(req.body?.days);
     if (!SNOOZE_DAYS.includes(days)) return res.status(400).json({ error: 'Можно отложить на 3, 7 или 30 дней' });
-    const adminGuard = req.tenant.role === 'admin' ? `AND category != 'tax'` : '';
+    const adminGuard = req.tenant.role === 'admin' ? ADMIN_GUARD : '';
     const { rows } = await pool.query(
       `UPDATE deadlines
        SET snoozed_until = CASE WHEN $1::int = 0 THEN NULL ELSE (now() AT TIME ZONE 'Europe/Moscow')::date + $1::int END

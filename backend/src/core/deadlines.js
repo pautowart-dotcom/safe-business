@@ -152,6 +152,11 @@ async function listUpcomingDeadlines(companyId, { role, category, kind, status }
   } else if (role === 'admin') {
     where += ` AND category != 'tax'`;
   }
+  // Нарушения из теста видит только владелец (политика, п. 8.4) — команде
+  // их строки не отдаём (проверка 27.10.2026).
+  if (role && role !== 'owner') {
+    where += ` AND related_entity_type IS DISTINCT FROM 'security_violation'`;
+  }
   if (kind) {
     params.push(kind);
     where += ` AND kind = $${params.length}`;

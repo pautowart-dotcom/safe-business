@@ -207,10 +207,14 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const companyId = req.tenant.companyId;
-    const { rows: openViolationsRows } = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM security_violations WHERE company_id = $1 AND status = 'open'`,
-      [companyId]
-    );
+    // Результаты теста — только владельцу (политика, п. 8.4; проверка 27.10.2026).
+    const isOwner = req.tenant.role === 'owner';
+    const { rows: openViolationsRows } = isOwner
+      ? await pool.query(
+          `SELECT COUNT(*)::int AS n FROM security_violations WHERE company_id = $1 AND status = 'open'`,
+          [companyId]
+        )
+      : { rows: [{ n: 0 }] };
     const openViolations = openViolationsRows[0].n;
 
     const [{ items: deadlineItems, attentionCount: deadlineAttention }, checklistItem, websiteItem, resolvedItem, lawCheckItem, lawNoticeItem, outsideItem] =
@@ -218,7 +222,7 @@ router.get(
         loadDeadlineItems(companyId, req.tenant.role),
         loadChecklistItem(companyId),
         loadWebsiteCheckItem(companyId),
-        loadResolvedViolationsItem(companyId),
+        isOwner ? loadResolvedViolationsItem(companyId) : null,
         loadLawCheckItem(),
         loadLawChangeNoticeItem(companyId),
         loadOutsideWatchItem(companyId, req.tenant.role),

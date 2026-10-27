@@ -14,7 +14,7 @@ router.use(requireAuth, requireTenant, requireRole('owner', 'admin'));
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    res.json(await getState(req.tenant.companyId));
+    res.json(await getState(req.tenant.companyId, { role: req.tenant.role }));
   })
 );
 
@@ -26,6 +26,7 @@ router.post(
       membershipId: req.tenant.membershipId,
       userId: req.user.id,
       answers: req.body?.answers,
+      role: req.tenant.role,
     });
     await logEvent({
       companyId: req.tenant.companyId,
