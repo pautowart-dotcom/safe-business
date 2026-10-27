@@ -42,20 +42,27 @@ router.get(
     const params = [req.tenant.companyId];
     let where = 'company_id = $1';
     if (search) {
-      params.push(`${search}%`);
-      let clause = `(last_name ILIKE $${params.length} OR first_name ILIKE $${params.length})`;
-      // Поиск по телефону — сравниваем только цифры (телефон вводится
-      // свободным текстом: "+7 900 123-45-67", "89001234567" и т.п.
-      // считаем одним и тем же номером). Ищем ПОДстроку, не префикс —
-      // удобно найти клиента по последним цифрам номера.
-      // Мастеру телефон скрыт — и искать по нему нельзя, иначе номер
-      // восстанавливается подбором цифр (проверка 27.10.2026).
-      const searchDigits = req.tenant.role === 'master' ? '' : search.replace(/\D/g, '');
-      if (searchDigits) {
-        params.push(`%${searchDigits}%`);
-        clause = `(${clause} OR regexp_replace(phone, '\\D', '', 'g') ILIKE $${params.length})`;
-      }
-      where += ` AND ${clause}`;
+      // 27.10.2026 (мастера наших студий): «Имя Фамилия» одной строкой и
+      // последние цифры номера. Каждое слово запроса должно найтись в имени
+      // или фамилии (с начала слова) — или, если это цифры, в номере.
+      // Мастеру номер скрыт: ему — только по последним 4+ цифрам (окончание),
+      // как они и привыкли («в фамилию пишем 4 последние цифры»), без поиска
+      // по середине номера — иначе номер восстанавливается подбором.
+      const isMaster = req.tenant.role === 'master';
+      const terms = String(search).trim().split(/\s+/).filter(Boolean).slice(0, 4);
+      const clauses = terms.map((term) => {
+        params.push(`${term}%`);
+        let clause = `(last_name ILIKE $${params.length} OR first_name ILIKE $${params.length})`;
+        // Поиск по телефону — сравниваем только цифры (телефон вводится
+        // свободным текстом: "+7 900 123-45-67", "89001234567" и т.п.).
+        const digits = term.replace(/\D/g, '');
+        if (digits && (!isMaster || digits.length >= 4)) {
+          params.push(isMaster ? `%${digits}` : `%${digits}%`);
+          clause = `(${clause} OR regexp_replace(phone, '\\D', '', 'g') LIKE $${params.length})`;
+        }
+        return clause;
+      });
+      if (clauses.length) where += ` AND ${clauses.join(' AND ')}`;
     }
     const { rows } = await pool.query(
       `SELECT id, first_name, last_name, phone, preferences, notes, allergies,

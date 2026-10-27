@@ -45,6 +45,57 @@ function money(v) {
 // ячейка целиком открывала выбор файла, посмотреть фото крупнее было
 // нельзя вообще, только открыть отдельно "Фотоотчёты"). Замена — отдельной
 // текстовой кнопкой "Заменить" под превью, чтобы не перепутать с зумом.
+// «Сразу несколько фото» (27.10.2026, просьба мастеров наших студий: 4 фото —
+// правая/левая до и после — раньше выбирались по одному в каждую ячейку).
+// Файлы раскладываются по свободным ячейкам в порядке выбора: до, до (2),
+// после, после (2).
+const PHOTO_SLOT_KEYS = ['photoBeforeUrl', 'photoBeforeUrl2', 'photoAfterUrl', 'photoAfterUrl2'];
+
+function MultiPhotoUpload({ form, setForm }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(0);
+  const [error, setError] = useState('');
+  const free = PHOTO_SLOT_KEYS.filter((k) => !form[k]);
+
+  async function handleFiles(e) {
+    const files = Array.from(e.target.files || []).slice(0, free.length);
+    e.target.value = '';
+    if (!files.length) return;
+    setError('');
+    setUploading(files.length);
+    const slots = [...free];
+    for (const file of files) {
+      const key = slots.shift();
+      try {
+        const data = new FormData();
+        data.append('photo', file);
+        const res = await api.post('/modules/visits/photos', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+        setForm((f) => ({ ...f, [key]: res.data.url }));
+      } catch (err) {
+        setError(err.response?.data?.error || 'Не все фото загрузились — добавьте оставшиеся в ячейки ниже');
+      }
+      setUploading((n) => n - 1);
+    }
+  }
+
+  if (free.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <input ref={inputRef} type="file" accept="image/*" multiple onChange={handleFiles} style={{ display: 'none' }} />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading > 0}
+        style={{ width: '100%', border: `1.5px dashed ${C.border}`, borderRadius: 12, padding: 12, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: C.primary }}
+      >
+        {uploading > 0 ? `Загружаем… осталось ${uploading}` : `Выбрать сразу до ${free.length} фото`}
+      </button>
+      <div style={{ fontSize: 11.5, color: C.subtle, marginTop: 4 }}>Отмечайте по порядку: до, до (2), после, после (2).</div>
+      {error && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+}
+
 function PhotoUploadCell({ label, url, onUploaded, onZoom }) {
   // Один input без capture — на телефоне сама ОС предлагает выбор
   // "камера или галерея" системным диалогом, как принято в большинстве
@@ -743,6 +794,7 @@ export default function Visits() {
           )}
 
           <Field label="Фото до/после (необязательно, до 2 на каждую сторону)">
+            <MultiPhotoUpload form={form} setForm={setForm} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <PhotoUploadCell label="до" url={form.photoBeforeUrl} onUploaded={(url) => setForm({ ...form, photoBeforeUrl: url })} onZoom={(url) => setPhotoLightbox([url])} />
               <PhotoUploadCell label="до (2)" url={form.photoBeforeUrl2} onUploaded={(url) => setForm({ ...form, photoBeforeUrl2: url })} onZoom={(url) => setPhotoLightbox([url])} />

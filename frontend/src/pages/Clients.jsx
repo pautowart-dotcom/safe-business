@@ -472,7 +472,7 @@ export default function Clients() {
               )}
             </Card>
           )}
-          <TextInput placeholder="Поиск по фамилии, имени или телефону" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
+          <TextInput placeholder="Имя, фамилия или последние 4 цифры номера" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
 
           {loading ? (
             <div className="page-loading">Загрузка...</div>
