@@ -124,7 +124,7 @@ router.post(
       if (!req.body?.acceptedTerms) {
         return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
       }
-      const existing = await pool.query('SELECT 1 FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
+      const existing = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1 AND id != $2', [email, req.user.id]);
       if (existing.rows.length > 0) {
         return res.status(409).json({
           error: 'Этот email уже зарегистрирован на платформе — войдите в аккаунт, чтобы купить там',

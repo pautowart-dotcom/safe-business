@@ -20,6 +20,14 @@ const { ensureNicheModules } = require('../modules/security/nicheModules');
 
 const router = express.Router();
 
+// Почта без учёта регистра (27.10.2026): регистрация/вход сравнивали как есть,
+// и «Anna@Mail.ru» не входила как «anna@mail.ru». В базе 8 адресов с
+// заглавными, дублей по lower() нет — поиск по lower(email), новые пишем
+// в нижнем регистре.
+function normEmail(v) {
+  return typeof v === 'string' ? v.trim().toLowerCase() : v;
+}
+
 const VERIFICATION_CODE_TTL_MINUTES = 10;
 
 // Ниши, которые можно выбрать прямо на регистрации (20.08.2026) — те же,
@@ -112,7 +120,8 @@ router.post(
   '/register',
   requireCaptcha,
   asyncHandler(async (req, res) => {
-    const { name, email, password, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo, notYetOpen } = req.body;
+    const { name, email: rawEmail, password, industrySegment, niche, acceptedTerms, analyticsConsent, isFranchise, franchiseRegisteredTo, notYetOpen } = req.body;
+    const email = normEmail(rawEmail);
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Заполните имя, email и пароль' });
     }
@@ -158,7 +167,7 @@ router.post(
       return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
     }
 
-    const existing = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
+    const existing = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Пользователь с таким email уже зарегистрирован' });
     }
@@ -273,7 +282,8 @@ router.post(
 router.post(
   '/login',
   asyncHandler(async (req, res) => {
-    const { email, password, deviceToken } = req.body;
+    const { email: rawEmail, password, deviceToken } = req.body;
+    const email = normEmail(rawEmail);
     if (!email || !password) {
       return res.status(400).json({ error: 'Введите email и пароль' });
     }
@@ -286,7 +296,7 @@ router.post(
     }
 
     const result = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at, password_hash FROM users WHERE email = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at, password_hash FROM users WHERE lower(email) = $1',
       [email]
     );
     const user = result.rows[0];
@@ -311,7 +321,8 @@ router.post(
 router.post(
   '/verify-code',
   asyncHandler(async (req, res) => {
-    const { email, code } = req.body;
+    const { email: rawEmail, code } = req.body;
+    const email = normEmail(rawEmail);
     if (!email || !code) {
       return res.status(400).json({ error: 'Укажите email и код' });
     }
@@ -322,7 +333,7 @@ router.post(
     }
 
     const userRes = await pool.query(
-      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE email = $1',
+      'SELECT id, name, email, phone, is_super_admin, analytics_consent, avatar_url, onboarding_seen_at FROM users WHERE lower(email) = $1',
       [email]
     );
     const user = userRes.rows[0];
@@ -434,7 +445,8 @@ router.get(
 router.post(
   '/accept-invite',
   asyncHandler(async (req, res) => {
-    const { token, name, email, password, acceptedTerms, analyticsConsent } = req.body;
+    const { token, name, email: rawEmail, password, acceptedTerms, analyticsConsent } = req.body;
+    const email = normEmail(rawEmail);
     if (!token) {
       return res.status(400).json({ error: 'Не указан код приглашения' });
     }
@@ -464,7 +476,7 @@ router.post(
       if (!acceptedTerms) {
         return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
       }
-      const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+      const existing = await pool.query('SELECT id FROM users WHERE lower(email) = $1', [email]);
       if (existing.rows.length > 0) {
         return res.status(409).json({ error: 'Пользователь с таким email уже зарегистрирован — войдите в аккаунт и повторите переход по ссылке' });
       }
@@ -557,7 +569,7 @@ const RESET_TOKEN_TTL_MINUTES = 60;
 router.post(
   '/forgot-password',
   asyncHandler(async (req, res) => {
-    const { email } = req.body;
+    const email = normEmail(req.body.email);
     if (!email) {
       return res.status(400).json({ error: 'Введите email' });
     }
@@ -576,7 +588,7 @@ router.post(
 
     // Один и тот же ответ независимо от того, найден email или нет —
     // иначе форма стала бы способом проверить чужие email на сервисе.
-    const userRes = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const userRes = await pool.query('SELECT id FROM users WHERE lower(email) = $1', [email]);
     if (userRes.rows.length > 0) {
       const token = crypto.randomBytes(32).toString('hex');
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
