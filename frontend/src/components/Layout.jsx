@@ -196,6 +196,7 @@ const TITLES = {
   '/shift': 'Чек-листы',
   '/knowledge': 'База знаний',
   '/security': 'Безопасность',
+  '/outside': 'Проверка по ИНН',
   '/team': 'Команда',
   '/journals': 'Журналы',
   '/dossier': 'Досье',

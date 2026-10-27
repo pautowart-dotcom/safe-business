@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -33,6 +34,7 @@ function fullDate(d) {
 }
 
 export default function Deadlines() {
+  const navigate = useNavigate();
   const { isManagement, isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('');
@@ -76,10 +78,14 @@ export default function Deadlines() {
   // Настройках», тап — шторка с кнопками (utils/deadlineActions.js — те же
   // правила, что были здесь карточками). Мастеру — только даты, без
   // «просрочено» и без действий (решение владельца: без давления).
+  // Нарушения из теста (30–40 строк «без даты») — одной строкой «Шаги до
+  // 100 %», как на главной (проверка 27.10.2026). Видит только владелец.
+  const stepItems = items.filter((i) => i.related_entity_type === 'security_violation');
+  const dated = items.filter((i) => i.related_entity_type !== 'security_violation');
   const groups = [
-    ['Горит', items.filter((i) => i.due_date && daysLeft(i.due_date) <= 0)],
-    ['Нужно внимание', items.filter((i) => !i.due_date)],
-    ['Дальше', items.filter((i) => i.due_date && daysLeft(i.due_date) > 0)],
+    ['Горит', dated.filter((i) => i.due_date && daysLeft(i.due_date) <= 0)],
+    ['Нужно внимание', dated.filter((i) => !i.due_date)],
+    ['Дальше', dated.filter((i) => i.due_date && daysLeft(i.due_date) > 0)],
   ].filter(([, list]) => list.length > 0);
 
   return (
@@ -118,6 +124,11 @@ export default function Deadlines() {
         </Group>
       ) : (
         <>
+          {stepItems.length > 0 && (
+            <Group title="Шаги до 100 %">
+              <Row icon="shield" title={`Осталось шагов: ${stepItems.length}`} subtitle="По порядку, с инструкциями — в «Безопасность» → «Исправить»" onClick={() => navigate('/security', { state: { dashboardTab: 'violations' } })} />
+            </Group>
+          )}
           {groups.map(([title, list]) => (
             <Group key={title} title={title} aside={String(list.length)}>
               {list.map((item) => {

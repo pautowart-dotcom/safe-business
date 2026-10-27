@@ -51,7 +51,7 @@ export default function OutsideWatch() {
 
   return (
     <div>
-      <div className="ui-page-title" style={{ marginBottom: 6 }}>Ваш бизнес снаружи</div>
+      <div className="ui-page-title" style={{ marginBottom: 6 }}>Проверка по ИНН</div>
       <div style={{ fontSize: 14, color: C.secondary, lineHeight: 1.55, marginBottom: 18 }}>
         Что о вашем бизнесе видно в открытых реестрах — налоговой, проверок, судов — и что с этим делать.
         Документы загружать не нужно, достаточно ИНН.
