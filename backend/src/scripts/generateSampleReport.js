@@ -71,7 +71,7 @@ const totalScore = BLOCKS.reduce((s, b) => s + b.score, 0);
 const totalMax = BLOCKS.reduce((s, b) => s + b.maxScore, 0);
 const indexPercent = Math.round((totalScore / totalMax) * 1000) / 10;
 const zone = 'yellow';
-const zoneLabel = 'Жёлтая зона';
+const zoneLabel = 'На полпути';
 
 function sectionHeader(number, text) {
   return {

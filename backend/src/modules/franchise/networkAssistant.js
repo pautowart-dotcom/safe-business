@@ -8,7 +8,7 @@
 // Названия точек в YandexGPT не уходят: в промпте «Точка 1…N», в ответе
 // номера заменяются обратно на названия (название ИП часто = ФИО).
 const pool = require('../../db/pool');
-const { computeNetworkSummary } = require('./networkSummary');
+const { computeNetworkSummary, RED_REASON } = require('./networkSummary');
 const { listStandards, latestChecksByPoint, checkDetail } = require('./standards');
 
 const DAY = 24 * 3600 * 1000;
@@ -59,7 +59,7 @@ async function buildNetworkContext(access) {
     const checks = latest.get(m.companyId) || {};
     parts.push(checks.self ? `самопроверка по стандартам ${checks.self.percent}% (${checks.self.date})` : 'самопроверки по стандартам не было');
     parts.push(checks.audit ? `проверка от сети ${checks.audit.percent}% (${checks.audit.date}, ${daysSince(checks.audit.date)} дн. назад)` : 'проверок от сети не было');
-    const risk = (full ? m.riskReasons : m.riskReasons.filter((r) => r !== 'Красная зона'));
+    const risk = (full ? m.riskReasons : m.riskReasons.filter((r) => r !== RED_REASON));
     if (risk.length) parts.push(`сигналы риска: ${risk.join(', ')}`);
     lines.push(`- ${alias.get(m.companyId)}: ${parts.join('; ')}.`);
   }

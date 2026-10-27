@@ -10,7 +10,8 @@ const scoring = require('../content/scoring');
 const { buildRoadmap, buildForecast } = require('./roadmap');
 const { buildRecommendations } = require('./recommendations');
 
-const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая зона', red: 'Красная зона' };
+// Словарь 26.10.2026 (этапы пути вместо цветных зон) — 27.10 и в PDF.
+const ZONE_LABELS = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' };
 
 const LEGAL_FORM_LABELS = { self_employed: 'Самозанятый', ip: 'ИП', ooo: 'ООО' };
 

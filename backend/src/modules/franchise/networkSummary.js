@@ -8,10 +8,13 @@ const { onboardingCounts } = require('../staff/onboarding');
 
 const INACTIVE_DAYS = 30;
 const DEADLINES_RISK_THRESHOLD = 3;
+// Причина «индекс ниже 50» (была «Красная зона», словарь 26.10.2026) — тем же
+// значением её отфильтровывают franchise.routes.js и networkAssistant.js.
+const RED_REASON = 'Начало пути (индекс ниже 50)';
 
 function riskReasons({ zone, opening, overdueDeadlines, lastActiveAt }) {
   const reasons = [];
-  if (!opening && zone === 'red') reasons.push('Красная зона');
+  if (!opening && zone === 'red') reasons.push(RED_REASON);
   if (overdueDeadlines >= DEADLINES_RISK_THRESHOLD) reasons.push(`Подошло сроков: ${overdueDeadlines}`);
   // NULL — активность ещё не записывалась (поле появилось 16.10.2026), не
   // считаем это риском, чтобы после выкладки вся сеть не покраснела разом.
@@ -99,4 +102,4 @@ async function computeNetworkSummary(group) {
   return { members: points, network };
 }
 
-module.exports = { computeNetworkSummary, riskReasons, INACTIVE_DAYS };
+module.exports = { computeNetworkSummary, riskReasons, INACTIVE_DAYS, RED_REASON };

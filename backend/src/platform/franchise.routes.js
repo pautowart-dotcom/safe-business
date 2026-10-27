@@ -5,7 +5,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
-const { computeNetworkSummary } = require('../modules/franchise/networkSummary');
+const { computeNetworkSummary, RED_REASON } = require('../modules/franchise/networkSummary');
 const { buildMonthlyReport, currentMonth, isMonth } = require('../modules/franchise/report');
 const { renderNetworkReportPdf } = require('./networkReportPdf');
 const { logAudit } = require('../core/auditLog');
@@ -395,7 +395,7 @@ router.get(
         opening: m.opening,
         overdueDeadlines: m.overdueDeadlines,
         lastActiveAt: m.lastActiveAt,
-        riskReasons: m.riskReasons.filter((r) => r !== 'Красная зона'),
+        riskReasons: m.riskReasons.filter((r) => r !== RED_REASON),
       })),
     });
   })

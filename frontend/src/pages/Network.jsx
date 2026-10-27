@@ -16,7 +16,7 @@ import NetworkAssistantCard from '../components/NetworkAssistantCard.jsx';
 
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
 const ZONE_BG = { green: C.greenBg, yellow: C.orangeBg, red: C.redBg };
-const ZONE_LABELS = { green: 'Зелёная', yellow: 'Жёлтая', red: 'Красная' };
+const ZONE_LABELS = { green: 'Почти готовы', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 
 function daysAgo(iso) {
   if (!iso) return null;
@@ -77,7 +77,7 @@ function PointRow({ m, canManage, onRemove }) {
         {m.opening ? (
           <Badge color={C.blue} bg={C.blueBg}>Открытие · {m.opening.done} из {m.opening.total}</Badge>
         ) : m.indexPercent === undefined ? null : m.indexPercent != null ? (
-          <Badge color={ZONE_COLOR[m.zone]} bg={ZONE_BG[m.zone]}>{ZONE_LABELS[m.zone]} · {m.indexPercent}%</Badge>
+          <Badge color={ZONE_COLOR[m.zone]} bg={ZONE_BG[m.zone]}>{ZONE_LABELS[m.zone]} · {Math.round(m.indexPercent)} из 100</Badge>
         ) : (
           <Badge color={C.subtle} bg={C.surface}>Без теста</Badge>
         )}

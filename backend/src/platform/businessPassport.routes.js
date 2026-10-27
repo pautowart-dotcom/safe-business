@@ -19,7 +19,7 @@ function nicheLabel(key) {
 }
 
 const ZONE_COLORS = { green: '#1a9c5c', yellow: '#b8790a', red: '#d13b3b' };
-const ZONE_LABELS = { green: 'Зелёная зона', yellow: 'Жёлтая зона', red: 'Красная зона' };
+const ZONE_LABELS = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 
 function escapeXml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));

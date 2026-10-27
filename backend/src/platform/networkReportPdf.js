@@ -60,7 +60,7 @@ function buildDocDefinition(report) {
           body: [
             statRow('Точек в сети', `${n.pointsTotal}${delta(n.pointsTotal, b?.pointsTotal)}`),
             statRow('Средний индекс', n.averageIndexPercent != null ? `${n.averageIndexPercent}%${delta(n.averageIndexPercent, b?.averageIndexPercent, ' п.')}` : '—'),
-            statRow('Зелёная / жёлтая / красная зона', `${n.zoneCounts.green} / ${n.zoneCounts.yellow} / ${n.zoneCounts.red}`),
+            statRow('Почти готовы / на полпути / начало пути', `${n.zoneCounts.green} / ${n.zoneCounts.yellow} / ${n.zoneCounts.red}`),
             statRow('Требуют внимания', `${n.pointsAtRisk}${delta(n.pointsAtRisk, b?.pointsAtRisk)}`),
             statRow('Неисправленных нарушений', `${n.violationsOpen ?? '—'}${delta(n.violationsOpen, b?.violationsOpen)}`),
             statRow('Готовятся к открытию', String(n.pointsPreparing)),

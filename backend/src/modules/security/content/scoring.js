@@ -2,9 +2,9 @@
 // Источник: docs/security-engine/09_Scoring_Logic_FINAL.md.
 
 const ZONES = [
-  { key: 'green', min: 80, max: 100, label: 'Зелёная зона' },
-  { key: 'yellow', min: 50, max: 79, label: 'Жёлтая зона' },
-  { key: 'red', min: 0, max: 49, label: 'Красная зона' },
+  { key: 'green', min: 80, max: 100, label: 'Почти готовы к проверке' },
+  { key: 'yellow', min: 50, max: 79, label: 'На полпути' },
+  { key: 'red', min: 0, max: 49, label: 'Начало пути' },
 ];
 
 // Индекс дробный (49.1): границы — «от min и меньше следующей зоны», иначе
