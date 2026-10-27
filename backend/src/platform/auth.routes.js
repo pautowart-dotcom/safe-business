@@ -408,6 +408,29 @@ router.get(
   })
 );
 
+// Приглашения на почту вошедшего (27.10.2026, живой случай: мастера уволили
+// и пригласили снова — она вошла своим аккаунтом и увидела «Нет доступа ни к
+// одной компании», а ссылку из приглашения не открывала). Экран «нет
+// доступа» показывает их кнопкой «Принять» (POST /accept-invite с токеном).
+// Токен отдаём только владельцу той же почты — как и письмо с приглашением.
+router.get(
+  '/my-invites',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT m.invite_token AS token, m.role, c.name AS company_name
+       FROM memberships m
+       JOIN companies c ON c.id = m.company_id
+       JOIN users u ON u.id = $1
+       WHERE m.invite_status = 'pending' AND m.invite_token IS NOT NULL
+         AND lower(trim(m.invited_email)) = lower(trim(u.email))
+       ORDER BY m.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(rows.map((r) => ({ token: r.token, role: r.role, companyName: r.company_name })));
+  })
+);
+
 router.post(
   '/accept-invite',
   asyncHandler(async (req, res) => {

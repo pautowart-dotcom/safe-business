@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import api from '../api/client.js';
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Btn, Field, TextInput, Select, C, F } from '../ui/components.jsx';
@@ -94,13 +95,56 @@ function CompanyPicker({ companies, onPick, onAdd, error }) {
   );
 }
 
+// 27.10.2026, живой случай: мастера уволили и пригласили снова, а она вошла
+// своим аккаунтом и упёрлась в «Нет доступа». Приглашения на её почту теперь
+// видны здесь кнопкой «Принять»; и можно войти другим аккаунтом.
 function NoCompanyAccess() {
+  const { logout } = useAuth();
+  const [invites, setInvites] = useState([]);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get('/auth/my-invites', { silent: true }).then(({ data }) => setInvites(data || [])).catch(() => {});
+  }, []);
+
+  async function accept(token) {
+    setBusy(token);
+    setError('');
+    try {
+      await api.post('/auth/accept-invite', { token });
+      window.location.reload();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Не удалось принять приглашение');
+      setBusy(null);
+    }
+  }
+
   return (
     <AuthShell>
-      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Нет доступа ни к одной компании</div>
-      <div style={{ fontSize: 14, color: C.subtle, lineHeight: 1.5 }}>
-        Обратитесь к владельцу компании — он может пригласить вас по ссылке в разделе «Команда».
-      </div>
+      {invites.length > 0 ? (
+        <>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Вас пригласили</div>
+          {invites.map((inv) => (
+            <div key={inv.token} style={{ marginBottom: 10 }}>
+              <Btn onClick={() => accept(inv.token)} disabled={!!busy}>
+                {busy === inv.token ? 'Секунду…' : `Принять приглашение в «${inv.companyName}»`}
+              </Btn>
+            </div>
+          ))}
+          {error && <div className="alert alert-error">{error}</div>}
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Нет доступа ни к одной компании</div>
+          <div style={{ fontSize: 14, color: C.subtle, lineHeight: 1.5 }}>
+            Попросите владельца пригласить вас в разделе «Команда» и откройте ссылку из приглашения. Если приглашали на другую почту — войдите с неё.
+          </div>
+        </>
+      )}
+      <button type="button" onClick={logout} style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 600, fontSize: 13, cursor: 'pointer', marginTop: 14, padding: 0, fontFamily: 'inherit' }}>
+        Войти другим аккаунтом
+      </button>
     </AuthShell>
   );
 }
