@@ -8,7 +8,13 @@ const { getPatentRate } = require('./patentRates');
 // это входит в зону ответственности law-compliance-monitor (расширена на
 // этот модуль вместе с patent_rates, см. план §6) — не переносить на
 // следующий год без проверки.
-const FIXED_INSURANCE_CONTRIBUTION_RUB = 57_390;
+// 27.10.2026 (law-compliance-monitor): суммы уже записаны в ст. 430 НК на
+// 2026–2027 — берём по году; 2027 — 61 154 ₽ (buh.ru, ppt.ru, вторичные).
+const FIXED_INSURANCE_BY_YEAR = { 2026: 57_390, 2027: 61_154 };
+function fixedInsuranceRub(year) {
+  return FIXED_INSURANCE_BY_YEAR[year] || FIXED_INSURANCE_BY_YEAR[2027];
+}
+const FIXED_INSURANCE_CONTRIBUTION_RUB = fixedInsuranceRub(new Date().getFullYear());
 
 // Порог допвзноса 1% с дохода свыше 300 000 ₽ (тот же порог, что уже
 // используется в taxDeadlines.js для insurance_extra) — стабилен уже
@@ -23,14 +29,18 @@ const EXTRA_CONTRIBUTION_THRESHOLD_RUB = 300_000;
 // astral.ru, moedelo.org) на 2026 год, но не первоисточником НК РФ —
 // требует проверки юристом, как и FIXED_INSURANCE_CONTRIBUTION_RUB выше,
 // и так же меняется ежегодно.
-const MAX_EXTRA_CONTRIBUTION_RUB = 321_818;
+// 2027 — 342 923 ₽ (27.10.2026, вторичные источники, часть называет это
+// законопроектом — сверить первоисточник до 01.01.2027).
+const MAX_EXTRA_BY_YEAR = { 2026: 321_818, 2027: 342_923 };
 
-function computeInsuranceContribution(revenue) {
+function computeInsuranceContribution(revenue, year = new Date().getFullYear()) {
   const rawExtra = revenue > EXTRA_CONTRIBUTION_THRESHOLD_RUB ? Math.round((revenue - EXTRA_CONTRIBUTION_THRESHOLD_RUB) * 0.01) : 0;
-  const extra = Math.min(rawExtra, MAX_EXTRA_CONTRIBUTION_RUB);
-  return FIXED_INSURANCE_CONTRIBUTION_RUB + extra;
+  const extra = Math.min(rawExtra, MAX_EXTRA_BY_YEAR[year] || MAX_EXTRA_BY_YEAR[2027]);
+  return fixedInsuranceRub(year) + extra;
 }
 
+// ВНИМАНИЕ 27.10.2026: smbThresholdRub ниже — теперь только лимит ПАТЕНТА;
+// порог НДС на УСН — vatThresholdRub (228-ФЗ оставил 20 млн). История:
 // Порог обязанности по НДС на УСН (07.09.2026, проверено law-compliance-
 // monitor — до этой правки агент вообще не упоминал НДС ни при какой
 // выручке). Порог резко и планово снижается год за годом (ФЗ №425-ФЗ от
@@ -54,9 +64,18 @@ function smbThresholdRub(year) {
   if (year === 2027) return 15_000_000;
   return 10_000_000;
 }
-const VAT_THRESHOLD_RUB = smbThresholdRub(new Date().getFullYear());
+// Порог НДС на УСН разошёлся с лимитом патента (27.10.2026, law-compliance-
+// monitor): закон от 04.07.2026 № 228-ФЗ оставил 20 млн ₽ (nalog-nalog.ru
+// 25.08.2026, glavbukh.ru/art/391540, klerk.ru/buh/articles/710070), лимит
+// патента по-прежнему снижается (smbThresholdRub). Источники расходятся,
+// до 2028 или до 2029 «заморозка», — после 2028 сверить заново.
+function vatThresholdRub(year) {
+  if (year <= 2025) return 60_000_000;
+  return 20_000_000;
+}
+const VAT_THRESHOLD_RUB = vatThresholdRub(new Date().getFullYear());
 function vatWarningText(year) {
-  const mln = smbThresholdRub(year) / 1_000_000;
+  const mln = vatThresholdRub(year) / 1_000_000;
   return `При выручке от ~${mln} млн ₽/год на УСН обычно уже возникает обязанность платить НДС ` +
     '(5% или 7% без вычетов, либо 22% с вычетами — на выбор). Мы это не считаем — ' +
     'обязательно уточните у бухгалтера, применяется ли НДС к вам.';
@@ -154,7 +173,7 @@ function estimateUsnIncomeExpense(revenue, expenses, expensesDocumented) {
 async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, manualFinance, expensesDocumented }) {
   const year = new Date().getFullYear();
   const { revenue, expenses } = manualFinance || (await computeYearToDateFinance(companyId, year));
-  const insuranceContribution = computeInsuranceContribution(revenue);
+  const insuranceContribution = computeInsuranceContribution(revenue, year);
 
   const patentRate = regionCode && niche
     ? await getPatentRate({ regionCode, niche, year })
@@ -206,8 +225,8 @@ async function recommendTaxRegime({ companyId, regionCode, niche, hasEmployees, 
     // Не привязано к конкретному regime — НДС актуален и для "Доходы", и
     // для "Доходы минус расходы" одинаково, поэтому отдельное поле, а не
     // note у одного из options.
-    vatWarning: revenue >= smbThresholdRub(year) ? vatWarningText(year) : null,
+    vatWarning: revenue >= vatThresholdRub(year) ? vatWarningText(year) : null,
   };
 }
 
-module.exports = { recommendTaxRegime, computeInsuranceContribution, FIXED_INSURANCE_CONTRIBUTION_RUB, PATENT_INCOME_LIMIT_RUB, smbThresholdRub, patentLimitNote };
+module.exports = { recommendTaxRegime, computeInsuranceContribution, FIXED_INSURANCE_CONTRIBUTION_RUB, PATENT_INCOME_LIMIT_RUB, smbThresholdRub, vatThresholdRub, patentLimitNote };
