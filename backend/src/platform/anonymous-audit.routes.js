@@ -16,7 +16,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { signCompanyToken, signBaseToken } = require('../core/jwt');
 const { studioOsBundleKeys } = require('../core/modules-registry');
 const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
-const { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart } = require('../core/loginRateLimit');
+const { checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart, checkClaimAllowed, recordClaim } = require('../core/loginRateLimit');
 const { checkGuestSpike } = require('../core/abuseAlerts');
 const { requireCaptcha } = require('../core/captcha');
 const { sendMail } = require('../core/mailer');
@@ -183,20 +183,31 @@ function unsubscribeSig(userId) {
 }
 
 function unsubscribeUrl(userId) {
-  return `${process.env.FRONTEND_URL}/api/platform/anonymous-audit/unsubscribe?u=${userId}&s=${unsubscribeSig(userId)}`;
+  // FRONTEND_URL — с /lk (кабинет), а API живёт от корня домена.
+  return `${new URL(process.env.FRONTEND_URL).origin}/api/platform/anonymous-audit/unsubscribe?u=${userId}&s=${unsubscribeSig(userId)}`;
 }
 
 async function unsubscribe(req, res) {
   const userId = Number(req.query.u);
   const sig = String(req.query.s || '');
   const expected = unsubscribeSig(userId);
-  if (!Number.isInteger(userId) || sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  if (!Number.isInteger(userId) || !/^[0-9a-f]{32}$/.test(sig) || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     return res.status(400).type('html').send('<p>Ссылка недействительна. Ответьте на письмо — отпишем вручную.</p>');
+  }
+  // GET — только страница с кнопкой: защитные сканеры почты сами открывают
+  // ссылки из писем и не должны отписывать человека за него (27.10.2026).
+  if (req.method === 'GET') {
+    return res.type('html').send(
+      '<meta charset="utf-8"><meta name="viewport" content="width=device-width"><div style="font-family:sans-serif;max-width:420px;margin:40px auto;padding:0 16px">' +
+      '<p>Отписаться от полезных писем и предложений «Безопасный бизнес»? Письма о вашем кабинете и сроках это не затрагивает.</p>' +
+      `<form method="post" action="?u=${userId}&s=${sig}"><button type="submit" style="font-size:16px;padding:10px 18px">Отписаться</button></form></div>`
+    );
   }
   await pool.query('UPDATE users SET marketing_consent_at = NULL WHERE id = $1', [userId]);
   res.type('html').send('<meta charset="utf-8"><p style="font-family:sans-serif">Готово: больше не будем присылать полезное и предложения. Письма о вашем кабинете и сроках это не затрагивает.</p>');
 }
-// GET — ссылка из письма; POST — «отписаться одним нажатием» почтовых программ.
+// GET — страница с кнопкой; POST — сама отписка (кнопка и «одним нажатием»
+// почтовых программ, List-Unsubscribe-Post).
 router.get('/unsubscribe', asyncHandler(unsubscribe));
 router.post('/unsubscribe', asyncHandler(unsubscribe));
 
@@ -248,11 +259,10 @@ router.post(
     // Повтор /claim законен (опечатка в почте, «Сохранить бесплатно» после
     // результата), но без лимита с одного гостевого токена можно слать письма
     // на любые адреса и по 409 выяснять, кто уже клиент (проверка 27.10.2026).
-    const claimKey = `claim:${req.user.id}`;
-    if (!(await checkLoginAllowed(req.ip, claimKey))) {
+    if (!(await checkClaimAllowed(req.user.id))) {
       return res.status(429).json({ error: 'Слишком много попыток. Попробуйте через 15 минут' });
     }
-    await recordFailedLogin(req.ip, claimKey);
+    await recordClaim(req.user.id);
     const existing = await pool.query('SELECT 1 FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
     if (existing.rows.length > 0) {
       return res.status(409).json({

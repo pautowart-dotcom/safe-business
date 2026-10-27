@@ -101,7 +101,25 @@ async function recordOutside(ip) {
   await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`outside:${ip}`]);
 }
 
+// Сохранение почты гостем (/claim): свой счётчик на гостя, без IP — иначе
+// гости за общим IP (мобильный оператор, офис) съедали бы лимит обычного
+// входа (27.10.2026).
+const CLAIM_MAX_PER_15MIN = 5;
+
+async function checkClaimAllowed(userId) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS n FROM login_attempts WHERE identifier = $1 AND ${WINDOW_SQL}`,
+    [`claim:${userId}`]
+  );
+  return Number(rows[0].n) < CLAIM_MAX_PER_15MIN;
+}
+
+async function recordClaim(userId) {
+  await pool.query('INSERT INTO login_attempts (identifier) VALUES ($1)', [`claim:${userId}`]);
+}
+
 module.exports = {
   checkLoginAllowed, recordFailedLogin, checkGuestStartAllowed, recordGuestStart,
   checkNoticeAuditAllowed, recordNoticeAudit, checkOutsideAllowed, recordOutside,
+  checkClaimAllowed, recordClaim,
 };

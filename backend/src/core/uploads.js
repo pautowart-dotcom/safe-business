@@ -1,6 +1,12 @@
 // Приём файла в память (не на диск) — сохранение (со сжатием) делает
 // core/fileStorage.js, чтобы место хранения можно было сменить, не трогая
 // multer и не трогая маршруты визитов/аватара.
+// Отказ по типу файла — 400 с понятным текстом (27.10.2026: общий
+// обработчик ошибок теперь прячет текст у ошибок без status).
+function badFile(message) {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
 const multer = require('multer');
 
 // Лимит согласован с client_max_body_size в deploy/nginx.conf.
@@ -8,7 +14,7 @@ const uploadPhoto = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) return cb(new Error('Файл должен быть изображением'));
+    if (!file.mimetype.startsWith('image/')) return cb(badFile('Файл должен быть изображением'));
     cb(null, true);
   },
 }).single('photo');
@@ -23,7 +29,7 @@ const uploadDocument = multer({
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
-      return cb(new Error('Файл должен быть изображением или PDF'));
+      return cb(badFile('Файл должен быть изображением или PDF'));
     }
     cb(null, true);
   },
@@ -39,7 +45,7 @@ const uploadSupportAttachments = multer({
   fileFilter: (req, file, cb) => {
     const allowedVideo = ['video/mp4', 'video/quicktime', 'video/webm'];
     if (!file.mimetype.startsWith('image/') && !allowedVideo.includes(file.mimetype)) {
-      return cb(new Error('Файл должен быть изображением или видео (mp4/mov/webm)'));
+      return cb(badFile('Файл должен быть изображением или видео (mp4/mov/webm)'));
     }
     cb(null, true);
   },
@@ -55,7 +61,7 @@ const uploadCsv = multer({
   fileFilter: (req, file, cb) => {
     const okMime = ['text/csv', 'application/vnd.ms-excel', 'application/csv', 'text/plain'].includes(file.mimetype);
     const okExt = file.originalname.toLowerCase().endsWith('.csv');
-    if (!okMime && !okExt) return cb(new Error('Файл должен быть в формате CSV'));
+    if (!okMime && !okExt) return cb(badFile('Файл должен быть в формате CSV'));
     cb(null, true);
   },
 }).single('file');
@@ -73,7 +79,7 @@ const uploadRiskCheckDocument = multer({
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ].includes(file.mimetype);
-    if (!okMime) return cb(new Error('Файл должен быть в формате PDF или DOCX'));
+    if (!okMime) return cb(badFile('Файл должен быть в формате PDF или DOCX'));
     cb(null, true);
   },
 }).single('file');
@@ -93,7 +99,7 @@ const uploadInspectionNotice = multer({
       'image/jpeg',
       'image/png',
     ].includes(file.mimetype);
-    if (!okMime) return cb(new Error('Файл должен быть PDF, DOCX, JPG или PNG'));
+    if (!okMime) return cb(badFile('Файл должен быть PDF, DOCX, JPG или PNG'));
     cb(null, true);
   },
 }).single('file');

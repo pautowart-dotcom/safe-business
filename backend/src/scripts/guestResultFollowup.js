@@ -75,7 +75,7 @@ async function run() {
         `<p><a href="${enterUrl}">Войти в кабинет</a> — результат теста уже там, проходить заново не нужно.</p>` +
         `<p style="color:#888;font-size:12px">Вы получили это письмо, потому что согласились получать сообщения от «Безопасный бизнес». ` +
         `Не хотите больше — <a href="${unsubscribeUrl(r.user_id)}">отписаться</a> (одно нажатие) или просто ответьте на это письмо.</p>`,
-      headers: { 'List-Unsubscribe': `<${unsubscribeUrl(r.user_id)}>` },
+      headers: { 'List-Unsubscribe': `<${unsubscribeUrl(r.user_id)}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
       meta: { purpose: 'guest_result_followup' },
     });
     sent++;

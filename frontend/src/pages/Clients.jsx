@@ -233,7 +233,9 @@ export default function Clients() {
       // телефон иногда реально общий (например, у пары).
       if (err.response?.status === 409 && err.response.data?.error === 'duplicate_phone') {
         const existing = err.response.data.existingClient;
-        const proceed = confirm(`Клиент с таким телефоном уже есть: ${existing.lastName} ${existing.firstName}. Это точно другой человек? Сохранить всё равно?`);
+        // Мастеру сервер не называет, чей номер (existingClient: null, 27.10.2026).
+        const who = existing ? `: ${existing.lastName} ${existing.firstName}` : '';
+        const proceed = confirm(`Клиент с таким телефоном уже есть${who}. Это точно другой человек? Сохранить всё равно?`);
         if (!proceed) return;
         const payload = { ...form, confirmDuplicate: true };
         if (editingId) await api.patch(`/modules/clients/${editingId}`, payload);

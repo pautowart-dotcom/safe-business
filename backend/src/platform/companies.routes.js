@@ -58,7 +58,7 @@ router.post(
       const companyResult = await client.query(
         `INSERT INTO companies (name, industry_segment, created_by_user_id, trial_ends_at)
          VALUES ($1, $2, $3, LEAST(now() + interval '30 days',
-           COALESCE((SELECT MAX(trial_ends_at) FROM companies WHERE created_by_user_id = $3), now() + interval '30 days')))
+           COALESCE((SELECT MAX(trial_ends_at) FROM companies WHERE created_by_user_id = $3 AND subscription_status = 'trial'), now() + interval '30 days')))
          RETURNING id, name`,
         [name, industrySegment || null, req.user.id]
       );

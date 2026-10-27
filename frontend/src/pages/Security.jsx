@@ -491,7 +491,11 @@ export default function Security() {
           setEditingProfile(false);
           if (!stub) {
             await loadAll();
-            if (firstTime) await startAudit();
+            // Для ниши без готового теста — без ошибки, путь сам скажет «в разработке».
+            if (firstTime) {
+              const { data: prod } = await api.get('/modules/security/products').catch(() => ({ data: null }));
+              if (prod?.audit?.available !== false) await startAudit();
+            }
           } else setProfile(null);
         }}
         onCancel={profile ? () => setEditingProfile(false) : null}

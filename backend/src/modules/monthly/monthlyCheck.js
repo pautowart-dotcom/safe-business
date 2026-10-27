@@ -268,6 +268,12 @@ async function getState(companyId, { role = 'owner' } = {}) {
   );
   const done = rows.find((r) => r.month === month);
   const prev = rows.find((r) => r.month !== month);
+  // Первым месяц прошёл администратор (без пунктов теста) — владельцу всё
+  // равно задаём вопросы о пунктах теста, если они открыты (27.10.2026).
+  if (done && withViolations && !(done.items || []).some((i) => i.type === 'violation')) {
+    const pending = (await buildItems(companyId, month)).filter((i) => i.type === 'violation');
+    if (pending.length) return { month, done: false, items: pending, lastIndex: prev?.index_percent ?? null };
+  }
   if (done) {
     const items = withViolations ? done.items : (done.items || []).filter((i) => i.type !== 'violation');
     return { month, done: true, completedAt: done.completed_at, summary: summarize(items, done.index_percent, prev?.index_percent ?? null) };
@@ -295,6 +301,11 @@ async function complete({ companyId, membershipId, userId, answers, role = 'owne
       await applyYes(item, { companyId, membershipId, userId });
     }
   }
+  // Месяц уже частично пройден другим (администратор, потом владелец) —
+  // прежние ответы сохраняем, новые добавляем поверх.
+  const { rows: existing } = await pool.query('SELECT items FROM monthly_checks WHERE company_id = $1 AND month = $2', [companyId, month]);
+  const answeredKeys = new Set(answered.map((i) => i.key));
+  const allItems = [...((existing[0]?.items) || []).filter((i) => !answeredKeys.has(i.key)), ...answered];
   const status = await computeSecurityStatus(companyId);
   const { rows: prev } = await pool.query(
     'SELECT index_percent FROM monthly_checks WHERE company_id = $1 AND month < $2 ORDER BY month DESC LIMIT 1',
@@ -305,7 +316,7 @@ async function complete({ companyId, membershipId, userId, answers, role = 'owne
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (company_id, month) DO UPDATE SET items = EXCLUDED.items, index_percent = EXCLUDED.index_percent,
        completed_at = now(), completed_by_user_id = EXCLUDED.completed_by_user_id`,
-    [companyId, month, JSON.stringify(answered), status.indexPercent, userId]
+    [companyId, month, JSON.stringify(allItems), status.indexPercent, userId]
   );
   // Напоминание «проверка месяца» в Центре действий больше не нужно.
   await clearAction({ relatedEntityType: `monthly_check:${month}`, relatedEntityId: companyId, category: 'documents' });
