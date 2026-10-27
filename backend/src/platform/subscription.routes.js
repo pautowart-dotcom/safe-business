@@ -130,7 +130,10 @@ router.post(
   '/checkout',
   requireAuth,
   requireTenant,
-  requireRole('owner', 'admin'),
+  // Оформить и снова включить автосписание — только владелец: отменить
+  // может только он (оферта п. 5.5, 6.4.1), иначе администратор включал бы
+  // списания, которые плательщик не может остановить (27.10.2026).
+  requireRole('owner'),
   asyncHandler(async (req, res) => {
     // Промокод (09.10.2026) — снижает только сумму ЭТОГО первого платежа.
     // subscription_price_rub ниже остаётся полной ценой: по ней идут
@@ -316,7 +319,10 @@ router.post(
   '/reactivate',
   requireAuth,
   requireTenant,
-  requireRole('owner', 'admin'),
+  // Оформить и снова включить автосписание — только владелец: отменить
+  // может только он (оферта п. 5.5, 6.4.1), иначе администратор включал бы
+  // списания, которые плательщик не может остановить (27.10.2026).
+  requireRole('owner'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE companies SET subscription_status = 'active'

@@ -130,6 +130,21 @@ export default function Subscription() {
   // Бесплатный уровень (18.10.2026) — после пробного месяца кабинет открыт бесплатно.
   const isFreeTier = company?.accessLevel === 'free';
 
+  // Оформляет, отменяет и включает подписку только владелец (27.10.2026) —
+  // команде статус без кнопок оплаты.
+  if (!isOwner) {
+    return (
+      <div>
+        <div className="ui-page-title" style={{ marginBottom: 4 }}>Подписка</div>
+        <div style={{ fontSize: 13, color: C.subtle, marginBottom: 20 }}>
+          Статус: {isFreeTier ? 'Бесплатный доступ' : STATUS_LABELS[company?.subscription_status] || '—'}
+          {company?.subscription_status === 'active' && periodEnd && ` · продлится ${periodEnd}`}
+        </div>
+        <Card><div style={{ fontSize: 13, color: C.secondary }}>Оформить, продлить или отменить подписку может владелец бизнеса.</div></Card>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="ui-page-title" style={{ marginBottom: 4 }}>Подписка</div>

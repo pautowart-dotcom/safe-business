@@ -3,6 +3,7 @@ const pool = require('../db/pool');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
+const { requireRole } = require('../core/middleware/role');
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
 const { requireAiAdvisorSubscription } = require('../core/middleware/subscription');
 const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
@@ -319,6 +320,9 @@ router.get(
   '/digest',
   requireAuth,
   requireTenant,
+  // Контекст ИИ — нарушения теста со штрафами: только владельцу (27.10.2026,
+  // иначе правило «результаты теста видит только владелец» обходилось чатом).
+  requireRole('owner'),
   requireAiAdvisorSubscription,
   asyncHandler(async (req, res) => {
     const ctx = await buildBusinessContext(req.tenant.companyId);
@@ -356,6 +360,9 @@ router.post(
   '/ask',
   requireAuth,
   requireTenant,
+  // Контекст ИИ — нарушения теста со штрафами: только владельцу (27.10.2026,
+  // иначе правило «результаты теста видит только владелец» обходилось чатом).
+  requireRole('owner'),
   requireAiAdvisorSubscription,
   asyncHandler(async (req, res) => {
     const question = typeof req.body.question === 'string' ? req.body.question.trim() : '';
