@@ -57,9 +57,18 @@ function summarize(snapshot) {
 // «К вам проверка — вот что подготовить» (26.10.2026, inspections.js): по
 // каждой предстоящей проверке — событие с открытыми шагами по теме органа.
 // Не зависит от прошлого снимка: проверка, найденная в первом же снимке,
-// тоже повод сказать. Повторно не шлём — dedupeKey по номеру записи.
+// тоже повод сказать. Повторно не шлём: dedupeKey защищает только запись в
+// «Уведомлениях», push и Telegram ушли бы каждый день до даты проверки
+// (27.10.2026) — поэтому уже отправленные записи отсекаем здесь.
 async function inspectionEvents(companyId, summary) {
-  const upcoming = summary?.upcomingInspections || [];
+  const all = summary?.upcomingInspections || [];
+  if (!all.length) return [];
+  const { rows: sent } = await pool.query(
+    `SELECT dedupe_key FROM company_notifications WHERE company_id = $1 AND dedupe_key = ANY($2)`,
+    [companyId, all.map((insp) => `outside:inspection:${insp.id}`)]
+  );
+  const sentKeys = new Set(sent.map((r) => r.dedupe_key));
+  const upcoming = all.filter((insp) => !sentKeys.has(`outside:inspection:${insp.id}`));
   if (!upcoming.length) return [];
   const { rows } = await pool.query(
     `SELECT niche, violation_code FROM security_violations WHERE company_id = $1 AND status = 'open'`,

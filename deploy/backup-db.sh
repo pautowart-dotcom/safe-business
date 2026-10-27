@@ -11,7 +11,11 @@ BACKUP_DIR="/var/backups/safe-business"
 RETENTION_DAYS=14
 ENV_FILE="/var/www/safe-business/backend/.env"
 
+# Полная копия базы (почты, хэши паролей) — читать может только root
+# (27.10.2026: файлы были -rw-r--r--, видны любому пользователю сервера).
+umask 077
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 DATABASE_URL=$(grep '^DATABASE_URL=' "$ENV_FILE" | cut -d '=' -f2-)
 if [ -z "$DATABASE_URL" ]; then
