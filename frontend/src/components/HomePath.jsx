@@ -14,12 +14,15 @@ export function usePathSummary(enabled) {
   useEffect(() => {
     if (!enabled) return;
     Promise.all([
-      api.get('/modules/security/violations', { silent: true }).then((r) => r.data).catch(() => []),
+      // null — не загрузилось: не путать с «нарушений нет» (иначе «Сделать
+      // первый шаг» отмечался сделанным при сбое сети, проверка 27.10.2026).
+      api.get('/modules/security/violations', { silent: true }).then((r) => r.data).catch(() => null),
       api.get('/platform/outside-watch', { silent: true }).then((r) => r.data).catch(() => null),
-    ]).then(([violations, outside]) => {
+    ]).then(([loaded, outside]) => {
+      const violations = loaded || [];
       const open = violations.filter((v) => v.status === 'open').sort((a, b) => (a.pathStep || 999) - (b.pathStep || 999));
       setSummary({
-        total: violations.length,
+        total: loaded ? violations.length : null,
         open: open.length,
         next: open[0] || null,
         anyDone: violations.some((v) => v.status === 'resolved'),

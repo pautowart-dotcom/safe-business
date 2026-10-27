@@ -485,9 +485,14 @@ export default function Security() {
       <SegmentationForm
         initial={initial}
         onSaved={async (stub) => {
+          // Первый раз указали сферу — сразу в тест, а не обратно на путь,
+          // где «Пройти тест» пришлось бы нажимать второй раз (27.10.2026).
+          const firstTime = !profile;
           setEditingProfile(false);
-          if (!stub) await loadAll();
-          else setProfile(null);
+          if (!stub) {
+            await loadAll();
+            if (firstTime) await startAudit();
+          } else setProfile(null);
         }}
         onCancel={profile ? () => setEditingProfile(false) : null}
       />
@@ -839,11 +844,11 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, hasPremises, onClose, on
   return (
     <div>
       <BackBtn onClick={onClose} label="К панели безопасности" />
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Аудит завершён</div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>Тест пройден</div>
       <IndexHero
         percent={status.indexPercent}
         zone={zone}
-        subtitle={`${ZONE_LABELS[zone]} · Найдено нарушений: ${violationsCount}`}
+        subtitle={`${ZONE_LABELS[zone]} · Шагов до 100: ${violationsCount}`}
         note={ZONE_EXPLANATIONS[zone]}
       />
       <QuickDeadlinesPrompt hasPremises={hasPremises} />
@@ -862,7 +867,7 @@ function AuditResult({ result, hasPaidPlan, pdfPaywall, hasPremises, onClose, on
           главная кнопка, платный PDF — второстепенная, как и есть по сути. */}
       {violationsCount > 0 && (
         <Btn onClick={onViewViolations} style={{ marginBottom: 10 }}>
-          Что именно нашли — посмотреть нарушения
+          Посмотреть шаги по порядку
         </Btn>
       )}
       <Btn variant="secondary" onClick={onDownload}>{hasPaidPlan ? 'Скачать PDF-отчёт' : 'Скачать PDF-отчёт · по подписке'}</Btn>
@@ -3063,12 +3068,16 @@ function EvidenceBlock({ violation, isManagement, onResolve, onEvidenceAdded }) 
     setBusy(true);
     setError('');
     try {
-      if (file) await upload();
+      // Файл уже ушёл, а отметка упала — при повторе второй раз не грузим
+      // (проверка 27.10.2026).
+      if (file) {
+        await upload();
+        setFile(null);
+      }
       if (isOpen) {
         await onResolve(violation.id);
         if (file && onEvidenceAdded) onEvidenceAdded();
       } else {
-        setFile(null);
         toast('Файл приложен');
         if (onEvidenceAdded) onEvidenceAdded();
       }
@@ -3145,7 +3154,7 @@ function ViolationCard({ violation, isManagement, onResolve, onEvidenceAdded, on
           onClick={() => setInstruction(null)}
           style={{ background: 'none', border: 'none', color: C.primary, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13, marginBottom: 12 }}
         >
-          ← К нарушению
+          ← К шагу
         </button>
         <MarkdownRich text={instruction.markdown} />
       </div>
@@ -3158,7 +3167,7 @@ function ViolationCard({ violation, isManagement, onResolve, onEvidenceAdded, on
       <div>
         <div style={{ marginBottom: 10 }}>
           <Badge color={violation.status === 'resolved' ? C.green : color} bg={C.surface}>
-            {violation.status === 'resolved' ? 'Устранено' : `Риск ${violation.risk} из 10`}
+            {violation.status === 'resolved' ? 'Сделано' : `Риск ${violation.risk} из 10`}
           </Badge>
         </div>
         <div style={{ background: C.blueBg, borderRadius: 16, padding: '12px 14px', marginBottom: 14 }}>
@@ -3180,7 +3189,7 @@ function ViolationCard({ violation, isManagement, onResolve, onEvidenceAdded, on
     <div>
       <div style={{ marginBottom: 10 }}>
         <Badge color={violation.status === 'resolved' ? C.green : color} bg={violation.status === 'resolved' ? C.greenBg : `${color}1A`}>
-          {violation.status === 'resolved' ? 'Устранено' : `Риск ${violation.risk} из 10`}
+          {violation.status === 'resolved' ? 'Сделано' : `Риск ${violation.risk} из 10`}
         </Badge>
       </div>
       <div style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.5, marginBottom: 10 }}>{violation.description}</div>
