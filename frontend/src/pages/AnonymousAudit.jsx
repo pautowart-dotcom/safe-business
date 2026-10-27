@@ -580,7 +580,7 @@ function ContactStep({ result, email, setEmail, setAcceptedTerms, analyticsConse
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
           <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} style={{ marginTop: 2 }} />
           <span>
-            Присылать полезное и предложения — напоминания по результату, изменения требований (<a href="/lk/legal/consent_mailing" target="_blank" rel="noreferrer" style={{ color: C.primary }}>согласие</a>, необязательно)
+            Присылать полезное и рекламные предложения сервиса — напоминания по результату, изменения требований (<a href="/lk/legal/consent_mailing" target="_blank" rel="noreferrer" style={{ color: C.primary }}>согласие</a>, необязательно)
           </span>
         </label>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontSize: 12, color: C.subtle, lineHeight: 1.5, cursor: 'pointer' }}>
