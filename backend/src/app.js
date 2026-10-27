@@ -77,7 +77,10 @@ function buildApp() {
     if (err.name === 'MulterError' || err.message === 'Файл должен быть изображением') {
       return res.status(400).json({ error: err.message === 'File too large' ? 'Файл слишком большой (максимум 8 МБ)' : err.message });
     }
-    res.status(err.status || 500).json({ error: err.message || 'Внутренняя ошибка сервера' });
+    // Текст внутренних ошибок (база, сторонние сервисы) наружу не отдаём
+    // (проверка 27.10.2026); свои 4xx с понятным текстом — как раньше.
+    const status = err.status || 500;
+    res.status(status).json({ error: status < 500 && err.message ? err.message : 'Внутренняя ошибка сервера' });
   });
 
   return app;

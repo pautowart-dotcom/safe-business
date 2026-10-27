@@ -606,6 +606,9 @@ router.post(
     // которых форма кабинета не шлёт) — оплатить было нельзя. Для обычного
     // сброса пароля ничего не меняет.
     await pool.query('UPDATE users SET password_hash = $1, password_changed_at = now(), is_guest = false WHERE id = $2', [passwordHash, tokenRes.rows[0].user_id]);
+    // Сменили пароль (например, «увели») — запомненные устройства снова
+    // попросят код (проверка 27.10.2026).
+    await pool.query('DELETE FROM trusted_devices WHERE user_id = $1', [tokenRes.rows[0].user_id]);
     await pool.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [tokenRes.rows[0].id]);
     res.json({ ok: true });
   })

@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
 import { Card, Btn, TextInput, C } from '../ui/components.jsx';
 import { reachGoal } from '../utils/metrika.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const STATUS_LABELS = {
   trial: 'Бесплатный период',
@@ -14,6 +15,7 @@ const STATUS_LABELS = {
 };
 
 export default function Subscription() {
+  const { isOwner } = useAuth();
   const [company, setCompany] = useState(null);
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -197,9 +199,12 @@ export default function Subscription() {
             <div style={{ fontSize: 13, color: C.subtle, marginBottom: 14 }}>
               Продлевается автоматически {periodEnd ? `— следующее списание ${periodEnd}` : 'раз в месяц'}.
             </div>
-            <Btn variant="secondary" onClick={cancelSubscription} disabled={cancelling}>
-              {cancelling ? 'Отменяем...' : 'Отменить подписку'}
-            </Btn>
+            {/* Отменить может только владелец (27.10.2026) */}
+            {isOwner && (
+              <Btn variant="secondary" onClick={cancelSubscription} disabled={cancelling}>
+                {cancelling ? 'Отменяем...' : 'Отменить подписку'}
+              </Btn>
+            )}
           </>
         ) : company?.subscription_status === 'gift' && accessStillOpen ? (
           // Подарочный месяц к заключению (миграция 0132) — карты нет,

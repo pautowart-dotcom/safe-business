@@ -71,6 +71,12 @@ router.get(
       params.push(req.query.membershipId);
       where += ` AND sd.membership_id = $${params.length}`;
     }
+    // Справка о несудимости — особая категория данных: чужие видит только
+    // владелец, администратор — только свою (проверка 27.10.2026).
+    if (req.tenant.role === 'admin') {
+      params.push(req.tenant.membershipId);
+      where += ` AND (sd.doc_type <> 'criminal_record_certificate' OR sd.membership_id = $${params.length})`;
+    }
 
     const { rows } = await pool.query(
       `SELECT sd.id, sd.membership_id, sd.doc_type, sd.title, sd.expires_at,

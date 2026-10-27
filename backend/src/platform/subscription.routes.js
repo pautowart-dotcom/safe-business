@@ -290,7 +290,8 @@ router.post(
   '/cancel',
   requireAuth,
   requireTenant,
-  requireRole('owner', 'admin'),
+  // Отменить подписку — решение того, кто платит (проверка 27.10.2026).
+  requireRole('owner'),
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE companies SET subscription_status = 'cancelled'
