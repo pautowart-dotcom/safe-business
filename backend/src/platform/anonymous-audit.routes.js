@@ -175,6 +175,31 @@ async function guestResultSummary(companyId) {
   return { titles: items.map((v) => v.title), top };
 }
 
+// Отписка от рекламных писем одним нажатием (проверка 27.10.2026): раньше
+// только «ответьте на письмо», и владелец снимал согласие вручную. Ссылка
+// подписана HMAC от JWT_SECRET — чужой id подставить нельзя.
+function unsubscribeSig(userId) {
+  return crypto.createHmac('sha256', process.env.JWT_SECRET || '').update(`unsubscribe:${userId}`).digest('hex').slice(0, 32);
+}
+
+function unsubscribeUrl(userId) {
+  return `${process.env.FRONTEND_URL}/api/platform/anonymous-audit/unsubscribe?u=${userId}&s=${unsubscribeSig(userId)}`;
+}
+
+async function unsubscribe(req, res) {
+  const userId = Number(req.query.u);
+  const sig = String(req.query.s || '');
+  const expected = unsubscribeSig(userId);
+  if (!Number.isInteger(userId) || sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    return res.status(400).type('html').send('<p>Ссылка недействительна. Ответьте на письмо — отпишем вручную.</p>');
+  }
+  await pool.query('UPDATE users SET marketing_consent_at = NULL WHERE id = $1', [userId]);
+  res.type('html').send('<meta charset="utf-8"><p style="font-family:sans-serif">Готово: больше не будем присылать полезное и предложения. Письма о вашем кабинете и сроках это не затрагивает.</p>');
+}
+// GET — ссылка из письма; POST — «отписаться одним нажатием» почтовых программ.
+router.get('/unsubscribe', asyncHandler(unsubscribe));
+router.post('/unsubscribe', asyncHandler(unsubscribe));
+
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -512,6 +537,7 @@ async function fulfillGuestDocuments({ companyId }) {
 }
 
 module.exports = router;
+module.exports.unsubscribeUrl = unsubscribeUrl;
 module.exports.fulfillGuestReport = fulfillGuestReport;
 module.exports.fulfillGuestDocuments = fulfillGuestDocuments;
 module.exports.guestResultSummary = guestResultSummary;

@@ -12,7 +12,7 @@ require('dotenv').config();
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const { sendMail } = require('../core/mailer');
-const { guestResultSummary, escapeHtml, CLAIM_TOKEN_TTL_DAYS } = require('../platform/anonymous-audit.routes');
+const { guestResultSummary, escapeHtml, CLAIM_TOKEN_TTL_DAYS, unsubscribeUrl } = require('../platform/anonymous-audit.routes');
 
 const REPORT_PRICE_RUB = 1990;
 
@@ -33,6 +33,9 @@ async function run() {
        AND u.accepted_terms_at < now() - interval '2 days'
        AND u.accepted_terms_at > now() - interval '7 days'
        AND u.email NOT LIKE '%@guest.business-safe.internal'
+       -- Поставил пароль = пробный месяц, заключение уже открыто в кабинете —
+       -- предлагать его купить незачем (проверка 27.10.2026).
+       AND u.is_guest = true
        AND NOT EXISTS (SELECT 1 FROM subscription_payments p WHERE p.company_id = m.company_id AND p.status = 'succeeded')
        AND NOT EXISTS (SELECT 1 FROM addon_purchases a WHERE a.company_id = m.company_id AND a.status = 'succeeded')`
   );
@@ -71,7 +74,8 @@ async function run() {
         `Если нужны и готовые документы с вашими данными — в кабинете есть набор «заключение + документы».</p>` +
         `<p><a href="${enterUrl}">Войти в кабинет</a> — результат теста уже там, проходить заново не нужно.</p>` +
         `<p style="color:#888;font-size:12px">Вы получили это письмо, потому что согласились получать сообщения от «Безопасный бизнес». ` +
-        `Не хотите больше — просто ответьте на это письмо, и мы перестанем писать.</p>`,
+        `Не хотите больше — <a href="${unsubscribeUrl(r.user_id)}">отписаться</a> (одно нажатие) или просто ответьте на это письмо.</p>`,
+      headers: { 'List-Unsubscribe': `<${unsubscribeUrl(r.user_id)}>` },
       meta: { purpose: 'guest_result_followup' },
     });
     sent++;

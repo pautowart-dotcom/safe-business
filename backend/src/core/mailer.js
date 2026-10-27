@@ -43,13 +43,13 @@ function getTransporter() {
 // принял", не факт "дошло до входящих"). Запись в БД сама по себе не
 // должна ронять письмо/запрос — обёрнута в свой try/catch, ошибка лога
 // только выводится в консоль.
-async function sendMail({ to, subject, html, attachments, meta = {} }) {
+async function sendMail({ to, subject, html, attachments, headers, meta = {} }) {
   const from = process.env.MAIL_FROM || process.env.SMTP_USER;
   const { purpose = 'other', refTable = null, refId = null } = meta;
   let success = false;
   let errorText = null;
   try {
-    await getTransporter().sendMail({ from, to, subject, html, attachments });
+    await getTransporter().sendMail({ from, to, subject, html, attachments, headers });
     success = true;
   } catch (err) {
     errorText = err.message || String(err);
