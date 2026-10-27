@@ -21,15 +21,21 @@ async function migrate() {
     if (rows.length > 0) continue;
 
     const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-    await pool.query('BEGIN');
+    // Одно соединение на всю транзакцию (27.10.2026): через pool.query BEGIN,
+    // сама миграция и ROLLBACK могли уйти в разные соединения — упавшая
+    // посередине миграция не откатывалась бы.
+    const client = await pool.connect();
     try {
-      await pool.query(sql);
-      await pool.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [file]);
-      await pool.query('COMMIT');
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [file]);
+      await client.query('COMMIT');
       console.log(`Применена миграция: ${file}`);
     } catch (err) {
-      await pool.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       throw err;
+    } finally {
+      client.release();
     }
   }
 
