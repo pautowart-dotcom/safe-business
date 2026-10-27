@@ -163,19 +163,23 @@ function WatchFeedDashboard() {
   const todoAll = buildActionsCenter(deadlines.filter((d) => (!d.due_date || d.due_date <= in30) && !(d.snoozed_until && d.snoozed_until > today)));
   const todo = ui?.homePath && isOwner ? withoutViolations(todoAll) : todoAll;
   const first = todo.find((d) => !d.due_date || d.due_date <= today) || todo[0];
+  // Число в заголовке = строки «Что сделать» ниже (проверка 27.10.2026: было
+  // «Нужно внимание: 41» — все нарушения теста — против «2 дела» в списке).
+  const pathTop = ui?.homePath && isOwner && pathSummary?.next ? 1 : 0;
+  const attentionShown = ui?.homePath && isOwner ? todo.length + pathTop : feed.attentionCount;
 
   return (
     <div>
       <HomeHero
         indexPercent={indexPercent}
-        attention={feed.attentionCount}
-        title={indexPercent == null && isOwner ? undefined : attention ? `Нужно внимание: ${feed.attentionCount}` : 'Всё под контролем'}
+        attention={attentionShown}
+        title={indexPercent == null && isOwner ? undefined : attention && attentionShown > 0 ? `Нужно внимание: ${attentionShown}` : 'Всё под контролем'}
         line={first ? `Ближайшее — ${inSentence(first.title)}, ${dueTag(first).text.toLowerCase()}.` : 'Мы следим за сроками, законом и вашими проверками.'}
-        onClick={() => navigate('/security', attention ? { state: { dashboardTab: 'violations' } } : undefined)}
+        onClick={() => (isOwner ? navigate('/security', attention ? { state: { dashboardTab: 'violations' } } : undefined) : navigate('/deadlines'))}
       />
       {ui?.firstSteps && isOwner && <FirstSteps summary={pathSummary} hasIndex={indexPercent != null} navigate={navigate} />}
-      <HomeQuick navigate={navigate} pathMode={!!ui?.homePath && isOwner} />
-      <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} topRow={ui?.homePath && isOwner ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null} topCount={ui?.homePath && isOwner && pathSummary?.next ? 1 : 0} />
+      <HomeQuick navigate={navigate} pathMode={!!ui?.homePath && isOwner} isOwner={isOwner} />
+      <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} isOwner={isOwner} topRow={ui?.homePath && isOwner ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null} topCount={pathTop} />
       <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} onSnoozed={(d, until) => setDeadlines((all) => all.map((x) => (x.id === d.id ? { ...x, snoozed_until: until } : x)))} />
 
       <Group title="Что мы проверили">
@@ -688,10 +692,15 @@ const HOME_QUICK = [
 // заменена на «Следующий шаг» пути до 100 %.
 const PATH_QUICK = { label: 'Следующий шаг', icon: 'shield', to: '/security', state: { dashboardTab: 'violations' } };
 
-function HomeQuick({ navigate, pathMode }) {
-  const quick = pathMode ? [PATH_QUICK, ...HOME_QUICK.slice(1)] : HOME_QUICK;
+// Администратору — только то, что ему открыто: «Безопасность» и ИИ — разделы
+// владельца, туда его молча возвращало на главную (проверка 27.10.2026).
+const TEAM_QUICK = ['/monthly-check', '/deadlines'];
+
+function HomeQuick({ navigate, pathMode, isOwner = true }) {
+  const ownerQuick = pathMode ? [PATH_QUICK, ...HOME_QUICK.slice(1)] : HOME_QUICK;
+  const quick = isOwner ? ownerQuick : HOME_QUICK.filter((q) => TEAM_QUICK.includes(q.to));
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 20 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${quick.length}, 1fr)`, gap: 8, marginBottom: 20 }}>
       {quick.map((q) => (
         <button
           key={q.label}
@@ -709,13 +718,13 @@ function HomeQuick({ navigate, pathMode }) {
 
 // «Что сделать»: строки как в «Настройках», тап — шторка срока.
 // topRow/topCount (26.10.2026) — строка «Следующий шаг» пути над сроками.
-function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount, topRow = null, topCount = 0 }) {
+function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount, topRow = null, topCount = 0, isOwner = true }) {
   const visible = items.slice(0, ACTIONS_CENTER_VISIBLE);
   const total = items.length + (subscriptionProblem ? 1 : 0) + topCount;
   if (total === 0) {
     return (
       <Group title="Что сделать">
-        <Row icon="check" tone="green" title="Сейчас ничего не горит" subtitle={inOrderCount > 0 ? `В порядке: ${inOrderCount}. Напомним о сроках заранее.` : 'Мы следим за сроками и напомним заранее.'} onClick={() => navigate('/security', { state: { tab: 'my_deadlines' } })} />
+        <Row icon="check" tone="green" title="Сейчас ничего не горит" subtitle={inOrderCount > 0 ? `В порядке: ${inOrderCount}. Напомним о сроках заранее.` : 'Мы следим за сроками и напомним заранее.'} onClick={() => (isOwner ? navigate('/security', { state: { tab: 'my_deadlines' } }) : navigate('/deadlines'))} />
       </Group>
     );
   }
@@ -1023,20 +1032,24 @@ function MasterDashboard() {
   const [deadlines, setDeadlines] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // У новых компаний (после 03.09) модулей визитов/чек-листов нет — сервер
+  // отвечает 403. Каждый запрос падает в пустое значение сам по себе, иначе
+  // одна ошибка оставляла мастера на «Загрузка...» навсегда (проверка 27.10.2026).
   function load() {
     const today = todayStr();
+    const orEmpty = (p, empty) => p.then((r) => r.data).catch(() => empty);
     return Promise.all([
-      api.get('/platform/dashboard/summary'),
-      api.get('/modules/visits', { params: { dateFrom: `${today}T00:00:00`, dateTo: `${today}T23:59:59` } }),
-      api.get('/modules/checklists/templates'),
-      api.get('/modules/checklists/marks', { params: { date: today } }),
-      api.get('/platform/deadlines'),
+      orEmpty(api.get('/platform/dashboard/summary'), {}),
+      orEmpty(api.get('/modules/visits', { params: { dateFrom: `${today}T00:00:00`, dateTo: `${today}T23:59:59` } }), []),
+      orEmpty(api.get('/modules/checklists/templates'), []),
+      orEmpty(api.get('/modules/checklists/marks', { params: { date: today } }), []),
+      orEmpty(api.get('/platform/deadlines'), []),
     ])
       .then(([sum, v, tpl, marks, dl]) => {
-        setSummary(sum.data);
-        setVisits(v.data);
-        setChecklists({ templates: tpl.data.filter((t) => t.active), marks: marks.data });
-        setDeadlines(dl.data);
+        setSummary(sum);
+        setVisits(v);
+        setChecklists({ templates: tpl.filter((t) => t.active), marks });
+        setDeadlines(dl);
       })
       .finally(() => setLoading(false));
   }
