@@ -18,11 +18,10 @@ const net = require('net');
 // странице (её содержимое не контролируется нами).
 //
 // Честная граница: это НЕ защита от DNS rebinding (адрес меняется между
-// проверкой здесь и реальным TCP-подключением Chromium) и не перехватывает
-// редиректы после первого запроса — для этого нужен перехват на уровне
-// сетевых запросов самого браузера (page.setRequestInterception с проверкой
-// каждого запроса), отдельная, более сложная задача. Сознательно не
-// выдаём частичную защиту за полную.
+// проверкой здесь и реальным TCP-подключением Chromium). Редиректы и
+// запросы со страницы с 27.10.2026 проверяются тем же правилом через
+// page.setRequestInterception (см. scanWebsite). Сознательно не выдаём
+// частичную защиту за полную.
 function isForbiddenIp(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -214,7 +213,21 @@ async function scanWebsite(inputUrl) {
   try {
     const page = await browser.newPage();
     const requested = [];
-    page.on('request', (r) => requested.push(r.url()));
+    // Каждый запрос страницы (редиректы, картинки, скрипты) — через ту же
+    // проверку адреса, что и первый (проверка 27.10.2026): иначе сайт мог
+    // переадресовать браузер на 127.0.0.1 или во внутреннюю сеть сервера.
+    // Результат по хосту кэшируем — DNS не дёргаем на каждую картинку.
+    const hostVerdict = new Map();
+    await page.setRequestInterception(true);
+    page.on('request', (r) => {
+      const reqUrl = r.url();
+      requested.push(reqUrl);
+      if (!/^https?:/i.test(reqUrl)) return r.continue(); // data:, blob: — без сети
+      let host;
+      try { host = new URL(reqUrl).hostname; } catch { return r.abort(); }
+      if (!hostVerdict.has(host)) hostVerdict.set(host, assertSafeUrl(reqUrl).then(() => true, () => false));
+      hostVerdict.get(host).then((ok) => (ok ? r.continue() : r.abort())).catch(() => {});
+    });
     let usedHttps = /^https:\/\//i.test(url);
     let response;
     try {

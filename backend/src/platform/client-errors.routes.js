@@ -8,6 +8,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { verifyToken } = require('../core/jwt');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireSuperAdmin } = require('../core/middleware/role');
+const { createRateLimiter } = require('../core/rateLimit');
+
+// Приёмник без входа — свой лимит и обрезка полей, иначе им можно забить базу
+// мусором (проверка 27.10.2026).
+const reportLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
+const cut = (v) => (v == null ? null : String(v).slice(0, 5000));
 
 const router = express.Router();
 
@@ -23,17 +29,18 @@ function tryGetUserId(req) {
 
 router.post(
   '/',
+  reportLimiter,
   asyncHandler(async (req, res) => {
     const { message, stack, componentStack, route, standalone } = req.body || {};
     await pool.query(
       `INSERT INTO client_error_reports (message, stack, component_stack, route, user_agent, user_id, standalone)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
-        message || null,
-        stack || null,
-        componentStack || null,
-        route || null,
-        req.headers['user-agent'] || null,
+        cut(message),
+        cut(stack),
+        cut(componentStack),
+        cut(route),
+        cut(req.headers['user-agent']),
         tryGetUserId(req),
         standalone === undefined ? null : !!standalone,
       ]

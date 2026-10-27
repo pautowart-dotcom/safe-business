@@ -19,6 +19,7 @@ const {
 } = require('../core/middleware/websiteCheck');
 const { scanWebsite } = require('../modules/website-check/scan');
 const { sendMail } = require('../core/mailer');
+const { escapeHtml } = require('./anonymous-audit.routes');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -127,7 +128,7 @@ async function notifyGuestIfNeeded(checkId) {
     to: row.email,
     subject: `Проверка сайта ${row.url} готова — «Безопасный бизнес»`,
     html:
-      `<p>Проверка сайта ${row.url} завершена. Индекс: ${row.score} ` +
+      `<p>Проверка сайта ${escapeHtml(row.url)} завершена. Индекс: ${row.score} ` +
       `(${row.zone === 'green' ? 'риски не найдены' : row.zone === 'yellow' ? 'есть замечания' : 'высокий риск'}).</p>` +
       (list ? `<ul>${list}</ul>` : '<p>Замечаний не найдено.</p>') +
       docsHint +
