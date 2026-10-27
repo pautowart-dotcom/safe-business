@@ -47,10 +47,13 @@ export function deadlineActions(item) {
   }
   if (t === 'inspection_order') actions.push({ label: 'Открыть предписание', to: '/security', state: { dashboardTab: 'inspection' } });
   if (t.startsWith('manual:') && MANUAL_KEYS_WITH_INSTRUCTION.includes(t.slice('manual:'.length))) {
-    actions.push({ label: 'Как продлить', to: '/security', state: { tab: 'my_deadlines' } });
+    actions.push({ label: 'Инструкция', to: '/security', state: { tab: 'my_deadlines' } });
   }
   // «Готово» — главная кнопка, если других главных нет; главная всегда сверху.
-  if (canMarkDone) actions.push({ label: 'Готово, отметить', done: true, primary: !actions.some((a) => a.primary) });
+  // Для своих сроков (огнетушители, договоры…) — «Проверили»: человек ищет
+  // именно это слово (проверка 27.10.2026, задача новичка «огнетушитель»).
+  const doneLabel = t.startsWith('manual:') ? 'Проверили — отметить' : 'Готово, отметить';
+  if (canMarkDone) actions.push({ label: doneLabel, done: true, primary: !actions.some((a) => a.primary) });
   return [...actions.filter((a) => a.primary), ...actions.filter((a) => !a.primary)];
 }
 

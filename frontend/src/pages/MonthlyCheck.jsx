@@ -173,7 +173,7 @@ export default function MonthlyCheck() {
             )}
             {/* 18.10.2026, вид приложения: крупные ответы с цветом выбранного. */}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              {[['yes', 'Да', C.green, C.greenBg], ['no', 'Ещё нет', C.orange, C.orangeBg], ...(item.type === 'violation' ? [['skip', 'Позже', C.secondary, '#F1F3F6']] : [])].map(([key, label, col, bg]) => (
+              {[['yes', item.type === 'regular' ? 'Проверили' : 'Да', C.green, C.greenBg], ['no', 'Ещё нет', C.orange, C.orangeBg], ...(item.type === 'violation' ? [['skip', 'Позже', C.secondary, '#F1F3F6']] : [])].map(([key, label, col, bg]) => (
                 <button
                   key={key}
                   type="button"
