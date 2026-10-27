@@ -897,6 +897,20 @@ router.get(
   })
 );
 
+// Проверка 27.10.2026: ссылка — только обычная (http/https или наш файл):
+// «javascript:…» в карточке документа выполнилась бы у владельца по клику.
+// Сведения о здоровье не храним — по названию/разделу отсекаем медкнижки,
+// медосмотры, противопоказания (то же правило, что у файлов к шагам).
+function documentInputError({ fileUrl, category, name }) {
+  if (fileUrl && !/^(https?:\/\/|\/api\/uploads\/)/i.test(String(fileUrl))) {
+    return 'Ссылка должна начинаться с http:// или https://';
+  }
+  if (!violationPath.evidenceAllowed(`${category || ''} ${name || ''}`)) {
+    return 'Медкнижки, медосмотры и согласия с противопоказаниями здесь не храним';
+  }
+  return null;
+}
+
 // Раньше документ можно было только добавить по готовой ссылке (владельцу
 // пришлось бы самому заводить облако и выгружать туда файл) — теперь можно
 // либо загрузить фото/скан/PDF прямо здесь, либо, как и раньше, вставить
@@ -906,6 +920,8 @@ router.post(
   uploadDocument,
   asyncHandler(async (req, res) => {
     const { category, name } = req.body;
+    const inputError = documentInputError(req.body);
+    if (inputError) return res.status(400).json({ error: inputError });
     let fileUrl = bareFileUrl(req.body.fileUrl);
     if (req.file) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
@@ -964,6 +980,8 @@ router.patch(
   uploadDocument,
   asyncHandler(async (req, res) => {
     const { category, name } = req.body;
+    const inputError = documentInputError(req.body);
+    if (inputError) return res.status(400).json({ error: inputError });
     let fileUrl = bareFileUrl(req.body.fileUrl);
     if (req.file) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);

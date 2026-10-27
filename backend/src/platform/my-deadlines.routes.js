@@ -24,6 +24,10 @@ const RESERVE_SLOT_KEYS = ['usn_q1', 'usn_q2', 'usn_q3'];
 const { uploadDocument } = require('../core/uploads');
 const { saveDocumentFile, getFileUrl, signFileUrl } = require('../core/fileStorage');
 const { isAiConfigured, extractDocumentDate } = require('../core/documentDateExtract');
+// Сведения о здоровье не храним и не отправляем на распознавание
+// (проверка 27.10.2026): к медкнижкам файл не прикладывается — дата вручную.
+const { evidenceAllowed } = require('../modules/security/path');
+const HEALTH_FILE_ERROR = 'Файлы медкнижек и медосмотров не храним — укажите только дату';
 // CATALOG вынесен в core/deadlineSlotsCatalog.js (30.08.2026) — тем же
 // списком пользуется security.routes.js для автораспознавания при загрузке
 // документа во вкладке "Документы" (см.
@@ -170,6 +174,9 @@ router.patch(
       return res.status(400).json({ error: 'Недопустимая периодичность' });
     }
 
+    if (req.file && !evidenceAllowed(catalogItem.label)) {
+      return res.status(400).json({ error: HEALTH_FILE_ERROR });
+    }
     let fileUrl = null;
     if (req.file) {
       const filename = await saveDocumentFile(req.file.buffer, req.file.mimetype);
@@ -224,6 +231,9 @@ router.post(
     }
     if (!req.file) {
       return res.status(400).json({ error: 'Загрузите файл для распознавания' });
+    }
+    if (!evidenceAllowed(catalogItem.label)) {
+      return res.status(400).json({ error: HEALTH_FILE_ERROR });
     }
     if (!isAiConfigured()) {
       return res.status(503).json({ error: 'Распознавание дат сейчас недоступно' });

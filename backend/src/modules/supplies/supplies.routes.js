@@ -9,6 +9,13 @@ const { applySupplyMovement } = require('../../core/supplyMovements');
 
 const router = express.Router();
 
+// «Ссылка на товар» — только http(s): «javascript:…» выполнилась бы у того,
+// кто нажмёт ссылку в карточке (проверка 27.10.2026).
+const BAD_URL_ERROR = 'Ссылка должна начинаться с http:// или https://';
+function badProductUrl(url) {
+  return !!url && !/^https?:\/\//i.test(String(url).trim());
+}
+
 // 18.09.2026 — архивный расходник (archived_at не NULL, см. миграцию 0120)
 // никогда не считается "заканчивающимся", даже если реально quantity <=
 // low_stock_threshold — компания его больше не закупает, предупреждать
@@ -118,6 +125,7 @@ router.post(
   requireRole('owner', 'admin', 'master'),
   asyncHandler(async (req, res) => {
     const { name, unit, productUrl, quantity, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize, unitCost } = req.body;
+    if (badProductUrl(productUrl)) return res.status(400).json({ error: BAD_URL_ERROR });
     if (!name) {
       return res.status(400).json({ error: 'Укажите название позиции' });
     }
@@ -169,6 +177,7 @@ router.patch(
   requireRole('owner', 'admin'),
   asyncHandler(async (req, res) => {
     const { name, unit, productUrl, lowStockThreshold, isDisinfectant, categoryId, defaultQuantityPerVisit, containerSize, unitCost } = req.body;
+    if (badProductUrl(productUrl)) return res.status(400).json({ error: BAD_URL_ERROR });
     // is_disinfectant/category_id/default_quantity_per_visit/container_size —
     // false/NULL тоже валидные значения (снять тег, снять категорию, убрать
     // норму расхода/объём тары), поэтому обычный COALESCE (как для остальных
