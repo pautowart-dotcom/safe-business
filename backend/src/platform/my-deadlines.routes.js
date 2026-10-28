@@ -27,7 +27,7 @@ const { isAiConfigured, extractDocumentDate } = require('../core/documentDateExt
 // Сведения о здоровье не храним и не отправляем на распознавание
 // (проверка 27.10.2026): к медкнижкам файл не прикладывается — дата вручную.
 const { evidenceAllowed } = require('../modules/security/path');
-const HEALTH_FILE_ERROR = 'Файлы медкнижек и медосмотров не храним — укажите только дату';
+const HEALTH_FILE_ERROR = 'Медкнижки и медосмотры сотрудников не храним — ни файлы, ни даты. Укажите только, когда проверить медкнижки в следующий раз';
 // CATALOG вынесен в core/deadlineSlotsCatalog.js (30.08.2026) — тем же
 // списком пользуется security.routes.js для автораспознавания при загрузке
 // документа во вкладке "Документы" (см.
