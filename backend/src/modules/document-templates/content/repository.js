@@ -374,7 +374,8 @@ for (const niche of lawyerPodryad.NICHES) {
   const list = TEMPLATES_BY_NICHE[niche];
   const i = list.findIndex((t) => t.key === `${niche}_oferta`);
   list[i] = lawyerPodryad.ofertaTemplate(niche, list[i].key);
-  list.splice(i + 1, 0, lawyerPodryad.estimateTemplate(niche));
+  // 29.10: и договор подряда — наш, по образцу оферты (юрист посмотрит)
+  list.splice(i + 1, 0, lawyerPodryad.estimateTemplate(niche), lawyerPodryad.contractTemplate(niche));
 }
 
 // 24.10.2026: общие документы всех ниш (commonTemplates.js) — инструкция о
