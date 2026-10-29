@@ -951,4 +951,5 @@ function build(niche, kind) {
   };
 }
 
-module.exports = { build, COMMON_KINDS, kindsFor, NICHE_GROUP };
+// RECEIPT_* — для объединённой Заказ-сметы и квитанции (lawyerPodryad.js)
+module.exports = { build, COMMON_KINDS, kindsFor, NICHE_GROUP, RECEIPT_ITEM, RECEIPT_DEVICE_HANDOVER, RECEIPT_FIELDS, receiptPrepare };

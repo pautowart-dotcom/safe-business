@@ -366,17 +366,6 @@ for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
   list.push(lawyerOferta.goodsTemplate(niche), lawyerOferta.consultTemplate(niche));
 }
 
-// 28.10.2026: оферта бытового подряда юриста (lawyerPodryad.js) — ниши с вещью
-// клиента в мастерской, вместо нашего черновика под тем же ключом; рядом —
-// бланк Заказ-сметы (без неё оферта, по словам юриста, не работает).
-const lawyerPodryad = require('./lawyerPodryad');
-for (const niche of lawyerPodryad.NICHES) {
-  const list = TEMPLATES_BY_NICHE[niche];
-  const i = list.findIndex((t) => t.key === `${niche}_oferta`);
-  list[i] = lawyerPodryad.ofertaTemplate(niche, list[i].key);
-  // 29.10: и договор подряда — наш, по образцу оферты (юрист посмотрит)
-  list.splice(i + 1, 0, lawyerPodryad.estimateTemplate(niche), lawyerPodryad.contractTemplate(niche));
-}
 
 // 24.10.2026: общие документы всех ниш (commonTemplates.js) — инструкция о
 // мерах пожарной безопасности, приказ об ответственном, акт ввода оборудования;
@@ -384,6 +373,20 @@ for (const niche of lawyerPodryad.NICHES) {
 const commonTemplates = require('./commonTemplates');
 for (const [niche, list] of Object.entries(TEMPLATES_BY_NICHE)) {
   for (const kind of commonTemplates.kindsFor(niche)) list.push(commonTemplates.build(niche, kind));
+}
+
+// 28.10.2026: оферта бытового подряда юриста (lawyerPodryad.js) — ниши с вещью
+// клиента в мастерской, вместо нашего черновика под тем же ключом. 29.10:
+// рядом договор подряда (наш, по образцу оферты), а приёмная квитанция стала
+// Заказ-сметой и квитанцией одной бумагой (юрист: можно) — ключ прежний.
+const lawyerPodryad = require('./lawyerPodryad');
+for (const niche of lawyerPodryad.NICHES) {
+  const list = TEMPLATES_BY_NICHE[niche];
+  const r = list.findIndex((t) => t.key === `${niche}_receipt`);
+  list.splice(r, 1);
+  const i = list.findIndex((t) => t.key === `${niche}_oferta`);
+  list[i] = lawyerPodryad.ofertaTemplate(niche, list[i].key);
+  list.splice(i + 1, 0, lawyerPodryad.receiptTemplate(niche), lawyerPodryad.contractTemplate(niche));
 }
 
 async function getTemplatesForNiche(niche) {
