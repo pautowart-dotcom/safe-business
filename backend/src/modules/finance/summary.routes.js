@@ -232,7 +232,15 @@ router.get(
     );
     const materialsCost = parseFloat(materialsRes.rows[0].total);
 
-    const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - variableExpenses - materialsCost;
+    // 03.11.2026: закупки расходников (разовые расходы категории 'supplies')
+    // и себестоимость списанных материалов — одни и те же деньги. Когда
+    // цены расходников заполнены (materialsCost > 0), закупки из прибыли
+    // не вычитаем, иначе материалы считаются дважды.
+    const suppliesPurchases = materialsCost > 0
+      ? (expensesByCategory.find((c) => c.category === 'supplies')?.total || 0)
+      : 0;
+
+    const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - (variableExpenses - suppliesPurchases) - materialsCost;
 
     // Этап 5: администратор видит выручку и расходы, но не итоговую
     // прибыль/маржу компании — поле просто не попадает в ответ, а не
@@ -277,6 +285,7 @@ router.get(
       // у materialsRes выше); честно отражаем это отдельным полем, а не
       // только суммой.
       summary.materialsCost = round2(materialsCost);
+      summary.suppliesPurchasesExcluded = round2(suppliesPurchases);
 
       // Разбивка выручки по способу оплаты визита (План 04.08.2026, п.3) —
       // владелец видит, кто вводит поле (мастер/админ при самом визите) не
@@ -351,7 +360,8 @@ router.get(
          GROUP BY 1
        ),
        variable_by_month AS (
-         SELECT date_trunc('month', occurred_at)::date AS month_start, SUM(amount) AS variable_expenses
+         SELECT date_trunc('month', occurred_at)::date AS month_start, SUM(amount) AS variable_expenses,
+                SUM(amount) FILTER (WHERE category = 'supplies') AS supplies_purchases
          FROM expense_entries
          WHERE company_id = $1 AND occurred_at >= now() - make_interval(months => $2)
          GROUP BY 1
@@ -374,6 +384,7 @@ router.get(
               COALESCE(v.visits_count, 0) AS visits_count,
               COALESCE(v.visits_revenue, 0) AS visits_revenue,
               COALESCE(e.variable_expenses, 0) AS variable_expenses,
+              COALESCE(e.supplies_purchases, 0) AS supplies_purchases,
               COALESCE(mat.materials_cost, 0) AS materials_cost
        FROM months m
        LEFT JOIN revenue_by_month r ON r.month_start = m.month_start
@@ -404,7 +415,8 @@ router.get(
       const visitsRevenue = parseFloat(row.visits_revenue);
       const percentExpenses = (revenue * percentRate) / 100;
       const materialsCost = parseFloat(row.materials_cost);
-      const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - parseFloat(row.variable_expenses) - materialsCost;
+      const suppliesPurchases = materialsCost > 0 ? parseFloat(row.supplies_purchases) : 0;
+      const netProfit = revenue - masterSalaries - fixedExpenses - percentExpenses - (parseFloat(row.variable_expenses) - suppliesPurchases) - materialsCost;
 
       const point = {
         month: row.month,
@@ -422,6 +434,7 @@ router.get(
         point.percentExpenses = round2(percentExpenses);
         point.variableExpenses = round2(parseFloat(row.variable_expenses));
         point.materialsCost = round2(materialsCost);
+        point.suppliesPurchasesExcluded = round2(suppliesPurchases);
       }
       return point;
     });

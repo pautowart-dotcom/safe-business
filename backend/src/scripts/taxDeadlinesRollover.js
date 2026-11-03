@@ -1,6 +1,6 @@
 require('dotenv').config();
 const pool = require('../db/pool');
-const { syncTaxDeadlines, syncEmployerMonthly, addMissingFutureSlots, EMPLOYER_MONTHLY, currentTaxYear } = require('../core/taxDeadlines');
+const { syncTaxDeadlines, syncEmployerMonthly, addMissingFutureSlots, syncPatentDeadlines, EMPLOYER_MONTHLY, currentTaxYear } = require('../core/taxDeadlines');
 const { notifyCompany } = require('../core/notifications');
 
 // Налоговые сроки нового года (14.10.2026, В1а плана этапа 2). Раньше сроки
@@ -86,6 +86,13 @@ async function run() {
   for (const c of configured) {
     backfilled += await addMissingFutureSlots(c.id, c.tax_regime, { ipRegisteredAt: c.ip_registered_at, hasEmployees: c.has_employees }, { year });
   }
+
+  // Сроки оплаты патента (03.11.2026) — компаниям, которые указали даты
+  // патента до появления напоминаний. Повторный прогон ничего не меняет.
+  const { rows: patentCompanies } = await pool.query(
+    `SELECT id FROM companies WHERE tax_regime = 'patent' AND patent_start_at IS NOT NULL`
+  );
+  for (const c of patentCompanies) await syncPatentDeadlines(c.id, { notify: false });
 
   await pool.query(
     `INSERT INTO cron_heartbeats (job_key, last_run_at, note) VALUES ('taxDeadlinesRollover', now(), $1)

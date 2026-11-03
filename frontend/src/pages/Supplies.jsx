@@ -280,10 +280,15 @@ export default function Supplies() {
         </div>
         {isManagement && (
           <>
-            <Field label="Закупочная цена за единицу, ₽ (необязательно)">
-              <TextInput type="number" min="0" step="0.01" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} placeholder="Например, 45" />
+            <Field label={`Закупочная цена за 1 ${form.unit || 'единицу'}, ₽ — не за упаковку (необязательно)`}>
+              <TextInput type="number" min="0" step="0.01" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} placeholder="Например, 24" />
             </Field>
             <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 14 }}>
+              {/* 29.10: в своей студии цену упаковки вписали как цену штуки — материалы
+                  вышли 1 115 ₽ на визит. Подсказка с пересчётом, если указан объём тары. */}
+              {Number(form.containerSize) > 1 && Number(form.unitCost) > 0
+                ? `Если ${form.unitCost} ₽ — цена всей упаковки из ${form.containerSize} ${form.unit || 'ед.'}, впишите цену за 1 ${form.unit || 'ед.'}: ${(Number(form.unitCost) / Number(form.containerSize)).toFixed(2)} ₽. `
+                : `Например, упаковка 50 ${form.unit || 'шт'} за 1 200 ₽ — вписываем 24. `}
               Видна только владельцу/админу — используется для расчёта себестоимости материалов в «Финансах». Мастер эту цену не видит.
             </div>
           </>

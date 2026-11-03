@@ -393,16 +393,93 @@ function monthsBetweenInclusive(startAt, endAt) {
   return (e.getUTCFullYear() - s.getUTCFullYear()) * 12 + (e.getUTCMonth() - s.getUTCMonth()) + 1;
 }
 
-function computePatentSchedule(startAt, endAt, amount) {
+// Патент до 31 декабря оплачивается не позднее 28 декабря (п. 2 ст. 346.51
+// НК в ред. 259-ФЗ, с 2025 г.; сверено 03.11.2026 — nalog.gov.ru).
+function patentFinalDueDate(endAt) {
+  return endAt.endsWith('-12-31') ? `${endAt.slice(0, 4)}-12-28` : endAt;
+}
+
+// amount необязателен (03.11.2026): без суммы график строится по датам.
+function computePatentSchedule(startAt, endAt, amount = null) {
   const months = monthsBetweenInclusive(startAt, endAt);
+  const finalDue = patentFinalDueDate(endAt);
+  const hasAmount = amount !== null && amount !== undefined && !Number.isNaN(Number(amount)) && Number(amount) > 0;
   if (months < 6) {
-    return [{ label: 'Вся стоимость патента', dueDate: endAt, amount }];
+    return [{ key: 'last', label: 'Вся стоимость патента', dueDate: finalDue, amount: hasAmount ? Number(amount) : null }];
   }
-  const first = Math.round(amount / 3);
+  const first = hasAmount ? Math.round(Number(amount) / 3) : null;
   return [
-    { label: '1/3 стоимости патента', dueDate: addDaysUTC(startAt, 90), amount: first },
-    { label: 'Оставшиеся 2/3 стоимости патента', dueDate: endAt, amount: amount - first },
+    { key: 'first', label: '1/3 стоимости патента', dueDate: addDaysUTC(startAt, 90), amount: first },
+    { key: 'last', label: 'Оставшиеся 2/3 стоимости патента', dueDate: finalDue, amount: hasAmount ? Number(amount) - first : null },
   ];
 }
 
-module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, EMPLOYER_MONTHLY, syncEmployerMonthly, taxRelatedType, currentTaxYear, syncTaxDeadlines, addMissingFutureSlots, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, subtractWorkingDaysUTC };
+const PATENT_PAY_KEYS = ['first', 'last'];
+const PATENT_PAY_NOTE = 'Оплата — на единый налоговый счёт. Точная сумма и сроки указаны в самом патенте. Если срок выпал на выходной, он переносится на следующий рабочий день.';
+
+function patentPayRelatedType(key) {
+  return `patent_pay:${key}`;
+}
+
+// Напоминания об оплате патента (03.11.2026): раньше график только
+// показывался в «Моих сроках», сроков во «Всех сроках» не было. Даты — из
+// patent_start_at и слота 'patent_end'. Не на патенте или нет дат — сроки
+// удаляются. Срок с той же датой не перезаписываем (сохраняем «Готово»);
+// новый срок с уже прошедшей датой не создаём, чтобы не появлялось
+// «просрочено» по платежу, который, скорее всего, уже сделан.
+async function syncPatentDeadlines(companyId, { today = moscowDateStr(), notify = true } = {}) {
+  const { rows: companyRows } = await pool.query(
+    `SELECT tax_regime, to_char(patent_start_at, 'YYYY-MM-DD') AS patent_start_at, patent_amount
+     FROM companies WHERE id = $1`,
+    [companyId]
+  );
+  const company = companyRows[0] || {};
+  const { rows: endRows } = await pool.query(
+    `SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date FROM deadlines WHERE company_id = $1 AND related_entity_type = 'manual:patent_end'`,
+    [companyId]
+  );
+  const startAt = company.patent_start_at;
+  const endAt = endRows[0]?.due_date;
+
+  let desired = [];
+  if (company.tax_regime === 'patent' && startAt && endAt && startAt <= endAt) {
+    desired = computePatentSchedule(startAt, endAt, company.patent_amount === null ? null : Number(company.patent_amount));
+  }
+
+  for (const key of PATENT_PAY_KEYS) {
+    const relatedEntityType = patentPayRelatedType(key);
+    const item = desired.find((d) => d.key === key);
+    const { rows: existing } = await pool.query(
+      `SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date, title FROM deadlines
+       WHERE company_id = $1 AND related_entity_type = $2 AND related_entity_id = $1`,
+      [companyId, relatedEntityType]
+    );
+    if (!item) {
+      if (existing.length) {
+        await pool.query('DELETE FROM deadlines WHERE company_id = $1 AND related_entity_type = $2 AND related_entity_id = $1', [companyId, relatedEntityType]);
+      }
+      continue;
+    }
+    const sum = item.amount ? ` — ${Math.round(item.amount).toLocaleString('ru-RU')} ₽` : '';
+    const title = `Патент: оплатить ${item.label.toLowerCase()}${sum}`;
+    if (existing.length && existing[0].due_date === item.dueDate) {
+      if (existing[0].title !== title) {
+        await pool.query('UPDATE deadlines SET title = $3 WHERE company_id = $1 AND related_entity_type = $2 AND related_entity_id = $1', [companyId, relatedEntityType, title]);
+      }
+      continue;
+    }
+    if (!existing.length && item.dueDate < today) continue;
+    await registerDeadline({
+      companyId,
+      category: 'tax',
+      title,
+      dueDate: item.dueDate,
+      relatedEntityType,
+      relatedEntityId: companyId,
+      note: PATENT_PAY_NOTE,
+      notify,
+    });
+  }
+}
+
+module.exports = { TAX_REGIMES, ALL_SLOT_KEYS, EMPLOYER_MONTHLY, syncEmployerMonthly, taxRelatedType, currentTaxYear, syncTaxDeadlines, addMissingFutureSlots, computeSlots, computeReserve, computeTrailingRevenue, computePatentSchedule, syncPatentDeadlines, subtractWorkingDaysUTC };

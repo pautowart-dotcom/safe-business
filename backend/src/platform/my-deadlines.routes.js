@@ -15,7 +15,7 @@ const { requireAuth } = require('../core/middleware/auth');
 const { requireTenant } = require('../core/middleware/tenancy');
 const { requireRole } = require('../core/middleware/role');
 const { registerDeadline, clearAction } = require('../core/deadlines');
-const { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule, subtractWorkingDaysUTC } = require('../core/taxDeadlines');
+const { TAX_REGIMES, syncTaxDeadlines, computeSlots, computeReserve, computePatentSchedule, syncPatentDeadlines, subtractWorkingDaysUTC } = require('../core/taxDeadlines');
 const { getPatentRate } = require('../core/patentRates');
 const { recommendTaxRegime } = require('../core/taxRegimeRecommender');
 
@@ -85,14 +85,15 @@ router.get(
     });
 
     let patent = null;
-    if (company.tax_regime === 'patent' && company.patent_start_at && company.patent_amount) {
+    if (company.tax_regime === 'patent' && company.patent_start_at) {
       const patentEndDate = slots.find((s) => s.key === 'patent_end')?.dueDate;
       if (patentEndDate) {
+        const patentAmount = company.patent_amount === null ? null : Number(company.patent_amount);
         patent = {
           startAt: company.patent_start_at,
-          amount: Number(company.patent_amount),
+          amount: patentAmount,
           endDate: patentEndDate,
-          schedule: computePatentSchedule(company.patent_start_at, patentEndDate, Number(company.patent_amount)),
+          schedule: computePatentSchedule(company.patent_start_at, patentEndDate, patentAmount),
         };
       }
     }
@@ -205,6 +206,10 @@ router.patch(
       });
     }
 
+    if (catalogItem.key === 'patent_end') {
+      await syncPatentDeadlines(req.tenant.companyId);
+    }
+
     res.json({
       key: catalogItem.key, category: catalogItem.category, label: catalogItem.label,
       dueDate: dueDate || null, recurrence: recurrence || null, note: note || null,
@@ -301,8 +306,10 @@ router.patch(
       req.tenant.companyId,
     ]);
 
+    await syncPatentDeadlines(req.tenant.companyId);
+
     let patent = null;
-    if (startAt && numAmount) {
+    if (startAt) {
       const { rows } = await pool.query(
         `SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date FROM deadlines WHERE company_id = $1 AND related_entity_type = $2`,
         [req.tenant.companyId, relatedType('patent_end')]

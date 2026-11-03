@@ -508,12 +508,12 @@ export default function MyDeadlinesTab() {
           <div style={{ fontSize: 12, color: C.subtle, marginBottom: 10 }}>
             Точную стоимость патента мы не считаем — она зависит от региона, ниши и года.{' '}
             <a href="https://patent.nalog.ru/info/" target="_blank" rel="noreferrer">Посчитать на сайте ФНС</a>.
-            Введите уже известную сумму — посчитаем график оплаты по срокам, которые едины для всех (ст. 346.51 НК РФ).
+            Укажите дату начала и дату окончания патента — напомним об оплате во «Всех сроках» по срокам, которые едины для всех (ст. 346.51 НК РФ). Сумму можно не вводить.
           </div>
           <Field label="Дата начала действия патента">
             <TextInput type="date" value={patentForm.startAt} onChange={(e) => setPatentForm({ ...patentForm, startAt: e.target.value })} />
           </Field>
-          <Field label="Стоимость патента, ₽">
+          <Field label="Стоимость патента, ₽ (необязательно)">
             <TextInput type="number" value={patentForm.amount} onChange={(e) => setPatentForm({ ...patentForm, amount: e.target.value })} />
           </Field>
           {data.tax.patentRateSuggestion && !patentForm.amount && (
@@ -533,9 +533,9 @@ export default function MyDeadlinesTab() {
           )}
           <Btn small disabled={savingPatent} onClick={savePatent}>{savingPatent ? 'Сохраняем...' : 'Сохранить'}</Btn>
 
-          {patentForm.startAt && patentForm.amount && !data.tax.patent && (
+          {patentForm.startAt && !data.tax.patent && (
             <div style={{ fontSize: 12, color: C.subtle, marginTop: 10 }}>
-              Чтобы посчитать график оплаты, укажите ещё дату окончания патента ниже, в разделе «Юридические документы».
+              Чтобы напомнить об оплате, укажите ещё дату окончания патента ниже, в разделе «Юридические документы».
             </div>
           )}
 
@@ -548,7 +548,7 @@ export default function MyDeadlinesTab() {
                 >
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
                   <div style={{ fontSize: 12, color: C.subtle }}>{fmtDate(s.dueDate)}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 2 }}>{fmtMoney(s.amount)}</div>
+                  {s.amount != null && <div style={{ fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 2 }}>{fmtMoney(s.amount)}</div>}
                 </div>
               ))}
             </div>

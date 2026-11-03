@@ -8,7 +8,7 @@ const { studioOsBundleKeys } = require('../core/modules-registry');
 const { isNewCohortNow, NEW_COHORT_MODULES } = require('../core/cohort');
 const { logEvent } = require('../core/eventLog');
 const { logAudit } = require('../core/auditLog');
-const { TAX_REGIMES, syncTaxDeadlines } = require('../core/taxDeadlines');
+const { TAX_REGIMES, syncTaxDeadlines, syncPatentDeadlines } = require('../core/taxDeadlines');
 const { isSubscriptionActive } = require('../core/middleware/subscription');
 const freeTier = require('../core/freeTier');
 
@@ -247,6 +247,7 @@ router.patch(
         ipRegisteredAt: rows[0].ip_registered_at,
         hasEmployees: rows[0].has_employees,
       });
+      await syncPatentDeadlines(req.tenant.companyId);
     }
 
     res.json(rows[0]);

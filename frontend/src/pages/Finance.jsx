@@ -631,7 +631,7 @@ function OverviewTab({
   // их не было видно, пока не переключишься на "Аналитику". Дублировать
   // здесь не считаю проблемой — эти графики о другом, чем построчный П&Л
   // ниже (тренд по месяцам vs текущий период), и оба взгляда уместны.
-  const totalExpenses = (summary.masterSalaries || 0) + (summary.fixedExpenses || 0) + (summary.percentExpenses || 0) + (summary.variableExpenses || 0) + (summary.materialsCost || 0);
+  const totalExpenses = (summary.masterSalaries || 0) + (summary.fixedExpenses || 0) + (summary.percentExpenses || 0) + (summary.variableExpenses || 0) - (summary.suppliesPurchasesExcluded || 0) + (summary.materialsCost || 0);
   const hasTrends = isDesktop && trends && trends.length >= 2;
   const trendCurr = hasTrends ? trends[trends.length - 1] : null;
   const trendPrev = hasTrends ? trends[trends.length - 2] : null;
@@ -671,7 +671,7 @@ function OverviewTab({
   // сумма полей. Только когда есть реальные данные (hasTrends) — иначе
   // карточка просто без волны, форму "от балды" не рисуем.
   const expensesTrendValues = hasTrends
-    ? trends.map((t) => (t.masterSalaries || 0) + (t.fixedExpenses || 0) + (t.percentExpenses || 0) + (t.variableExpenses || 0) + (t.materialsCost || 0))
+    ? trends.map((t) => (t.masterSalaries || 0) + (t.fixedExpenses || 0) + (t.percentExpenses || 0) + (t.variableExpenses || 0) - (t.suppliesPurchasesExcluded || 0) + (t.materialsCost || 0))
     : null;
   const visitsTrendValues = hasTrends ? trends.map((t) => t.visitsCount) : null;
 
@@ -803,7 +803,7 @@ function OverviewTab({
         <PnlRow label="Зарплаты" value={summary.masterSalaries} sign="−" />
         <PnlRow label="Пост. расходы" value={summary.fixedExpenses} sign="−" />
         <PnlRow label="% расходы" value={summary.percentExpenses} sign="−" />
-        <PnlRow label="Перем. расходы" value={summary.variableExpenses} sign="−" />
+        <PnlRow label={summary.suppliesPurchasesExcluded > 0 ? 'Перем. расходы (без закупок расходников)' : 'Перем. расходы'} value={(summary.variableExpenses || 0) - (summary.suppliesPurchasesExcluded || 0)} sign="−" />
         {summary.materialsCost != null && <PnlRow label="Материалы (по факту списания)" value={summary.materialsCost} sign="−" />}
         {summary.netProfit != null && (
           <>
@@ -815,6 +815,11 @@ function OverviewTab({
           </>
         )}
       </div>
+      {summary.suppliesPurchasesExcluded > 0 && (
+        <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 12, padding: '0 4px' }}>
+          Закупки расходников ({money(summary.suppliesPurchasesExcluded)}) не вычитаются второй раз: они уже учтены в «Материалах» по факту списания.
+        </div>
+      )}
       {summary.materialsCost === 0 && (
         <div style={{ fontSize: 12, color: C.subtle, marginTop: -8, marginBottom: 12, padding: '0 4px' }}>
           Себестоимость материалов — 0 ₽: скорее всего, у расходников на складе ещё не указаны закупочные цены (Склад расходников → Изменить), а не потому что они бесплатны.
