@@ -9,7 +9,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requireAuth } = require('../core/middleware/auth');
 const { requireSuperAdmin } = require('../core/middleware/role');
 const { normalizeCode, isValidCodeFormat } = require('../core/promoCodes');
-const { getAddon } = require('../core/addons');
+const { getAddon, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
 
 const router = express.Router();
 router.use(requireAuth, requireSuperAdmin);
@@ -83,7 +83,7 @@ router.post(
       return res.status(400).json({ error: 'Код: 3–32 символа, буквы, цифры, «-» или «_»' });
     }
     const appliesTo = req.body?.appliesTo;
-    if (appliesTo !== 'report' && appliesTo !== 'subscription' && appliesTo !== 'templates') {
+    if (!['report', 'subscription', 'templates', 'bundle'].includes(appliesTo)) {
       return res.status(400).json({ error: 'Выберите, на что действует код' });
     }
     const discountType = req.body?.discountType;
@@ -100,7 +100,9 @@ router.post(
     // Цена подписки — SUBSCRIPTION_PRICE_RUB в subscription.routes.js; при её
     // смене поправить и здесь. Без этой проверки скидка 5000 ₽ молча
     // превращала бы первый платёж в 1 ₽ (минимум ЮKassa, core/promoCodes.js).
-    const priceForCode = appliesTo === 'templates' ? getAddon('document_templates').priceRub : 1990;
+    const priceForCode = appliesTo === 'templates'
+      ? getAddon('document_templates').priceRub
+      : appliesTo === 'bundle' ? REPORT_BUNDLE_PRICE_RUB : 1990;
     if (discountType === 'fixed' && discountValue >= priceForCode) {
       return res.status(400).json({ error: `Скидка в рублях должна быть меньше цены (${priceForCode} ₽)` });
     }
@@ -173,7 +175,11 @@ router.get(
     const { rows } = await pool.query(
       `SELECT sp.id, c.id AS "companyId", c.name AS "companyName", c.is_test AS "isTest", sp.amount_rub AS "amountRub",
               sp.discount_rub AS "discountRub", sp.status, sp.created_at AS "createdAt"
-       FROM subscription_payments sp JOIN companies c ON c.id = sp.company_id
+       FROM (
+         SELECT id, company_id, amount_rub, discount_rub, status, created_at, promo_code_id FROM subscription_payments
+         UNION ALL
+         SELECT id, company_id, amount_rub, discount_rub, status, created_at, promo_code_id FROM addon_purchases
+       ) sp JOIN companies c ON c.id = sp.company_id
        WHERE sp.promo_code_id = $1
        ORDER BY sp.created_at DESC`,
       [req.params.id]

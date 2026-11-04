@@ -57,7 +57,7 @@ async function evaluatePromo({ code: rawCode, companyId, appliesTo, priceRub }) 
   }
 
   if (promo.applies_to !== appliesTo) {
-    const WHAT = { report: 'на отчёт в бесплатном тесте с сайта', subscription: 'на подписку', templates: 'на документы студии' };
+    const WHAT = { report: 'на отчёт в бесплатном тесте с сайта', subscription: 'на подписку', templates: 'на документы студии', bundle: 'на набор «заключение + документы»' };
     throw promoError(`Этот промокод — ${WHAT[promo.applies_to] || 'на другую покупку'}`);
   }
   if (promo.valid_until && new Date(promo.valid_until) < new Date()) throw promoError('Срок действия промокода закончился');
@@ -94,14 +94,15 @@ async function evaluatePromo({ code: rawCode, companyId, appliesTo, priceRub }) 
   return { promo, discountRub, finalRub: priceRub - discountRub };
 }
 
-// Набор «заключение + документы» (24.10.2026, решение владельца: промокод —
-// везде). Отдельного типа кода для набора нет: код на отчёт даёт в наборе ту
-// же скидку, что дал бы на отчёт (процент — от цены отчёта, не набора), код
-// на документы — ту же, что на документы. Не подошёл ни так, ни так —
-// ошибка проверки как для отчёта.
+// Набор «заключение + документы»: отдельный тип bundle даёт скидку от цены
+// всего набора. Старые коды на отчёт и документы тоже принимаются в наборе,
+// но дают прежнюю скидку только от своей части.
 async function evaluateBundlePromo({ code, companyId, reportPriceRub, docsPriceRub, bundlePriceRub }) {
   let firstError = null;
-  for (const [appliesTo, partPriceRub] of [['report', reportPriceRub], ['templates', docsPriceRub]]) {
+  // Отдельный код на набор считается от полной цены набора. Старые коды на
+  // отчёт и документы по-прежнему работают: их скидка считается только от
+  // соответствующей части, чтобы не менять уже выданные промокоды.
+  for (const [appliesTo, partPriceRub] of [['bundle', bundlePriceRub], ['report', reportPriceRub], ['templates', docsPriceRub]]) {
     try {
       const { promo, discountRub } = await evaluatePromo({ code, companyId, appliesTo, priceRub: partPriceRub });
       const bundleDiscountRub = Math.min(discountRub, bundlePriceRub - MIN_PAYMENT_RUB);

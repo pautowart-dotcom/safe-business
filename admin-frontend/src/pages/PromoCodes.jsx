@@ -11,9 +11,9 @@ import { Card, Badge, Btn, Field, TextInput, C } from '../ui/components.jsx';
 // (владелец, 09.10.2026), подписку через код оформляют реже.
 const EMPTY_FORM = { code: '', appliesTo: 'report', discountType: 'percent', discountValue: '', maxRedemptions: '', validUntil: '', note: '', testOnly: false };
 const PRICE_RUB = 1990;
-const APPLIES_TO_LABELS = { report: 'Отчёт в тесте с сайта', subscription: 'Подписка, первый месяц', templates: 'Документы студии' };
+const APPLIES_TO_LABELS = { report: 'Отчёт в тесте с сайта', subscription: 'Подписка, первый месяц', templates: 'Документы студии', bundle: 'Заключение + документы' };
 // Цена документов — core/addons.js (document_templates), только для подсказки в форме.
-const PRICES = { report: PRICE_RUB, subscription: PRICE_RUB, templates: 4990 };
+const PRICES = { report: PRICE_RUB, subscription: PRICE_RUB, templates: 4990, bundle: 5990 };
 
 const STATUS_LABELS = { succeeded: 'оплачено', pending: 'не завершено', canceled: 'отменено' };
 
@@ -102,7 +102,7 @@ export default function PromoCodes() {
         {!form && <Btn small onClick={() => { setForm(EMPTY_FORM); setFormError(''); }}>+ Новый код</Btn>}
       </div>
       <div style={{ fontSize: 13, color: C.subtle }}>
-        «Отчёт в тесте с сайта» — скидка на разовый отчёт после бесплатного теста без регистрации, поле перед кнопкой оплаты. «Подписка» — скидка только на первый месяц, дальше {money(PRICE_RUB)}/мес, поле на странице «Подписка».
+        «Отчёт в тесте с сайта» — скидка на разовый отчёт после бесплатного теста. «Заключение + документы» — скидка на весь набор за {money(PRICES.bundle)}. «Подписка» — скидка только на первый месяц, дальше {money(PRICE_RUB)}/мес.
       </div>
       {data && !data.enabledForAll && (
         <div style={{ background: C.orangeBg, color: C.orange, borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
@@ -140,7 +140,7 @@ export default function PromoCodes() {
               </div>
               {preview != null && (
                 <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>
-                  {form.appliesTo === 'report' ? 'Отчёт' : form.appliesTo === 'templates' ? 'Документы' : 'Первый месяц'}: {money(preview)} вместо {money(PRICES[form.appliesTo])}
+                  {form.appliesTo === 'report' ? 'Отчёт' : form.appliesTo === 'templates' ? 'Документы' : form.appliesTo === 'bundle' ? 'Заключение + документы' : 'Первый месяц'}: {money(preview)} вместо {money(PRICES[form.appliesTo])}
                 </div>
               )}
             </Field>
