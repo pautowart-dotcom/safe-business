@@ -280,6 +280,25 @@ const CONTRA_CODES = {
   fitness_gym: 'FT-204', yoga: 'YG-204', pilates: 'PL-204', dance: 'DN-204', martial_arts: 'MT-204',
   massage: 'MS-203', cosmetology: 'CS-212',
 };
+
+// Детская секция: отдельные родительские формы вместо взрослого общего
+// согласия. Медицинские сведения в них не записываются и не хранятся.
+(LINKS.kids_club = LINKS.kids_club || []).push(
+  {
+    violationCode: 'KC-801',
+    templateKey: 'kids_club_activity_consent',
+    templateTitle: 'Информированное согласие законного представителя на занятия ребёнка',
+    questionCode: 'KC-801',
+    hasAnswerIndex: 0,
+  },
+  {
+    violationCode: 'KC-802',
+    templateKey: 'kids_club_visit_rules',
+    templateTitle: 'Правила посещения и передачи ребёнка',
+    questionCode: 'KC-802',
+    hasAnswerIndex: 0,
+  },
+);
 // Анкета о животном и порядок при ухудшении его состояния (25.10).
 const HEALTH_CODES = { dog_training: 'DT-202', pet_grooming: 'GR-105', pet_boarding: 'PB-106' };
 const PET_EMERGENCY_CODES = { pet_grooming: 'GR-204', pet_boarding: 'PB-204' };
