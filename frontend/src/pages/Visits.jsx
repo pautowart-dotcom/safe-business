@@ -174,6 +174,7 @@ export default function Visits() {
   const [supplies, setSupplies] = useState([]);
   const [companyNiches, setCompanyNiches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clientFilter, setClientFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
@@ -551,6 +552,10 @@ export default function Visits() {
   const discRub = form.discountType === 'fixed' ? discFixed : Math.round((priceNum * discPct) / 100);
   const finalPrice = priceNum - discRub;
   const suggestedMaster = masters.find((m) => String(m.id) === String(form.masterMembershipId));
+  const normalizedClientFilter = clientFilter.trim().toLocaleLowerCase('ru-RU');
+  const filteredVisits = normalizedClientFilter
+    ? visits.filter((visit) => `${visit.client_last_name || ''} ${visit.client_first_name || ''}`.toLocaleLowerCase('ru-RU').includes(normalizedClientFilter))
+    : visits;
 
   if (showForm) {
     if (saved) {
@@ -926,12 +931,36 @@ export default function Visits() {
         <button onClick={openCreate} style={{ background: C.primary, color: '#FFF', border: 'none', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Визит</button>
       </div>
 
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <TextInput
+          value={clientFilter}
+          onChange={(e) => setClientFilter(e.target.value)}
+          placeholder="Найти клиента по имени или фамилии"
+          aria-label="Фильтр визитов по клиенту"
+          style={{ paddingRight: clientFilter ? 88 : undefined }}
+        />
+        {clientFilter && (
+          <button
+            type="button"
+            onClick={() => setClientFilter('')}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: C.primary, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Сбросить
+          </button>
+        )}
+      </div>
+      {clientFilter && !loading && (
+        <div style={{ fontSize: 12, color: C.subtle, margin: '-4px 0 12px' }}>
+          Найдено визитов: {filteredVisits.length}
+        </div>
+      )}
+
       {loading ? (
         <div className="page-loading">Загрузка...</div>
       ) : (
         <Card style={{ padding: 0 }}>
-          {visits.map((v, i) => (
-            <div key={v.id} onClick={() => { openedViaDeepLinkRef.current = false; openEdit(v); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < visits.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
+          {filteredVisits.map((v, i) => (
+            <div key={v.id} onClick={() => { openedViaDeepLinkRef.current = false; openEdit(v); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 16px', borderBottom: i < filteredVisits.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Avatar letter={v.client_last_name?.[0]} size={36} />
                 <div>
@@ -956,7 +985,7 @@ export default function Visits() {
               </div>
             </div>
           ))}
-          {visits.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>Визитов не найдено</div>}
+          {filteredVisits.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.subtle, fontSize: 14 }}>{clientFilter ? 'У этого клиента визитов не найдено' : 'Визитов не найдено'}</div>}
         </Card>
       )}
     </div>

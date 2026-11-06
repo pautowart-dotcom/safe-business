@@ -12,6 +12,10 @@ const EMPTY_FORM = {
 const EMPTY_WAITLIST_FORM = { service: '', comment: '' };
 const EMPTY_PACKAGE_FORM = { title: '', totalSessions: '', totalAmount: '' };
 
+function money(value) {
+  return `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
+}
+
 // Лёгкий лист ожидания (владелец, 29.07.2026): нет расписания/слотов в
 // приложении, поэтому это просто список "клиент хочет записаться" с ручной
 // отметкой "связался" — без автоматики про свободное время, её физически
@@ -67,6 +71,8 @@ export default function Clients() {
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [clientVisits, setClientVisits] = useState([]);
+  const [clientVisitsLoading, setClientVisitsLoading] = useState(false);
   const [dossierError, setDossierError] = useState('');
   const [tab, setTab] = useState('clients');
   const [waitlist, setWaitlist] = useState([]);
@@ -168,8 +174,20 @@ export default function Clients() {
   }, [tab]);
 
   useEffect(() => {
-    if (selected) loadPackages(selected.id);
-    else { setPackages([]); setShowPackageForm(false); setPackageForm(EMPTY_PACKAGE_FORM); setPackageError(''); }
+    if (selected) {
+      loadPackages(selected.id);
+      setClientVisitsLoading(true);
+      api.get('/modules/visits', { params: { allMasters: 1, clientId: selected.id } })
+        .then((res) => setClientVisits(res.data))
+        .catch(() => setClientVisits([]))
+        .finally(() => setClientVisitsLoading(false));
+    } else {
+      setPackages([]);
+      setClientVisits([]);
+      setShowPackageForm(false);
+      setPackageForm(EMPTY_PACKAGE_FORM);
+      setPackageError('');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
@@ -419,6 +437,27 @@ export default function Clients() {
             <div style={{ fontSize: 13, color: C.secondary, whiteSpace: 'pre-wrap' }}>{selected.notes}</div>
           </Card>
         )}
+        <Card>
+          <div style={{ fontSize: 12, color: C.subtle, fontWeight: 700, marginBottom: 10 }}>История визитов</div>
+          {clientVisitsLoading ? (
+            <div style={{ fontSize: 13, color: C.subtle }}>Загрузка истории…</div>
+          ) : clientVisits.length === 0 ? (
+            <div style={{ fontSize: 13, color: C.subtle }}>У клиента пока нет визитов.</div>
+          ) : (
+            clientVisits.map((visit, index) => (
+              <div key={visit.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: index < clientVisits.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{visit.service}</div>
+                  <div style={{ fontSize: 12, color: C.subtle, marginTop: 2 }}>
+                    {new Date(visit.visit_at).toLocaleString('ru-RU')}{visit.master_name ? ` · ${visit.master_name}` : ''}
+                  </div>
+                  {visit.materials && <div style={{ fontSize: 12, color: C.secondary, marginTop: 4 }}>Материалы: {visit.materials}</div>}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{money(visit.final_amount)}</div>
+              </div>
+            ))
+          )}
+        </Card>
       </div>
     );
   }
@@ -472,7 +511,14 @@ export default function Clients() {
               )}
             </Card>
           )}
-          <TextInput placeholder="Имя, фамилия или последние 4 цифры номера" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <TextInput autoFocus placeholder="Имя, фамилия или последние 4 цифры номера" value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingRight: search ? 88 : undefined }} />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: C.primary, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                Сбросить
+              </button>
+            )}
+          </div>
 
           {loading ? (
             <div className="page-loading">Загрузка...</div>

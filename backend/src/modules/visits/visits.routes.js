@@ -267,6 +267,10 @@ router.get(
       params.push(req.query.branchId);
       where += ` AND v.branch_id = $${params.length}`;
     }
+    if (req.query.clientId) {
+      params.push(req.query.clientId);
+      where += ` AND v.client_id = $${params.length}`;
+    }
     if (req.query.dateFrom) {
       params.push(req.query.dateFrom);
       where += ` AND v.visit_at >= $${params.length}`;
