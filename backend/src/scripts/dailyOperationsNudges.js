@@ -443,6 +443,12 @@ async function main() {
   } catch (err) {
     console.error('guestResultFollowup упал:', err);
   }
+  // Начали тест и бросили (07.11.2026) — только при реальном email + согласии.
+  try {
+    console.log(`Письмо незавершённый тест: отправлено ${await require('./incompleteAuditFollowup').run()}`);
+  } catch (err) {
+    console.error('incompleteAuditFollowup упал:', err);
+  }
   try {
     const abuse = await watchAbuse();
     console.log(`watchAbuse: гостей за сутки ${abuse.guestsN}, компаний с 8+ запусками ${abuse.heavyN}, пуш ${abuse.alerted ? 'отправлен' : 'не нужен'}`);
