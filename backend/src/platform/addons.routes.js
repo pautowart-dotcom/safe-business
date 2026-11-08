@@ -10,6 +10,7 @@ const { evaluatePromo, evaluateBundlePromo } = require('../core/promoCodes');
 // Цена заключения — та же, что в subscription.routes.js (SUBSCRIPTION_PRICE_RUB).
 const REPORT_PRICE_RUB = 1990;
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
+const { checkClaimAllowed, recordClaim } = require('../core/loginRateLimit');
 
 const router = express.Router();
 
@@ -124,6 +125,12 @@ router.post(
       if (!req.body?.acceptedTerms) {
         return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
       }
+      // Как у /claim и checkout-one-time: 409 «email уже есть» без лимита =
+      // перебор клиентских адресов через гостевой токен.
+      if (!(await checkClaimAllowed(req.user.id))) {
+        return res.status(429).json({ error: 'Слишком много попыток. Попробуйте через 15 минут' });
+      }
+      await recordClaim(req.user.id);
       const existing = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1 AND id != $2', [email, req.user.id]);
       if (existing.rows.length > 0) {
         return res.status(409).json({

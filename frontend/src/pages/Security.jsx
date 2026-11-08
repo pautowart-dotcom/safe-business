@@ -305,9 +305,22 @@ export default function Security() {
   const [topTab, setTopTab] = useState(location.state?.tab || 'test');
   // Путь из 4 этапов (26.10.2026) — переключатель на сервере, см. SecurityPath.
   const [pathUi, setPathUi] = useState(null);
+  // После ЮKassa returnUrl уже `/security?addonPayment=done` (addons.routes.js);
+  // раньше фронт параметр не читал — документы оставались под списком шагов
+  // (docs/post-pay-documents-on-table-2026-11-08.md, вариант A).
+  const [focusPaidTemplates] = useState(() => new URLSearchParams(location.search).get('addonPayment') === 'done');
   useEffect(() => {
     api.get('/platform/ui-config', { silent: true }).then(({ data }) => setPathUi(!!data.securityPath)).catch(() => setPathUi(false));
   }, []);
+  useEffect(() => {
+    if (!focusPaidTemplates) return;
+    const params = new URLSearchParams(location.search);
+    if (params.get('addonPayment') !== 'done') return;
+    params.delete('addonPayment');
+    const search = params.toString();
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPaidTemplates]);
 
   async function loadDashboardData() {
     const [statusRes, violationsRes, documentsRes, sectionsRes, productsRes] = await Promise.all([
@@ -507,6 +520,7 @@ export default function Security() {
     return (
       <SecurityPath
         initialStage={STAGE_FOR_TAB[location.state?.tab] || STAGE_FOR_TAB[dashboardTab] || null}
+        focusPaidTemplates={focusPaidTemplates}
         profile={profile}
         status={status}
         violations={violations}
@@ -541,6 +555,7 @@ export default function Security() {
       ) : (
         <SecurityDashboard
           initialTab={dashboardTab}
+          focusPaidTemplates={focusPaidTemplates}
           profile={profile}
           status={status}
           violations={violations}
@@ -901,7 +916,7 @@ function pathIndexWords(percent) {
 }
 
 function SecurityPath({
-  initialStage, profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
+  initialStage, focusPaidTemplates, profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
   onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange,
 }) {
   const navigate = useNavigate();
@@ -910,11 +925,19 @@ function SecurityPath({
   const [showDeadlines, setShowDeadlines] = useState(initialStage === 3);
   const [showOther, setShowOther] = useState(false);
   const [openStep, setOpenStep] = useState(null);
+  // Только при купленном пакете поднимаем шаблоны над шагами — иначе не
+  // ломаем привычный порядок «сначала шаги» для тех, кто не платил.
+  const [templatesPurchased, setTemplatesPurchased] = useState(!!focusPaidTemplates);
 
   useEffect(() => {
     api.get('/platform/monthly-check', { silent: true }).then(({ data }) => setMonthly(data)).catch(() => {});
     api.get('/platform/outside-watch', { silent: true }).then(({ data }) => setOutside(data)).catch(() => {});
-  }, []);
+    if (!isManagement) return;
+    api.get('/platform/addons', { silent: true }).then(({ data }) => {
+      const addon = (data || []).find((x) => x.addonKey === 'document_templates');
+      if (addon?.purchased) setTemplatesPurchased(true);
+    }).catch(() => {});
+  }, [isManagement]);
 
   const index = status?.indexPercent;
   const hasResult = index != null;
@@ -941,8 +964,18 @@ function SecurityPath({
     },
   ];
   const current = !hasResult ? 1 : open.length ? 2 : !monthly?.done ? 3 : 4;
-  const [stage, setStage] = useState(initialStage || current);
+  // После оплаты — сразу этап «Исправить», где лежат шаблоны/анкета.
+  const [stage, setStage] = useState(focusPaidTemplates ? 2 : (initialStage || current));
   const next = open[0];
+
+  useEffect(() => {
+    if (!focusPaidTemplates) return;
+    setStage(2);
+    const t = setTimeout(() => {
+      document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [focusPaidTemplates]);
 
   // Одна кнопка «что дальше» — по текущему этапу.
   const nextAction = {
@@ -1046,22 +1079,32 @@ function SecurityPath({
       {stage === 2 && (
         <div>
           <ST>Исправить</ST>
-          {/* Шаблоны лежат под длинным списком шагов — ссылка сверху (27.10.2026). */}
-          <button
-            type="button"
-            onClick={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })}
-            style={{ background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '0 4px 10px', fontFamily: 'inherit' }}
-          >
-            Шаблоны документов ↓
-          </button>
+          {/* После оплаты пакет виден сразу; без покупки — как раньше: шаги сверху,
+              ссылка вниз к шаблонам (27.10.2026 / 08.11.2026 вариант A). */}
+          {!templatesPurchased && (
+            <button
+              type="button"
+              onClick={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })}
+              style={{ background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '0 4px 10px', fontFamily: 'inherit' }}
+            >
+              Шаблоны документов ↓
+            </button>
+          )}
+          {templatesPurchased && (
+            <div id="path-templates" style={{ marginBottom: 12 }}>
+              <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
+            </div>
+          )}
           {hasResult ? (
             <ViolationsTab violations={violations} indexPercent={index} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} openRequest={openStep} onGoToTemplates={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })} />
           ) : (
             <Card><div style={{ fontSize: 13, color: C.secondary }}>Сначала пройдите тест — здесь появятся шаги по порядку: что сделать, какой документ нужен, отметка «Сделано».</div></Card>
           )}
-          <div id="path-templates">
-            <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
-          </div>
+          {!templatesPurchased && (
+            <div id="path-templates">
+              <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
+            </div>
+          )}
           <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
         </div>
       )}
@@ -1137,9 +1180,10 @@ function SecurityPath({
 
 function SecurityDashboard({
   profile, status, violations, documents, documentSections, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, error,
-  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange, hideTitle, initialTab,
+  onEditProfile, onStartAudit, onResolveViolation, onJoinWaitlist, onDownloadReport, onDocumentsChange, hideTitle, initialTab, focusPaidTemplates,
 }) {
-  const [tab, setTab] = useState(initialTab || 'overview');
+  // После оплаты пакета документов — сразу «Обзор», где лежит DocumentTemplatesCard.
+  const [tab, setTab] = useState(focusPaidTemplates ? 'overview' : (initialTab || 'overview'));
 
   const nicheLabels = (profile.niches || []).map(nicheLabel);
   const hasResult = status?.indexPercent != null;
@@ -1183,7 +1227,7 @@ function SecurityDashboard({
       />
 
       {tab === 'overview' && (
-        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
+        <OverviewTab profile={profile} status={status} products={products} isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} pdfPaywall={pdfPaywall} focusPaidTemplates={focusPaidTemplates} onStartAudit={onStartAudit} onJoinWaitlist={onJoinWaitlist} onDownloadReport={onDownloadReport} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
       )}
       {tab === 'violations' && <ViolationsTab violations={violations} indexPercent={status?.indexPercent} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
       {tab === 'documents' && <DocumentsTab documents={documents} sections={documentSections} isManagement={isManagement} onChange={onDocumentsChange} onGoToTemplates={() => setTab('overview')} />}
@@ -1625,10 +1669,28 @@ function InspectionGuidesTab() {
   );
 }
 
-function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, onStartAudit, onJoinWaitlist, onDownloadReport, onResolveViolation, onDocumentsChange }) {
+function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isTestCompany, pdfPaywall, focusPaidTemplates, onStartAudit, onJoinWaitlist, onDownloadReport, onResolveViolation, onDocumentsChange }) {
   const navigate = useNavigate();
   const hasResult = status?.indexPercent != null;
   const outstanding = status?.outstandingNiches || [];
+  // Legacy без securityPath: шаблоны поднимаем выше свалки только если пакет куплен.
+  const [templatesPurchased, setTemplatesPurchased] = useState(!!focusPaidTemplates);
+
+  useEffect(() => {
+    if (!isManagement) return;
+    api.get('/platform/addons', { silent: true }).then(({ data }) => {
+      const addon = (data || []).find((x) => x.addonKey === 'document_templates');
+      if (addon?.purchased) setTemplatesPurchased(true);
+    }).catch(() => {});
+  }, [isManagement]);
+
+  useEffect(() => {
+    if (!focusPaidTemplates) return;
+    const t = setTimeout(() => {
+      document.getElementById('document-templates')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [focusPaidTemplates]);
 
   // Три состояния кнопки: ничего не пройдено ("Пройти тест безопасности"),
   // есть непройденные ниши, например только что добавленная ("Пройти тест
@@ -1644,6 +1706,10 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
     continueLabel = 'Пройти заново';
     continueAction = () => onStartAudit({ retakeAll: true });
   }
+
+  const templatesCard = (
+    <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
+  );
 
   return (
     <div>
@@ -1687,6 +1753,8 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
       </Card>
       )}
 
+      {templatesPurchased && templatesCard}
+
       <OpeningRoadmapCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} isTestCompany={isTestCompany} />
       <SharePassportCard isManagement={isManagement} isTestCompany={isTestCompany} />
       <FranchiseCard isManagement={isManagement} />
@@ -1698,7 +1766,7 @@ function OverviewTab({ profile, status, products, isManagement, hasPaidPlan, isT
         </Group>
       )}
 
-      <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
+      {!templatesPurchased && templatesCard}
       <WebsiteCheckCard isManagement={isManagement} hasPaidPlan={hasPaidPlan} />
       {isManagement && <PartnerServicesCard />}
       {/* DocumentRiskCheckCard переехала во вкладку "Документы" (31.08.2026,
@@ -2531,8 +2599,30 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     }
   }
 
+  const hasSigningPack = !!(templates && templates.some((t) => t.openViolationId && !t.alreadyHasDocument));
+  const showPaidBanner = !!(addon?.purchased && templates && templates.length > 0 && generated.length === 0);
+
   return (
     <div id="document-templates">
+    {showPaidBanner && (
+      <div style={{ padding: '12px 14px', marginBottom: 12, borderRadius: 12, background: C.greenBg, border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Оплата прошла — соберите документы по анкете</div>
+        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 10 }}>
+          Заполните реквизиты один раз — PDF можно скачать и подписать.
+        </div>
+        <Btn
+          small
+          onClick={() => {
+            const target = hasSigningPack
+              ? document.getElementById('signing-pack')
+              : document.getElementById('document-templates-list');
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        >
+          {hasSigningPack ? 'Пакет на подпись' : 'Заполнить анкету'}
+        </Btn>
+      </div>
+    )}
     <Card>
       <ST>Шаблоны документов</ST>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
@@ -2585,6 +2675,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
         </div>
       )}
 
+      <div id="document-templates-list">
       {templates && templates.map((t) => (
         <div key={t.key} style={{ padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
@@ -2676,6 +2767,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           )}
         </div>
       ))}
+      </div>
 
       {error && <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div>}
 
@@ -2889,7 +2981,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
   }
 
   return (
-    <div style={{ padding: '12px 14px', marginBottom: 14, borderRadius: 12, background: C.greenBg, border: `1px solid ${C.border}` }}>
+    <div id="signing-pack" style={{ padding: '12px 14px', marginBottom: 14, borderRadius: 12, background: C.greenBg, border: `1px solid ${C.border}` }}>
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Пакет на подпись</div>
 
       {!results && (

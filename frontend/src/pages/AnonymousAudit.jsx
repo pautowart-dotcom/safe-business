@@ -805,7 +805,10 @@ function restoreGuestToken() {
 // Пароль прямо здесь → обычная сессия приложения (тот же localStorage, что у
 // входа, context/AuthContext.jsx applyAuthResult) → кабинет. Это осознанный
 // вход: если в браузере была другая сессия, она заменится, как при логине.
-function SetPasswordForm({ email }) {
+// goToPaidTemplates — после оплаты пакета документов: Security.jsx читает
+// ?addonPayment=done и сразу показывает шаблоны (docs/post-pay-documents-on-table-2026-11-08.md).
+// Бесплатный claim и оплата только заключения — без query, как раньше.
+function SetPasswordForm({ email, goToPaidTemplates }) {
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -824,7 +827,10 @@ function SetPasswordForm({ email }) {
       localStorage.setItem('deviceToken', data.deviceToken);
       localStorage.removeItem('currentCompany');
       try { sessionStorage.removeItem(GUEST_TOKEN_KEY); } catch { /* не критично */ }
-      window.location.href = `${import.meta.env.BASE_URL}security`;
+      const cabinet = goToPaidTemplates
+        ? `${import.meta.env.BASE_URL}security?addonPayment=done`
+        : `${import.meta.env.BASE_URL}security`;
+      window.location.href = cabinet;
     } catch (err) {
       setError(err.response?.data?.error || 'Не получилось — попробуйте ещё раз');
       setSaving(false);
@@ -854,6 +860,8 @@ function SetPasswordForm({ email }) {
 function DoneStep() {
   const [state, setState] = useState(() => (restoreGuestToken() ? 'waiting' : 'email')); // waiting | paid | email
   const [email, setEmail] = useState('');
+  // После ЮKassa plan из state потерян — смотрим addon_purchases через /platform/addons.
+  const [docsPurchased, setDocsPurchased] = useState(false);
 
   useEffect(() => {
     if (state !== 'waiting') return undefined;
@@ -864,6 +872,11 @@ function DoneStep() {
         const { data } = await guestApi.get('/platform/anonymous-audit/payment-status');
         if (data.paid) {
           setEmail(data.email);
+          try {
+            const addons = await guestApi.get('/platform/addons');
+            const docs = (addons.data || []).find((a) => a.addonKey === 'document_templates');
+            setDocsPurchased(!!docs?.purchased);
+          } catch { /* без query редирект всё равно в кабинет */ }
           setState('paid');
           return;
         }
@@ -879,9 +892,10 @@ function DoneStep() {
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Оплата прошла</div>
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
           Придумайте пароль — и сразу откроется кабинет: план устранения списком дел, месяц полного доступа в
-          подарок и, если брали документы, анкета для них. Заключение в PDF придёт и на почту.
+          подарок{docsPurchased ? ' и ваши документы сверху на экране «Исправить»' : ' и, если брали документы, анкета для них'}.
+          Заключение в PDF придёт и на почту.
         </div>
-        <SetPasswordForm email={email} />
+        <SetPasswordForm email={email} goToPaidTemplates={docsPurchased} />
       </Card>
     );
   }

@@ -13,6 +13,7 @@ const { runScanForPurchase } = require('./website-check.routes');
 const { evaluatePromo, evaluateBundlePromo } = require('../core/promoCodes');
 const { priceForCompany, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
 const { createRateLimiter } = require('../core/rateLimit');
+const { checkClaimAllowed, recordClaim } = require('../core/loginRateLimit');
 
 // Против перебора кодов (09.10.2026): гостевой тест открыт любому, токен без
 // почты — без лимита простые коды вроде "ТЕСТ50" угадывались бы скриптом.
@@ -240,6 +241,12 @@ router.post(
       if (!req.body?.acceptedTerms) {
         return res.status(400).json({ error: 'Нужно принять условия оферты и политики конфиденциальности' });
       }
+      // Тот же лимит, что у /anonymous-audit/claim (27.10.2026): без него через
+      // 409 на checkout можно перебирать, какие адреса уже клиенты.
+      if (!(await checkClaimAllowed(req.user.id))) {
+        return res.status(429).json({ error: 'Слишком много попыток. Попробуйте через 15 минут' });
+      }
+      await recordClaim(req.user.id);
       const existing = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1 AND id != $2', [email, req.user.id]);
       if (existing.rows.length > 0) {
         return res.status(409).json({
@@ -398,7 +405,10 @@ router.post(
         // Разовая покупка ОДНОГО отчёта (миграция 0091) — НЕ трогает
         // subscription_status компании вообще, см. комментарий у
         // /checkout-one-time выше.
-        await pool.query(`UPDATE security_reports SET unlocked_without_subscription = true WHERE id = $1`, [reportId]);
+        await pool.query(
+          `UPDATE security_reports SET unlocked_without_subscription = true WHERE id = $1 AND company_id = $2`,
+          [reportId, companyId]
+        );
 
         // 14.10.2026 (решение владельца): к заключению — месяц полного
         // доступа в кабинете, чтобы вести по нему план устранения. Только из
@@ -492,7 +502,10 @@ async function handleAddonWebhook(paymentId, payment, res) {
       // Набор «заключение + документы» (24.10.2026, addons.routes.js) —
       // заключение открываем так же, как разовую покупку отчёта выше.
       if (reportId) {
-        await pool.query(`UPDATE security_reports SET unlocked_without_subscription = true WHERE id = $1`, [reportId]);
+        await pool.query(
+          `UPDATE security_reports SET unlocked_without_subscription = true WHERE id = $1 AND company_id = $2`,
+          [reportId, companyId]
+        );
       }
       // 21.10.2026 (план 20.10, решение владельца 19.10): к пакету — месяц
       // подписки в подарок, тем же правилом, что и к заключению выше: только

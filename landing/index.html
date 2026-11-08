@@ -264,22 +264,29 @@
   .pricing-head { text-align: center; max-width: 56ch; margin: 0 auto 48px; }
   .pricing-head h2 { font-size: 36px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 14px; }
   .pricing-head p { font-size: 15.5px; color: var(--text-muted); line-height: 1.6; }
-  .price-card { background: var(--bg); border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 20px; padding: 44px 48px; box-shadow: var(--shadow-lg); max-width: 720px; margin: 0 auto; }
-  .price-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; padding-bottom: 26px; border-bottom: 1px solid var(--border); }
+  .offer-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 980px; margin: 0 auto; }
+  .offer-card { background: var(--bg); border: 1px solid var(--border); border-radius: 18px; padding: 26px 24px; box-shadow: var(--shadow-sm); }
+  .offer-card b { display: block; font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 6px; }
+  .offer-card .offer-price { display: block; font-size: 28px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 12px; }
+  .offer-card span { font-size: 13.5px; color: var(--text-muted); line-height: 1.55; }
+  .offer-micro { text-align: center; font-size: 13.5px; color: var(--text-muted); max-width: 52ch; margin: 18px auto 0; line-height: 1.55; }
+  .price-card { background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 28px 32px; max-width: 720px; margin: 28px auto 0; }
+  .price-card--secondary { box-shadow: none; }
+  .price-card h3 { font-size: 17px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 10px; }
+  .price-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
   .price-amount { display: flex; align-items: baseline; gap: 8px; }
-  .price-amount b { font-size: 52px; font-weight: 800; letter-spacing: -.02em; }
-  .price-amount span { font-size: 14.5px; color: var(--text-muted); }
-  .price-free-badge { font-size: 12.5px; font-weight: 700; color: var(--ok); background: var(--ok-soft); padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
-  .price-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 26px; margin-bottom: 6px; }
+  .price-amount b { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+  .price-amount span { font-size: 14px; color: var(--text-muted); }
+  .price-lead { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
+  .price-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 22px; margin-bottom: 6px; }
   .price-item { display: flex; gap: 12px; align-items: flex-start; }
   .price-check { width: 20px; height: 20px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex: none; margin-top: 1px; }
   .price-check svg { width: 11px; height: 11px; }
-  .price-item span { font-size: 14px; color: var(--text); line-height: 1.5; }
-  .price-note { font-size: 14px; color: var(--text-muted); line-height: 1.65; margin-top: 26px; padding-top: 26px; border-top: 1px solid var(--border); }
-  .addon-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; max-width: 860px; margin: 26px auto 0; }
-  .addon-card { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 17px 19px; }
-  .addon-card b { display: block; font-size: 13.5px; font-weight: 700; margin-bottom: 5px; }
-  .addon-card span { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+  .price-item span { font-size: 13.5px; color: var(--text); line-height: 1.5; }
+  .price-note { font-size: 13.5px; color: var(--text-muted); line-height: 1.65; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .roadmap-aside { max-width: 720px; margin: 18px auto 0; padding: 16px 20px; border: 1px dashed var(--border); border-radius: 14px; background: transparent; }
+  .roadmap-aside b { display: block; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .roadmap-aside span { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
 
   /* ---------- fit / about ---------- */
   .fit-section { border-top: 1px solid var(--border); }
@@ -338,7 +345,7 @@
     .module-grid { grid-template-columns: 1fr; gap: 36px; }
     .feature-grid { grid-template-columns: 1fr 1fr; }
     .price-list { grid-template-columns: 1fr; }
-    .addon-row { grid-template-columns: 1fr; }
+    .offer-row { grid-template-columns: 1fr; }
     .fit-grid { grid-template-columns: 1fr; gap: 32px; }
     .footer-grid { grid-template-columns: 1fr; gap: 28px; }
     section { padding: 60px 0; }
@@ -356,7 +363,7 @@
   .niche-tag:hover { background: var(--border); transform: none; }
   .value-icon, .module-point-icon, .feature-icon, .price-check { background: var(--surface-2); color: var(--text); border-color: transparent; }
   .feature-card:hover { border-color: var(--text-faint); }
-  .price-card { border-top: 1px solid var(--border); }
+  .price-card, .offer-card { border-top: 1px solid var(--border); }
   .btn-primary { background: var(--text); color: var(--bg); box-shadow: none; }
   .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -12px rgba(11,18,32,.5); }
   .hero-band .btn-primary, .cta-band .btn-primary { background: #fff; color: #0b1220; }
@@ -434,7 +441,7 @@
           Проверка соответствия требованиям
         </span>
         <h1>Проверьте, всё ли в порядке в вашем бизнесе</h1>
-        <p class="hero-p">Бесплатный тест по вашей нише показывает, каких документов и сроков не хватает — санитария, пожарная безопасность, персональные данные, права потребителей — и чем это грозит. Дальше помогаем закрыть: готовые документы и напоминания о сроках. Без запугивания и без обещаний, которые невозможно проверить.</p>
+        <p class="hero-p">Бесплатный тест по вашей нише показывает, каких документов и сроков не хватает — санитария, пожарная безопасность, персональные данные, права потребителей — и что закрыть в первую очередь. Дальше помогаем закрыть: готовые документы и напоминания о сроках. Без запугивания и без обещаний, которые невозможно проверить.</p>
         <div class="hero-cta-row">
           <a href="/lk/audit" class="btn btn-primary btn-lg">Пройти бесплатную диагностику <span class="btn-arrow">→</span></a>
           <a href="/lk/login?mode=register" class="btn btn-secondary btn-lg">Регистрация</a>
@@ -498,7 +505,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </span>
         <h3>Находит, что не в порядке</h3>
-        <p>Бесплатный тест по вашей нише — что именно не в порядке, без запугивания. Штрафы и план — в заключении.</p>
+        <p>Бесплатный тест по вашей нише — что именно не в порядке, без запугивания. Разбор и план — в заключении.</p>
       </div>
       <div class="value-card">
         <span class="value-icon">
@@ -564,7 +571,7 @@
       <div class="module-copy">
         <div class="eyebrow">Основной модуль</div>
         <h2>Безопасность</h2>
-        <p>Пройдите тест по своей нише — увидите индекс безопасности и список того, что не в порядке. Сколько может стоить штраф и что делать — в заключении или по подписке. Дальше — напоминания о ваших сроках и проверка сайта раз в 30 дней.</p>
+        <p>Пройдите тест по своей нише — увидите индекс безопасности и список того, что не в порядке. Что делать дальше — в заключении; сроки и напоминания — если останетесь в кабинете. Проверка сайта — раз в 30 дней.</p>
         <div class="module-points">
           <div class="module-point">
             <span class="module-point-icon">
@@ -687,29 +694,46 @@
   <section id="price" class="pricing-section">
     <div class="wrap">
       <div class="pricing-head">
-        <div class="eyebrow" style="text-align:center;">Тариф</div>
-        <h2>Один понятный тариф</h2>
-        <p>Сам тест и его результат — индекс безопасности, список нарушений — бесплатны без ограничений, это не меняется. Подписка — за то, что происходит дальше.</p>
+        <div class="eyebrow" style="text-align:center;">Сколько стоит</div>
+        <h2>Сначала тест. Потом — то, что нужно закрыть</h2>
+        <p>Бесплатный тест показывает, что не в порядке по вашей нише. Платите только если нужно понятное заключение и/или готовые документы под ваш бизнес — разово, без обязательной подписки.</p>
       </div>
-      <div class="price-card">
+      <div class="offer-row">
+        <div class="offer-card">
+          <b>Заключение по тесту</b>
+          <span class="offer-price">1&nbsp;990&nbsp;₽</span>
+          <span>Разово. PDF: что не в порядке, что закрыть в первую очередь, простым языком. Тест бесплатный; заключение — если хотите разбор с собой, без долгой жизни в кабинете.</span>
+        </div>
+        <div class="offer-card">
+          <b>Документы студии</b>
+          <span class="offer-price">4&nbsp;990&nbsp;₽</span>
+          <span>Разово, без автосписаний. Политика, согласия клиентов, оферта и связанные шаблоны — с данными вашего бизнеса. Останется проверить и подписать.</span>
+        </div>
+        <div class="offer-card">
+          <b>Заключение + документы</b>
+          <span class="offer-price">5&nbsp;990&nbsp;₽</span>
+          <span>Всё одним платежом: на 990&nbsp;₽ меньше, чем по отдельности. Удобно, если после теста сразу нужны и разбор, и пакет бумаг.</span>
+        </div>
+      </div>
+      <p class="offer-micro">Тест → заключение и/или документы. Подписка — только если захотите вести сроки дальше.</p>
+      <div class="price-card price-card--secondary">
+        <h3>Подписка — после пакета, по желанию</h3>
         <div class="price-top">
-          <div class="price-amount"><b>1990 ₽</b><span>/ месяц</span></div>
-          <span class="price-free-badge">Первый месяц бесплатно</span>
+          <div class="price-amount"><b>1&nbsp;990&nbsp;₽</b><span>/ месяц</span></div>
         </div>
+        <p class="price-lead">Напоминания о ваших сроках, обновления по документам и доступ к тому, что уже есть в кабинете. Имеет смысл, когда уже есть заключение или документы — не как первый шаг после теста.</p>
         <div class="price-list">
-          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>PDF-отчёт теста — со штрафами и планом устранения</span></div>
-          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>«Мои сроки» — персональные напоминания о датах</span></div>
-          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>Roadmap открытия бизнеса — если ещё не открылись</span></div>
-          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>ИИ-помощник, чек-листы, база знаний, роли</span></div>
-          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>Проверка сайта на риски 152-ФЗ — раз в 30 дней</span></div>
+          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>План по результатам теста и напоминания о сроках</span></div>
+          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>«Мои сроки» — даты, которые сами внесёте</span></div>
+          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>Чек-листы, база знаний, роли в кабинете</span></div>
+          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>Проверка сайта на риски по персональным данным — раз в 30 дней</span></div>
+          <div class="price-item"><span class="price-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><span>ИИ-помощник по вопросам требований (простыми словами)</span></div>
         </div>
-        <div class="price-note">Один пропущенный документ на реальной проверке обычно стоит дороже, чем несколько месяцев подписки.</div>
+        <div class="price-note">При регистрации первый месяц подписки — бесплатно. Проще закрыть документы и сроки по списку, чем вспоминать о них в последний момент.</div>
       </div>
-      <div class="addon-row">
-        <div class="addon-card"><b>Заключение по тесту — 1990 ₽</b><span>Без регистрации. Тест бесплатен, PDF — разово.</span></div>
-        <div class="addon-card"><b>Документы студии — 4990 ₽</b><span>Разово, без подписки. Политика конфиденциальности, согласия клиентов и договор-оферта — с данными вашего бизнеса.</span></div>
-        <div class="addon-card"><b>Заключение и документы — 5990 ₽</b><span>Всё вместе одним платежом — на 990 ₽ меньше, чем по отдельности.</span></div>
-        <div class="addon-card"><b>Roadmap открытия — 1490 ₽</b><span>Ещё не открылись? Персональный план: что оформить и в каком порядке.</span></div>
+      <div class="roadmap-aside">
+        <b>Roadmap открытия — 1&nbsp;490&nbsp;₽</b>
+        <span>Ещё не открылись? Персональный план: что оформить и в каком порядке. Отдельно от пакета для уже работающей студии.</span>
       </div>
     </div>
   </section>
