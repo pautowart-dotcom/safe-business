@@ -50,6 +50,33 @@ test('опоздание всегда срочно', async () => {
   assert.equal(r.handoff, 'urgent');
 });
 
+test('хочет пораньше — не шаблон опоздания', async () => {
+  const r = await ask('Я записана на 12:15 к Айте, можно подойти пораньше?', llmSays({ reply: 'Спасибо, что предупредили! Передал мастеру.', handoff: 'none', topic: 'опоздание', summary: '' }));
+  assert.equal(r.handoff, 'urgent');
+  assert.equal(r.topic, 'перенос');
+  assert.match(r.reply, /принять раньше/);
+  assert.doesNotMatch(r.reply, /Если поймёте, что удобнее перенести/);
+});
+
+test('подтверждение визита — коротко, без представления бота', async () => {
+  const noLlm = async () => { throw new Error('ИИ не должен вызываться'); };
+  const dikidi = [{ role: 'assistant', text: '[автосообщение Dikidi] Вы записаны… подтвердите визит' }];
+  for (const text of ['ок', 'Ок!', 'да', 'подтверждаю', 'завтра буду', 'Здравствуйте, подтверждаю']) {
+    const r = await brain.answer({ text, history: dikidi, config, kbText, llm: noLlm, now: DAY });
+    assert.equal(r.topic, 'подтверждение', text);
+    assert.equal(r.handoff, 'none', text);
+    assert.equal(r.reply, 'Спасибо за подтверждение! Ждём вас 🤍', text);
+    assert.doesNotMatch(r.reply, /бот-помощник|Администратор/, text);
+  }
+  // Явное «подтверждаю» — даже без Dikidi в истории.
+  const alone = await ask('подтверждаю', noLlm);
+  assert.equal(alone.topic, 'подтверждение');
+  assert.equal(alone.reply, 'Спасибо за подтверждение! Ждём вас 🤍');
+  // Голое «ок» без контекста записи — не подтверждение.
+  assert.equal(brain.templateAnswer('ок', 'в ближайшее время', []), null);
+  assert.equal(brain.templateAnswer('не буду', 'в ближайшее время', dikidi), null);
+});
+
 test('жалоба всегда срочно', async () => {
   const r = await ask('Покрытие отслоилось через два дня', llmSays({ reply: 'Мне жаль, передал администратору.', handoff: 'normal', topic: 'другое', summary: '' }));
   assert.equal(r.handoff, 'urgent');
