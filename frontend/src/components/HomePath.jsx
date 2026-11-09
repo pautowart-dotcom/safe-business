@@ -56,6 +56,23 @@ export function NextStepRow({ summary, navigate }) {
 
 // «Первые 3 дела» — пока не сделаны все три. Без индекса (тест не пройден)
 // первое дело — тест; ИНН — только если проверка по ИНН включена.
+// Разовая полка «бумаги» на главной (09.11.2026, этап B упрощения).
+// Ведёт в Безопасность → этап «Исправить» с якорем на шаблоны.
+export function PapersCard({ navigate }) {
+  return (
+    <Card
+      style={{ marginBottom: 14, cursor: 'pointer' }}
+      onClick={() => navigate('/security', { state: { dashboardTab: 'violations', openTemplates: true } })}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 2 }}>Готовые бумаги</div>
+      <div style={{ fontSize: 12.5, color: C.subtle, lineHeight: 1.45 }}>
+        Шаблоны под вашу студию — разовая покупка, без обязательной подписки.
+      </div>
+      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 800, color: C.primary }}>Открыть шаблоны →</div>
+    </Card>
+  );
+}
+
 export function FirstSteps({ summary, hasIndex, navigate }) {
   if (!summary) return null;
   const items = [

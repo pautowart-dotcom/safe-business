@@ -18,7 +18,7 @@ import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 import { isNewCohort } from '../utils/cohort.js';
 import { useUiConfig } from '../utils/useUiConfig.js';
-import { usePathSummary, withoutViolations, NextStepRow, FirstSteps } from '../components/HomePath.jsx';
+import { usePathSummary, withoutViolations, NextStepRow, FirstSteps, PapersCard } from '../components/HomePath.jsx';
 
 const ZONE_LABEL = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
@@ -48,6 +48,7 @@ function todayStr() {
 // (у них нет "срочности" по дате, но условие уже актуально), затем
 // остальное по возрастанию даты.
 const ACTIONS_CENTER_VISIBLE = 6;
+const ACTIONS_CENTER_SIMPLE = 3; // simpleHome: меньше шума на первом экране
 
 function buildActionsCenter(deadlines) {
   const today = todayStr();
@@ -156,6 +157,7 @@ function WatchFeedDashboard() {
 
   if (!feed) return <div className="page-loading">Загрузка...</div>;
 
+  const simpleHome = !!(ui?.simpleHome && isOwner);
   const attention = feed.status === 'attention';
   const today = todayStr();
   const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
@@ -167,26 +169,79 @@ function WatchFeedDashboard() {
   // «Нужно внимание: 41» — все нарушения теста — против «2 дела» в списке).
   const pathTop = ui?.homePath && isOwner && pathSummary?.next ? 1 : 0;
   const attentionShown = ui?.homePath && isOwner ? todo.length + pathTop : feed.attentionCount;
+  const nextLine = pathSummary?.next
+    ? `Следующий шаг — ${inSentence(pathSummary.next.title)}.`
+    : first ? `Ближайшее — ${inSentence(first.title)}, ${dueTag(first).text.toLowerCase()}.` : 'Мы следим за сроками и напомним заранее.';
 
   return (
     <div>
       <HomeHero
         indexPercent={indexPercent}
-        attention={attentionShown}
-        title={indexPercent == null && isOwner ? undefined : attention && attentionShown > 0 ? `Нужно внимание: ${attentionShown}` : 'Всё под контролем'}
-        line={first ? `Ближайшее — ${inSentence(first.title)}, ${dueTag(first).text.toLowerCase()}.` : 'Мы следим за сроками, законом и вашими проверками.'}
-        onClick={() => (isOwner ? navigate('/security', attention ? { state: { dashboardTab: 'violations' } } : undefined) : navigate('/deadlines'))}
+        attention={simpleHome ? (pathSummary?.open || attentionShown) : attentionShown}
+        title={indexPercent == null && isOwner ? undefined : attention && attentionShown > 0 ? `Нужно внимание: ${simpleHome && pathSummary?.open != null ? pathSummary.open : attentionShown}` : 'Всё под контролем'}
+        line={simpleHome ? nextLine : (first ? `Ближайшее — ${inSentence(first.title)}, ${dueTag(first).text.toLowerCase()}.` : 'Мы следим за сроками, законом и вашими проверками.')}
+        onClick={() => (isOwner ? navigate('/security', attention || pathSummary?.next ? { state: { dashboardTab: 'violations' } } : undefined) : navigate('/deadlines'))}
       />
       {ui?.firstSteps && isOwner && <FirstSteps summary={pathSummary} hasIndex={indexPercent != null} navigate={navigate} />}
-      <HomeQuick navigate={navigate} pathMode={!!ui?.homePath && isOwner} isOwner={isOwner} />
-      <TodoGroup items={todo} navigate={navigate} onOpen={setOpenItem} inOrderCount={0} isOwner={isOwner} topRow={ui?.homePath && isOwner ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null} topCount={pathTop} />
+      {!simpleHome && <HomeQuick navigate={navigate} pathMode={!!ui?.homePath && isOwner} isOwner={isOwner} />}
+      {simpleHome && isOwner && <PapersCard navigate={navigate} />}
+      <TodoGroup
+        items={todo}
+        navigate={navigate}
+        onOpen={setOpenItem}
+        inOrderCount={0}
+        isOwner={isOwner}
+        visibleLimit={simpleHome ? ACTIONS_CENTER_SIMPLE : ACTIONS_CENTER_VISIBLE}
+        topRow={ui?.homePath && isOwner ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null}
+        topCount={pathTop}
+      />
       <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} onSnoozed={(d, until) => setDeadlines((all) => all.map((x) => (x.id === d.id ? { ...x, snoozed_until: until } : x)))} />
 
-      <Group title="Что мы проверили">
-        {feed.items.length === 0 ? (
-          <Row icon="search" title="Пока нечего показать" subtitle="Здесь появятся сроки, проверки и изменения закона." />
-        ) : (
-          feed.items.map((item, i) => {
+      {simpleHome ? (
+        <WatchFeedCollapsed items={feed.items} navigate={navigate} />
+      ) : (
+        <Group title="Что мы проверили">
+          {feed.items.length === 0 ? (
+            <Row icon="search" title="Пока нечего показать" subtitle="Здесь появятся сроки, проверки и изменения закона." />
+          ) : (
+            feed.items.map((item, i) => {
+              const locked = item.kind === 'law_notice_locked';
+              return (
+                <Row
+                  key={i}
+                  icon={WATCH_FEED_ICON[item.kind] || 'doc'}
+                  tone={WATCH_FEED_TONE[item.kind] || 'gray'}
+                  title={item.title}
+                  subtitle={`${new Date(item.occurredAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} · ${item.text}`}
+                  tag={locked ? 'По подписке' : undefined}
+                  onClick={locked ? () => navigate('/ai-advisor') : item.url ? () => navigate(item.url) : undefined}
+                />
+              );
+            })
+          )}
+        </Group>
+      )}
+    </div>
+  );
+}
+
+// Лента законов спрятана за одной строкой (09.11.2026, simpleHome).
+function WatchFeedCollapsed({ items, navigate }) {
+  const [open, setOpen] = useState(false);
+  if (!items?.length) return null;
+  return (
+    <Group title="Новости закона">
+      {!open ? (
+        <Row
+          icon="book"
+          title={`Показать ленту (${items.length})`}
+          subtitle="Проверки и изменения — по желанию, не мешают шагам"
+          onClick={() => setOpen(true)}
+        />
+      ) : (
+        <>
+          <Row icon="book" title="Свернуть ленту" onClick={() => setOpen(false)} />
+          {items.map((item, i) => {
             const locked = item.kind === 'law_notice_locked';
             return (
               <Row
@@ -199,10 +254,10 @@ function WatchFeedDashboard() {
                 onClick={locked ? () => navigate('/ai-advisor') : item.url ? () => navigate(item.url) : undefined}
               />
             );
-          })
-        )}
-      </Group>
-    </div>
+          })}
+        </>
+      )}
+    </Group>
   );
 }
 
@@ -385,6 +440,7 @@ function OwnerDashboard() {
   const notSnoozed = (d) => !(d.snoozed_until && d.snoozed_until > today);
   const todoAll = [...overdueOrNoDate, ...upcoming, ...(aiAdvisorAction ? [aiAdvisorAction] : [])].filter(notSnoozed);
   const todoItems = ui?.homePath ? withoutViolations(todoAll) : todoAll;
+  const simpleHome = !!ui?.simpleHome;
 
   // 24.08.2026: владелец прислал референсы (YooKassa/Яндекс Почта) — у
   // настоящих десктопных приложений часто есть третья, правая колонка с
@@ -414,18 +470,21 @@ function OwnerDashboard() {
         <>
           <HomeHero
             indexPercent={security?.indexPercent}
-            attention={criticalCount}
+            attention={simpleHome && pathSummary?.open != null ? pathSummary.open : criticalCount}
             line={
-              criticalCount > 0
-                ? `Самое срочное — ${subscriptionProblem ? 'оплата подписки' : inSentence(overdueOrNoDate[0]?.title)}.`
-                : nextUpcoming
-                  ? `Ближайший срок — ${inSentence(nextUpcoming.title)}, ${dueTag(nextUpcoming).text.toLowerCase()}.`
-                  : 'Сроки в порядке. Мы напомним заранее.'
+              simpleHome && pathSummary?.next
+                ? `Следующий шаг — ${inSentence(pathSummary.next.title)}.`
+                : criticalCount > 0
+                  ? `Самое срочное — ${subscriptionProblem ? 'оплата подписки' : inSentence(overdueOrNoDate[0]?.title)}.`
+                  : nextUpcoming
+                    ? `Ближайший срок — ${inSentence(nextUpcoming.title)}, ${dueTag(nextUpcoming).text.toLowerCase()}.`
+                    : 'Сроки в порядке. Мы напомним заранее.'
             }
-            onClick={() => navigate('/security')}
+            onClick={() => navigate('/security', { state: { dashboardTab: 'violations' } })}
           />
           {ui?.firstSteps && <FirstSteps summary={pathSummary} hasIndex={security?.indexPercent != null} navigate={navigate} />}
-          <HomeQuick navigate={navigate} pathMode={!!ui?.homePath} />
+          {!simpleHome && <HomeQuick navigate={navigate} pathMode={!!ui?.homePath} />}
+          {simpleHome && <PapersCard navigate={navigate} />}
           <TodoGroup
             topRow={ui?.homePath ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null}
             topCount={ui?.homePath && pathSummary?.next ? 1 : 0}
@@ -434,6 +493,7 @@ function OwnerDashboard() {
             navigate={navigate}
             onOpen={setOpenItem}
             inOrderCount={inOrderCount}
+            visibleLimit={simpleHome ? ACTIONS_CENTER_SIMPLE : ACTIONS_CENTER_VISIBLE}
           />
           <DeadlineSheet item={openItem} onClose={() => setOpenItem(null)} onDone={(d) => setDeadlines((all) => all.filter((x) => x.id !== d.id))} onSnoozed={(d, until) => setDeadlines((all) => all.map((x) => (x.id === d.id ? { ...x, snoozed_until: until } : x)))} />
         </>
@@ -718,8 +778,8 @@ function HomeQuick({ navigate, pathMode, isOwner = true }) {
 
 // «Что сделать»: строки как в «Настройках», тап — шторка срока.
 // topRow/topCount (26.10.2026) — строка «Следующий шаг» пути над сроками.
-function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount, topRow = null, topCount = 0, isOwner = true }) {
-  const visible = items.slice(0, ACTIONS_CENTER_VISIBLE);
+function TodoGroup({ items, subscriptionProblem, navigate, onOpen, inOrderCount, topRow = null, topCount = 0, isOwner = true, visibleLimit = ACTIONS_CENTER_VISIBLE }) {
+  const visible = items.slice(0, visibleLimit);
   const total = items.length + (subscriptionProblem ? 1 : 0) + topCount;
   if (total === 0) {
     return (

@@ -308,7 +308,11 @@ export default function Security() {
   // После ЮKassa returnUrl уже `/security?addonPayment=done` (addons.routes.js);
   // раньше фронт параметр не читал — документы оставались под списком шагов
   // (docs/post-pay-documents-on-table-2026-11-08.md, вариант A).
-  const [focusPaidTemplates] = useState(() => new URLSearchParams(location.search).get('addonPayment') === 'done');
+  // openTemplates — с главной «Готовые бумаги» (09.11.2026); addonPayment — после оплаты.
+  const [focusPaidTemplates] = useState(() => (
+    new URLSearchParams(location.search).get('addonPayment') === 'done'
+    || !!location.state?.openTemplates
+  ));
   useEffect(() => {
     api.get('/platform/ui-config', { silent: true }).then(({ data }) => setPathUi(!!data.securityPath)).catch(() => setPathUi(false));
   }, []);
@@ -1079,21 +1083,23 @@ function SecurityPath({
       {stage === 2 && (
         <div>
           <ST>Исправить</ST>
-          {/* После оплаты пакет виден сразу; без покупки — как раньше: шаги сверху,
-              ссылка вниз к шаблонам (27.10.2026 / 08.11.2026 вариант A). */}
-          {!templatesPurchased && (
-            <button
-              type="button"
-              onClick={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })}
-              style={{ background: 'none', border: 'none', color: C.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '0 4px 10px', fontFamily: 'inherit' }}
-            >
-              Шаблоны документов ↓
-            </button>
-          )}
-          {templatesPurchased && (
+          {/* Шаблоны сверху этапа (09.11.2026): разовая полка видна сразу.
+              Купленный пакет — полный блок; иначе короткая карточка + якорь вниз. */}
+          {templatesPurchased ? (
             <div id="path-templates" style={{ marginBottom: 12 }}>
               <DocumentTemplatesCard isManagement={isManagement} onResolveViolation={onResolveViolation} onDocumentsChange={onDocumentsChange} />
             </div>
+          ) : (
+            <Card
+              style={{ marginBottom: 12, cursor: isManagement ? 'pointer' : 'default' }}
+              onClick={isManagement ? () => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' }) : undefined}
+            >
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Шаблоны документов</div>
+              <div style={{ fontSize: 12.5, color: C.subtle, lineHeight: 1.45 }}>
+                Оферта, согласия и другие бумаги под вашу студию. Разовая покупка — без обязательной подписки.
+              </div>
+              {isManagement && <div style={{ marginTop: 10, fontSize: 13, fontWeight: 800, color: C.primary }}>Смотреть и купить ↓</div>}
+            </Card>
           )}
           {hasResult ? (
             <ViolationsTab violations={violations} indexPercent={index} isManagement={isManagement} onResolve={onResolveViolation} onDocumentsChange={onDocumentsChange} openRequest={openStep} onGoToTemplates={() => document.getElementById('path-templates')?.scrollIntoView({ behavior: 'smooth' })} />

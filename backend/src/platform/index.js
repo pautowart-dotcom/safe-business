@@ -97,11 +97,15 @@ platformRouter.use('/outside-watch', outsideWatchRoutes);
 // «Что сделать» (HOME_PATH_UI=false — как было). firstSteps — «Первые 3
 // дела» на главной вместо слайдов при первом входе (FIRST_STEPS_UI=false —
 // снова слайды).
+// simpleHome (09.11.2026) — сжатая главная: следующий шаг + бумаги, без
+// сетки Quick и без ленты «Что мы проверили» на первом экране.
+// SIMPLE_HOME_UI=true включает; по умолчанию выкл. (откат = убрать флаг).
 platformRouter.get('/ui-config', (req, res) => {
   res.json({
     securityPath: process.env.SECURITY_PATH_UI !== 'false',
     homePath: process.env.HOME_PATH_UI !== 'false',
     firstSteps: process.env.FIRST_STEPS_UI !== 'false',
+    simpleHome: process.env.SIMPLE_HOME_UI === 'true',
   });
 });
 
