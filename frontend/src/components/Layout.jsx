@@ -312,9 +312,9 @@ export default function Layout() {
     nav.find((n) => n.to === '/more'),
   ].filter(Boolean);
   const isHome = location.pathname === '/';
-  // Витрина закрытия ситуаций (10.11.2026): на / и /cases не всплывает чат ИИ.
-  const hideAssistant = !!(uiConfig?.simpleHome && isOwner && (isHome || location.pathname.startsWith('/cases')));
-  const homeTitle = uiConfig?.simpleHome ? 'Ситуации' : 'Главная';
+  // На /cases не всплывает чат ИИ (каталог ситуаций, 10–11.11.2026).
+  const hideAssistant = !!(isOwner && location.pathname.startsWith('/cases'));
+  const homeTitle = 'Главная';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));
   const initial = user?.name?.[0]?.toUpperCase() || '?';
   // Разделы, открываемые только из "Ещё" (нет вкладки в нижнем меню, роль-
