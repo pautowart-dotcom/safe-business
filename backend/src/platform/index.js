@@ -99,13 +99,13 @@ platformRouter.use('/outside-watch', outsideWatchRoutes);
 // снова слайды).
 // simpleHome (09.11.2026) — сжатая главная: следующий шаг + бумаги, без
 // сетки Quick и без ленты «Что мы проверили» на первом экране.
-// SIMPLE_HOME_UI=true включает; по умолчанию выкл. (откат = убрать флаг).
+// По умолчанию вкл. (спринт упрощения). Откат: SIMPLE_HOME_UI=false.
 platformRouter.get('/ui-config', (req, res) => {
   res.json({
     securityPath: process.env.SECURITY_PATH_UI !== 'false',
     homePath: process.env.HOME_PATH_UI !== 'false',
     firstSteps: process.env.FIRST_STEPS_UI !== 'false',
-    simpleHome: process.env.SIMPLE_HOME_UI === 'true',
+    simpleHome: process.env.SIMPLE_HOME_UI !== 'false',
   });
 });
 

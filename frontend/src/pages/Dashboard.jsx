@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePullToRefresh } from '../context/PullToRefreshContext.jsx';
@@ -18,7 +18,8 @@ import { localDateStr } from '../utils/localDate.js';
 import { buildRecommendations } from '../utils/dashboardRecommendations.js';
 import { isNewCohort } from '../utils/cohort.js';
 import { useUiConfig } from '../utils/useUiConfig.js';
-import { usePathSummary, withoutViolations, NextStepRow, FirstSteps, PapersCard } from '../components/HomePath.jsx';
+import { usePathSummary, withoutViolations, NextStepRow, FirstSteps, PapersCard, CasesCard } from '../components/HomePath.jsx';
+import CaseGuide from './CaseGuide.jsx';
 
 const ZONE_LABEL = { green: 'Почти готовы к проверке', yellow: 'На полпути', red: 'Начало пути' }; // словарь 26.10.2026
 const ZONE_COLOR = { green: C.green, yellow: C.orange, red: C.red };
@@ -131,6 +132,7 @@ const WATCH_FEED_TONE = { deadline: 'orange', law_check: 'gray', website_check: 
 
 function WatchFeedDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isOwner } = useAuth();
   const [feed, setFeed] = useState(null);
   const [indexPercent, setIndexPercent] = useState(null);
@@ -139,6 +141,9 @@ function WatchFeedDashboard() {
   // Путь на главной (26.10.2026, components/HomePath.jsx).
   const ui = useUiConfig();
   const pathSummary = usePathSummary(isOwner && !!(ui?.homePath || ui?.firstSteps));
+  const simpleHome = !!(ui?.simpleHome && isOwner);
+  // Витрина закрытия ситуаций — главный вход (10.11.2026). Кабинет — ?cabinet=1.
+  const showSituationsHome = simpleHome && searchParams.get('cabinet') !== '1';
 
   function load() {
     return Promise.all([
@@ -150,14 +155,18 @@ function WatchFeedDashboard() {
   }
 
   useEffect(() => {
+    if (showSituationsHome) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  usePullToRefresh(load);
+  }, [showSituationsHome]);
+  usePullToRefresh(showSituationsHome ? null : load);
+
+  if (showSituationsHome) {
+    return <CaseGuide asHome />;
+  }
 
   if (!feed) return <div className="page-loading">Загрузка...</div>;
 
-  const simpleHome = !!(ui?.simpleHome && isOwner);
   const attention = feed.status === 'attention';
   const today = todayStr();
   const in30 = localDateStr(new Date(Date.now() + 30 * 86400000));
@@ -184,6 +193,7 @@ function WatchFeedDashboard() {
       />
       {ui?.firstSteps && isOwner && <FirstSteps summary={pathSummary} hasIndex={indexPercent != null} navigate={navigate} />}
       {!simpleHome && <HomeQuick navigate={navigate} pathMode={!!ui?.homePath && isOwner} isOwner={isOwner} />}
+      {simpleHome && isOwner && <CasesCard navigate={navigate} />}
       {simpleHome && isOwner && <PapersCard navigate={navigate} />}
       <TodoGroup
         items={todo}
@@ -324,6 +334,7 @@ function StatRow({ revenueLabel, revenue, reportsDone, reportsTotal, criticalCou
 function OwnerDashboard() {
   const { currentCompany } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isDesktop = useIsDesktop();
   const [summary, setSummary] = useState(null);
   const [revenue, setRevenue] = useState(0);
@@ -337,6 +348,7 @@ function OwnerDashboard() {
   // Путь на главной (26.10.2026, components/HomePath.jsx).
   const ui = useUiConfig();
   const pathSummary = usePathSummary(!!(ui?.homePath || ui?.firstSteps));
+  const situationsHome = !!(ui?.simpleHome && searchParams.get('cabinet') !== '1');
 
   function load() {
     setLoading(true);
@@ -372,9 +384,11 @@ function OwnerDashboard() {
   }
 
   useEffect(() => {
+    if (situationsHome) return;
     load();
-  }, []);
-  usePullToRefresh(load);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [situationsHome]);
+  usePullToRefresh(situationsHome ? null : load);
 
   async function addTask() {
     if (!newTask.trim()) return;
@@ -392,6 +406,9 @@ function OwnerDashboard() {
     setTasks(tasks.filter((x) => x.id !== id));
     await api.delete(`/platform/daily-tasks/${id}`);
   }
+
+  // Витрина ситуаций — главный вход (10.11.2026). Кабинет — ?cabinet=1.
+  if (situationsHome) return <CaseGuide asHome />;
 
   if (loading || !summary) return <div className="page-loading">Загрузка...</div>;
   if (isNewCohort(company)) return <WatchFeedDashboard />;
@@ -484,6 +501,7 @@ function OwnerDashboard() {
           />
           {ui?.firstSteps && <FirstSteps summary={pathSummary} hasIndex={security?.indexPercent != null} navigate={navigate} />}
           {!simpleHome && <HomeQuick navigate={navigate} pathMode={!!ui?.homePath} />}
+          {simpleHome && <CasesCard navigate={navigate} />}
           {simpleHome && <PapersCard navigate={navigate} />}
           <TodoGroup
             topRow={ui?.homePath ? <NextStepRow summary={pathSummary} navigate={navigate} /> : null}

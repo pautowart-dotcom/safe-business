@@ -113,9 +113,12 @@ router.post(
     const { rows: userRows } = await pool.query('SELECT is_guest, email FROM users WHERE id = $1', [req.user.id]);
     const isGuest = !!userRows[0]?.is_guest;
     let receiptEmail = req.user.email;
+    // returnTo=s1_episode — витрина закрытия ситуаций (10.11.2026), без подписки.
     const returnUrl = isGuest
       ? `${process.env.FRONTEND_URL}/audit?payment=done`
-      : `${process.env.FRONTEND_URL}/security?addonPayment=done`;
+      : req.body?.returnTo === 's1_episode'
+        ? `${process.env.FRONTEND_URL}/cases?b=s1&phase=episode&addonPayment=done`
+        : `${process.env.FRONTEND_URL}/security?addonPayment=done`;
 
     if (isGuest) {
       const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';

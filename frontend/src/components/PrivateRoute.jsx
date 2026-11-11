@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import SplashScreen from './SplashScreen.jsx';
 
@@ -11,6 +11,7 @@ import SplashScreen from './SplashScreen.jsx';
 // сразу уводил на главную — так же, как если бы пункта меню вовсе не было.
 export function PrivateRoute({ children, managementOnly = false, ownerOnly = false, requireModule = null }) {
   const { user, currentCompany, loading, isManagement, isOwner, hasModule } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <SplashScreen />;
@@ -18,8 +19,10 @@ export function PrivateRoute({ children, managementOnly = false, ownerOnly = fal
   // user без currentCompany — базовый токен есть, но компания ещё не выбрана
   // (например, при перезагрузке страницы на середине выбора). Отправляем на
   // /login — там это состояние отрисуется как выбор компании, не форма входа.
+  // from — чтобы после входа вернуться на /cases?b=s1 и т.п. (лендинг ситуаций).
   if (!user || !currentCompany) {
-    return <Navigate to="/login" replace />;
+    const from = `${location.pathname}${location.search || ''}`;
+    return <Navigate to="/login" replace state={{ from: from === '/login' ? '/' : from }} />;
   }
   if (ownerOnly && !isOwner) {
     return <Navigate to="/" replace />;

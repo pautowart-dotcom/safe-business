@@ -196,6 +196,7 @@ const TITLES = {
   '/shift': 'Чек-листы',
   '/knowledge': 'База знаний',
   '/security': 'Безопасность',
+  '/cases': 'Ситуации',
   '/outside': 'Проверка по ИНН',
   '/team': 'Команда',
   '/journals': 'Журналы',
@@ -311,6 +312,9 @@ export default function Layout() {
     nav.find((n) => n.to === '/more'),
   ].filter(Boolean);
   const isHome = location.pathname === '/';
+  // Витрина закрытия ситуаций (10.11.2026): на / и /cases не всплывает чат ИИ.
+  const hideAssistant = !!(uiConfig?.simpleHome && isOwner && (isHome || location.pathname.startsWith('/cases')));
+  const homeTitle = uiConfig?.simpleHome ? 'Ситуации' : 'Главная';
   const moreActive = hubPaths.some((p) => location.pathname.startsWith(p));
   const initial = user?.name?.[0]?.toUpperCase() || '?';
   // Разделы, открываемые только из "Ещё" (нет вкладки в нижнем меню, роль-
@@ -494,7 +498,7 @@ export default function Layout() {
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ height: 56, flexShrink: 0, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', gap: 20 }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: C.primary, flexShrink: 0 }}>{isHome ? 'Главная' : TITLES[location.pathname] || ''}</div>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: C.primary, flexShrink: 0 }}>{isHome ? homeTitle : (TITLES[location.pathname] || '')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <CommandPalette desktopNav={desktopNav} navigate={navigate} />
               {(isOwner || isManagement) && <NotificationsBell count={unreadNotifications} onClick={() => navigate('/notifications')} />}
@@ -507,7 +511,7 @@ export default function Layout() {
           </div>
         </div>
 
-        {isOwner && hasModule('ai-assistant') && <AiAssistantWidget />}
+        {isOwner && hasModule('ai-assistant') && !hideAssistant && <AiAssistantWidget />}
         <PaidFeatureSheet />
       </div>
     );
@@ -671,7 +675,7 @@ export default function Layout() {
       {/* Плавающий виджет ИИ-ассистента (20.08.2026) — та же граница, что
           раньше была у пункта меню/роута: owner-only + модуль ai-assistant
           включён для компании (company_modules). */}
-      {isOwner && hasModule('ai-assistant') && <AiAssistantWidget />}
+      {isOwner && hasModule('ai-assistant') && !hideAssistant && <AiAssistantWidget />}
         <PaidFeatureSheet />
     </div>
   );

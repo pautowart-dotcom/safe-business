@@ -466,7 +466,10 @@ export default function Login() {
     }
     // Ещё не открылись — сразу на чек-лист открытия, а не на тест.
     if (justCreatedCompany === 'preparing') return <Navigate to="/opening" replace />;
-    return <Navigate to={justCreatedCompany ? '/security' : (location.state?.from || '/')} replace />;
+    // from — только внутренний путь (/cases?b=s1), без //evil.com
+    const fromRaw = location.state?.from;
+    const fromSafe = typeof fromRaw === 'string' && /^\/(?!\/)/.test(fromRaw) ? fromRaw : '/';
+    return <Navigate to={justCreatedCompany ? '/security' : fromSafe} replace />;
   }
 
   // 18.10.2026: код уже принят, но компаний несколько (pendingCompanies) или

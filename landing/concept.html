@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Безопасный бизнес — концепт</title>
+<link rel="stylesheet" href="/fonts/manrope.css">
+<style>
+:root{--ink:#0b1220;--muted:#5b6577;--paper:#e7e9ed;--card:#fff;--surface:#f5f7fa;--line:#e3e7ee;--accent:#2563eb;--accent-soft:#eff6ff;--green:#16a34a;--shadow:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(15,27,45,.07),0 1px 2px rgba(15,27,45,.08),0 4px 10px -2px rgba(15,27,45,.1),0 12px 24px -8px rgba(15,27,45,.12)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font-family:Manrope,system-ui,sans-serif;line-height:1.5}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:auto;padding:0 32px}.nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.brand img{width:25px}.navlinks{display:flex;gap:26px;font-size:14px;font-weight:650;color:var(--muted)}.navright{display:flex;gap:12px;align-items:center}.btn{border:0;border-radius:12px;padding:12px 19px;font:inherit;font-size:14px;font-weight:750;cursor:pointer;background:var(--card);box-shadow:var(--shadow)}.btn-dark{background:var(--ink);color:white;box-shadow:0 2px 4px rgba(14,26,43,.2),0 8px 16px -6px rgba(14,26,43,.35)}.hero{padding:74px 0 86px;display:grid;grid-template-columns:1.12fr .88fr;gap:70px;align-items:center}.kicker{font-size:13px;font-weight:700;color:var(--accent)}h1{font-size:clamp(48px,6.8vw,82px);line-height:.98;letter-spacing:-.05em;margin:18px 0 26px;max-width:850px}.lead{font-size:20px;color:var(--muted);max-width:650px}.hero-actions{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap}.board{background:var(--card);color:var(--ink);border-radius:20px;padding:20px;box-shadow:var(--shadow)}.board-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.board-head small{color:var(--muted)}.score{background:var(--accent-soft);color:var(--ink);border-radius:14px;padding:16px;border:1px solid #dbeafe}.score b{font-size:34px;color:var(--accent)}.score span{display:block;font-size:12px;color:var(--muted)}.todo{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px;display:flex;justify-content:space-between;gap:12px}.todo strong{color:var(--accent);font-size:13px}.todo em{font-style:normal;color:var(--muted);font-size:12px}.section{padding:92px 0;border-top:1px solid rgba(15,27,45,.08)}.section-head{display:grid;grid-template-columns:.65fr 1.35fr;gap:50px;margin-bottom:40px}.section h2{font-size:clamp(34px,4vw,56px);line-height:1.04;letter-spacing:-.04em;margin:0}.section-head p{font-size:19px;color:var(--muted);margin:4px 0 0;max-width:680px}.paths{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.path{min-height:245px;padding:22px;border:0;border-radius:16px;background:var(--card);box-shadow:var(--shadow);display:flex;flex-direction:column;justify-content:space-between;transition:.2s}.path:hover{transform:translateY(-3px)}.num{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:800}.path h3{font-size:21px;line-height:1.15;margin:24px 0 8px}.path p{font-size:14px;color:var(--muted)}.arrow{font-size:22px;color:var(--accent)}.catalog{display:grid;grid-template-columns:1fr 1fr;gap:14px}.offer{background:var(--card);border:0;border-radius:16px;padding:24px;box-shadow:var(--shadow);display:grid;grid-template-columns:1fr auto;gap:20px}.offer h3{margin:0 0 8px;font-size:20px}.offer p{margin:0;color:var(--muted);font-size:14px}.price{font-weight:850;white-space:nowrap;font-family:ui-monospace,Consolas,monospace}.tag{display:inline-block;margin-top:18px;border-radius:6px;padding:5px 8px;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:750}.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.step{padding:24px;background:var(--card);border-radius:16px;box-shadow:var(--shadow)}.step b{font-size:18px}.step p{color:var(--muted);font-size:14px}.network{background:var(--ink);color:white;border-radius:20px;padding:46px;display:grid;grid-template-columns:1fr 1fr;gap:50px;box-shadow:var(--shadow)}.network h2{font-size:48px}.network p{color:#aab4c4}.network-list{display:grid;gap:10px}.network-item{background:#172033;border:1px solid #29354b;border-radius:14px;padding:15px 17px;display:flex;justify-content:space-between}.network-item span{color:#aab4c4;font-size:13px}.honest{display:grid;grid-template-columns:1fr 1fr;gap:14px}.honest>div{border-radius:16px;padding:24px;background:var(--card);box-shadow:var(--shadow)}.honest ul{padding-left:20px;color:var(--muted)}.cta{text-align:center;padding:110px 20px}.cta h2{font-size:clamp(42px,6vw,72px);max-width:850px;margin:0 auto 22px;line-height:1}.cta p{color:var(--muted);font-size:18px}.footer{border-top:1px solid rgba(15,27,45,.08);padding:32px 0 44px;display:flex;justify-content:space-between;color:var(--muted);font-size:13px}
+@media(max-width:850px){.wrap{padding:0 18px}.navlinks{display:none}.hero,.section-head,.network{grid-template-columns:1fr}.hero{padding-top:42px}.board{transform:none}.paths{grid-template-columns:1fr 1fr}.catalog,.honest{grid-template-columns:1fr}.network{padding:30px}.network h2{font-size:38px}.flow{grid-template-columns:1fr}.step{border-left:0;border-top:1px solid var(--line)}.step:first-child{border-top:0}}
+@media(max-width:520px){.paths{grid-template-columns:1fr}.navright>a:first-child{display:none}.hero h1{font-size:49px}.offer{grid-template-columns:1fr}.footer{flex-direction:column;gap:8px}}
+.network .btn{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <a class="brand" href="#"><img src="/brand/mark-on-light.svg" alt="">Безопасный бизнес</a>
+    <div class="navlinks"><a href="#solutions">Решения</a><a href="#how">Как работает</a><a href="#network">Франшизам</a></div>
+    <div class="navright"><a href="/lk/login">Войти</a><a class="btn btn-dark" href="/lk/audit">Проверить бизнес</a></div>
+  </nav>
+  <section class="hero">
+    <div>
+      <div class="kicker">Не подписка ради подписки</div>
+      <h1>Разберитесь, что оформить. Получите готовое решение.</h1>
+      <p class="lead">Документы, разборы и планы действий для малого бизнеса. Начните с бесплатной диагностики или выберите конкретную задачу.</p>
+      <div class="hero-actions"><a class="btn btn-dark" href="/lk/audit">Пройти диагностику →</a><a class="btn" href="#solutions">Выбрать решение</a></div>
+    </div>
+    <div class="board">
+      <div class="board-head"><b>Ваш порядок</b><small>пример результата</small></div>
+      <div class="score"><b>7 из 10</b><span>основных требований уже закрыто</span></div>
+      <div class="todo"><div><b>Политика обработки данных</b><br><em>Для формы записи на сайте</em></div><strong>Оформить →</strong></div>
+      <div class="todo"><div><b>Журнал инструктажей</b><br><em>Готов к печати</em></div><strong>Скачать</strong></div>
+      <div class="todo"><div><b>Огнетушитель</b><br><em>Проверить до 18 ноября</em></div><strong>14 дней</strong></div>
+    </div>
+  </section>
+</div>
+
+<main>
+  <section class="section" id="solutions"><div class="wrap">
+    <div class="section-head"><div class="kicker">С чего начать</div><div><h2>Выберите свою ситуацию</h2><p>Не нужно изучать весь сервис. Мы сразу ведём к решению той задачи, которая стоит перед вами сейчас.</p></div></div>
+    <div class="paths">
+      <a class="path" href="/lk/audit"><span class="num">01</span><div><h3>Уже работаю</h3><p>Проверить документы и понять, чего не хватает.</p></div><span class="arrow">↗</span></a>
+      <a class="path" href="/start.html"><span class="num">02</span><div><h3>Открываю бизнес</h3><p>Получить план оформления по шагам.</p></div><span class="arrow">↗</span></a>
+      <a class="path" href="/lk/notice-audit"><span class="num">03</span><div><h3>Получил предписание</h3><p>Разобрать бумагу и составить порядок действий.</p></div><span class="arrow">↗</span></a>
+      <a class="path" href="#network"><span class="num">04</span><div><h3>Управляю сетью</h3><p>Видеть состояние и открытия всех точек.</p></div><span class="arrow">↗</span></a>
+    </div>
+  </div></section>
+
+  <section class="section"><div class="wrap">
+    <div class="section-head"><div class="kicker">Готовые решения</div><div><h2>Платите за понятный результат</h2><p>Разовые продукты остаются доступными в кабинете. Там же хранятся результаты проверок и обновления по вашим задачам.</p></div></div>
+    <div class="catalog">
+      <a class="offer" href="/dokumenty/"><div><h3>Документы для сайта и клиентов</h3><p>Политика, согласия и оферта с реквизитами вашего бизнеса.</p><span class="tag">Разовая покупка</span></div><span class="price">4 990 ₽</span></a>
+      <a class="offer" href="/start.html"><div><h3>План открытия бизнеса</h3><p>Что оформить, в каком порядке и что подготовить до первого рабочего дня.</p><span class="tag">Разовая покупка</span></div><span class="price">1 490 ₽</span></a>
+      <a class="offer" href="/lk/notice-audit"><div><h3>Разбор предписания</h3><p>Загрузите документ и получите объяснение простыми словами.</p><span class="tag">Бесплатный разбор</span></div><span class="price">0 ₽</span></a>
+      <a class="offer" href="/lk/audit"><div><h3>Диагностика по вашей нише</h3><p>Индекс состояния и список того, что стоит проверить или оформить.</p><span class="tag">Без регистрации</span></div><span class="price">0 ₽</span></a>
+    </div>
+  </div></section>
+
+  <section class="section" id="how"><div class="wrap">
+    <div class="section-head"><div class="kicker">Как это работает</div><div><h2>От вопроса до готового действия</h2></div></div>
+    <div class="flow"><div class="step"><b>1. Опишите ситуацию</b><p>Выберите нишу и ответьте только на вопросы, которые относятся к вашему бизнесу.</p></div><div class="step"><b>2. Получите разбор</b><p>Видно, что уже в порядке, чего не хватает и почему это имеет значение.</p></div><div class="step"><b>3. Закройте задачу</b><p>Скачайте документ, выполните шаг или закажите подходящее разовое решение.</p></div></div>
+  </div></section>
+
+  <section class="section" id="network"><div class="wrap"><div class="network">
+    <div><div class="kicker" style="color:#7ca8ff">Сетям и франшизам</div><h2>Один пульт для всех точек</h2><p>Здесь постоянный контроль действительно нужен: сроки, открытия, общие задачи и отчёт по сети.</p><a class="btn" style="display:inline-block;margin-top:18px" href="/franchise.html">Посмотреть возможности →</a></div>
+    <div class="network-list"><div class="network-item"><div><b>Казань</b><br><span>всё в порядке</span></div><strong>91%</strong></div><div class="network-item"><div><b>Уфа</b><br><span>3 срока требуют внимания</span></div><strong>40%</strong></div><div class="network-item"><div><b>Пермь</b><br><span>готовится к открытию</span></div><strong>14 / 38</strong></div></div>
+  </div></div></section>
+
+  <section class="section"><div class="wrap"><div class="section-head"><div class="kicker">Честно о продукте</div><div><h2>Помогаем навести порядок, но не обещаем невозможного</h2></div></div><div class="honest"><div><h3>Что делаем</h3><ul><li>показываем применимые требования;</li><li>собираем понятный план действий;</li><li>готовим документы и журналы;</li><li>напоминаем о внесённых сроках.</li></ul></div><div><h3>Чего не делаем</h3><ul><li>не гарантируем отсутствие претензий;</li><li>не заменяем юриста в спорной ситуации;</li><li>не просим вести клиентов, визиты или финансы;</li><li>не прячем бесплатный результат за подпиской.</li></ul></div></div></div></section>
+
+  <section class="cta"><h2>Начните с вопроса, который уже есть</h2><p>Диагностика бесплатна и занимает около десяти минут.</p><a class="btn btn-dark" style="display:inline-block;margin-top:20px" href="/lk/audit">Проверить свой бизнес →</a></section>
+</main>
+
+<div class="wrap"><footer class="footer"><span>© Безопасный бизнес</span><span>Черновик 06.11 → рабочий лендинг: <a href="/">index.html</a> (11.11.2026)</span></footer></div>
+</body>
+</html>

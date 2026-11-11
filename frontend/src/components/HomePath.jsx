@@ -73,6 +73,22 @@ export function PapersCard({ navigate }) {
   );
 }
 
+// Вход в каталог веток (09.11.2026) — «что оформить», не ещё одно меню модулей.
+export function CasesCard({ navigate }) {
+  return (
+    <Card
+      style={{ marginBottom: 14, cursor: 'pointer' }}
+      onClick={() => navigate('/cases')}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 2 }}>Какую ситуацию закрыть?</div>
+      <div style={{ fontSize: 12.5, color: C.subtle, lineHeight: 1.45 }}>
+        План бесплатно → бумаги разово. Не кабинет «на каждый день».
+      </div>
+      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 800, color: C.primary }}>Открыть витрину →</div>
+    </Card>
+  );
+}
+
 export function FirstSteps({ summary, hasIndex, navigate }) {
   if (!summary) return null;
   const items = [

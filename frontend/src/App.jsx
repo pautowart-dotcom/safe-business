@@ -42,6 +42,7 @@ import MyPoints from './pages/MyPoints.jsx';
 import BusinessStatusTransition from './pages/BusinessStatusTransition.jsx';
 import PhotoReports from './pages/PhotoReports.jsx';
 import Help from './pages/Help.jsx';
+import CaseGuide from './pages/CaseGuide.jsx';
 import AiAdvisor from './pages/AiAdvisor.jsx';
 import AnonymousAudit from './pages/AnonymousAudit.jsx';
 import PublicLeadForm from './pages/PublicLeadForm.jsx';
@@ -82,6 +83,8 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
+        {/* Разбор ситуации / ветки S1+ (09.11.2026) — бесплатно, без ИИ */}
+        <Route path="cases" element={<CaseGuide />} />
         <Route
           path="clients"
           element={
