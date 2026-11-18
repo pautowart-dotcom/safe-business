@@ -65,18 +65,19 @@ function riskColor(risk) {
   return C.green;
 }
 
-// Превью найденного нарушения (24.08.2026, живой разбор воронки: "люди не
-// видят, что получают" — до этого коммита /modules/security/status уже
-// возвращал полный список нарушений с деталями, фронт их просто нигде не
-// показывал бесплатно). Название + уровень риска — настоящие, по ИХ тесту,
-// не обобщённый макет; штраф/норма/решение — самое ценное для владельца —
-// намеренно скрыты за блюром, это и есть граница бесплатного/платного.
-// 14.10.2026 (рилс: 36 дошли до результата, 1 оплата; владелец: "ощущение,
-// что обманываем, что пишем бесплатно") — обещали "карту нарушений
-// бесплатно", а показывали 2 названия из N. Теперь бесплатно весь список
-// названий (это и есть честная диагностика), платное — штраф, норма и план
-// по каждому, то есть заключение.
+// Список пунктов после теста (18.11.2026): названия без блюра. Дата — только
+// у медкнижки, огнетушителя и договоров, если такой пункт есть в списке.
+// Поле живёт на этом экране и в оплату не уходит.
+function dateFieldLabel(title) {
+  const t = String(title || '').toLowerCase();
+  if (t.includes('медкниж')) return 'Дата медкнижки, если она уже есть';
+  if (t.includes('огнетуш')) return 'Дата огнетушителя, если он уже есть';
+  if (t.includes('договор')) return 'Дата договора, если он уже есть';
+  return null;
+}
+
 function ViolationPreview({ violations }) {
+  const [dates, setDates] = useState({});
   if (!violations || violations.length === 0) return null;
   const sorted = [...violations].sort((a, b) => (b.risk || 0) - (a.risk || 0));
   return (
@@ -84,20 +85,28 @@ function ViolationPreview({ violations }) {
       <div style={{ fontSize: 13, fontWeight: 700, color: C.subtle, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
         Что нашли
       </div>
-      {sorted.map((v, i) => (
-        <div key={v.code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor(v.risk), flexShrink: 0 }} />
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{v.title}</div>
-        </div>
-      ))}
-      <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
-        <div style={{ filter: 'blur(5px)', userSelect: 'none', pointerEvents: 'none', fontSize: 12.5, color: C.secondary, lineHeight: 1.5, padding: '8px 10px', background: C.surface, borderRadius: 8 }}>
-          Штраф: размер и статья закона. Норма: на чём основано требование. Как исправить: пошаговый план с документами и сроками.
-        </div>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 8px', fontSize: 11.5, fontWeight: 700, color: C.subtle }}>
-          Штраф, норма закона и план решения по каждому пункту — в заключении
-        </div>
-      </div>
+      {sorted.map((v, i) => {
+        const dateLabel = dateFieldLabel(v.title);
+        return (
+          <div key={v.code} style={{ padding: '8px 0', borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor(v.risk), flexShrink: 0 }} />
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{v.title}</div>
+            </div>
+            {dateLabel && (
+              <label style={{ display: 'block', margin: '8px 0 2px 16px', fontSize: 12, color: C.secondary }}>
+                {dateLabel}
+                <input
+                  type="date"
+                  value={dates[v.code] || ''}
+                  onChange={(e) => setDates((prev) => ({ ...prev, [v.code]: e.target.value }))}
+                  style={{ display: 'block', marginTop: 4, font: 'inherit', fontSize: 14, padding: '6px 8px', border: `1px solid ${C.border}`, borderRadius: 8 }}
+                />
+              </label>
+            )}
+          </div>
+        );
+      })}
     </Card>
   );
 }
@@ -420,92 +429,12 @@ function TestStepList({ session, answers, setAnswer, onSubmit, submitting, error
   );
 }
 
-// Выбор покупки после теста (24.10.2026, решение владельца): одна карточка
-// вместо трёх отдельных — набор «заключение + документы» первым и выделен,
-// под ним заключение и документы по отдельности. Документы предлагаем, только
-// если среди найденного есть то, что закрывает пакет (inDocumentsPack из
-// /status). Проверка сайта отсюда убрана — она теперь только в подписке.
-// Цены документов и набора — с сервера (core/addons.js).
-function pointsLabel(n) {
-  if (n === 1) return 'Один пункт';
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} пункта`;
-  return `${n} пунктов`;
-}
-
+// 18.11.2026: на результате одна кнопка заключения. Файлы — строкой ниже,
+// только если пакет что-то закрывает. Цены документов — с сервера (core/addons.js).
 // Неразрывный пробел перед ₽ — иначе знак рубля переносится на новую строку
 // в длинной надписи кнопки (24.10.2026, скриншот владельца).
 function rub(n) {
   return `${n.toLocaleString('ru-RU')} ₽`;
-}
-
-function PlanOption({ selected, onSelect, title, price, badge, children }) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      style={{
-        display: 'block', width: '100%', textAlign: 'left', fontFamily: F, color: 'inherit', cursor: 'pointer',
-        background: selected ? C.surface : 'none',
-        border: `${selected ? 2 : 1}px solid ${selected ? C.primary : C.border}`,
-        borderRadius: 12, padding: selected ? '11px 13px' : '12px 14px', marginBottom: 10,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontSize: 15, fontWeight: 700 }}>{title}</span>
-        <span style={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{price}</span>
-      </div>
-      {badge && <div style={{ marginTop: 6 }}><Badge color={C.green} bg={C.greenBg}>{badge}</Badge></div>}
-      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 6 }}>{children}</div>
-    </button>
-  );
-}
-
-// docsAddon — запись document_templates из GET /platform/addons или null
-// (не загрузилось / уже куплено / закрывать нечего) — тогда только заключение.
-function PlanChoice({ plan, setPlan, docsAddon, covered, quote }) {
-  if (!docsAddon) {
-    return (
-      <>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Заключение — <PriceWithPromo baseRub={PRICE_RUB} planQuote={quote?.report} /></div>
-        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
-          PDF по каждому найденному нарушению: штраф и статья закона, на чём основано требование, план
-          устранения и список обязательных документов — пришлём на почту.
-        </div>
-      </>
-    );
-  }
-  const savingRub = PRICE_RUB + docsAddon.priceRub - docsAddon.bundleWithReportPriceRub;
-  return (
-    <div role="radiogroup" aria-label="Что оплатить" style={{ marginBottom: 4 }}>
-      <PlanOption
-        selected={plan === 'bundle'} onSelect={() => setPlan('bundle')}
-        title="Всё вместе" price={<PriceWithPromo baseRub={docsAddon.bundleWithReportPriceRub} planQuote={quote?.bundle} />}
-        badge={savingRub > 0 ? `Выгоднее на ${rub(savingRub)}` : null}
-      >
-        Заключение по каждому нарушению и готовые документы с данными вашего бизнеса.
-      </PlanOption>
-      <PlanOption selected={plan === 'report'} onSelect={() => setPlan('report')} title="Только заключение" price={<PriceWithPromo baseRub={PRICE_RUB} planQuote={quote?.report} />}>
-        PDF по каждому нарушению: штраф и статья закона, на чём основано требование, план устранения.
-      </PlanOption>
-      <PlanOption selected={plan === 'docs'} onSelect={() => setPlan('docs')} title="Только документы" price={<PriceWithPromo baseRub={docsAddon.priceRub} planQuote={quote?.docs} />}>
-        Готовые документы с данными вашего бизнеса — одна анкета в кабинете.
-      </PlanOption>
-      {plan !== 'report' && (
-        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, margin: '4px 0 12px' }}>
-          Документы закроют {pointsLabel(covered.length).toLowerCase()} из списка выше:
-          {covered.map((v) => (
-            <div key={v.code} style={{ padding: '3px 0', display: 'flex', gap: 8, color: C.primary }}>
-              <span style={{ color: C.subtle }}>—</span><span>{v.title}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // Поле промокода (09.10.2026; 24.10.2026 — на любой вариант, цена меняется
@@ -630,7 +559,7 @@ function ResultStep({
   result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
   onPay, paying, onClaimFree, claiming, claimed, error,
   promoInput, setPromoInput, promoQuote, promoError, promoChecking,
-  plan, setPlan, docsAddon, covered, innUsed,
+  docsAddon, innUsed,
 }) {
   const zone = result.zone;
   const payCardRef = useRef(null);
@@ -648,23 +577,17 @@ function ResultStep({
       if ((!email || !email.includes('@')) && emailRef.current) emailRef.current.focus({ preventScroll: true });
     }
   }
-  function handlePay() {
+  function handlePay(chosenPlan = 'report') {
     scrollToFormIfMissing();
-    onPay();
+    onPay(chosenPlan);
   }
   function handleClaim() {
     scrollToFormIfMissing();
     onClaimFree();
   }
 
-  const planQuote = promoQuote?.[plan];
-  const priceRub = planQuote?.finalRub != null ? planQuote.finalRub
-    : plan === 'bundle' ? docsAddon.bundleWithReportPriceRub
-    : plan === 'docs' ? docsAddon.priceRub
-    : PRICE_RUB;
-  const payLabel = plan === 'bundle' ? 'Оплатить всё вместе'
-    : plan === 'docs' ? 'Оплатить документы'
-    : 'Оплатить и получить заключение';
+  const reportQuote = promoQuote?.report;
+  const priceRub = reportQuote?.finalRub != null ? reportQuote.finalRub : PRICE_RUB;
 
   return (
     <div>
@@ -685,12 +608,25 @@ function ResultStep({
 
       <div ref={payCardRef}>
       <Card>
-        <PlanChoice plan={plan} setPlan={setPlan} docsAddon={docsAddon} covered={covered} quote={promoQuote} />
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Заключение — <PriceWithPromo baseRub={PRICE_RUB} planQuote={reportQuote} /></div>
+        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
+          PDF: что сделать по этим пунктам. Пришлём на почту.
+        </div>
+        {docsAddon && (
+          <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+            <button type="button" onClick={() => handlePay('docs')} disabled={paying} style={{ display: 'block', background: 'none', border: 'none', padding: 0, color: C.primary, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
+              Файлы по пунктам, которые можно скачать — <PriceWithPromo baseRub={docsAddon.priceRub} planQuote={promoQuote?.docs} />
+            </button>
+            <button type="button" onClick={() => handlePay('bundle')} disabled={paying} style={{ display: 'block', background: 'none', border: 'none', padding: 0, marginTop: 4, color: C.primary, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
+              Вместе с заключением — <PriceWithPromo baseRub={docsAddon.bundleWithReportPriceRub} planQuote={promoQuote?.bundle} />
+            </button>
+          </div>
+        )}
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
           Разовая оплата, без подписки. В подарок — месяц полного доступа к кабинету: план устранения списком
           дел и напоминания о сроках. Карту не сохраняем, ничего не спишется само.
         </div>
-        <AfterPaymentNote plan={docsAddon ? plan : 'report'} innUsed={innUsed} />
+        <AfterPaymentNote plan="report" innUsed={innUsed} />
         {/* Ссылка на уже существующий пример (backend/src/scripts/
             generateSampleReport.js, 13.08.2026) — 2 нарушения из 8 раскрыты
             полностью (штраф/статья/решение), остальные 6 честно заблокированы
@@ -726,14 +662,14 @@ function ResultStep({
           </>
         )}
         <PromoField
-          input={promoInput} setInput={setPromoInput} quote={promoQuote} planQuote={planQuote}
+          input={promoInput} setInput={setPromoInput} quote={promoQuote} planQuote={reportQuote}
           error={promoError} checking={promoChecking}
         />
         {error && <div className="alert alert-error">{error}</div>}
       </Card>
       </div>
       <StickyFooterButton onClick={handlePay} disabled={paying}>
-        {paying ? 'Переходим к оплате…' : `${payLabel} — ${rub(priceRub)}`}
+        {paying ? 'Переходим к оплате…' : `Получить заключение — ${rub(priceRub)}`}
       </StickyFooterButton>
       {/* 24.10.2026 (решение владельца): кто не купил — в приложение. Раньше
           здесь была мелкая серая ссылка «сохранить результат бесплатно» (из 21
@@ -924,8 +860,7 @@ function DoneStep() {
           оплаты письмо всё равно не пришло. */}
       <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
         Если письма нет дольше 10 минут — напишите в{' '}
-        <a href="https://t.me/safe_business_ru" target="_blank" rel="noreferrer">Телеграм</a> или{' '}
-        <a href="https://wa.me/message/6KDRP3KLEXT3I1" target="_blank" rel="noreferrer">WhatsApp</a>, разберёмся.
+        <a href="https://t.me/bez_biz_ru" target="_blank" rel="noreferrer">Телеграм</a>, разберёмся.
       </div>
     </Card>
   );
@@ -969,9 +904,7 @@ export default function AnonymousAudit() {
     guestApi.get('/platform/anonymous-audit/config').then(({ data }) => setContactGate(data.contactGate !== false)).catch(() => {});
   }, []);
 
-  // Что оплачивают с экрана результата (24.10.2026): 'bundle' | 'report' | 'docs'.
-  // Документы — только если пакет что-то закрывает и ещё не куплен.
-  const [plan, setPlan] = useState('report');
+  // Документы — строкой под заключением, только если пакет что-то закрывает и ещё не куплен.
   const [docsAddon, setDocsAddon] = useState(null);
   const covered = (result?.violations || []).filter((v) => v.inDocumentsPack && v.status !== 'resolved');
   useEffect(() => {
@@ -982,7 +915,6 @@ export default function AnonymousAudit() {
         const addon = res.data.find((a) => a.addonKey === 'document_templates');
         if (addon && !addon.purchased && addon.bundleWithReportPriceRub) {
           setDocsAddon(addon);
-          setPlan('bundle');
         }
       })
       .catch(() => {});
@@ -1099,9 +1031,9 @@ export default function AnonymousAudit() {
   const [promoInput, setPromoInput] = useState('');
   const { quote: promoQuote, error: promoError, checking: promoChecking } = usePromoQuote(guestApi, promoInput);
   // Код уходит в оплату, только если подошёл к выбранному варианту.
-  const promoCodeForPlan = promoQuote?.[docsAddon ? plan : 'report']?.finalRub != null ? promoQuote.code : null;
-
-  async function pay() {
+  async function pay(chosenPlan = 'report') {
+    const usePlan = docsAddon && (chosenPlan === 'docs' || chosenPlan === 'bundle') ? chosenPlan : 'report';
+    const promoCodeForPlan = promoQuote?.[usePlan]?.finalRub != null ? promoQuote.code : null;
     if (!email || !email.includes('@')) {
       setError('Укажите email');
       return;
@@ -1115,7 +1047,7 @@ export default function AnonymousAudit() {
     try {
       // Набор и документы — через чек-аут надстроек (addons.routes.js), набор
       // с привязкой отчёта; заключение отдельно — прежний разовый чек-аут.
-      const { data } = plan === 'report' || !docsAddon
+      const { data } = usePlan === 'report' || !docsAddon
         ? await guestApi.post('/platform/subscription/checkout-one-time', {
           reportId,
           email,
@@ -1127,7 +1059,7 @@ export default function AnonymousAudit() {
           email,
           acceptedTerms,
           analyticsConsent,
-          ...(plan === 'bundle' ? { withReportId: reportId } : {}),
+          ...(usePlan === 'bundle' ? { withReportId: reportId } : {}),
           ...(promoCodeForPlan ? { promoCode: promoCodeForPlan } : {}),
         });
       reachGoal('checkout_start');
@@ -1259,7 +1191,7 @@ export default function AnonymousAudit() {
           error={error}
           promoInput={promoInput} setPromoInput={setPromoInput} promoQuote={promoQuote}
           promoError={promoError} promoChecking={promoChecking}
-          plan={plan} setPlan={setPlan} docsAddon={docsAddon} covered={covered}
+          docsAddon={docsAddon}
           innUsed={!!prefill?.found}
         />
       )}

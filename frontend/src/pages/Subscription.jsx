@@ -162,8 +162,7 @@ export default function Subscription() {
               что-то пошло не так после оплаты (письмо не пришло и т.п.). */}
           <div style={{ marginTop: 8 }}>
             Если статус не меняется дольше пары минут — напишите в{' '}
-            <a href="https://t.me/safe_business_ru" target="_blank" rel="noreferrer">Телеграм</a> или{' '}
-            <a href="https://wa.me/message/6KDRP3KLEXT3I1" target="_blank" rel="noreferrer">WhatsApp</a>, разберёмся.
+            <a href="https://t.me/bez_biz_ru" target="_blank" rel="noreferrer">Телеграм</a>, разберёмся.
           </div>
         </div>
       )}
