@@ -7,6 +7,7 @@ const { requireRole } = require('../core/middleware/role');
 const { createPayment } = require('../core/yookassa');
 const { ADDON_CATALOG, getAddon, priceForCompany, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
 const { evaluatePromo, evaluateBundlePromo } = require('../core/promoCodes');
+const { findPartnerByCode, partnerOfferForCheckout, partnerSplit } = require('../core/partnerProgram');
 // Цена заключения — та же, что в subscription.routes.js (SUBSCRIPTION_PRICE_RUB).
 const REPORT_PRICE_RUB = 1990;
 const { sendPushToSuperAdmins } = require('../core/pushNotify');
@@ -160,6 +161,7 @@ router.post(
     // гарантирует, что это первая покупка. Считается от цены точки сети.
     // Набор (24.10.2026): код на отчёт или на документы, см. evaluateBundlePromo.
     let promoResult = null;
+    let partnerCode = req.params.addonKey === 'document_templates' ? req.body?.partnerCode : null;
     if (req.params.addonKey === 'document_templates' && req.body?.promoCode) {
       try {
         promoResult = bundleReportId
@@ -169,10 +171,21 @@ router.post(
           })
           : await evaluatePromo({ code: req.body.promoCode, companyId: req.tenant.companyId, appliesTo: 'templates', priceRub: basePriceRub });
       } catch (err) {
-        return res.status(err.status || 400).json({ error: err.message });
+        if (err.status && await findPartnerByCode(req.body.promoCode)) partnerCode = req.body.promoCode;
+        else return res.status(err.status || 400).json({ error: err.message });
       }
     }
-    const amountRub = promoResult ? promoResult.finalRub : bundleReportId ? REPORT_BUNDLE_PRICE_RUB : basePriceRub;
+    const partnerOffer = req.params.addonKey === 'document_templates'
+      ? await partnerOfferForCheckout({ code: partnerCode, userId: req.user.id, email: receiptEmail })
+      : null;
+    const split = partnerOffer
+      ? partnerSplit(
+        bundleReportId ? REPORT_BUNDLE_PRICE_RUB : basePriceRub,
+        promoResult ? 0 : partnerOffer.discountPercent,
+        promoResult ? promoResult.finalRub : null,
+      )
+      : null;
+    const amountRub = split ? split.payRub : promoResult ? promoResult.finalRub : bundleReportId ? REPORT_BUNDLE_PRICE_RUB : basePriceRub;
 
     const payment = await createPayment({
       amountRub,
@@ -183,10 +196,16 @@ router.post(
       receiptEmail,
     });
 
+    const partnerProfileId = partnerOffer?.id || null;
     await pool.query(
-      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status, promo_code_id, discount_rub, report_id)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7)`,
-      [req.tenant.companyId, req.params.addonKey, payment.id, amountRub, promoResult?.promo.id || null, promoResult?.discountRub || 0, bundleReportId]
+      `INSERT INTO addon_purchases (company_id, addon_key, yookassa_payment_id, amount_rub, status, promo_code_id, discount_rub, report_id, partner_profile_id, partner_share_rub)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9)`,
+      [
+        req.tenant.companyId, req.params.addonKey, payment.id, amountRub,
+        promoResult?.promo.id || null,
+        promoResult ? promoResult.discountRub : split ? (bundleReportId ? REPORT_BUNDLE_PRICE_RUB : basePriceRub) - split.payRub : 0,
+        bundleReportId, partnerProfileId, split ? split.shareRub : null,
+      ]
     );
 
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });

@@ -44,6 +44,8 @@ const monthlyCheckRoutes = require('./monthly-check.routes');
 const myPointsRoutes = require('./my-points.routes');
 const telegramWebhookRoutes = require('./telegram-webhook.routes');
 const outsideWatchRoutes = require('./outside-watch.routes');
+const partnerRoutes = require('./partner.routes');
+const adminPartnerRoutes = require('./admin-partners.routes');
 
 const platformRouter = express.Router();
 platformRouter.use('/companies', companiesRoutes);
@@ -89,6 +91,8 @@ platformRouter.use('/monthly-check', monthlyCheckRoutes);
 platformRouter.use('/my-points', myPointsRoutes);
 platformRouter.use('/telegram-webhook', telegramWebhookRoutes);
 platformRouter.use('/outside-watch', outsideWatchRoutes);
+platformRouter.use('/partner', partnerRoutes);
+platformRouter.use('/admin/partners', adminPartnerRoutes);
 
 // Переключатели вида кабинета (26.10.2026). securityPath — «Безопасность»
 // как путь из 4 этапов (Узнать → Исправить → Держать → Быть готовым, план

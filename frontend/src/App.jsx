@@ -3,6 +3,7 @@ import { PrivateRoute } from './components/PrivateRoute.jsx';
 import Layout from './components/Layout.jsx';
 import { PullToRefreshProvider } from './context/PullToRefreshContext.jsx';
 import Login from './pages/Login.jsx';
+import PartnerJoin from './pages/PartnerJoin.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import AcceptInvite from './pages/AcceptInvite.jsx';
@@ -48,11 +49,13 @@ import AnonymousAudit from './pages/AnonymousAudit.jsx';
 import PublicLeadForm from './pages/PublicLeadForm.jsx';
 import PublicAuditForm from './pages/PublicAuditForm.jsx';
 import YandexCardAudit from './pages/YandexCardAudit.jsx';
+import Partner from './pages/Partner.jsx';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/partner-join" element={<PartnerJoin />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/invite/:token" element={<AcceptInvite />} />
@@ -159,6 +162,14 @@ export default function App() {
         />
         <Route path="settings" element={<Settings />} />
         <Route path="subscription" element={<Subscription />} />
+        <Route
+          path="partner"
+          element={
+            <PrivateRoute ownerOnly>
+              <Partner />
+            </PrivateRoute>
+          }
+        />
         <Route path="support" element={<Support />} />
         <Route path="deadlines" element={<Deadlines />} />
         <Route path="notifications" element={<Notifications />} />

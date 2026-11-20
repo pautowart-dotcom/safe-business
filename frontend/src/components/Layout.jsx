@@ -148,7 +148,7 @@ const MASTER_NAV = [
 // '/journals' убран из всех трёх списков 05.08.2026 — раздел заморожен,
 // пункта меню больше нет (More.jsx), роут остался только как заглушка
 // "временно недоступно" для старых ссылок/закладок.
-const OWNER_HUB_PATHS = ['/leads', '/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/dossier'];
+const OWNER_HUB_PATHS = ['/leads', '/clients', '/visits', '/photo-reports', '/supplies', '/shift', '/knowledge', '/feedback', '/team', '/settings', '/dossier', '/partner'];
 // У администратора теперь свои прямые вкладки на /clients, /shift, /supplies
 // (ADMIN_NAV) — не дублируем их здесь, иначе "Ещё" подсвечивалась бы
 // активной одновременно со своей прямой вкладкой.
@@ -172,6 +172,7 @@ const HUB_ICONS = {
   '/team': 'team',
   '/settings': 'settings',
   '/dossier': 'doc',
+  '/partner': 'team',
 };
 // Те же ограничения по модулям, что и у More.jsx (OWNER_ITEMS) — на
 // десктопе пункты идут прямыми ссылками в сайдбаре, но видимость должна
@@ -204,6 +205,7 @@ const TITLES = {
   '/settings': 'Настройки',
   '/feedback': 'Обратная связь',
   '/subscription': 'Подписка',
+  '/partner': 'Партнёрская программа',
   '/support': 'Поддержка',
   '/deadlines': 'Все сроки',
   '/notifications': 'Уведомления',

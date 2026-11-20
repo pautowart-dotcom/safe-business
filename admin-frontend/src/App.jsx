@@ -17,6 +17,7 @@ import NormsRegistry from './pages/NormsRegistry.jsx';
 import RoadmapLeads from './pages/RoadmapLeads.jsx';
 import AiUnanswered from './pages/AiUnanswered.jsx';
 import PromoCodes from './pages/PromoCodes.jsx';
+import Partners from './pages/Partners.jsx';
 import Finance from './pages/Finance.jsx';
 import TestFeedback from './pages/TestFeedback.jsx';
 
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="finance" element={<Finance />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="promo-codes" element={<PromoCodes />} />
+        <Route path="partners" element={<Partners />} />
         <Route path="companies" element={<Companies />} />
         <Route path="companies/:id" element={<Companies />} />
         <Route path="roadmap-leads" element={<RoadmapLeads />} />

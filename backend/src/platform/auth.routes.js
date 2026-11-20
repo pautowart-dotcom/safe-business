@@ -816,3 +816,4 @@ router.delete(
 );
 
 module.exports = router;
+module.exports.loginOrRequireVerification = loginOrRequireVerification;

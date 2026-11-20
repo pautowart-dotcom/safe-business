@@ -54,6 +54,7 @@ const OWNER_ITEMS = [
   // — FAQ-текст встроен в Support.jsx, отдельного роута в меню больше нет
   // (сам /legal/faq остался в App.jsx, просто на него больше нет ссылки
   // из меню).
+  { label: 'Партнёрская программа', sub: 'Ваш код, сколько людей пришло и сколько начислено', icon: 'team', to: '/partner', group: 'account' },
   { label: 'Поддержка', sub: 'Вопросы и ответы, написать разработчику', icon: 'help', to: '/support', group: 'account' },
   // "Как пользоваться" и "Подробная справка" были двумя разными пунктами
   // (12.08.2026) — модалка-слайдшоу и отдельная страница /help. Объединены
@@ -97,7 +98,7 @@ function OwnerMore() {
     ...OWNER_ITEMS,
   ]
     .filter((i) => !i.moduleKey || hasModule(i.moduleKey))
-    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/ai-advisor'));
+    .filter((i) => isOwner || (i.to !== '/security' && i.to !== '/ai-advisor' && i.to !== '/partner'));
 
   return (
     <div>

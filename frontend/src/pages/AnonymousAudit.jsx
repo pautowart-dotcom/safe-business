@@ -9,6 +9,7 @@ import { ConsentPair } from '../ui/LegalConsents.jsx';
 import { reachGoal } from '../utils/metrika.js';
 import { OutsideFindingsList } from '../components/OutsideFindings.jsx';
 import { usePromoQuote } from '../utils/usePromoQuote.js';
+import { partnerCodeForCheckout } from '../utils/partnerRef.js';
 
 // Разовый аудит без регистрации (19.08.2026, п.5 плана, переделано по явному
 // уточнению владельца) — публичная страница, НЕ обёрнута в PrivateRoute/
@@ -468,8 +469,14 @@ function PromoField({ input, setInput, quote, planQuote, error, checking }) {
       {checking && <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Проверяем…</div>}
       {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
       {quote && planQuote?.error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{planQuote.error}</div>}
-      {quote && planQuote?.finalRub != null && (
+      {quote && !quote.partner && planQuote?.finalRub != null && (
         <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 }}>Промокод {quote.code} применён — цена выше уже со скидкой</div>
+      )}
+      {quote?.partner && quote.discountPercent > 0 && (
+        <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 }}>Скидка {quote.discountPercent}% — цена выше уже с ней</div>
+      )}
+      {quote?.partner && !quote.discountPercent && (
+        <div style={{ fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 }}>Код {quote.code} засчитан партнёру. Скидки нет.</div>
       )}
     </div>
   );
@@ -557,9 +564,9 @@ function TopRisks({ top }) {
 function ResultStep({
   topRisks,
   result, email, setEmail, acceptedTerms, setAcceptedTerms, analyticsConsent, setAnalyticsConsent,
-  onPay, paying, onClaimFree, claiming, claimed, error,
+  onPay, paying, claimed, error,
   promoInput, setPromoInput, promoQuote, promoError, promoChecking,
-  docsAddon, innUsed,
+  docsAddon,
 }) {
   const zone = result.zone;
   const payCardRef = useRef(null);
@@ -580,10 +587,6 @@ function ResultStep({
   function handlePay(chosenPlan = 'report') {
     scrollToFormIfMissing();
     onPay(chosenPlan);
-  }
-  function handleClaim() {
-    scrollToFormIfMissing();
-    onClaimFree();
   }
 
   const reportQuote = promoQuote?.report;
@@ -615,18 +618,19 @@ function ResultStep({
         {docsAddon && (
           <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
             <button type="button" onClick={() => handlePay('docs')} disabled={paying} style={{ display: 'block', background: 'none', border: 'none', padding: 0, color: C.primary, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
-              Файлы по пунктам, которые можно скачать — <PriceWithPromo baseRub={docsAddon.priceRub} planQuote={promoQuote?.docs} />
+              Файлы по пунктам — <PriceWithPromo baseRub={docsAddon.priceRub} planQuote={promoQuote?.docs} />
             </button>
             <button type="button" onClick={() => handlePay('bundle')} disabled={paying} style={{ display: 'block', background: 'none', border: 'none', padding: 0, marginTop: 4, color: C.primary, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
               Вместе с заключением — <PriceWithPromo baseRub={docsAddon.bundleWithReportPriceRub} planQuote={promoQuote?.bundle} />
             </button>
+            <div style={{ color: C.secondary, marginTop: 6 }}>
+              Заключение приходит на почту сразу. Файлы документов сами не собираются: в письме будет, каких реквизитов не хватает.
+            </div>
           </div>
         )}
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 14, lineHeight: 1.5 }}>
-          Разовая оплата, без подписки. В подарок — месяц полного доступа к кабинету: план устранения списком
-          дел и напоминания о сроках. Карту не сохраняем, ничего не спишется само.
+          Разовая оплата. Файл придёт на почту. Подписка не подключается, кабинет для этой покупки не нужен.
         </div>
-        <AfterPaymentNote plan="report" innUsed={innUsed} />
         {/* Ссылка на уже существующий пример (backend/src/scripts/
             generateSampleReport.js, 13.08.2026) — 2 нарушения из 8 раскрыты
             полностью (штраф/статья/решение), остальные 6 честно заблокированы
@@ -671,47 +675,6 @@ function ResultStep({
       <StickyFooterButton onClick={handlePay} disabled={paying}>
         {paying ? 'Переходим к оплате…' : `Получить заключение — ${rub(priceRub)}`}
       </StickyFooterButton>
-      {/* 24.10.2026 (решение владельца): кто не купил — в приложение. Раньше
-          здесь была мелкая серая ссылка «сохранить результат бесплатно» (из 21
-          после деплоя 14.10 — 0 нажатий) и выше карточка «впишите дату ЭЦП»
-          (0 из 142). Теперь отдельная карточка: claim (почта и согласие из
-          формы выше), сразу за ним — пароль и вход, без похода в почту. */}
-      <Card style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Не готовы платить — откройте приложение бесплатно</div>
-        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
-          Результат теста уже внутри, проходить заново не нужно. Месяц полного доступа без карты: список дел по
-          найденному, «Мои сроки» с напоминаниями. {claimed ? 'Почта уже есть — осталось придумать пароль.' : 'Нужна только почта из формы выше и пароль.'}
-        </div>
-        {claimed ? (
-          <SetPasswordForm email={email} />
-        ) : (
-          <Btn small variant="secondary" onClick={handleClaim} disabled={claiming}>
-            {claiming ? 'Отправляем…' : 'Открыть приложение бесплатно'}
-          </Btn>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-// Что будет после оплаты — до оплаты (24.10.2026, владелец: путь длиннее
-// прежнего «пришлём на почту», предупредить заранее и объяснить, что анкета
-// заполнится за человека). innUsed — указал ИНН в начале теста: реквизиты из
-// реестра уже лежат в анкете документов (outside-watch/service.js).
-function AfterPaymentNote({ plan, innUsed }) {
-  const docs = plan !== 'report';
-  return (
-    <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 14, padding: '10px 12px', borderRadius: 10, background: C.surface }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>Что будет после оплаты</div>
-      <div style={{ color: C.secondary }}>
-        Вернётесь на эту страницу, придумаете пароль — и сразу откроется кабинет.
-        {docs
-          ? innUsed
-            ? ' Документы собираются из одной анкеты: название и реквизиты по вашему ИНН уже подставлены, останется ответить на несколько вопросов про ваш бизнес.'
-            : ' Документы собираются из одной анкеты: реквизиты вводятся один раз — сразу на все документы.'
-          : ' Там план устранения по каждому нарушению.'}
-        {plan !== 'docs' && ' Заключение в PDF придёт и на почту.'}
-      </div>
     </div>
   );
 }
@@ -738,61 +701,10 @@ function restoreGuestToken() {
   }
 }
 
-// Пароль прямо здесь → обычная сессия приложения (тот же localStorage, что у
-// входа, context/AuthContext.jsx applyAuthResult) → кабинет. Это осознанный
-// вход: если в браузере была другая сессия, она заменится, как при логине.
-// goToPaidTemplates — после оплаты пакета документов: Security.jsx читает
-// ?addonPayment=done и сразу показывает шаблоны (docs/post-pay-documents-on-table-2026-11-08.md).
-// Бесплатный claim и оплата только заключения — без query, как раньше.
-function SetPasswordForm({ email, goToPaidTemplates }) {
-  const [password, setPassword] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  async function save() {
-    if (password.length < 8) {
-      setError('Пароль должен быть не короче 8 символов');
-      return;
-    }
-    setError('');
-    setSaving(true);
-    try {
-      const { data } = await guestApi.post('/platform/anonymous-audit/set-password', { password });
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('deviceToken', data.deviceToken);
-      localStorage.removeItem('currentCompany');
-      try { sessionStorage.removeItem(GUEST_TOKEN_KEY); } catch { /* не критично */ }
-      const cabinet = goToPaidTemplates
-        ? `${import.meta.env.BASE_URL}security?addonPayment=done`
-        : `${import.meta.env.BASE_URL}security`;
-      window.location.href = cabinet;
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не получилось — попробуйте ещё раз');
-      setSaving(false);
-    }
-  }
-
-  return (
-    <>
-      <Field label={email ? `Придумайте пароль — вход по почте ${email}` : 'Придумайте пароль'}>
-        <TextInput
-          type="password" autoComplete="new-password" value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
-        />
-      </Field>
-      {error && <div className="alert alert-error">{error}</div>}
-      <Btn small onClick={save} disabled={saving}>{saving ? 'Входим…' : 'Войти в кабинет'}</Btn>
-    </>
-  );
-}
-
 // Возврат со страницы оплаты ЮKassa (returnUrl '/audit?payment=done' для
 // гостей). Вебхук асинхронный — спрашиваем сервер раз в 3 секунды, пока
-// оплата не подтвердится (до 3 минут), и сразу предлагаем пароль. Нет
-// гостевого токена (другая вкладка, приватный режим) или не дождались —
-// прежний текст: письмо со ссылкой придёт на почту.
+// оплата не подтвердится (до 3 минут). Файл уходит на почту. Нет гостевого
+// токена — тот же текст про письмо.
 function DoneStep() {
   const [state, setState] = useState(() => (restoreGuestToken() ? 'waiting' : 'email')); // waiting | paid | email
   const [email, setEmail] = useState('');
@@ -827,11 +739,12 @@ function DoneStep() {
       <Card>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Оплата прошла</div>
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginBottom: 14 }}>
-          Придумайте пароль — и сразу откроется кабинет: план устранения списком дел, месяц полного доступа в
-          подарок{docsPurchased ? ' и ваши документы сверху на экране «Исправить»' : ' и, если брали документы, анкета для них'}.
-          Заключение в PDF придёт и на почту.
+          Файл придёт на {email || 'указанную почту'}. Проверьте «Спам», если письма нет в течение 10 минут.
+          {docsPurchased ? ' Для файлов документов в письме будет, каких реквизитов не хватает.' : ''}
         </div>
-        <SetPasswordForm email={email} goToPaidTemplates={docsPurchased} />
+        <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
+          Кабинет со сроками можно открыть позже. Для этой покупки он не нужен.
+        </div>
       </Card>
     );
   }
@@ -842,7 +755,7 @@ function DoneStep() {
       {state === 'waiting' ? (
         <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5 }}>
           Ждём подтверждения от банка — обычно несколько секунд. Не закрывайте страницу: как только оплата
-          пройдёт, здесь появится вход в кабинет.
+          пройдёт, здесь будет написано, что файл уходит на почту.
         </div>
       ) : (
         <>
@@ -851,8 +764,7 @@ function DoneStep() {
             указанную почту — проверьте папку "Спам", если письмо не появится в течение 10 минут.
           </div>
           <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.5, marginTop: 10 }}>
-            Заключение будет во вложении. В письме — ссылка для входа в кабинет: там ваш план устранения списком
-            дел, месяц полного доступа в подарок и, если брали документы, анкета для них.
+            Заключение будет во вложении. Кабинет и подписка к этому письму не подключены.
           </div>
         </>
       )}
@@ -1028,12 +940,13 @@ export default function AnonymousAudit() {
   // Промокод (09.10.2026; 24.10.2026 — на любой вариант, цена меняется сразу).
   // Сервер проверяет код ещё раз сам при чек-ауте — сумма в кнопке и в ЮKassa
   // не разойдутся.
-  const [promoInput, setPromoInput] = useState('');
+  const [promoInput, setPromoInput] = useState(() => partnerCodeForCheckout() || '');
   const { quote: promoQuote, error: promoError, checking: promoChecking } = usePromoQuote(guestApi, promoInput);
   // Код уходит в оплату, только если подошёл к выбранному варианту.
   async function pay(chosenPlan = 'report') {
     const usePlan = docsAddon && (chosenPlan === 'docs' || chosenPlan === 'bundle') ? chosenPlan : 'report';
-    const promoCodeForPlan = promoQuote?.[usePlan]?.finalRub != null ? promoQuote.code : null;
+    const promoCodeForPlan = promoQuote?.partner ? null : (promoQuote?.[usePlan]?.finalRub != null ? promoQuote.code : null);
+    const partnerCode = promoQuote?.partner ? promoQuote.code : partnerCodeForCheckout();
     if (!email || !email.includes('@')) {
       setError('Укажите email');
       return;
@@ -1054,6 +967,7 @@ export default function AnonymousAudit() {
           acceptedTerms,
           analyticsConsent,
           ...(promoCodeForPlan ? { promoCode: promoCodeForPlan } : {}),
+          ...(partnerCode ? { partnerCode } : {}),
         })
         : await guestApi.post('/platform/addons/document_templates/checkout', {
           email,
@@ -1061,6 +975,7 @@ export default function AnonymousAudit() {
           analyticsConsent,
           ...(usePlan === 'bundle' ? { withReportId: reportId } : {}),
           ...(promoCodeForPlan ? { promoCode: promoCodeForPlan } : {}),
+          ...(partnerCode ? { partnerCode } : {}),
         });
       reachGoal('checkout_start');
       rememberGuestToken();
@@ -1096,30 +1011,6 @@ export default function AnonymousAudit() {
     } catch (err) {
       if (err.response?.status === 409) setContactConflict(true);
       setError(err.response?.data?.error || 'Не удалось сохранить почту');
-    } finally {
-      setClaiming(false);
-    }
-  }
-
-  // "Сохранить бесплатно" — тот же claim-механизм (ссылка "установить
-  // пароль"), что и у платного пути (fulfillGuestReport, backend), но не
-  // требует оплаты. См. комментарий у POST /platform/anonymous-audit/claim.
-  async function claimFree() {
-    if (!email || !email.includes('@')) {
-      setError('Укажите email');
-      return;
-    }
-    if (!acceptedTerms) {
-      setError('Нужно принять пользовательское соглашение и дать согласие на обработку персональных данных');
-      return;
-    }
-    setError('');
-    setClaiming(true);
-    try {
-      await guestApi.post('/platform/anonymous-audit/claim', { email, acceptedTerms, analyticsConsent });
-      setClaimed(true);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Не удалось отправить письмо');
     } finally {
       setClaiming(false);
     }
@@ -1187,12 +1078,11 @@ export default function AnonymousAudit() {
           acceptedTerms={acceptedTerms} setAcceptedTerms={setAcceptedTerms}
           analyticsConsent={analyticsConsent} setAnalyticsConsent={setAnalyticsConsent}
           onPay={pay} paying={paying}
-          onClaimFree={claimFree} claiming={claiming} claimed={claimed}
+          claimed={claimed}
           error={error}
           promoInput={promoInput} setPromoInput={setPromoInput} promoQuote={promoQuote}
           promoError={promoError} promoChecking={promoChecking}
           docsAddon={docsAddon}
-          innUsed={!!prefill?.found}
         />
       )}
       {!paymentDone && step === 'result' && outsideFindings && outsideFindings.length > 0 && (

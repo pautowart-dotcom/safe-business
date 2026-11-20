@@ -418,18 +418,11 @@ router.post(
 // уже подтверждён тем, что на него пришло письмо от ЮKassa/чек) + ссылку
 // "установить пароль", чтобы данные не пропали, если человек решит стать
 // обычным пользователем платформы позже.
-// Как получить документы после оплаты — в письме за набор и за документы
-// (24.10.2026, владелец: в письме прямо сказать, что документы собираются в
-// кабинете, — сами на почту они не приходят).
-const DOCUMENTS_STEPS_HTML =
-  `<p><b>Документы на почту не приходят — их нужно собрать в кабинете</b> (это пара минут):</p>` +
-  `<ol>` +
-  `<li>Войдите в кабинет — по паролю, который вы придумали после оплаты, или по ссылке ниже.</li>` +
-  `<li>Откройте «Безопасность» → «Обзор» → «Шаблоны документов».</li>` +
-  `<li>Нажмите «Собрать все документы» и заполните одну анкету: название, ИНН, адрес, что есть на сайте. ` +
-  `Если вы указывали ИНН в тесте, часть полей уже заполнена. Анкета общая на все документы и сохраняется сама.</li>` +
-  `<li>Нажмите «Собрать PDF» — готовые документы с вашими данными можно скачать, проверить и подписать.</li>` +
-  `</ol>`;
+// 19.11.2026: первая покупка — файл на почту, не вход в кабинет.
+// Документы с реквизитами сами не собрать: в письме прямо, чего не хватает.
+const DOCUMENTS_NOTE_HTML =
+  `<p>Файлы документов с вашими данными на почту сами не приходят: для них нужны название, ИНН, адрес студии и телефон. ` +
+  `Кабинет для этой покупки не обязателен. Если позже захотите собрать файлы там — ссылка внизу.</p>`;
 
 // withDocuments — набор «заключение + документы» (24.10.2026): то же письмо,
 // плюс абзац, где заполнить анкету для документов.
@@ -465,38 +458,18 @@ async function fulfillGuestReport({ companyId, reportId, withDocuments = false }
     [owner.user_id, claimTokenHash, expiresAt]
   );
   const claimUrl = `${process.env.FRONTEND_URL}/reset-password/${claimToken}`;
-
-  // Подарочный месяц к заключению (14.10.2026, миграция 0132) — вебхук
-  // ставит gift до вызова этой функции; если его нет (купили не из триала),
-  // письмо остаётся прежним, без обещания месяца.
-  const { rows: giftRows } = await pool.query(
-    `SELECT subscription_current_period_end FROM companies WHERE id = $1 AND subscription_status = 'gift'`,
-    [companyId]
-  );
-  const giftUntil = giftRows[0]
-    ? new Date(giftRows[0].subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-    : null;
-  const nextStepHtml = giftUntil
-    ? `<p>В подарок к заключению мы открыли вам полный доступ к кабинету — до ${giftUntil}. Ваши нарушения уже ` +
-      `лежат там списком дел: отмечайте, что устранили, и смотрите, как растёт индекс; приложение напомнит о сроках ` +
-      `документов. Карта не сохранена — сами мы ничего не спишем.</p>` +
-      `<p>Чтобы войти, установите пароль по ссылке — проходить тест заново не нужно:</p>`
-    : `<p>Все ваши ответы уже сохранены. Если захотите продолжить пользоваться платформой (следить за сроками ` +
-      `медкнижек, огнетушителей, СОУТ и другими документами) — установите пароль по ссылке, вводить тест заново ` +
-      `не понадобится:</p>`;
-
-  const documentsHtml = withDocuments ? DOCUMENTS_STEPS_HTML : '';
+  const documentsHtml = withDocuments ? DOCUMENTS_NOTE_HTML : '';
 
   await sendMail({
     to: owner.email,
     subject: withDocuments
-      ? 'Заключение готово, документы ждут анкету — «Безопасный бизнес»'
-      : 'Ваше заключение по тесту безопасности готово — «Безопасный бизнес»',
+      ? 'Заключение во вложении — «Безопасный бизнес»'
+      : 'Ваше заключение по тесту — «Безопасный бизнес»',
     html:
-      `<p>Спасибо за оплату! Заключение по тесту безопасности — во вложении (${reportRow.report_number}.pdf).</p>` +
+      `<p>Спасибо за оплату. Заключение — во вложении (${reportRow.report_number}.pdf): что сделать по пунктам из вашего списка.</p>` +
       documentsHtml +
-      nextStepHtml +
-      `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
+      `<p>Кабинет со сроками можно открыть позже, если понадобится. Ссылка, чтобы задать пароль: ` +
+      `<a href="${claimUrl}">${claimUrl}</a>. Действует ${CLAIM_TOKEN_TTL_DAYS} дней. Подписка к этому письму не подключена.</p>`,
     attachments: [{ filename: `${reportRow.report_number}.pdf`, content: pdfBuffer }],
     meta: { purpose: 'report_purchase', refTable: 'security_reports', refId: reportRow.id },
   });
@@ -525,24 +498,14 @@ async function fulfillGuestDocuments({ companyId }) {
   );
   const claimUrl = `${process.env.FRONTEND_URL}/reset-password/${claimToken}`;
 
-  const { rows: giftRows } = await pool.query(
-    `SELECT subscription_current_period_end FROM companies WHERE id = $1 AND subscription_status = 'gift'`,
-    [companyId]
-  );
-  const giftHtml = giftRows[0]
-    ? `<p>В подарок к документам — полный доступ к кабинету до ${new Date(giftRows[0].subscription_current_period_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}: ` +
-      `напоминания о сроках заранее и план по вашему тесту. Карта не сохранена — сами мы ничего не спишем.</p>`
-    : '';
-
   await sendMail({
     to: owner.email,
-    subject: 'Оплата прошла — заполните данные для «Документов студии»',
+    subject: 'Оплата прошла — «Безопасный бизнес»',
     html:
-      `<p>Спасибо за оплату!</p>` +
-      DOCUMENTS_STEPS_HTML +
-      `<p>Если пароль ещё не придумали — установите его по ссылке, проходить тест заново не нужно:</p>` +
-      `<p><a href="${claimUrl}">${claimUrl}</a></p><p>Ссылка действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>` +
-      giftHtml,
+      `<p>Спасибо за оплату.</p>` +
+      DOCUMENTS_NOTE_HTML +
+      `<p>Ссылка, чтобы задать пароль и открыть кабинет позже: <a href="${claimUrl}">${claimUrl}</a>. ` +
+      `Действует ${CLAIM_TOKEN_TTL_DAYS} дней.</p>`,
     meta: { purpose: 'documents_purchase' },
   });
 }

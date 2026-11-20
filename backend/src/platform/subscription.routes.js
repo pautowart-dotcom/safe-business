@@ -11,6 +11,7 @@ const { handleAiAdvisorSubscriptionWebhook } = require('./ai-advisor-subscriptio
 const { fulfillGuestReport, fulfillGuestDocuments } = require('./anonymous-audit.routes');
 const { runScanForPurchase } = require('./website-check.routes');
 const { evaluatePromo, evaluateBundlePromo } = require('../core/promoCodes');
+const { findPartnerByCode, partnerOfferForCheckout, partnerSplit, accrueSubscriptionPayment, accrueAddonPayment } = require('../core/partnerProgram');
 const { priceForCompany, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
 const { createRateLimiter } = require('../core/rateLimit');
 const { checkClaimAllowed, recordClaim } = require('../core/loginRateLimit');
@@ -26,6 +27,15 @@ const promoRateLimit = createRateLimiter({
 
 const SUBSCRIPTION_PRICE_RUB = 1990;
 
+async function ownerIsGuest(companyId) {
+  const { rows } = await pool.query(
+    `SELECT u.is_guest FROM memberships m JOIN users u ON u.id = m.user_id
+     WHERE m.company_id = $1 AND m.role = 'owner' LIMIT 1`,
+    [companyId]
+  );
+  return !!rows[0]?.is_guest;
+}
+
 // ИИ-советник входит в подписку (20.09.2026, решение владельца: "все равно
 // столько пользоваться не будут; если что — введём платно или поднимем цену
 // подписки"). Раньше (06.09.2026) это была надбавка +990 ₽ с переключателем
@@ -38,7 +48,7 @@ const SUBSCRIPTION_PRICE_RUB = 1990;
 const router = express.Router();
 
 // Общая часть чек-аута для двух режимов ниже.
-async function startCheckout({ companyId, description, returnUrl, savePaymentMethod, reportId, receiptEmail, amountRub, promoCodeId, discountRub }) {
+async function startCheckout({ companyId, description, returnUrl, savePaymentMethod, reportId, receiptEmail, amountRub, promoCodeId, discountRub, partnerProfileId, partnerShareRub }) {
   const payment = await createPayment({
     amountRub,
     description,
@@ -49,9 +59,9 @@ async function startCheckout({ companyId, description, returnUrl, savePaymentMet
   });
 
   await pool.query(
-    `INSERT INTO subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge, report_id, promo_code_id, discount_rub)
-     VALUES ($1, $2, $3, 'pending', false, $4, $5, $6)`,
-    [companyId, payment.id, amountRub, reportId || null, promoCodeId || null, discountRub || 0]
+    `INSERT INTO subscription_payments (company_id, yookassa_payment_id, amount_rub, status, is_recurring_charge, report_id, promo_code_id, discount_rub, partner_profile_id, partner_share_rub)
+     VALUES ($1, $2, $3, 'pending', false, $4, $5, $6, $7, $8)`,
+    [companyId, payment.id, amountRub, reportId || null, promoCodeId || null, discountRub || 0, partnerProfileId || null, partnerShareRub ?? null]
   );
 
   return payment;
@@ -79,7 +89,12 @@ router.post(
       });
       res.json({ code: promo.code, priceRub: SUBSCRIPTION_PRICE_RUB, discountRub, finalRub });
     } catch (err) {
-      if (err.status) return res.status(err.status).json({ error: err.message });
+      if (err.status) {
+        if (await findPartnerByCode(req.body?.code)) {
+          return res.status(400).json({ error: 'Это код партнёра. На подписку он скидку не даёт.' });
+        }
+        return res.status(err.status).json({ error: err.message });
+      }
       throw err;
     }
   })
@@ -116,7 +131,21 @@ router.post(
     const bundle = await quote(() => evaluateBundlePromo({
       code, companyId, reportPriceRub: SUBSCRIPTION_PRICE_RUB, docsPriceRub, bundlePriceRub: REPORT_BUNDLE_PRICE_RUB,
     }));
-    if (report.error && docs.error && bundle.error) return res.status(400).json({ error: bundle.error });
+    if (report.error && docs.error && bundle.error) {
+      const partner = await findPartnerByCode(code);
+      if (partner) {
+        const priced = (listRub) => ({ code: partner.code, finalRub: partnerSplit(listRub, partner.discount_percent).payRub });
+        return res.json({
+          code: partner.code,
+          partner: true,
+          discountPercent: partner.discount_percent,
+          report: priced(SUBSCRIPTION_PRICE_RUB),
+          docs: priced(docsPriceRub),
+          bundle: priced(REPORT_BUNDLE_PRICE_RUB),
+        });
+      }
+      return res.status(400).json({ error: bundle.error });
+    }
     res.json({ code: (report.code || docs.code || bundle.code), report, docs, bundle });
   })
 );
@@ -205,6 +234,7 @@ router.post(
     // Промокод на отчёт (09.10.2026) — проверяем до того, как трогать email
     // гостя ниже: неверный код не должен наполовину сохранять данные.
     let promoResult = null;
+    let partnerCode = req.body?.partnerCode;
     if (req.body?.promoCode) {
       try {
         promoResult = await evaluatePromo({
@@ -214,8 +244,9 @@ router.post(
           priceRub: SUBSCRIPTION_PRICE_RUB,
         });
       } catch (err) {
-        if (err.status) return res.status(err.status).json({ error: err.message });
-        throw err;
+        if (err.status && await findPartnerByCode(req.body.promoCode)) partnerCode = req.body.promoCode;
+        else if (err.status) return res.status(err.status).json({ error: err.message });
+        else throw err;
       }
     }
 
@@ -262,13 +293,15 @@ router.post(
 
     const { rows } = await pool.query('SELECT name FROM companies WHERE id = $1', [req.tenant.companyId]);
     const company = rows[0];
-    // Единственный путь сюда из интерфейса — гостевой анонимный аудит без
-    // регистрации (AnonymousAudit.jsx, /lk/audit); кнопка "купить один раз"
-    // для уже зарегистрированных владельцев убрана из Security.jsx 19.08.2026
-    // (решение владельца — если готов регистрироваться, выбирает подписку
-    // или нет, без промежуточного варианта). Гость всё равно не смог бы
-    // попасть на /security — она за PrivateRoute, а войти он не может, у
-    // него нет пароля.
+    const partnerOffer = await partnerOfferForCheckout({
+      code: partnerCode,
+      userId: req.user.id,
+      email: receiptEmail,
+    });
+    const listRub = SUBSCRIPTION_PRICE_RUB;
+    const split = partnerOffer
+      ? partnerSplit(listRub, promoResult ? 0 : partnerOffer.discountPercent, promoResult ? promoResult.finalRub : null)
+      : null;
     const payment = await startCheckout({
       companyId: req.tenant.companyId,
       description: promoResult
@@ -278,9 +311,11 @@ router.post(
       savePaymentMethod: false,
       reportId,
       receiptEmail,
-      amountRub: promoResult ? promoResult.finalRub : SUBSCRIPTION_PRICE_RUB,
+      amountRub: split ? split.payRub : listRub,
       promoCodeId: promoResult?.promo.id,
-      discountRub: promoResult?.discountRub,
+      discountRub: promoResult ? promoResult.discountRub : split ? listRub - split.payRub : 0,
+      partnerProfileId: partnerOffer?.id,
+      partnerShareRub: split ? split.shareRub : null,
     });
     res.json({ confirmationUrl: payment.confirmation.confirmation_url });
   })
@@ -399,7 +434,10 @@ router.post(
          WHERE yookassa_payment_id = $1 AND status <> 'succeeded'`,
         [paymentId]
       );
-      if (firstTime.rowCount === 0) return res.status(200).end();
+      if (firstTime.rowCount === 0) {
+        await accrueSubscriptionPayment(paymentId);
+        return res.status(200).end();
+      }
 
       if (reportId) {
         // Разовая покупка ОДНОГО отчёта (миграция 0091) — НЕ трогает
@@ -410,17 +448,16 @@ router.post(
           [reportId, companyId]
         );
 
-        // 14.10.2026 (решение владельца): к заключению — месяц полного
-        // доступа в кабинете, чтобы вести по нему план устранения. Только из
-        // триала: настоящую подписку (active/past_due) не трогаем, повторная
-        // покупка не продлевает подарок. Статус gift, без карты —
-        // автосписания нет (chargeRecurringSubscriptions берёт только
-        // active/past_due с сохранённым способом оплаты).
-        await pool.query(
-          `UPDATE companies SET subscription_status = 'gift', subscription_current_period_end = now() + interval '1 month'
-           WHERE id = $1 AND subscription_status = 'trial'`,
-          [companyId]
-        );
+        // 14.10.2026: к заключению — месяц кабинета, только из триала.
+        // 19.11.2026: гость с экрана теста покупает файл на почту, подарок
+        // кабинета в эту покупку не входит. Кто уже в кабинете — как раньше.
+        if (!(await ownerIsGuest(companyId))) {
+          await pool.query(
+            `UPDATE companies SET subscription_status = 'gift', subscription_current_period_end = now() + interval '1 month'
+             WHERE id = $1 AND subscription_status = 'trial'`,
+            [companyId]
+          );
+        }
 
         // Гость анонимного аудита (19.08.2026) не может зайти и скачать
         // PDF сам (нет пароля) — no-op для обычных (не гостевых) покупателей,
@@ -469,6 +506,7 @@ router.post(
         body: `${companyName} — ${amountRub} ₽`,
         url: '/office/companies',
       }).catch((err) => console.error('sendPushToSuperAdmins (payment) failed:', err));
+      await accrueSubscriptionPayment(paymentId);
     } else if (payment.status === 'canceled') {
       await pool.query(`UPDATE subscription_payments SET status = 'canceled' WHERE yookassa_payment_id = $1`, [paymentId]);
     }
@@ -495,7 +533,10 @@ async function handleAddonWebhook(paymentId, payment, res) {
        WHERE yookassa_payment_id = $1 AND status <> 'succeeded'`,
       [paymentId]
     );
-    if (firstTime.rowCount === 0) return res.status(200).end();
+    if (firstTime.rowCount === 0) {
+      await accrueAddonPayment(paymentId);
+      return res.status(200).end();
+    }
     await notifyAddonPurchase({ companyId, addonKey, amountRub, withReport: !!reportId });
 
     if (addonKey === 'document_templates') {
@@ -507,14 +548,15 @@ async function handleAddonWebhook(paymentId, payment, res) {
           [reportId, companyId]
         );
       }
-      // 21.10.2026 (план 20.10, решение владельца 19.10): к пакету — месяц
-      // подписки в подарок, тем же правилом, что и к заключению выше: только
-      // из триала, настоящую подписку не трогаем.
-      await pool.query(
-        `UPDATE companies SET subscription_status = 'gift', subscription_current_period_end = now() + interval '1 month'
-         WHERE id = $1 AND subscription_status = 'trial'`,
-        [companyId]
-      );
+      // Месяц кабинета — тому, кто покупает уже из кабинета. Гость с теста
+      // (19.11.2026) получает файл, не подарочный месяц.
+      if (!(await ownerIsGuest(companyId))) {
+        await pool.query(
+          `UPDATE companies SET subscription_status = 'gift', subscription_current_period_end = now() + interval '1 month'
+           WHERE id = $1 AND subscription_status = 'trial'`,
+          [companyId]
+        );
+      }
       // Гость с экрана результата теста — без пароля ему не войти и не
       // заполнить анкету; no-op для обычных покупателей. За набор — одно
       // письмо: заключение во вложении и что дальше с документами.
@@ -537,6 +579,7 @@ async function handleAddonWebhook(paymentId, payment, res) {
         );
       }
     }
+    await accrueAddonPayment(paymentId);
   } else if (payment.status === 'canceled') {
     await pool.query(`UPDATE addon_purchases SET status = 'canceled' WHERE yookassa_payment_id = $1`, [paymentId]);
   }

@@ -469,7 +469,7 @@ export default function Login() {
     // from — только внутренний путь (/cases?b=s1), без //evil.com
     const fromRaw = location.state?.from;
     const fromSafe = typeof fromRaw === 'string' && /^\/(?!\/)/.test(fromRaw) ? fromRaw : '/';
-    return <Navigate to={justCreatedCompany ? '/security' : fromSafe} replace />;
+    return <Navigate to={justCreatedCompany ? (fromSafe !== '/' ? fromSafe : '/security') : fromSafe} replace />;
   }
 
   // 18.10.2026: код уже принят, но компаний несколько (pendingCompanies) или

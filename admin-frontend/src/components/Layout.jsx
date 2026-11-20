@@ -21,6 +21,7 @@ const NAV_GROUPS = [
       { to: '/finance', label: 'Финансы', icon: 'finance' },
       { to: '/analytics', label: 'Аналитика', icon: 'chart' },
       { to: '/promo-codes', label: 'Промокоды', icon: 'tag' },
+      { to: '/partners', label: 'Партнёры', icon: 'team' },
       { to: '/roadmap-leads', label: 'Роадмап (лиды)', icon: 'route' },
     ],
   },

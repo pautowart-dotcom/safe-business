@@ -378,6 +378,7 @@
     <a href="/izmeneniya/">Что изменилось</a>
     <a href="#price">Стоимость</a>
     <a href="/franchise.html">Франшизам</a>
+    <a href="/partner/">Партнёрам</a>
     <a href="/lk/login">Войти</a>
   </div>
 </nav>
@@ -659,6 +660,7 @@
           <li><a href="/izmeneniya/">Что изменилось</a></li>
           <li><a href="/dokumenty/">Документы</a></li>
           <li><a href="/franchise.html">Франшизам</a></li>
+          <li><a href="/partner/">Партнёрам</a></li>
         </ul>
       </div>
       <div>
@@ -684,6 +686,24 @@
   (function () {
     try {
       var params = new URLSearchParams(window.location.search);
+      var ref = (params.get('ref') || '').trim();
+      if (/^[A-Za-zА-Яа-яЁё0-9_-]{3,32}$/.test(ref)) {
+        try {
+          var code = ref.toUpperCase();
+          localStorage.setItem('bb_partner_code', code);
+          var visitor = localStorage.getItem('bb_partner_visitor');
+          if (!visitor || !/^[a-zA-Z0-9]{8,64}$/.test(visitor)) {
+            visitor = (Date.now().toString(36) + Math.random().toString(36).slice(2, 12)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 32);
+            localStorage.setItem('bb_partner_visitor', visitor);
+          }
+          fetch('/api/platform/partner/visit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code, visitorKey: visitor }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (err) {}
+      }
       fetch('/api/platform/landing/visit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

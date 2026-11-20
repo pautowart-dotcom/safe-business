@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
+import { partnerCodeForCheckout } from '../utils/partnerRef.js';
 import { Card, C } from '../ui/components.jsx';
 import {
   CASE_CATALOG,
@@ -456,7 +457,11 @@ export default function CaseGuide({ asHome = false }) {
     setPaying(true);
     setPayError('');
     try {
-      const { data } = await api.post('/platform/addons/document_templates/checkout', { returnTo: 's1_episode' });
+      const partnerCode = partnerCodeForCheckout();
+      const { data } = await api.post('/platform/addons/document_templates/checkout', {
+        returnTo: 's1_episode',
+        ...(partnerCode ? { partnerCode } : {}),
+      });
       window.location.href = data.confirmationUrl;
     } catch (err) {
       setPayError(err.response?.data?.error || 'Не удалось начать оплату');

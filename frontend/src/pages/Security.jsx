@@ -12,6 +12,7 @@ import MyDeadlinesTab from './MyDeadlines.jsx';
 import { segmentForNiche } from '../ui/nicheOptions.js';
 import { reachGoal } from '../utils/metrika.js';
 import { usePromoQuote } from '../utils/usePromoQuote.js';
+import { partnerCodeForCheckout } from '../utils/partnerRef.js';
 import { withDeclensions } from '../utils/declension.js';
 import { PartnerServicesCard, PartnerRequestButton, partnerServiceForViolation } from '../ui/PartnerServices.jsx';
 
@@ -2474,7 +2475,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
   // Объяснения по ключу шаблона (19.08.2026, п.6 плана) — { loading, text,
   // error } на каждый t.key, запрашивается лениво по клику, не все сразу.
   const [explanations, setExplanations] = useState({});
-  const [promoCode, setPromoCode] = useState('');
+  const [promoCode, setPromoCode] = useState(() => partnerCodeForCheckout() || '');
   // Цена со скидкой видна сразу, до оплаты (24.10.2026, жалоба клиентки:
   // сумма менялась только в ЮKassa). utils/usePromoQuote.js.
   const { quote: promoQuote, error: promoError, checking: promoChecking } = usePromoQuote(api, promoCode);
@@ -2523,7 +2524,11 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     setPayingAddon(true);
     setError('');
     try {
-      const { data } = await api.post('/platform/addons/document_templates/checkout', promoApplies ? { promoCode: promoQuote.code } : {});
+      const partnerCode = promoQuote?.partner ? promoQuote.code : partnerCodeForCheckout();
+      const { data } = await api.post('/platform/addons/document_templates/checkout', {
+        ...(promoApplies && !promoQuote?.partner ? { promoCode: promoQuote.code } : {}),
+        ...(partnerCode ? { partnerCode } : {}),
+      });
       reachGoal('checkout_start');
       window.location.href = data.confirmationUrl;
     } catch (err) {
@@ -2645,7 +2650,9 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           <TextInput value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Необязательно" maxLength={32} />
           {promoChecking && <div style={{ fontSize: 12, color: C.subtle, marginTop: 6 }}>Проверяем…</div>}
           {(promoError || promoDocs?.error) && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{promoError || promoDocs.error}</div>}
-          {promoApplies && (
+          {promoQuote?.partner && promoQuote.discountPercent > 0 && <div style={{ fontSize: 12, color: C.green, marginTop: 6 }}>Скидка {promoQuote.discountPercent}% — цена уже с ней</div>}
+          {promoQuote?.partner && !promoQuote.discountPercent && <div style={{ fontSize: 12, color: C.green, marginTop: 6 }}>Код {promoQuote.code} засчитан партнёру. Скидки нет.</div>}
+          {promoApplies && !promoQuote?.partner && (
             <div style={{ fontSize: 13, color: C.green, fontWeight: 600, marginTop: 6 }}>
               Промокод применён: {promoDocs.finalRub.toLocaleString('ru-RU')}&nbsp;₽ вместо {addon.priceRub.toLocaleString('ru-RU')}&nbsp;₽
             </div>

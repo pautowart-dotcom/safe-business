@@ -5,9 +5,11 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { startVersionCheck } from './utils/versionCheck.js';
+import { capturePartnerRef } from './utils/partnerRef.js';
 import './styles.css';
 
 startVersionCheck();
+capturePartnerRef();
 
 // Регистрируем service worker сразу при загрузке (не только когда пользователь
 // нажимает "Подписаться") — subscribeToPush() (utils/push.js) ждёт
