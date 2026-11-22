@@ -1,4 +1,4 @@
-// Бот @business_safe_bot (18.10.2026): приветствие на /start и уведомления
+// Бот @bezbizru_bot: приветствие на /start и уведомления
 // сообщением тем, кто привязал Telegram (telegram_links, миграции 0141/0143).
 // Только Bot API по HTTPS; без токена (TELEGRAM_BOT_TOKEN) — молча ничего.
 const pool = require('../db/pool');
