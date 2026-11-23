@@ -7,23 +7,23 @@
 // Отдельной строки cron нет: вызывается из ежедневного dailyOperationsNudges.js
 // (09:00 МСК), чтобы владельцу не править crontab на сервере.
 //
-// Тон письма (08.11.2026): без «штраф» и запугивания проверками — честный
-// список дыр + что сделать + CTA на заключение / кабинет (CLAUDE.md, OFFER).
+// Текст письма (23.11.2026, решение владельца): не повторять список пунктов.
+// Продажа заключения и документов, без подписки и без слова «студия».
+// Цены — из core/addons.js, не из текста.
 //
 // Запуск вручную: node src/scripts/guestResultFollowup.js
 require('dotenv').config();
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const { sendMail } = require('../core/mailer');
-const { guestResultSummary, escapeHtml, CLAIM_TOKEN_TTL_DAYS, unsubscribeUrl } = require('../platform/anonymous-audit.routes');
+const { getAddon, REPORT_BUNDLE_PRICE_RUB } = require('../core/addons');
+const { guestResultSummary, CLAIM_TOKEN_TTL_DAYS, unsubscribeUrl } = require('../platform/anonymous-audit.routes');
 
 const REPORT_PRICE_RUB = 1990;
+const DOCS_PRICE_RUB = getAddon('document_templates').priceRub;
 
-function points(n) {
-  const m10 = n % 10; const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return `${n} пункт`;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} пункта`;
-  return `${n} пунктов`;
+function rub(n) {
+  return `${n.toLocaleString('ru-RU')} ₽`;
 }
 
 async function run() {
@@ -68,13 +68,12 @@ async function run() {
 
     await sendMail({
       to: r.email,
-      subject: `По тесту — ${points(summary.titles.length)}: с чего начать`,
+      subject: `Заключение по пунктам теста — ${rub(REPORT_PRICE_RUB)}`,
       html:
-        `<p>Здравствуйте! Несколько дней назад вы проходили тест в «Безопасный бизнес». Напоминаем, с чего лучше начать:</p>` +
-        summary.top.map((v) => `<p><b>${escapeHtml(v.title)}</b><br>Что сделать: ${escapeHtml(v.whatToDo)}</p>`).join('') +
-        `<p>Всего по тесту — ${summary.titles.length}. По каждому пункту разбор и что сделать — ` +
-        `в заключении за ${REPORT_PRICE_RUB.toLocaleString('ru-RU')} ₽. Файл придёт на почту, подписка не нужна.</p>` +
-        `<p><a href="${enterUrl}">Открыть свой результат</a> — проходить тест заново не нужно.</p>` +
+        `<p>Здравствуйте. В прошлом письме были названия пунктов. В заключении по каждому из них написано, что сделать, в каком порядке и на какую норму опереться. Это PDF на вашу почту.</p>` +
+        `<p>${rub(REPORT_PRICE_RUB)}, один раз.</p>` +
+        `<p>Если нужны и документы под ваши данные — ${rub(DOCS_PRICE_RUB)}. Вместе с заключением — ${rub(REPORT_BUNDLE_PRICE_RUB)}.</p>` +
+        `<p>Оформить заключение можно <a href="${enterUrl}">по ссылке</a>. Тест заново проходить не нужно.</p>` +
         `<p style="color:#888;font-size:12px">Вы получили это письмо, потому что согласились получать сообщения от «Безопасный бизнес». ` +
         `Не хотите больше — <a href="${unsubscribeUrl(r.user_id)}">отписаться</a> (одно нажатие) или просто ответьте на это письмо.</p>`,
       headers: { 'List-Unsubscribe': `<${unsubscribeUrl(r.user_id)}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
