@@ -116,12 +116,33 @@ function ViolationPreview({ violations }) {
 // начала (security_feedback), но ни один экран не спрашивал. Вариант в одно
 // нажатие + необязательный комментарий. Варианты берём с сервера, чтобы
 // список был в одном месте (POST_TEST_FEEDBACK_OPTIONS в security.routes.js).
+function feedbackDraftKey(sessionId) {
+  return `bb_test_feedback_${sessionId}`;
+}
+
+function loadFeedbackDraft(sessionId) {
+  if (!sessionId) return null;
+  try {
+    const raw = sessionStorage.getItem(feedbackDraftKey(sessionId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveFeedbackDraft(sessionId, draft) {
+  try {
+    sessionStorage.setItem(feedbackDraftKey(sessionId), JSON.stringify(draft));
+  } catch { /* приватный режим — отзыв на сервере уже сохранён */ }
+}
+
 function FeedbackCard({ sessionId }) {
+  const draft = loadFeedbackDraft(sessionId);
   const [options, setOptions] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [comment, setComment] = useState('');
+  const [selected, setSelected] = useState(draft?.selected || null);
+  const [comment, setComment] = useState(draft?.comment || '');
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState(!!draft?.sent);
 
   useEffect(() => {
     guestApi.get('/modules/security/feedback-options').then((res) => setOptions(res.data.options)).catch(() => {});
@@ -136,6 +157,7 @@ function FeedbackCard({ sessionId }) {
         selectedOption: option,
         comment: withComment ? comment : undefined,
       });
+      saveFeedbackDraft(sessionId, { selected: option, comment, sent: withComment });
       if (withComment) setSent(true);
     } catch (err) {
       // Тихо — необязательный блок, не мешает результату и оплате.
@@ -498,7 +520,7 @@ function PriceWithPromo({ baseRub, planQuote }) {
 // приложение бесплатно»: почта + согласие → письмо с результатом и ссылкой в
 // кабинет. Галочка на письма с предложениями — необязательная, отдельная
 // (ст. 18 закона «О рекламе»). Выключается на сервере (RESULT_CONTACT_GATE).
-function ContactStep({ result, email, setEmail, setAcceptedTerms, analyticsConsent, setAnalyticsConsent, marketingConsent, setMarketingConsent, onSubmit, submitting, error, onSkipAfterError }) {
+function ContactStep({ result, sessionId, email, setEmail, setAcceptedTerms, analyticsConsent, setAnalyticsConsent, marketingConsent, setMarketingConsent, onSubmit, submitting, error, onSkipAfterError }) {
   return (
     <>
       <Card>
@@ -509,8 +531,15 @@ function ContactStep({ result, email, setEmail, setAcceptedTerms, analyticsConse
             : 'По вашим ответам серьёзных нарушений нет. '}
           Укажите почту: покажем результат здесь и пришлём его письмом — с тремя самыми важными пунктами и тем, что с ними сделать.
         </div>
+      </Card>
+      {/* Отзыв до почты (23.11.2026): с 25.10 экран почты заменил результат,
+          а «Как вам результат?» остался только на результате — до почты
+          отзыв было некуда нажать. Курсор в почту не ставим: иначе экран
+          прокручивается к полю и карточка снова уезжает вверх. */}
+      <FeedbackCard sessionId={sessionId} />
+      <Card>
         <Field label="Email">
-          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
         <ConsentPair idPrefix="contact" purpose="order" onChange={setAcceptedTerms} />
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, fontSize: 12, color: C.secondary, lineHeight: 1.5, cursor: 'pointer' }}>
@@ -1062,6 +1091,7 @@ export default function AnonymousAudit() {
       {!paymentDone && step === 'contact' && result && (
         <ContactStep
           result={result}
+          sessionId={result.anchorSessionId}
           email={email} setEmail={setEmail}
           setAcceptedTerms={setAcceptedTerms}
           analyticsConsent={analyticsConsent} setAnalyticsConsent={setAnalyticsConsent}
