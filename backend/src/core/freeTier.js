@@ -1,13 +1,9 @@
-// Бесплатный уровень (18.10.2026, docs/free-tier.md, решение владельца
-// «да, поехали»). Раньше после пробного месяца кабинет закрывался целиком
-// (tenancy.js → 402). Теперь, если уровень включён для компании, остаётся
-// бесплатное навсегда: тест и индекс, список нарушений (только названия),
-// «Мои сроки», главная, «Готово» и «Позже», напоминание в день срока.
-// По подписке: заключение (штраф, норма, что делать, PDF), напоминания
-// заранее, проверка месяца, ИИ, дата с фото документа.
-//
-// Включение: FREE_TIER_ENABLED=true в .env — для всех; без него — только
-// для тестовых компаний (companies.is_test), тихая обкатка.
+// Бесплатный кабинет после пробного месяца снят 24.11.2026 (решение
+// владельца): остаются пробный период, подписка и подарочный доступ.
+// Когда они кончились, кабинет закрывается (tenancy.js → 402). Тест и его
+// результат по-прежнему открыты отдельными путями. Компании, созданные до
+// 27.07.2026 и всё ещё в статусе trial, не закрываем — так было решено
+// раньше, чтобы не оборвать уже работающие кабинеты без отдельного разбора.
 const pool = require('../db/pool');
 const { isSubscriptionActive } = require('./middleware/subscription');
 
@@ -82,20 +78,15 @@ function trialExpired(row) {
   return row?.subscription_status === 'trial' && row.trial_ends_at && new Date(row.trial_ends_at) < new Date();
 }
 
-// 'full' — пробный месяц или подписка (как было); 'free' — бесплатный
-// уровень; 'locked' — уровень выключен, кабинет закрыт, как раньше.
+// 'full' — идёт пробный период, подписка или подарочный доступ.
+// 'locked' — кабинет закрыт. 'free' больше не возвращается.
 async function accessLevel(companyId) {
   const row = await companyRow(companyId);
   if (!row) return 'locked';
   if (await isSubscriptionActive(companyId)) return 'full';
-  const lockedByTrial = row.created_at >= HARD_TRIAL_CUTOFF && trialExpired(row);
-  // Не триал и не активная подписка (отменена, не оплачена) — раньше такие
-  // компании не закрывались вовсе (tenancy.js проверял только trial); на
-  // бесплатном уровне честно переводим их в бесплатное.
-  const notPaying = row.subscription_status !== 'trial';
-  if (!lockedByTrial && !notPaying) return 'full';
-  if (!enabledFor(row)) return lockedByTrial ? 'locked' : 'full';
-  return 'free';
+  if (row.subscription_status === 'trial' && !trialExpired(row)) return 'full';
+  if (row.created_at < HARD_TRIAL_CUTOFF && row.subscription_status === 'trial') return 'full';
+  return 'locked';
 }
 
 // Видно ли заключение (штраф, норма, что делать). Гость без оплаты и

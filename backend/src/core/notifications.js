@@ -21,7 +21,7 @@ const { sendTelegramToCompany } = require('./telegramBot');
 // забили бы его шумом. Push и пункт в «Дедлайнах» у них остаются.
 const INBOX_SKIP_CATEGORIES = new Set(['operations', 'financial']);
 
-async function notifyCompany({ companyId, kind, category = null, title, body = null, url = null, dedupeKey = null, push = true }) {
+async function notifyCompany({ companyId, kind, category = null, title, body = null, url = null, dedupeKey = null, push = true, channels = 'both' }) {
   if (!INBOX_SKIP_CATEGORIES.has(category)) {
     try {
       await pool.query(
@@ -42,13 +42,21 @@ async function notifyCompany({ companyId, kind, category = null, title, body = n
   }
 
   if (!push) return;
-  await sendPushToCompany({ companyId, category, title, body, url }).catch((err) =>
-    console.error('notifyCompany: sendPushToCompany failed', companyId, err)
-  );
+  // channels: 'one' (24.11.2026) — напоминание в один канал. Есть обычные
+  // уведомления (подписка push, в том числе у сайта на домашнем экране) —
+  // пишем туда. Нет — в Telegram, если бот привязан. В оба сразу не шлём.
+  let pushed = null;
+  try {
+    pushed = await sendPushToCompany({ companyId, category, title, body, url });
+  } catch (err) {
+    console.error('notifyCompany: sendPushToCompany failed', companyId, err);
+  }
+  const pushUsed = pushed && (pushed.sent > 0 || pushed.subscriptions > 0 || pushed.categoryDisabled);
+  if (channels === 'one' && pushUsed) return;
   // Telegram (18.10.2026, core/telegramBot.js) — только то, что попадает в
   // раздел «Уведомления»: ежедневные подсказки в мессенджер не шлём, иначе
   // бот превратится в спам.
-  if (!INBOX_SKIP_CATEGORIES.has(category)) {
+  if (!INBOX_SKIP_CATEGORIES.has(category) && (channels !== 'one' || !pushUsed)) {
     await sendTelegramToCompany({ companyId, category, title, body, url }).catch((err) =>
       console.error('notifyCompany: sendTelegramToCompany failed', companyId, err)
     );

@@ -12,6 +12,7 @@ const { loadProfile } = require('../security/profile');
 const repository = require('./content/repository');
 const { generateDocument, changeNote, missingRequired } = require('./generate');
 const templateViolationLinks = require('./content/templateViolationLinks');
+const { guideFor, websiteProblems, packSplit, folderInstruction } = require('./content/documentGuides');
 const { alreadyHasDocument } = require('./documentSignal');
 const securityRepository = require('../security/content/repository');
 const yandexAssist = require('../../core/yandexAssist');
@@ -155,6 +156,7 @@ router.get(
           alreadyHasDocument: hasIt,
           openViolationId: openRow ? openRow.id : null,
           nextStep: details ? details.solution : null,
+          guide: guideFor(t),
         };
       })
     );
@@ -164,7 +166,7 @@ router.get(
     // шаблона это пригодится, здесь просто отдаём всё, что накоплено.
     const savedDetails = await loadSavedDetails(req.tenant.companyId);
 
-    res.json({ templates, savedDetails });
+    res.json({ templates, savedDetails, folder: folderInstruction });
   })
 );
 
@@ -255,6 +257,8 @@ router.post(
     if (missing.length > 0) {
       return res.status(400).json({ error: `Заполните обязательные поля: ${missing.map((f) => f.label).join(', ')}` });
     }
+    const blocked = websiteProblems([template], values);
+    if (blocked.length > 0) return res.status(400).json({ error: blocked[0] });
 
     // Запоминаем реквизиты для следующей генерации (см. SAVED_DETAIL_KEYS) —
     // до самого рендера, чтобы сбой PDF не мешал хотя бы сохранить то, что
@@ -300,8 +304,12 @@ router.post(
     }
 
     const values = data && typeof data === 'object' ? data : {};
+    const { keep, skipped } = packSplit(templates, values);
+    if (keep.length === 0) {
+      return res.status(400).json({ error: skipped.join(' ') });
+    }
     const missingLabels = new Map();
-    for (const template of templates) {
+    for (const template of keep) {
       for (const f of missingRequired(template, values)) {
         if (!missingLabels.has(f.key)) missingLabels.set(f.key, f.label);
       }
@@ -310,14 +318,14 @@ router.post(
       return res.status(400).json({ error: `Заполните обязательные поля: ${[...missingLabels.values()].join(', ')}` });
     }
 
-    const allFieldKeys = [...new Set(templates.flatMap((t) => t.fields.map((f) => f.key)))];
+    const allFieldKeys = [...new Set(keep.flatMap((t) => t.fields.map((f) => f.key)))];
     const existingDetails = await loadSavedDetails(req.tenant.companyId);
     await saveDetails(req.tenant.companyId, existingDetails, values, allFieldKeys);
 
     // Последовательно, не Promise.all — рендер PDF тяжёлый по памяти, а
     // пакет обычно 3–5 документов.
     const documents = [];
-    for (const template of templates) {
+    for (const template of keep) {
       // В историю каждого документа — только его собственные поля, не общий
       // набор реквизитов всего пакета.
       const own = {};
@@ -334,13 +342,14 @@ router.post(
       action: 'generated_document.pack_created',
     });
 
-    res.status(201).json({ documents });
+    res.status(201).json({ documents, skipped });
   })
 );
 
 // Один документ — общая часть /generate и /generate-pack (generate.js).
-function generateOne(req, template, profile, values) {
-  return generateDocument({ companyId: req.tenant.companyId, userId: req.user.id, template, profile, values });
+async function generateOne(req, template, profile, values) {
+  const doc = await generateDocument({ companyId: req.tenant.companyId, userId: req.user.id, template, profile, values });
+  return { ...doc, templateKey: template.key, guide: guideFor(template) };
 }
 
 router.get(
@@ -372,6 +381,7 @@ router.get(
         isUpdate: !!r.regenerated_from_id,
         outdated,
         changeNote: outdated ? changeNote(template, r.template_version) : null,
+        guide: template ? guideFor(template) : null,
       });
     }
     res.json(result);

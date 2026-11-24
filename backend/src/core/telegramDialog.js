@@ -6,6 +6,8 @@ const freeTier = require('./freeTier');
 const { isSubscriptionActive } = require('./middleware/subscription');
 const { sendMessage, openButton } = require('./telegramBot');
 const { decideTurn } = require('./telegramDialogRules');
+const { nextOpenStep } = require('../modules/security/nextStep');
+const { stopForUser, resumeForUser, stopped } = require('../scripts/stepReminders');
 const { replyFromKnowledge } = require('./telegramKnowledge');
 const { parseDeadline, wantsHuman, isCorrection } = require('./telegramMemory');
 const { registerDeadline } = require('./deadlines');
@@ -110,6 +112,15 @@ async function cabinetText(companyId, conclusionOpen) {
     ? 'Норму и что сделать по пункту смотрите в кабинете. Отсюда это не пересказываю.'
     : 'Что делать по пункту и норма здесь не выдаются: это после оплаты.');
   return parts.join('\n\n');
+}
+
+async function nextStepReply(companyId, resumed) {
+  if (!resumed && await stopped(companyId)) {
+    return 'Напоминания о пунктах остановлены. Напишите «напомни», если нужно снова.';
+  }
+  const step = await nextOpenStep(companyId);
+  if (!step) return 'Открытых пунктов нет. Сроки, которые вы внесли, напомним отдельно, когда подойдёт дата.';
+  return `Сейчас один пункт: ${step.title}. Откройте кабинет и отметьте «Сделано», когда закроете. Следующий пришлю сам, не раньше чем через 3 дня. «Хватит» — остановлю.`;
 }
 
 async function correctDeadline(companyId, parsed) {
@@ -308,6 +319,12 @@ async function handleIncoming({ fromId, chatId, text }) {
     savedNote = `Срок понял: ${parsed.title}, ${parsed.label}. В кабинет запишу после входа, кнопка слева. До входа дата только в этом чате.`;
   }
 
+  if (decision.stepResume && account.userId) {
+    await resumeForUser(account.userId).catch((err) => console.error('step reminder resume failed', err.message));
+  }
+  if (decision.feedAction === 'stop' && account.userId) {
+    await stopForUser(account.userId).catch((err) => console.error('step reminder stop failed', err.message));
+  }
   await applyFeed(fromId, decision);
 
   const askHuman = wantsHuman(incoming) || (decision.intent === 'support' && /оплат|деньги списал/.test(plain(incoming)));
@@ -320,7 +337,7 @@ async function handleIncoming({ fromId, chatId, text }) {
     }
   }
 
-  const needStudio = !account.companyId && (decision.lookupKnowledge || decision.loadCabinet);
+  const needStudio = !account.companyId && (decision.lookupKnowledge || decision.loadCabinet || decision.loadNextStep);
   let reply;
   if (handed === 'created') reply = 'Передал в поддержку. Ответ придёт на почту кабинета.';
   else if (handed === 'exists') reply = 'Уже передал, заявка открыта.';
@@ -341,6 +358,8 @@ async function handleIncoming({ fromId, chatId, text }) {
     if (!reply) reply = 'В проверенной базе этого ответа нет. Шаги выдумывать не буду. Напишите «передайте человеку» и почту — передам.';
   } else if (decision.loadCabinet) {
     reply = await cabinetText(account.companyId, account.conclusionOpen);
+  } else if (decision.loadNextStep && account.companyId) {
+    reply = await nextStepReply(account.companyId, decision.stepResume);
   } else {
     reply = decision.fixedReply || fallback(decision.intent);
   }

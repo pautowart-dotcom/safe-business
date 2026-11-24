@@ -47,6 +47,7 @@ async function run() {
       body: overdue ? 'Вы просили напомнить. Срок уже прошёл — подробности во «Всех сроках»' : 'Вы просили напомнить — подробности во «Всех сроках»',
       url: '/deadlines',
       dedupeKey: `deadline:${row.id}`,
+      channels: 'one',
     }).catch((err) => console.error('deadlineReminders: snooze notify failed', row.id, err));
     sent++;
   }
@@ -66,7 +67,7 @@ async function run() {
     const daysUntil = Math.round((new Date(`${row.due_date}T00:00:00Z`) - new Date(`${today}T00:00:00Z`)) / 86400000);
     const threshold = THRESHOLDS.find((t) => daysUntil <= t);
     if (threshold === undefined) continue;
-    if (threshold > 0 && (await levelOf(row.company_id)) === 'free') continue;
+    if ((await levelOf(row.company_id)) !== 'full') continue;
     if (row.last_reminded_days_before !== null && row.last_reminded_days_before <= threshold) continue;
 
     await pool.query('UPDATE deadlines SET last_reminded_days_before = $1 WHERE id = $2', [threshold, row.id]);
@@ -81,7 +82,7 @@ async function run() {
     // каждое следующее напоминание поднимает её наверх с новым «осталось N дн.».
     await notifyCompany({
       companyId: row.company_id, kind: 'deadline', category: row.category, title: row.title, body, url: '/deadlines',
-      dedupeKey: `deadline:${row.id}`,
+      dedupeKey: `deadline:${row.id}`, channels: 'one',
     }).catch((err) => console.error('deadlineReminders: notifyCompany failed', row.id, err));
     sent++;
   }

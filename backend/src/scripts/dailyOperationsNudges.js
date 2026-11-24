@@ -369,7 +369,7 @@ async function getsMonthlyCheck(companyId) {
   if (!rows.length) return false;
   const profile = await loadProfile(companyId);
   if (!profile || !isVisible('has_employees', profile)) return false;
-  return (await accessLevel(companyId)) !== 'free';
+  return (await accessLevel(companyId)) === 'full';
 }
 
 async function nudgeMonthlyCheck() {
@@ -390,7 +390,7 @@ async function nudgeMonthlyCheck() {
     await clearAction({ relatedEntityType: `monthly_check:${prevMonth}`, relatedEntityId: id, category: 'documents' });
     // Бесплатный уровень (core/freeTier.js): проверка месяца — по подписке,
     // не зовём туда, где её не открыть.
-    if ((await accessLevel(id)) === 'free') continue;
+    if ((await accessLevel(id)) !== 'full') continue;
     await registerAction({
       companyId: id,
       category: 'documents',
@@ -448,6 +448,11 @@ async function main() {
     console.log(`Письмо незавершённый тест: отправлено ${await require('./incompleteAuditFollowup').run()}`);
   } catch (err) {
     console.error('incompleteAuditFollowup упал:', err);
+  }
+  try {
+    console.log(`Пункт к оформлению: напоминаний ${await require('./stepReminders').run()}`);
+  } catch (err) {
+    console.error('stepReminders упал:', err);
   }
   try {
     const abuse = await watchAbuse();

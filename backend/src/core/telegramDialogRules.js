@@ -285,6 +285,8 @@ function decideTurn({ text, dialog, recent, companyCount, linked, aiAllowed, con
     showCabinet: false,
     useModel: false,
     loadCabinet: false,
+    loadNextStep: false,
+    stepResume: false,
     lookupKnowledge: false,
     interested: false,
     feedAction: null,
@@ -293,6 +295,10 @@ function decideTurn({ text, dialog, recent, companyCount, linked, aiAllowed, con
     closeTitle: null,
     feedDone: false,
   };
+
+  if (/^(напомни|напоминай|напомните)$/.test(said)) {
+    return { ...base, stepResume: true, loadNextStep: !!linked, showCabinet: true, fixedReply: linked ? null : 'Сначала откройте кабинет кнопкой и войдите. После этого смогу напомнить ваш пункт.' };
+  }
 
   if (intent === 'empty') {
     return { ...base, fixedReply: 'Напишите словами, что случилось. Голосовые и картинки я пока не разбираю.' };
@@ -479,6 +485,18 @@ function decideTurn({ text, dialog, recent, companyCount, linked, aiAllowed, con
   }
 
   if (intent === 'talk' && said.length >= 3) {
+    if (linked && companyCount > 1) {
+      return {
+        ...base,
+        nextStage: 'listening',
+        pain,
+        showCabinet: true,
+        fixedReply: 'Точек несколько. Напишите название, о какой напомнить пункт.',
+      };
+    }
+    if (linked && companyCount === 1) {
+      return { ...base, nextStage: 'listening', pain, loadNextStep: true, showCabinet: true };
+    }
     const business = businessReply(said, feed);
     return {
       ...base,
@@ -500,6 +518,9 @@ function decideTurn({ text, dialog, recent, companyCount, linked, aiAllowed, con
     };
   }
 
+  if (linked && companyCount === 1) {
+    return { ...base, pain, loadNextStep: true, showCabinet: true };
+  }
   return {
     ...base,
     nextStage: stage === 'new' && said.length >= 3 ? 'listening' : stage,

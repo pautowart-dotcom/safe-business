@@ -2439,6 +2439,46 @@ function TemplateFieldInput({ field, value, onChange }) {
 }
 
 // Начальные значения: сохранённое с прошлого раза, иначе значение по умолчанию.
+function DocumentGuide({ guide, after }) {
+  if (!guide) return null;
+  const rows = [
+    [after ? '1. Что это' : 'Что это', guide.what],
+    [after ? '2. Зачем' : 'Зачем', guide.why],
+    [after ? '3. Кому не собирать' : 'Кому не собирать', guide.skip],
+    [after ? '4. Куда положить' : 'Куда положить', guide.place],
+  ];
+  return (
+    <div style={{ background: C.surface, borderRadius: 10, padding: '10px 12px', margin: '8px 0', fontSize: 13, color: C.secondary, lineHeight: 1.45 }}>
+      {after && <div style={{ fontWeight: 800, color: C.primary, marginBottom: 6 }}>Что сделать с этим файлом</div>}
+      {rows.map(([label, text]) => (
+        <div key={label} style={{ marginTop: 4 }}>
+          <span style={{ fontWeight: 700, color: C.primary }}>{label}. </span>
+          {text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FolderInstruction({ folder }) {
+  if (!folder) return null;
+  return (
+    <div style={{ background: C.surface, borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>{folder.title}</div>
+      <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.45, marginBottom: 8 }}>{folder.lead}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 4 }}>Печатать и класть в папку</div>
+      <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.45 }}>
+        {folder.print.map((line) => <li key={line}>{line}</li>)}
+      </ul>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.subtle, marginBottom: 4 }}>В папку не класть</div>
+      <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 13, color: C.secondary, lineHeight: 1.45 }}>
+        {folder.skipPrint.map((line) => <li key={line}>{line}</li>)}
+      </ul>
+      <div style={{ fontSize: 12.5, color: C.subtle, lineHeight: 1.45 }}>{folder.note}</div>
+    </div>
+  );
+}
+
 function prefillFields(fields, savedDetails) {
   const out = {};
   fields.forEach((f) => {
@@ -2462,6 +2502,7 @@ function useDraftAutosave(formData) {
 
 function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsChange }) {
   const [templates, setTemplates] = useState(null);
+  const [folder, setFolder] = useState(null);
   const [savedDetails, setSavedDetails] = useState({});
   const [generated, setGenerated] = useState([]);
   const [regeneratingId, setRegeneratingId] = useState(null);
@@ -2509,6 +2550,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     ])
       .then(([t, g, a]) => {
         setTemplates(t.data.templates);
+        setFolder(t.data.folder || null);
         setSavedDetails(t.data.savedDetails || {});
         setGenerated(g.data);
         setAddon(a.data.find((x) => x.addonKey === 'document_templates') || null);
@@ -2637,8 +2679,9 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
     <Card>
       <ST>Шаблоны документов</ST>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 12 }}>
-        Документы, заполненные данными вашего бизнеса, по вашей нише. Это не свободная генерация текста ИИ — фиксированные шаблоны с полями.
+        Документы, заполненные данными вашего бизнеса, по вашей нише. Это не свободная генерация текста ИИ — фиксированные шаблоны с полями. На каждой бумаге написано, зачем она, кому её не собирать и куда положить файл.
       </div>
+      <FolderInstruction folder={folder} />
 
       {templates === null && <div style={{ fontSize: 13, color: C.subtle }}>Загрузка…</div>}
       {templates && templates.length === 0 && (
@@ -2710,6 +2753,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
             </div>
           )}
           {t.lawReference && <div style={{ fontSize: 11, color: C.subtle, marginBottom: 6 }}>Основание: {t.lawReference}</div>}
+          <DocumentGuide guide={t.guide} />
 
           {/* closesViolationCode/alreadyHasDocument (05.09.2026) — см.
               templateViolationLinks.js на бэкенде. Показываем только когда
@@ -2767,6 +2811,11 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
               {Object.keys(savedDetails).length > 0 && t.fields.some((f) => savedDetails[f.key]) && (
                 <div style={{ fontSize: 11, color: C.subtle, marginBottom: 8 }}>Реквизиты подставлены из прошлого документа — проверьте и поправьте при необходимости.</div>
               )}
+              {t.guide?.siteFile && (
+                <div style={{ fontSize: 12.5, color: C.secondary, lineHeight: 1.45, marginBottom: 8 }}>
+                  В поле «сайт» — только ваша страница. Страницу записи (Дикиди и похожие) сюда не вставляйте. Если своего сайта нет, этот файл не собирайте.
+                </div>
+              )}
               {t.fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
                   <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => withDeclensions(prev, f.key, v))} />
@@ -2789,6 +2838,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
           <div style={{ marginBottom: lastResult.securityDocumentId ? 0 : 8 }}>
             «{lastResult.templateTitle}» готов — <a href={lastResult.downloadUrl} target="_blank" rel="noreferrer">скачать PDF</a>
           </div>
+          <DocumentGuide guide={lastResult.guide} after />
           {lastResult.securityDocumentId ? (
             <div style={{ fontSize: 12, color: C.secondary }}>Добавлен в «Папку к проверке».</div>
           ) : (
@@ -2822,6 +2872,7 @@ function DocumentTemplatesCard({ isManagement, onResolveViolation, onDocumentsCh
                   </button>
                 </div>
               </div>
+              <DocumentGuide guide={g.guide} after />
               {g.outdated && (
                 <div style={{ background: C.orangeBg, borderRadius: 8, padding: '8px 10px', marginTop: 6 }}>
                   <div style={{ fontSize: 12.5, color: C.primary, lineHeight: 1.45 }}>
@@ -2927,6 +2978,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState(null);
+  const [skipped, setSkipped] = useState([]);
   const [doneIds, setDoneIds] = useState({});
   const [marking, setMarking] = useState(null);
   useDraftAutosave(formData);
@@ -2961,6 +3013,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
       });
       const byKey = Object.fromEntries(needed.map((t) => [t.key, t]));
       setResults(data.documents.map((d) => ({ ...d, violationId: byKey[d.templateKey]?.openViolationId, nextStep: byKey[d.templateKey]?.nextStep })));
+      setSkipped(data.skipped || []);
       setFormData(null);
       onGenerated && onGenerated();
     } catch (err) {
@@ -3003,7 +3056,12 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
             По итогам теста {needed.length === 1 ? 'один документ закроет' : `${needed.length} ${docWord(needed.length)} закроют`} ваши находки. Мы заполним их вашими реквизитами — останется проверить и подписать.
           </div>
           <ul style={{ margin: '0 0 10px', paddingLeft: 18, fontSize: 13 }}>
-            {needed.map((t) => <li key={t.key}>{t.title}</li>)}
+            {needed.map((t) => (
+              <li key={t.key} style={{ marginBottom: 8 }}>
+                {t.title}
+                <DocumentGuide guide={t.guide} />
+              </li>
+            ))}
           </ul>
 
           {!purchased ? (
@@ -3017,6 +3075,11 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
           ) : (
             <div>
               <div style={{ fontSize: 12, color: C.subtle, marginBottom: 8 }}>Реквизиты вводятся один раз — для всех документов сразу.</div>
+              {needed.some((t) => t.guide?.siteFile) && (
+                <div style={{ fontSize: 12.5, color: C.secondary, lineHeight: 1.45, marginBottom: 8 }}>
+                  В поле «сайт» — только ваша страница. Если там страница записи или своего сайта нет, политику и согласие «для сайта» не соберём. Остальные бумаги пакета соберутся.
+                </div>
+              )}
               {fields.map((f) => (
                 <Field key={f.key} label={f.required ? `${f.label} *` : f.label}>
                   <TemplateFieldInput field={f} value={formData[f.key]} onChange={(v) => setFormData((prev) => withDeclensions(prev, f.key, v))} />
@@ -3036,6 +3099,11 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
           <div style={{ fontSize: 13, color: C.secondary, marginBottom: 8 }}>
             Готово. Скачайте, проверьте реквизиты и подпишите. Когда документ подписан и лежит на месте — отметьте его, и находка закроется.
           </div>
+          {skipped.length > 0 && (
+            <div style={{ fontSize: 13, color: C.secondary, lineHeight: 1.45, marginBottom: 8 }}>
+              {skipped.map((line) => <div key={line}>{line}</div>)}
+            </div>
+          )}
           {results.map((d) => (
             <div key={d.id} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -3043,6 +3111,7 @@ function SigningPackBlock({ templates, savedDetails, addon, payingAddon, onPay, 
                 <a href={d.downloadUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.primary, fontWeight: 700 }}>Скачать PDF</a>
               </div>
               {d.nextStep && <div style={{ fontSize: 12, color: C.subtle, margin: '4px 0 6px' }}><strong>Что сделать:</strong> {d.nextStep}</div>}
+              <DocumentGuide guide={d.guide} after />
               {doneIds[d.id] ? (
                 <div style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>✓ Подписан, находка закрыта</div>
               ) : (
